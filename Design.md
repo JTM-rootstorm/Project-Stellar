@@ -4,8 +4,8 @@
 **Target Platform:** Linux (Kernel 6.19.8+)  
 **Language:** C++23  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.0 (Design Phase)  
-**Last Updated:** 2026-04-20
+**Version:** 0.1.1 (Design Phase)  
+**Last Updated:** 2026-04-23
 
 ---
 
@@ -48,7 +48,7 @@ Stellar Engine is a modular, cross-platform game framework designed for creating
 - **Networking**: Local loopback for single-player, extensible for multiplayer
 - **Audio**: Stubbed interface (no implementation required initially)
 - **Math**: GLM (OpenGL Mathematics) library
-- **Windowing/Context**: SDL2 or GLFW (abstraction layer required)
+- **Windowing/Context**: SFML (abstraction layer required)
 
 ---
 
@@ -458,7 +458,7 @@ class Serializer {
 | Library | Purpose | Version | License |
 |---------|---------|---------|---------|
 | GLM | Mathematics (vectors, matrices) | 0.9.9+ | MIT |
-| SDL2 or GLFW | Window creation, input, OpenGL context | 2.26+ / 3.3+ | zlib |
+| SFML | Window creation, input, OpenGL context | 2.6+ | zlib |
 | Vulkan SDK | Vulkan loader & headers | 1.2+ | Apache 2.0 |
 | GLEW or glad | OpenGL extension loading | 2.2+ / 1.20+ | MIT |
 | Enet or RakNet | Optional: UDP networking library | - | BSD/MIT |
@@ -926,6 +926,7 @@ Place examples in `docs/examples/` or inline in header documentation.
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
 | 2026-04-20 | 0.1.0 | Initial draft | Initial document creation |
+| 2026-04-23 | 0.1.1 | TBD | Replace SDL2 with SFML for windowing and input |
 
 ---
 
