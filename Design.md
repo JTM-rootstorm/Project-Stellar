@@ -2,9 +2,9 @@
 
 **Project:** Stellar Engine  
 **Target Platform:** Linux (Kernel 6.19.8+)  
-**Language:** C++23  
+**Language:** C++23, C99 (miniaudio)  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.1 (Design Phase)  
+**Version:** 0.1.2 (Design Phase)  
 **Last Updated:** 2026-04-23
 
 ---
@@ -275,31 +275,48 @@ class VulkanDevice : public GraphicsDevice { /* ... */ };
 **Owner:** Sound Team  
 **Responsibility:** Audio playback, mixing, future implementation
 
-### 5.1 Current Status: STUBBED
+### 5.1 Implementation Status
 
-No audio implementation required at this stage. Define interfaces only.
+Full audio implementation required. Library selection: **miniaudio** (see rationale in Appendix C).
 
 ### 5.2 Audio Interface
 
 ```cpp
+// Use miniaudio for 3D spatial audio
+// Header: #include "miniaudio.h" (single-file library)
+// Link: -ldl (Linux), no external dependencies on other platforms
+
+// Audio device wrapper around miniaudio engine
 class AudioDevice {
-    virtual ~AudioDevice() = default;
-    virtual void Initialize() = 0;
+public:
+    // Initialize with default config, optional 3D spatialization
+    virtual void Initialize(bool enable_spatialization = true) = 0;
     virtual void Shutdown() = 0;
-    virtual Sound LoadSound(const std::string& path) = 0;
-    virtual void PlaySound(Sound sound, float volume = 1.0f) = 0;
+
+    // Sound management (supports 3D positioning)
+    virtual ma_sound LoadSound(const std::string& path) = 0;
+    virtual void PlaySound(ma_sound* sound, float volume = 1.0f,
+                          const glm::vec3* position = nullptr) = 0;
     virtual void PlayMusic(const std::string& path, bool loop = true) = 0;
+
+    // Listener for 3D audio (attach to player camera)
+    virtual void UpdateListener(const glm::vec3& position,
+                               const glm::vec3& forward,
+                               const glm::vec3& up) = 0;
+
+    // Volume control
     virtual void SetMasterVolume(float volume) = 0;
-    virtual void UpdateListener(const Vector3& position, const Vector3& forward) = 0;
 };
 ```
 
-### 5.3 Future Implementation Notes
+### 5.3 Implementation Notes
 
-- Choose backend: OpenAL, SDL_mixer, or custom
-- 3D positional audio for spatial immersion
-- Audio mixing with priority/voice limiting
-- Streaming music vs one-shot sound effects
+- **Library**: miniaudio (MIT, header-only)
+- **3D Features**: Doppler effect, inverse/linear/exponential attenuation, multi-listener support
+- **Backends**: Auto-detected (ALSA/PulseAudio on Linux, WASAPI on Windows, Core Audio on macOS)
+- **Decoding**: Built-in support for WAV, FLAC, MP3
+- **Spatialization**: Enabled by default on sounds; disable with MA_SOUND_FLAG_NO_SPATIALIZATION
+- **Performance**: Resource management for streaming music vs one-shot effects
 
 ---
 
@@ -458,7 +475,8 @@ class Serializer {
 | Library | Purpose | Version | License |
 |---------|---------|---------|---------|
 | GLM | Mathematics (vectors, matrices) | 0.9.9+ | MIT |
-| SFML | Window creation, input, OpenGL context | 2.6+ | zlib |
+| SFML | Window creation, input handling | 2.6+ | zlib |
+| miniaudio | 3D spatial audio, sound playback | 0.11+ | MIT |
 | Vulkan SDK | Vulkan loader & headers | 1.2+ | Apache 2.0 |
 | GLEW or glad | OpenGL extension loading | 2.2+ / 1.20+ | MIT |
 | Enet or RakNet | Optional: UDP networking library | - | BSD/MIT |
@@ -672,9 +690,11 @@ stellar-engine/
 - `src/audio/` (stubs only)
 
 **Deliverables:**
-- Complete audio interface (header-only, no implementation)
-- Documentation for future implementers
-- Placeholder stubs that compile without errors
+- Audio device implementation using miniaudio
+- 3D positional audio integration with camera system
+- Sound loading and playback system
+- Music streaming with loop support
+- Listener management tied to player position
 
 ### 10.4 Game Logic Team
 
@@ -927,6 +947,7 @@ Place examples in `docs/examples/` or inline in header documentation.
 |------|---------|--------|---------|
 | 2026-04-20 | 0.1.0 | Initial draft | Initial document creation |
 | 2026-04-23 | 0.1.1 | TBD | Replace SDL2 with SFML for windowing and input |
+| 2026-04-23 | 0.1.2 | TBD | Add miniaudio for 3D spatial audio, update build to support C and C++ |
 
 ---
 
@@ -947,6 +968,34 @@ Place examples in `docs/examples/` or inline in header documentation.
 - **Vulkan Tutorial** — vulkan-tutorial.com
 - **OpenGL 4.5 Specification** — Khronos Group
 - **GDC Vault** — Networking, optimization talks
+
+## Appendix C: Audio Library Selection
+
+### Criteria
+- 3D spatialization with doppler and attenuation
+- Cross-platform (Linux, future Windows/macOS)
+- No complex external dependencies
+- Permissive license (MIT/BSD)
+- Active maintenance
+
+### Evaluation
+
+| Library | 3D Audio | License | Dependencies | Complexity |
+|---------|-----------|---------|--------------|------------|
+| miniaudio | ✓ Doppler, attenuation | MIT | None (single header) | Low |
+| OpenAL | ✓ Basic | LGPL | External | Medium |
+| SFML Audio | ✓ Basic positioning | zlib | SFML (already using) | Low |
+| FMOD | ✓✓ Full | Proprietary | Large SDK | High |
+
+### Decision: miniaudio
+
+Rationale:
+1. First-class 3D audio with doppler effect (SFML lacks this)
+2. Single-file library, no build system integration needed
+3. MIT license, no commercial restrictions
+4. Uses same backends as SFML audio on Linux (ALSA/PulseAudio)
+5. Multiple listener support for future multiplayer
+6. Active development with growing ecosystem
 
 ---
 

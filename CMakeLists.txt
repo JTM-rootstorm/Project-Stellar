@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(StellarEngine VERSION 0.1.0 LANGUAGES CXX)
+project(StellarEngine VERSION 0.1.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,6 +10,9 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SFML_WINDOW REQUIRED IMPORTED_TARGET sfml-window)
 pkg_check_modules(SFML_GRAPHICS REQUIRED IMPORTED_TARGET sfml-graphics)
 pkg_check_modules(SFML_SYSTEM REQUIRED IMPORTED_TARGET sfml-system)
+
+# Thirdparty libraries
+add_subdirectory(thirdparty/miniaudio)
 
 # Common compile options
 add_compile_options(
@@ -32,6 +35,7 @@ target_link_libraries(stellar-client PRIVATE
     PkgConfig::SFML_WINDOW
     PkgConfig::SFML_GRAPHICS
     PkgConfig::SFML_SYSTEM
+    miniaudio
 )
 
 set_target_properties(stellar-client PROPERTIES
