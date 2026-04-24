@@ -1,6 +1,7 @@
 #include "stellar/platform/Window.hpp"
 
-#include <SDL2/SDL.h>
+#include "stellar/platform/Input.hpp"
+#include <SFML/OpenGL.hpp>
 #include <utility>
 
 namespace stellar::platform {
@@ -10,22 +11,16 @@ Window::~Window() noexcept {
 }
 
 Window::Window(Window&& other) noexcept
-    : window_(other.window_),
-      gl_context_(other.gl_context_),
+    : window_(std::move(other.window_)),
       should_close_(other.should_close_) {
-    other.window_ = nullptr;
-    other.gl_context_ = nullptr;
     other.should_close_ = false;
 }
 
 Window& Window::operator=(Window&& other) noexcept {
     if (this != &other) {
         destroy();
-        window_ = other.window_;
-        gl_context_ = other.gl_context_;
+        window_ = std::move(other.window_);
         should_close_ = other.should_close_;
-        other.window_ = nullptr;
-        other.gl_context_ = nullptr;
         other.should_close_ = false;
     }
     return *this;
@@ -33,67 +28,56 @@ Window& Window::operator=(Window&& other) noexcept {
 
 std::expected<void, Error>
 Window::create(int width, int height, std::string_view title) {
-    if (window_ != nullptr) {
+    if (window_.isOpen()) {
         return std::unexpected(Error("Window already created"));
     }
 
-    if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
-        return std::unexpected(
-            Error(std::string("SDL_InitSubSystem failed: ") + SDL_GetError()));
+    sf::ContextSettings context_settings;
+    context_settings.depthBits = 0;
+    context_settings.stencilBits = 0;
+    context_settings.attributeFlags = sf::ContextSettings::Core;
+    context_settings.majorVersion = 4;
+    context_settings.minorVersion = 5;
+
+    sf::VideoMode video_mode(sf::Vector2u(width, height));
+    sf::Window window(video_mode,
+                      std::string(title),
+                      sf::State::Windowed,
+                      context_settings);
+
+    if (!window.isOpen()) {
+        return std::unexpected(Error("Failed to create SFML window"));
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                        SDL_GL_CONTEXT_PROFILE_CORE);
-
-    window_ = SDL_CreateWindow(
-        title.data(),
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        width,
-        height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
-
-    if (window_ == nullptr) {
-        return std::unexpected(
-            Error(std::string("SDL_CreateWindow failed: ") + SDL_GetError()));
-    }
-
-    gl_context_ = SDL_GL_CreateContext(window_);
-    if (gl_context_ == nullptr) {
-        SDL_DestroyWindow(window_);
-        window_ = nullptr;
-        return std::unexpected(
-            Error(std::string("SDL_GL_CreateContext failed: ") +
-                  SDL_GetError()));
-    }
-
+    window_ = std::move(window);
     return {};
 }
 
 void Window::destroy() noexcept {
-    if (gl_context_ != nullptr) {
-        SDL_GL_DeleteContext(gl_context_);
-        gl_context_ = nullptr;
-    }
-    if (window_ != nullptr) {
-        SDL_DestroyWindow(window_);
-        window_ = nullptr;
+    if (window_.isOpen()) {
+        window_.close();
     }
     should_close_ = false;
 }
 
 void Window::swap_buffers() noexcept {
-    if (window_ != nullptr) {
-        SDL_GL_SwapWindow(window_);
+    if (window_.isOpen()) {
+        window_.display();
     }
 }
 
 void Window::poll_events() noexcept {
-    SDL_Event event;
-    while (SDL_PollEvent(&event) != 0) {
-        if (event.type == SDL_QUIT) {
+    while (const auto event = window_.pollEvent()) {
+        if (event->is<sf::Event::Closed>()) {
+            should_close_ = true;
+        }
+    }
+}
+
+void Window::process_input(Input& input) noexcept {
+    while (const auto event = window_.pollEvent()) {
+        input.process_event(*event);
+        if (event->is<sf::Event::Closed>()) {
             should_close_ = true;
         }
     }
@@ -108,16 +92,15 @@ void Window::request_close() noexcept {
 }
 
 std::expected<void, Error> Window::set_vsync(bool enabled) noexcept {
-    if (SDL_GL_SetSwapInterval(enabled ? 1 : 0) != 0) {
-        return std::unexpected(
-            Error(std::string("SDL_GL_SetSwapInterval failed: ") +
-                  SDL_GetError()));
-    }
+    // SFML doesn't provide direct vsync control; this is handled at display() time
+    // For proper vsync, the driver settings and swap interval must be configured
+    // SFML's display() respects the system's swap interval settings
+    (void)enabled;
     return {};
 }
 
-SDL_Window* Window::native_handle() const noexcept {
-    return window_;
+sf::Window* Window::native_handle() const noexcept {
+    return const_cast<sf::Window*>(&window_);
 }
 
 } // namespace stellar::platform

@@ -3,8 +3,8 @@
 #include "stellar/platform/Window.hpp"
 #include "stellar/platform/Input.hpp"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
+#include <SFML/System.hpp>
+#include <SFML/OpenGL.hpp>
 #include <cstdio>
 #include <cstdlib>
 
@@ -23,18 +23,12 @@ constexpr int kFrameDelayMs = 1000 / kTargetFps;
 } // anonymous namespace
 
 int main(int /*argc*/, char* /*argv*/[]) {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-        return EXIT_FAILURE;
-    }
-
     Window window;
     if (auto result = window.create(kWindowWidth, kWindowHeight,
                                     "Stellar Engine");
         !result) {
         std::fprintf(stderr, "Window creation failed: %s\n",
                      result.error().message.c_str());
-        SDL_Quit();
         return EXIT_FAILURE;
     }
 
@@ -49,7 +43,6 @@ int main(int /*argc*/, char* /*argv*/[]) {
         std::fprintf(stderr, "GraphicsDevice initialization failed: %s\n",
                      result.error().message.c_str());
         window.destroy();
-        SDL_Quit();
         return EXIT_FAILURE;
     }
 
@@ -59,24 +52,19 @@ int main(int /*argc*/, char* /*argv*/[]) {
                      result.error().message.c_str());
         device->shutdown();
         window.destroy();
-        SDL_Quit();
         return EXIT_FAILURE;
     }
 
     Input input;
+    sf::Clock clock;
 
     while (!window.should_close()) {
-        const Uint32 frame_start = SDL_GetTicks();
+        const auto frame_start = clock.getElapsedTime().asMilliseconds();
 
-        SDL_Event event;
-        while (SDL_PollEvent(&event) != 0) {
-            input.process_event(&event);
-            if (event.type == SDL_QUIT) {
-                window.request_close();
-            }
-        }
+        window.poll_events();
+        window.process_input(input);
 
-        if (input.is_key_pressed(SDLK_ESCAPE)) {
+        if (input.is_key_pressed(sf::Keyboard::Key::Escape)) {
             window.request_close();
         }
 
@@ -84,19 +72,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
         device->clear(0.0f, 0.0f, 0.0f, 1.0f);
         renderer.render_text("working", 316.0f, 288.0f, 3.0f, 0xFFFFFFFF);
         device->end_frame();
-        device->present();
+        window.swap_buffers();
 
         input.reset_frame_state();
 
-        const Uint32 frame_time = SDL_GetTicks() - frame_start;
+        const auto frame_time = clock.getElapsedTime().asMilliseconds() - frame_start;
         if (frame_time < kFrameDelayMs) {
-            SDL_Delay(kFrameDelayMs - frame_time);
+            sf::sleep(sf::milliseconds(kFrameDelayMs - frame_time));
         }
     }
 
     // Renderer destructor runs automatically here.
     device->shutdown();
     window.destroy();
-    SDL_Quit();
     return EXIT_SUCCESS;
 }

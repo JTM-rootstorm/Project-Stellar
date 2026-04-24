@@ -4,10 +4,11 @@
 #include <string>
 #include <string_view>
 
-struct SDL_Window;
-using SDL_GLContext = void*;
+#include <SFML/Window.hpp>
 
 namespace stellar::platform {
+
+class Input;
 
 /**
  * @brief Platform-agnostic error type for fallible operations.
@@ -22,6 +23,7 @@ struct Error {
 /**
  * @brief RAII wrapper for an OS window with an OpenGL context.
  *
+ * Wraps an sf::Window and provides a clean C++ interface for the engine.
  * All fallible operations return std::expected<void, Error>.
  * No exceptions are thrown.
  */
@@ -64,6 +66,12 @@ public:
     void poll_events() noexcept;
 
     /**
+     * @brief Process pending OS events through an Input object.
+     * @param input The Input instance to feed events to.
+     */
+    void process_input(Input& input) noexcept;
+
+    /**
      * @brief Query whether the window should close.
      */
     [[nodiscard]] bool should_close() const noexcept;
@@ -81,13 +89,12 @@ public:
     [[nodiscard]] std::expected<void, Error> set_vsync(bool enabled) noexcept;
 
     /**
-     * @brief Get the underlying SDL window handle.
+     * @brief Get the underlying SFML window handle.
      */
-    [[nodiscard]] SDL_Window* native_handle() const noexcept;
+    [[nodiscard]] sf::Window* native_handle() const noexcept;
 
 private:
-    SDL_Window* window_ = nullptr;
-    SDL_GLContext gl_context_ = nullptr;
+    sf::Window window_;
     bool should_close_ = false;
 };
 

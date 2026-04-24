@@ -5,8 +5,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Dependencies
-find_package(SDL2 REQUIRED)
+# Use pkg-config for SFML (SFML 3.0 CMake config has compatibility issues)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SFML_WINDOW REQUIRED IMPORTED_TARGET sfml-window)
+pkg_check_modules(SFML_GRAPHICS REQUIRED IMPORTED_TARGET sfml-graphics)
+pkg_check_modules(SFML_SYSTEM REQUIRED IMPORTED_TARGET sfml-system)
 find_package(OpenGL REQUIRED)
 
 # Common compile options
@@ -29,12 +32,13 @@ add_executable(stellar-client
 
 target_include_directories(stellar-client PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${SDL2_INCLUDE_DIRS}
 )
 
 target_link_libraries(stellar-client PRIVATE
-    SDL2::SDL2
     OpenGL::GL
+    PkgConfig::SFML_WINDOW
+    PkgConfig::SFML_GRAPHICS
+    PkgConfig::SFML_SYSTEM
 )
 
 set_target_properties(stellar-client PROPERTIES

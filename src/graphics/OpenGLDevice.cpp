@@ -3,8 +3,8 @@
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <GL/glext.h>
-#include <SDL2/SDL.h>
-
+#include <SFML/Window.hpp>
+#include <SFML/OpenGL.hpp>
 #include <memory>
 #include <utility>
 
@@ -24,17 +24,15 @@ public:
     ~OpenGLDevice() override { shutdown(); }
 
     std::expected<void, Error> initialize(void* window_handle) override {
-        window_ = static_cast<SDL_Window*>(window_handle);
+        window_ = static_cast<sf::Window*>(window_handle);
         if (!window_) {
             return std::unexpected<Error>(
                 Error{-1, "Invalid window handle"});
         }
 
         // Set viewport to match drawable size.
-        int w = 0;
-        int h = 0;
-        SDL_GetWindowSize(window_, &w, &h);
-        glViewport(0, 0, w, h);
+        const auto size = window_->getSize();
+        glViewport(0, 0, static_cast<GLsizei>(size.x), static_cast<GLsizei>(size.y));
 
         return {};
     }
@@ -57,11 +55,11 @@ public:
     }
 
     void present() override {
-        SDL_GL_SwapWindow(window_);
+        window_->display();
     }
 
 private:
-    SDL_Window* window_ = nullptr;
+    sf::Window* window_ = nullptr;
 };
 
 } // anonymous namespace

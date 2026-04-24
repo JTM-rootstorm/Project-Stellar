@@ -1,33 +1,35 @@
 #include "stellar/platform/Input.hpp"
 
-#include <SDL2/SDL.h>
 #include <cstring>
 
 namespace stellar::platform {
 
-void Input::process_event(const void* sdl_event) noexcept {
-    if (sdl_event == nullptr) {
-        return;
-    }
-
-    const auto* event = static_cast<const SDL_Event*>(sdl_event);
-    if (event->type == SDL_KEYDOWN) {
-        const int sc = event->key.keysym.scancode;
-        if (sc >= 0 && sc < kKeyCount) {
-            keys_[sc] = true;
+void Input::process_event(const sf::Event& event) noexcept {
+    if (event.is<sf::Event::KeyPressed>()) {
+        const auto* key_event = event.getIf<sf::Event::KeyPressed>();
+        if (key_event) {
+            const auto key = key_event->code;
+            const auto key_val = static_cast<int>(key);
+            if (key_val >= 0 && key_val < kKeyCount) {
+                keys_[key_val] = true;
+            }
         }
-    } else if (event->type == SDL_KEYUP) {
-        const int sc = event->key.keysym.scancode;
-        if (sc >= 0 && sc < kKeyCount) {
-            keys_[sc] = false;
+    } else if (event.is<sf::Event::KeyReleased>()) {
+        const auto* key_event = event.getIf<sf::Event::KeyReleased>();
+        if (key_event) {
+            const auto key = key_event->code;
+            const auto key_val = static_cast<int>(key);
+            if (key_val >= 0 && key_val < kKeyCount) {
+                keys_[key_val] = false;
+            }
         }
     }
 }
 
-bool Input::is_key_pressed(int keycode) const noexcept {
-    const int sc = SDL_GetScancodeFromKey(keycode);
-    if (sc >= 0 && sc < kKeyCount) {
-        return keys_[sc];
+bool Input::is_key_pressed(sf::Keyboard::Key key) const noexcept {
+    const auto key_val = static_cast<int>(key);
+    if (key_val >= 0 && key_val < kKeyCount) {
+        return keys_[key_val];
     }
     return false;
 }
