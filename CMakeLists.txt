@@ -10,7 +10,6 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SFML_WINDOW REQUIRED IMPORTED_TARGET sfml-window)
 pkg_check_modules(SFML_GRAPHICS REQUIRED IMPORTED_TARGET sfml-graphics)
 pkg_check_modules(SFML_SYSTEM REQUIRED IMPORTED_TARGET sfml-system)
-find_package(OpenGL REQUIRED)
 
 # Common compile options
 add_compile_options(
@@ -23,11 +22,6 @@ add_executable(stellar-client
     src/client/main.cpp
     src/platform/Window.cpp
     src/platform/Input.cpp
-    src/graphics/GraphicsDevice.cpp
-    src/graphics/OpenGLDevice.cpp
-    src/graphics/Shader.cpp
-    src/graphics/Texture.cpp
-    src/graphics/Renderer.cpp
 )
 
 target_include_directories(stellar-client PRIVATE
@@ -35,7 +29,6 @@ target_include_directories(stellar-client PRIVATE
 )
 
 target_link_libraries(stellar-client PRIVATE
-    OpenGL::GL
     PkgConfig::SFML_WINDOW
     PkgConfig::SFML_GRAPHICS
     PkgConfig::SFML_SYSTEM

@@ -1,7 +1,6 @@
 #include "stellar/platform/Window.hpp"
 
 #include "stellar/platform/Input.hpp"
-#include <SFML/OpenGL.hpp>
 #include <utility>
 
 namespace stellar::platform {
@@ -33,17 +32,13 @@ Window::create(int width, int height, std::string_view title) {
     }
 
     sf::ContextSettings context_settings;
-    context_settings.depthBits = 0;
-    context_settings.stencilBits = 0;
-    context_settings.attributeFlags = sf::ContextSettings::Core;
-    context_settings.majorVersion = 4;
-    context_settings.minorVersion = 5;
+    // Default context settings are sufficient for SFML 2D rendering
 
     sf::VideoMode video_mode(sf::Vector2u(width, height));
-    sf::Window window(video_mode,
-                      std::string(title),
-                      sf::State::Windowed,
-                      context_settings);
+    sf::RenderWindow window(video_mode,
+                           std::string(title),
+                           sf::State::Windowed,
+                           context_settings);
 
     if (!window.isOpen()) {
         return std::unexpected(Error("Failed to create SFML window"));
@@ -99,8 +94,8 @@ std::expected<void, Error> Window::set_vsync(bool enabled) noexcept {
     return {};
 }
 
-sf::Window* Window::native_handle() const noexcept {
-    return const_cast<sf::Window*>(&window_);
+sf::RenderWindow* Window::native_handle() const noexcept {
+    return const_cast<sf::RenderWindow*>(&window_);
 }
 
 } // namespace stellar::platform

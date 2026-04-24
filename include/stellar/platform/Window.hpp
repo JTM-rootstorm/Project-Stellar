@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include <SFML/Window.hpp>
+#include <SFML/Graphics/RenderWindow.hpp>
 
 namespace stellar::platform {
 
@@ -21,9 +22,9 @@ struct Error {
 };
 
 /**
- * @brief RAII wrapper for an OS window with an OpenGL context.
+ * @brief RAII wrapper for an OS window.
  *
- * Wraps an sf::Window and provides a clean C++ interface for the engine.
+ * Wraps an sf::RenderWindow and provides a clean C++ interface for the engine.
  * All fallible operations return std::expected<void, Error>.
  * No exceptions are thrown.
  */
@@ -41,7 +42,7 @@ public:
     Window& operator=(Window&& other) noexcept;
 
     /**
-     * @brief Create an OS window and an associated OpenGL context.
+     * @brief Create an OS window.
      * @param width  Window width in pixels.
      * @param height Window height in pixels.
      * @param title  Window title string.
@@ -51,7 +52,7 @@ public:
     create(int width, int height, std::string_view title);
 
     /**
-     * @brief Destroy the window and OpenGL context.
+     * @brief Destroy the window.
      */
     void destroy() noexcept;
 
@@ -91,10 +92,10 @@ public:
     /**
      * @brief Get the underlying SFML window handle.
      */
-    [[nodiscard]] sf::Window* native_handle() const noexcept;
+    [[nodiscard]] sf::RenderWindow* native_handle() const noexcept;
 
 private:
-    sf::Window window_;
+    sf::RenderWindow window_;
     bool should_close_ = false;
 };
 
