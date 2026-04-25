@@ -1,6 +1,23 @@
-# Project Setllar
-Just a fun little project where I make a few AI agents make a game for me to learn a few things.
+# Stellar Engine - Spinning Cube Demo
 
-My only involvement is to tell the Director what needs to be done and reign in hallucinations. Other than that, the AI agents will mostly do as they please with the project and its design
+## Dependencies
+- SDL2
+- OpenGL 4.5+
+- GLEW
+- GLM
 
-Please refer to the Design.md document for project specifications and scope
+## Build Instructions
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+./stellar_demo
+```
+
+## Features
+- SDL2 window creation
+- OpenGL 4.5 context
+- Spinning cube with color-coded faces
+- Smooth rotation animation
+- ESC key to exit

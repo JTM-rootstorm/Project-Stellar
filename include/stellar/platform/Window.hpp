@@ -4,8 +4,7 @@
 #include <string>
 #include <string_view>
 
-#include <SFML/Window.hpp>
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <SDL2/SDL.h>
 
 namespace stellar::platform {
 
@@ -22,9 +21,9 @@ struct Error {
 };
 
 /**
- * @brief RAII wrapper for an OS window.
+ * @brief RAII wrapper for an OS window using SDL2.
  *
- * Wraps an sf::RenderWindow and provides a clean C++ interface for the engine.
+ * Wraps an SDL_Window and provides a clean C++ interface for the engine.
  * All fallible operations return std::expected<void, Error>.
  * No exceptions are thrown.
  */
@@ -83,19 +82,13 @@ public:
     void request_close() noexcept;
 
     /**
-     * @brief Enable or disable vertical synchronization.
-     * @param enabled true to enable VSync, false to disable.
-     * @return std::expected<void, Error> on failure.
+     * @brief Get the underlying SDL window handle.
      */
-    [[nodiscard]] std::expected<void, Error> set_vsync(bool enabled) noexcept;
-
-    /**
-     * @brief Get the underlying SFML window handle.
-     */
-    [[nodiscard]] sf::RenderWindow* native_handle() const noexcept;
+    [[nodiscard]] SDL_Window* native_handle() const noexcept;
 
 private:
-    sf::RenderWindow window_;
+    SDL_Window* window_ = nullptr;
+    SDL_GLContext context_ = nullptr;
     bool should_close_ = false;
 };
 

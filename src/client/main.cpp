@@ -6,8 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include <SFML/System.hpp>
-#include <SFML/Graphics.hpp>
+#include <SDL2/SDL.h>
 #include <cstdio>
 #include <cstdlib>
 
@@ -127,12 +126,6 @@ int main(int /*argc*/, char* /*argv*/[]) {
         return EXIT_FAILURE;
     }
 
-    if (auto result = window.set_vsync(true); !result) {
-        std::fprintf(stderr, "Failed to set VSync: %s\n",
-                     result.error().message.c_str());
-        // Non-fatal; continue without VSync.
-    }
-
     // Initialize GLEW
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
@@ -184,19 +177,15 @@ int main(int /*argc*/, char* /*argv*/[]) {
     glDisable(GL_CULL_FACE);
 
     Input input;
-    sf::Clock clock;
+    Uint32 frame_start, frame_time;
 
     while (!window.should_close()) {
-        const auto frame_start = clock.getElapsedTime().asMilliseconds();
+        frame_start = SDL_GetTicks();
 
         window.process_input(input);
 
-        if (input.is_key_pressed(sf::Keyboard::Key::Escape)) {
-            window.request_close();
-        }
-
         // Calculate rotation angle based on elapsed time
-        float elapsed_seconds = clock.getElapsedTime().asSeconds();
+        float elapsed_seconds = frame_start / 1000.0f;
         float rotation_angle = elapsed_seconds * kRotationSpeed;
 
         // Set viewport
@@ -238,9 +227,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         input.reset_frame_state();
 
-        const auto frame_time = clock.getElapsedTime().asMilliseconds() - frame_start;
+        // Frame rate limiting
+        frame_time = SDL_GetTicks() - frame_start;
         if (frame_time < kFrameDelayMs) {
-            sf::sleep(sf::milliseconds(kFrameDelayMs - frame_time));
+            SDL_Delay(kFrameDelayMs - frame_time);
         }
     }
 
