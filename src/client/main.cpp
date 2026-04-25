@@ -9,6 +9,7 @@
 #include <SDL2/SDL.h>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 using stellar::platform::Error;
 using stellar::platform::Input;

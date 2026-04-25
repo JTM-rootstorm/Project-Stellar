@@ -4,8 +4,8 @@
 **Target Platform:** Linux (Kernel 6.19.8+)  
 **Language:** C++23, C99 (miniaudio)  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.2 (Design Phase)  
-**Last Updated:** 2026-04-23
+**Version:** 0.1.3 (Design Phase)  
+**Last Updated:** 2026-04-24
 
 ---
 
@@ -48,7 +48,7 @@ Stellar Engine is a modular, cross-platform game framework designed for creating
 - **Networking**: Local loopback for single-player, extensible for multiplayer
 - **Audio**: Stubbed interface (no implementation required initially)
 - **Math**: GLM (OpenGL Mathematics) library
-- **Windowing/Context**: SFML (abstraction layer required)
+- **Windowing/Context**: SDL2 (abstraction layer required)
 
 ---
 
@@ -475,7 +475,7 @@ class Serializer {
 | Library | Purpose | Version | License |
 |---------|---------|---------|---------|
 | GLM | Mathematics (vectors, matrices) | 0.9.9+ | MIT |
-| SFML | Window creation, input handling | 2.6+ | zlib |
+| SDL2 | Window creation, input handling | 2.28+ | zlib |
 | miniaudio | 3D spatial audio, sound playback | 0.11+ | MIT |
 | Vulkan SDK | Vulkan loader & headers | 1.2+ | Apache 2.0 |
 | GLEW or glad | OpenGL extension loading | 2.2+ / 1.20+ | MIT |
@@ -948,6 +948,7 @@ Place examples in `docs/examples/` or inline in header documentation.
 | 2026-04-20 | 0.1.0 | Initial draft | Initial document creation |
 | 2026-04-23 | 0.1.1 | TBD | Replace SDL2 with SFML for windowing and input |
 | 2026-04-23 | 0.1.2 | TBD | Add miniaudio for 3D spatial audio, update build to support C and C++ |
+| 2026-04-24 | 0.1.3 | TBD | Replace SFML with SDL2 for windowing and input |
 
 ---
 
