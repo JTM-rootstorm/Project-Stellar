@@ -31,8 +31,12 @@ Window::create(int width, int height, std::string_view title) {
         return std::unexpected(Error("Window already created"));
     }
 
+    // Configure OpenGL context with depth buffer for 3D rendering
     sf::ContextSettings context_settings;
-    // Default context settings are sufficient for SFML 2D rendering
+    context_settings.depthBits = 24;
+    context_settings.majorVersion = 3;
+    context_settings.minorVersion = 3;
+    context_settings.attributeFlags = sf::ContextSettings::Attribute::Core;
 
     sf::VideoMode video_mode(sf::Vector2u(width, height));
     sf::RenderWindow window(video_mode,
