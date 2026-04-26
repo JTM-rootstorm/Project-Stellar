@@ -1,7 +1,12 @@
 #pragma once
 
+#include <array>
 #include <expected>
+#include <memory>
 
+#include "stellar/assets/MeshAsset.hpp"
+#include "stellar/graphics/GraphicsDevice.hpp"
+#include "stellar/graphics/GraphicsDeviceFactory.hpp"
 #include "stellar/graphics/Renderer.hpp"
 
 namespace stellar::graphics::opengl {
@@ -39,13 +44,11 @@ public:
 private:
     void destroy() noexcept;
 
-    SDL_Window* window_ = nullptr;
-    SDL_GLContext context_ = nullptr;
-    unsigned int shader_program_ = 0;
-    int mvp_loc_ = -1;
-    unsigned int vao_ = 0;
-    unsigned int vbo_ = 0;
-    unsigned int ebo_ = 0;
+    [[nodiscard]] static std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
+    create_cube_mesh();
+
+    std::unique_ptr<stellar::graphics::GraphicsDevice> device_;
+    stellar::graphics::MeshHandle cube_mesh_;
 };
 
 } // namespace stellar::graphics::opengl

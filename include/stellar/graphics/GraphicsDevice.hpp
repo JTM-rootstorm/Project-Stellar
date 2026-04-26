@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <expected>
 
 #include "stellar/assets/ImageAsset.hpp"
@@ -51,6 +52,25 @@ public:
      */
     [[nodiscard]] virtual std::expected<MaterialHandle, stellar::platform::Error>
     create_material(const stellar::assets::MaterialAsset& material) = 0;
+
+    /**
+     * @brief Begin a frame and clear the target.
+     * @param width Viewport width in pixels.
+     * @param height Viewport height in pixels.
+     */
+    virtual void begin_frame(int width, int height) noexcept = 0;
+
+    /**
+     * @brief Draw a mesh using an MVP transform.
+     * @param mesh Opaque mesh handle.
+     * @param mvp Column-major transform matrix.
+     */
+    virtual void draw_mesh(MeshHandle mesh, const std::array<float, 16>& mvp) noexcept = 0;
+
+    /**
+     * @brief Present the current frame.
+     */
+    virtual void end_frame() noexcept = 0;
 
     /**
      * @brief Destroy a mesh created by this device.

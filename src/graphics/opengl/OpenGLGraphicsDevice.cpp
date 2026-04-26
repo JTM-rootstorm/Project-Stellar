@@ -9,6 +9,53 @@ namespace stellar::graphics::opengl {
 
 namespace {
 
+constexpr const char* kVertexShader = R"(
+#version 330 core
+
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec3 a_normal;
+layout(location = 2) in vec2 a_uv0;
+layout(location = 3) in vec4 a_tangent;
+
+uniform mat4 u_mvp;
+
+void main() {
+    gl_Position = u_mvp * vec4(a_position, 1.0);
+}
+)";
+
+constexpr const char* kFragmentShader = R"(
+#version 330 core
+
+out vec4 frag_color;
+
+void main() {
+    frag_color = vec4(0.85, 0.9, 1.0, 1.0);
+}
+)";
+
+GLuint compile_shader_impl(GLenum type, const char* source) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
+    return shader;
+}
+
+GLuint create_shader_program_impl(const char* vertex_src, const char* fragment_src) {
+    GLuint vs = compile_shader_impl(GL_VERTEX_SHADER, vertex_src);
+    GLuint fs = compile_shader_impl(GL_FRAGMENT_SHADER, fragment_src);
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    return program;
+}
+
 constexpr GLenum texture_format_from_image(stellar::assets::ImageFormat format,
                                            GLint& internal_format,
                                            GLenum& external_format) {
@@ -32,6 +79,12 @@ constexpr GLenum texture_format_from_image(stellar::assets::ImageFormat format,
 } // namespace
 
 OpenGLGraphicsDevice::~OpenGLGraphicsDevice() noexcept {
+    if (shader_program_ != 0) {
+        glDeleteProgram(shader_program_);
+        shader_program_ = 0;
+        mvp_loc_ = -1;
+    }
+
     for (auto& [handle, record] : meshes_) {
         (void)handle;
         destroy_mesh_record(record);
@@ -77,6 +130,13 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window& window) {
         context_ = nullptr;
         return std::unexpected(stellar::platform::Error("Failed to initialize GLEW"));
     }
+
+    shader_program_ = create_shader_program_impl(kVertexShader, kFragmentShader);
+    glUseProgram(shader_program_);
+    mvp_loc_ = glGetUniformLocation(shader_program_, "u_mvp");
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
     return {};
 }
@@ -203,6 +263,44 @@ OpenGLGraphicsDevice::create_material(const stellar::assets::MaterialAsset& mate
     const std::uint64_t handle_value = allocate_handle();
     materials_.emplace(handle_value, MaterialRecord{material});
     return MaterialHandle{handle_value};
+}
+
+void OpenGLGraphicsDevice::begin_frame(int width, int height) noexcept {
+    if (!context_) {
+        return;
+    }
+
+    glViewport(0, 0, width, height);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
+                                     const std::array<float, 16>& mvp) noexcept {
+    if (!context_ || shader_program_ == 0 || mvp_loc_ < 0) {
+        return;
+    }
+
+    auto it = meshes_.find(mesh.value);
+    if (it == meshes_.end()) {
+        return;
+    }
+
+    glUseProgram(shader_program_);
+    glUniformMatrix4fv(mvp_loc_, 1, GL_FALSE, mvp.data());
+
+    for (const auto& primitive : it->second.primitives) {
+        glBindVertexArray(primitive.vao);
+        glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT, nullptr);
+    }
+
+    glBindVertexArray(0);
+}
+
+void OpenGLGraphicsDevice::end_frame() noexcept {
+    if (window_) {
+        SDL_GL_SwapWindow(window_);
+    }
 }
 
 void OpenGLGraphicsDevice::destroy_mesh(MeshHandle mesh) noexcept {

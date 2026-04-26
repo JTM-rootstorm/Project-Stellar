@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <map>
 #include <vector>
 
@@ -31,6 +32,12 @@ public:
 
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
     create_material(const stellar::assets::MaterialAsset& material) override;
+
+    void begin_frame(int width, int height) noexcept override;
+
+    void draw_mesh(MeshHandle mesh, const std::array<float, 16>& mvp) noexcept override;
+
+    void end_frame() noexcept override;
 
     void destroy_mesh(MeshHandle mesh) noexcept override;
     void destroy_texture(TextureHandle texture) noexcept override;
@@ -64,6 +71,8 @@ private:
 
     SDL_Window* window_ = nullptr;
     SDL_GLContext context_ = nullptr;
+    unsigned int shader_program_ = 0;
+    int mvp_loc_ = -1;
     std::uint64_t next_handle_ = 1;
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;
