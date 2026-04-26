@@ -13,6 +13,20 @@
 namespace stellar::graphics {
 
 /**
+ * @brief Backend-neutral per-draw transforms for static mesh rendering.
+ */
+struct MeshDrawTransforms {
+    /** @brief Column-major model-view-projection transform matrix. */
+    std::array<float, 16> mvp{};
+
+    /** @brief Column-major model/world transform matrix. */
+    std::array<float, 16> world{};
+
+    /** @brief Column-major inverse-transpose world-space normal transform matrix. */
+    std::array<float, 9> normal{};
+};
+
+/**
  * @brief Backend-neutral GPU resource upload interface.
  *
  * The device owns backend-specific resources and returns opaque handles so the
@@ -62,13 +76,14 @@ public:
     virtual void begin_frame(int width, int height) noexcept = 0;
 
     /**
-     * @brief Draw a mesh using an MVP transform.
+     * @brief Draw a mesh using backend-neutral world and projection transforms.
      * @param mesh Opaque mesh handle.
-     * @param mvp Column-major transform matrix.
+     * @param materials Primitive material handles matching the mesh primitive order.
+     * @param transforms Column-major MVP, world, and normal transform matrices.
      */
     virtual void draw_mesh(MeshHandle mesh,
                            std::span<const MaterialHandle> materials,
-                           const std::array<float, 16>& mvp) noexcept = 0;
+                           const MeshDrawTransforms& transforms) noexcept = 0;
 
     /**
      * @brief Present the current frame.

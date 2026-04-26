@@ -40,9 +40,10 @@ public:
 
     void draw_mesh(stellar::graphics::MeshHandle mesh,
                    std::span<const stellar::graphics::MaterialHandle> materials,
-                   const std::array<float, 16>& /*mvp*/) noexcept override {
+                   const stellar::graphics::MeshDrawTransforms& transforms) noexcept override {
         drew_mesh = static_cast<bool>(mesh) && materials.size() == 1 &&
-                    static_cast<bool>(materials[0]);
+                    static_cast<bool>(materials[0]) && transforms.mvp[0] == 2.0F &&
+                    transforms.world[5] == 3.0F && transforms.normal[8] == 0.25F;
     }
 
     void end_frame() noexcept override {
@@ -76,12 +77,14 @@ public:
 
 stellar::assets::SceneAsset make_scene() {
     stellar::assets::SceneAsset scene;
-    scene.images.push_back(stellar::assets::ImageAsset{
-        .width = 1,
-        .height = 1,
-        .format = stellar::assets::ImageFormat::kR8G8B8A8,
-        .pixels = {255, 255, 255, 255},
-    });
+    for (int image_index = 0; image_index < 3; ++image_index) {
+        scene.images.push_back(stellar::assets::ImageAsset{
+            .width = 1,
+            .height = 1,
+            .format = stellar::assets::ImageFormat::kR8G8B8A8,
+            .pixels = {255, 255, 255, 255},
+        });
+    }
     scene.samplers.push_back(stellar::assets::SamplerAsset{
         .name = "nearest_clamp",
         .mag_filter = stellar::assets::TextureFilter::kNearest,
@@ -89,16 +92,44 @@ stellar::assets::SceneAsset make_scene() {
         .wrap_s = stellar::assets::TextureWrapMode::kClampToEdge,
         .wrap_t = stellar::assets::TextureWrapMode::kClampToEdge,
     });
-    scene.textures.push_back(stellar::assets::TextureAsset{
-        .name = "base_color",
-        .image_index = 0,
-        .sampler_index = 0,
+    scene.samplers.push_back(stellar::assets::SamplerAsset{
+        .name = "linear_mirror",
+        .mag_filter = stellar::assets::TextureFilter::kLinear,
+        .min_filter = stellar::assets::TextureFilter::kLinearMipmapLinear,
+        .wrap_s = stellar::assets::TextureWrapMode::kMirroredRepeat,
+        .wrap_t = stellar::assets::TextureWrapMode::kMirroredRepeat,
     });
+    scene.samplers.push_back(stellar::assets::SamplerAsset{
+        .name = "default_repeat",
+        .mag_filter = stellar::assets::TextureFilter::kUnspecified,
+        .min_filter = stellar::assets::TextureFilter::kUnspecified,
+        .wrap_s = stellar::assets::TextureWrapMode::kRepeat,
+        .wrap_t = stellar::assets::TextureWrapMode::kRepeat,
+    });
+    for (std::size_t texture_index = 0; texture_index < 3; ++texture_index) {
+        const char* texture_name = "metallic_roughness";
+        if (texture_index == 0) {
+            texture_name = "base_color";
+        } else if (texture_index == 1) {
+            texture_name = "normal";
+        }
+        scene.textures.push_back(stellar::assets::TextureAsset{
+            .name = texture_name,
+            .image_index = texture_index,
+            .sampler_index = texture_index,
+        });
+    }
     scene.materials.push_back(stellar::assets::MaterialAsset{
         .name = "textured",
         .base_color_factor = {0.5F, 0.5F, 0.5F, 1.0F},
         .base_color_texture = stellar::assets::MaterialTextureSlot{.texture_index = 0,
-                                                                   .texcoord_set = 0},
+                                                                    .texcoord_set = 0},
+        .normal_texture = stellar::assets::MaterialTextureSlot{.texture_index = 1,
+                                                               .texcoord_set = 0},
+        .metallic_roughness_texture = stellar::assets::MaterialTextureSlot{.texture_index = 2,
+                                                                           .texcoord_set = 0},
+        .metallic_factor = 0.75F,
+        .roughness_factor = 0.35F,
         .alpha_mode = stellar::assets::AlphaMode::kMask,
         .alpha_cutoff = 0.25F,
         .double_sided = true,
@@ -117,8 +148,11 @@ stellar::assets::SceneAsset make_scene() {
     primitive.material_index = 0;
     scene.meshes.push_back(stellar::assets::MeshAsset{.name = "triangle",
                                                       .primitives = {primitive}});
-    scene.nodes.push_back(stellar::scene::Node{.name = "root",
-                                               .mesh_instances = {stellar::scene::MeshInstance{0}}});
+    stellar::scene::Node root_node;
+    root_node.name = "root";
+    root_node.local_transform.scale = {2.0F, 3.0F, 4.0F};
+    root_node.mesh_instances = {stellar::scene::MeshInstance{0}};
+    scene.nodes.push_back(root_node);
     scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0}});
     scene.default_scene_index = 0;
     return scene;
@@ -142,6 +176,18 @@ int main() {
     assert(mock_ptr->material_uploads[0].base_color_texture->texture.value != 0);
     assert(mock_ptr->material_uploads[0].base_color_texture->sampler.wrap_s ==
            stellar::assets::TextureWrapMode::kClampToEdge);
+    assert(mock_ptr->material_uploads[0].normal_texture.has_value());
+    assert(mock_ptr->material_uploads[0].normal_texture->texture.value != 0);
+    assert(mock_ptr->material_uploads[0].normal_texture->sampler.min_filter ==
+           stellar::assets::TextureFilter::kLinearMipmapLinear);
+    assert(mock_ptr->material_uploads[0].normal_texture->sampler.wrap_t ==
+           stellar::assets::TextureWrapMode::kMirroredRepeat);
+    assert(mock_ptr->material_uploads[0].metallic_roughness_texture.has_value());
+    assert(mock_ptr->material_uploads[0].metallic_roughness_texture->texture.value != 0);
+    assert(mock_ptr->material_uploads[0].metallic_roughness_texture->sampler.wrap_s ==
+           stellar::assets::TextureWrapMode::kRepeat);
+    assert(mock_ptr->material_uploads[0].material.metallic_factor > 0.74F);
+    assert(mock_ptr->material_uploads[0].material.roughness_factor < 0.36F);
     assert(mock_ptr->material_uploads[0].material.double_sided);
 
     const std::array<float, 16> identity{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,

@@ -433,7 +433,8 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
             }
         }
 
-        if (const auto* normal_accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_normal, 0)) {
+        if (const auto* normal_accessor =
+                cgltf_find_accessor(&primitive, cgltf_attribute_type_normal, 0)) {
             for (std::size_t i = 0; i < position_accessor->count; ++i) {
                 cgltf_float value[4] = {};
                 if (cgltf_accessor_read_float(normal_accessor, i, value, 3)) {
@@ -442,7 +443,8 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
             }
         }
 
-        if (const auto* texcoord_accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_texcoord, 0)) {
+        if (const auto* texcoord_accessor =
+                cgltf_find_accessor(&primitive, cgltf_attribute_type_texcoord, 0)) {
             for (std::size_t i = 0; i < position_accessor->count; ++i) {
                 cgltf_float value[4] = {};
                 if (cgltf_accessor_read_float(texcoord_accessor, i, value, 2)) {
@@ -455,7 +457,8 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
         if (primitive.indices) {
             indices.resize(primitive.indices->count);
             for (std::size_t i = 0; i < primitive.indices->count; ++i) {
-                indices[i] = static_cast<std::uint32_t>(cgltf_accessor_read_index(primitive.indices, i));
+                const auto index = cgltf_accessor_read_index(primitive.indices, i);
+                indices[i] = static_cast<std::uint32_t>(index);
             }
         } else {
             indices.reserve(vertices.size());

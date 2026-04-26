@@ -193,6 +193,8 @@ std::string build_scene_json(const std::string& buffer_uri, std::size_t buffer_s
     }
     json += "  \"materials\": [{ \"name\": \"material0\", \"alphaMode\": \"MASK\", "
             "\"alphaCutoff\": 0.25, \"doubleSided\": true, \"pbrMetallicRoughness\": { "
+            "\"baseColorFactor\": [0.25, 0.5, 0.75, 0.8], "
+            "\"metallicFactor\": 0.6, \"roughnessFactor\": 0.4, "
             "\"baseColorTexture\": { \"index\": 0, \"texCoord\": 1 }, "
             "\"metallicRoughnessTexture\": { \"index\": 0, \"texCoord\": 2 } }, "
             "\"normalTexture\": { \"index\": 0, \"texCoord\": 3 } }],\n";
@@ -292,8 +294,18 @@ bool validate_scene(const stellar::assets::SceneAsset& scene, bool expect_extern
         return false;
     }
     if (!check(scene.materials[0].normal_texture.has_value() &&
-                   scene.materials[0].normal_texture->texcoord_set == 3,
-               "expected normal texcoord set 3")) {
+                    scene.materials[0].normal_texture->texcoord_set == 3,
+                "expected normal texcoord set 3")) {
+        return false;
+    }
+    if (!check(scene.materials[0].base_color_factor[0] > 0.249f &&
+                   scene.materials[0].base_color_factor[3] < 0.801f,
+               "expected base color factor import")) {
+        return false;
+    }
+    if (!check(scene.materials[0].metallic_factor > 0.599f &&
+                   scene.materials[0].roughness_factor < 0.401f,
+               "expected metallic and roughness factor import")) {
         return false;
     }
     if (!check(scene.materials[0].alpha_mode == stellar::assets::AlphaMode::kMask,

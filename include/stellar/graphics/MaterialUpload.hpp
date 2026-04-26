@@ -24,6 +24,8 @@ struct MaterialTextureBinding {
 struct MaterialUpload {
     stellar::assets::MaterialAsset material;
     std::optional<MaterialTextureBinding> base_color_texture;
+    std::optional<MaterialTextureBinding> normal_texture;
+    std::optional<MaterialTextureBinding> metallic_roughness_texture;
 };
 
 } // namespace stellar::graphics

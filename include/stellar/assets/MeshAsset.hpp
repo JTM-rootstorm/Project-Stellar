@@ -33,6 +33,7 @@ struct MeshPrimitive {
     PrimitiveTopology topology = PrimitiveTopology::kTriangles;
     std::vector<StaticVertex> vertices;
     std::vector<std::uint32_t> indices;
+    bool has_tangents = false;
     std::array<float, 3> bounds_min{0.0f, 0.0f, 0.0f};
     std::array<float, 3> bounds_max{0.0f, 0.0f, 0.0f};
     std::optional<std::size_t> material_index;

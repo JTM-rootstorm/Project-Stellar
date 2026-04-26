@@ -24,6 +24,45 @@ std::array<float, 16> to_array(const glm::mat4& matrix) {
     return result;
 }
 
+std::array<float, 9> to_array(const glm::mat3& matrix) {
+    std::array<float, 9> result{};
+    const float* data = &matrix[0][0];
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        result[index] = data[index];
+    }
+    return result;
+}
+
+std::array<float, 9> normal_matrix_for(const glm::mat4& world) {
+    const glm::mat3 linear(world);
+    if (std::abs(glm::determinant(linear)) < 0.000001f) {
+        return to_array(glm::mat3(1.0f));
+    }
+
+    return to_array(glm::transpose(glm::inverse(linear)));
+}
+
+std::optional<MaterialTextureBinding>
+resolve_material_texture_binding(const stellar::assets::MaterialTextureSlot& slot,
+                                 const stellar::assets::SceneAsset& scene,
+                                 const std::vector<TextureHandle>& texture_handles) {
+    if (slot.texture_index >= texture_handles.size() || !texture_handles[slot.texture_index]) {
+        return std::nullopt;
+    }
+
+    stellar::assets::SamplerAsset sampler;
+    const auto& texture = scene.textures[slot.texture_index];
+    if (texture.sampler_index.has_value() && *texture.sampler_index < scene.samplers.size()) {
+        sampler = scene.samplers[*texture.sampler_index];
+    }
+
+    return MaterialTextureBinding{
+        .texture = texture_handles[slot.texture_index],
+        .sampler = sampler,
+        .texcoord_set = slot.texcoord_set,
+    };
+}
+
 } // namespace
 
 RenderScene::~RenderScene() noexcept {
@@ -81,20 +120,16 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
         MaterialUpload upload;
         upload.material = material;
         if (material.base_color_texture.has_value()) {
-            const auto& slot = *material.base_color_texture;
-            if (slot.texture_index < texture_handles_.size() && texture_handles_[slot.texture_index]) {
-                stellar::assets::SamplerAsset sampler;
-                const auto& texture = scene_.textures[slot.texture_index];
-                if (texture.sampler_index.has_value() &&
-                    *texture.sampler_index < scene_.samplers.size()) {
-                    sampler = scene_.samplers[*texture.sampler_index];
-                }
-                upload.base_color_texture = MaterialTextureBinding{
-                    .texture = texture_handles_[slot.texture_index],
-                    .sampler = sampler,
-                    .texcoord_set = slot.texcoord_set,
-                };
-            }
+            upload.base_color_texture = resolve_material_texture_binding(
+                *material.base_color_texture, scene_, texture_handles_);
+        }
+        if (material.normal_texture.has_value()) {
+            upload.normal_texture = resolve_material_texture_binding(
+                *material.normal_texture, scene_, texture_handles_);
+        }
+        if (material.metallic_roughness_texture.has_value()) {
+            upload.metallic_roughness_texture = resolve_material_texture_binding(
+                *material.metallic_roughness_texture, scene_, texture_handles_);
         }
 
         auto handle = device_->create_material(upload);
@@ -144,7 +179,8 @@ stellar::scene::Transform& RenderScene::node_transform(std::size_t node_index) n
     return scene_.nodes[node_index].local_transform;
 }
 
-const stellar::scene::Transform& RenderScene::node_transform(std::size_t node_index) const noexcept {
+const stellar::scene::Transform&
+RenderScene::node_transform(std::size_t node_index) const noexcept {
     return scene_.nodes[node_index].local_transform;
 }
 
@@ -194,7 +230,14 @@ void RenderScene::render_node(std::size_t node_index,
                 }
             }
 
-            device_->draw_mesh(mesh_handles_[mesh_instance.mesh_index], materials, mvp);
+            const MeshDrawTransforms transforms{
+                .mvp = mvp,
+                .world = to_array(world),
+                .normal = normal_matrix_for(world),
+            };
+            device_->draw_mesh(mesh_handles_[mesh_instance.mesh_index],
+                               materials,
+                               transforms);
         }
     }
 

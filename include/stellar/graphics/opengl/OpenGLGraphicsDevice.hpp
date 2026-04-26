@@ -38,7 +38,7 @@ public:
 
     void draw_mesh(MeshHandle mesh,
                    std::span<const MaterialHandle> materials,
-                   const std::array<float, 16>& mvp) noexcept override;
+                   const MeshDrawTransforms& transforms) noexcept override;
 
     void end_frame() noexcept override;
 
@@ -52,6 +52,7 @@ private:
         unsigned int vbo = 0;
         unsigned int ebo = 0;
         int index_count = 0;
+        bool has_tangents = false;
     };
 
     struct MeshRecord {
@@ -81,6 +82,8 @@ private:
     SDL_GLContext context_ = nullptr;
     unsigned int shader_program_ = 0;
     int mvp_loc_ = -1;
+    int model_loc_ = -1;
+    int normal_matrix_loc_ = -1;
     std::uint64_t next_handle_ = 1;
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;
