@@ -2,11 +2,9 @@
 
 #include <array>
 #include <expected>
-#include <memory>
 
 #include "stellar/assets/MeshAsset.hpp"
-#include "stellar/graphics/GraphicsDevice.hpp"
-#include "stellar/graphics/GraphicsDeviceFactory.hpp"
+#include "stellar/graphics/RenderScene.hpp"
 #include "stellar/graphics/Renderer.hpp"
 
 namespace stellar::graphics::opengl {
@@ -42,13 +40,12 @@ public:
     void render(float rotation_degrees, int width, int height) noexcept override;
 
 private:
-    void destroy() noexcept;
-
     [[nodiscard]] static std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
     create_cube_mesh();
 
-    std::unique_ptr<stellar::graphics::GraphicsDevice> device_;
-    stellar::graphics::MeshHandle cube_mesh_;
+    [[nodiscard]] static stellar::assets::SceneAsset create_cube_scene();
+
+    stellar::graphics::RenderScene scene_;
 };
 
 } // namespace stellar::graphics::opengl

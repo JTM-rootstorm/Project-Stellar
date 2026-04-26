@@ -4,6 +4,9 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+#include "stellar/graphics/GraphicsDeviceFactory.hpp"
 
 namespace stellar::graphics::opengl {
 
@@ -68,38 +71,39 @@ CubeRenderer::create_cube_mesh() {
     return mesh;
 }
 
-CubeRenderer::~CubeRenderer() noexcept {
-    destroy();
+stellar::assets::SceneAsset CubeRenderer::create_cube_scene() {
+    stellar::assets::SceneAsset scene;
+    scene.source_uri = "debug:cube";
+    scene.meshes.push_back(create_cube_mesh().value());
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0}});
+    scene.nodes.push_back(stellar::scene::Node{
+        .name = "cube",
+        .parent_index = std::nullopt,
+        .children = {},
+        .local_transform = stellar::scene::Transform{},
+        .mesh_instances = {stellar::scene::MeshInstance{0}},
+        .skin_index = std::nullopt,
+    });
+    scene.default_scene_index = 0;
+    return scene;
 }
+
+CubeRenderer::~CubeRenderer() noexcept = default;
 
 std::expected<void, stellar::platform::Error>
 CubeRenderer::initialize(stellar::platform::Window& window) {
-    device_ = stellar::graphics::create_graphics_device();
-    if (!device_) {
+    auto scene = create_cube_scene();
+    auto device = stellar::graphics::create_graphics_device();
+    if (!device) {
         return std::unexpected(stellar::platform::Error("Failed to create graphics device"));
     }
 
-    if (auto result = device_->initialize(window); !result) {
-        return result;
-    }
-
-    auto cube_mesh = create_cube_mesh();
-    if (!cube_mesh) {
-        return std::unexpected(cube_mesh.error());
-    }
-
-    auto mesh_handle = device_->create_mesh(*cube_mesh);
-    if (!mesh_handle) {
-        return std::unexpected(mesh_handle.error());
-    }
-
-    cube_mesh_ = *mesh_handle;
-    return {};
+    return scene_.initialize(std::move(device), window, std::move(scene));
 }
 
 void CubeRenderer::render(float rotation_degrees, int width, int height) noexcept {
-    if (!device_ || !cube_mesh_) {
-        return;
+    if (scene_.node_transform(0).matrix.has_value()) {
+        scene_.node_transform(0).matrix = std::nullopt;
     }
 
     const glm::mat4 projection = glm::perspective(
@@ -110,14 +114,8 @@ void CubeRenderer::render(float rotation_degrees, int width, int height) noexcep
     const glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(rotation_degrees),
                                         glm::vec3(0.0f, 1.0f, 0.0f));
 
-    device_->begin_frame(width, height);
-    device_->draw_mesh(cube_mesh_, to_array(projection * view * model));
-    device_->end_frame();
-}
-
-void CubeRenderer::destroy() noexcept {
-    cube_mesh_ = {};
-    device_.reset();
+    scene_.node_transform(0).matrix = to_array(model);
+    scene_.render(width, height, to_array(projection * view));
 }
 
 } // namespace stellar::graphics::opengl
