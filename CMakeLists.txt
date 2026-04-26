@@ -13,6 +13,9 @@ pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 
 add_subdirectory(thirdparty/miniaudio)
+add_subdirectory(thirdparty/cgltf)
+
+option(STELLAR_ENABLE_GLTF "Enable the glTF importer seam" OFF)
 
 add_library(stellar_scene INTERFACE)
 target_include_directories(stellar_scene INTERFACE
@@ -24,6 +27,26 @@ target_include_directories(stellar_assets INTERFACE
     ${CMAKE_SOURCE_DIR}/include
 )
 target_link_libraries(stellar_assets INTERFACE stellar_scene)
+
+add_library(stellar_import_gltf
+    src/import/gltf/Importer.cpp
+    src/import/gltf/Loader.cpp
+)
+
+target_include_directories(stellar_import_gltf PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/thirdparty/cgltf
+    ${CMAKE_SOURCE_DIR}/thirdparty
+)
+
+target_link_libraries(stellar_import_gltf PUBLIC
+    stellar_assets
+    cgltf
+)
+
+target_compile_definitions(stellar_import_gltf PRIVATE
+    $<$<BOOL:${STELLAR_ENABLE_GLTF}>:STELLAR_ENABLE_GLTF=1>
+)
 
 add_library(stellar_platform
     src/platform/Window.cpp
@@ -76,5 +99,6 @@ target_link_libraries(stellar-client PRIVATE
     stellar_graphics
     stellar_assets
     stellar_scene
+    stellar_import_gltf
     miniaudio
 )
