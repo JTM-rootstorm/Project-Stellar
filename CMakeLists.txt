@@ -17,8 +17,10 @@ add_subdirectory(thirdparty/miniaudio)
 # Add executable
 add_executable(stellar-client
     src/client/main.cpp
+    src/client/Application.cpp
     src/platform/Window.cpp
     src/platform/Input.cpp
+    src/graphics/opengl/CubeRenderer.cpp
 )
 
 # Include directories

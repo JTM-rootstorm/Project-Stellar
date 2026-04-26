@@ -6,6 +6,28 @@
 
 namespace stellar::platform {
 
+namespace {
+
+void handle_event(const SDL_Event& event, Input* input, bool& should_close) {
+    if (input) {
+        input->process_event(event);
+    }
+
+    switch (event.type) {
+        case SDL_QUIT:
+            should_close = true;
+            break;
+        case SDL_KEYDOWN:
+            // Exit on ESC key.
+            if (event.key.keysym.sym == SDLK_ESCAPE) {
+                should_close = true;
+            }
+            break;
+    }
+}
+
+}  // namespace
+
 Window::~Window() noexcept {
     destroy();
 }
@@ -98,35 +120,14 @@ void Window::swap_buffers() noexcept {
 void Window::poll_events() noexcept {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-            case SDL_QUIT:
-                should_close_ = true;
-                break;
-            case SDL_KEYDOWN:
-                // Exit on ESC key
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    should_close_ = true;
-                }
-                break;
-        }
+        handle_event(event, nullptr, should_close_);
     }
 }
 
 void Window::process_input(Input& input) noexcept {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-        input.process_event(event);
-        switch (event.type) {
-            case SDL_QUIT:
-                should_close_ = true;
-                break;
-            case SDL_KEYDOWN:
-                // Exit on ESC key
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    should_close_ = true;
-                }
-                break;
-        }
+        handle_event(event, &input, should_close_);
     }
 }
 
