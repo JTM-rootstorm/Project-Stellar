@@ -1,11 +1,44 @@
 #include <cstdlib>
+#include <cstring>
+#include <expected>
+#include <string>
+#include <utility>
 
 #include "stellar/client/Application.hpp"
 
 #include <cstdio>
 
-int main(int /*argc*/, char* /*argv*/[]) {
-    stellar::client::Application application;
+namespace {
+
+std::expected<stellar::client::ApplicationConfig, stellar::platform::Error>
+parse_application_config(int argc, char* argv[]) {
+    stellar::client::ApplicationConfig config;
+
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--asset") == 0) {
+            if (i + 1 >= argc) {
+                return std::unexpected(stellar::platform::Error("--asset requires a path"));
+            }
+            config.asset_path = std::string(argv[++i]);
+            continue;
+        }
+
+        return std::unexpected(stellar::platform::Error("Unknown client argument"));
+    }
+
+    return config;
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    auto config = parse_application_config(argc, argv);
+    if (!config) {
+        std::fprintf(stderr, "Client startup failed: %s\n", config.error().message.c_str());
+        return EXIT_FAILURE;
+    }
+
+    stellar::client::Application application(std::move(*config));
     if (auto result = application.run(); !result) {
         std::fprintf(stderr, "Client startup failed: %s\n",
                      result.error().message.c_str());

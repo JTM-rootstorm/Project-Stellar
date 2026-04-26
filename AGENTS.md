@@ -49,7 +49,7 @@ Use `@agent-name` to invoke specific agents:
 
 - `@carmack implement ECS world serialization`
 - `@miyamoto add sprite batch rendering`
-- `@sujiki create audio interface` (note: suzuki not in plan, skip)
+- `@sujiki create audio interface`
 - `@kojima design new entity archetype`
 - `@molyneux prototype particle system`
 

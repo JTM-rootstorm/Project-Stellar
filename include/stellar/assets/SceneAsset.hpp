@@ -8,6 +8,7 @@
 #include "stellar/assets/ImageAsset.hpp"
 #include "stellar/assets/MaterialAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
+#include "stellar/assets/TextureAsset.hpp"
 #include "stellar/scene/SceneGraph.hpp"
 
 namespace stellar::assets {
@@ -18,6 +19,8 @@ namespace stellar::assets {
 struct SceneAsset {
     std::string source_uri;
     std::vector<ImageAsset> images;
+    std::vector<TextureAsset> textures;
+    std::vector<SamplerAsset> samplers;
     std::vector<MeshAsset> meshes;
     std::vector<MaterialAsset> materials;
     std::vector<stellar::scene::Node> nodes;

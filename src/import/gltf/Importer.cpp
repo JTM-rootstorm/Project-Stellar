@@ -43,6 +43,10 @@ private:
     load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh);
     [[nodiscard]] static std::expected<stellar::assets::MaterialAsset, stellar::platform::Error>
     load_material(const cgltf_data* data, const cgltf_material* material);
+    [[nodiscard]] static std::expected<stellar::assets::SamplerAsset, stellar::platform::Error>
+    load_sampler(const cgltf_sampler& sampler);
+    [[nodiscard]] static std::expected<stellar::assets::TextureAsset, stellar::platform::Error>
+    load_texture(const cgltf_data* data, const cgltf_texture& texture);
     [[nodiscard]] static std::expected<stellar::scene::Node, stellar::platform::Error>
     load_node(const cgltf_data* data, const cgltf_node& node);
 };
@@ -291,36 +295,114 @@ CgltfImporter::load_material(const cgltf_data* data, const cgltf_material* mater
             break;
     }
 
-    if (material->has_pbr_metallic_roughness &&
-        material->pbr_metallic_roughness.base_color_texture.texture) {
-        auto index = checked_index(cgltf_texture_index(data,
-                                                        material->pbr_metallic_roughness
-                                                            .base_color_texture.texture),
-                                   "Failed to resolve base color texture index");
+    auto load_texture_slot = [data](const cgltf_texture_view& view, const char* error_message)
+        -> std::expected<stellar::assets::MaterialTextureSlot, stellar::platform::Error> {
+        auto index = checked_index(cgltf_texture_index(data, view.texture), error_message);
         if (!index) {
             return std::unexpected(index.error());
         }
-        result.base_color_texture_index = *index;
+
+        stellar::assets::MaterialTextureSlot slot;
+        slot.texture_index = *index;
+        slot.texcoord_set = view.texcoord < 0 ? 0u : static_cast<std::uint32_t>(view.texcoord);
+        return slot;
+    };
+
+    if (material->has_pbr_metallic_roughness &&
+        material->pbr_metallic_roughness.base_color_texture.texture) {
+        auto slot = load_texture_slot(material->pbr_metallic_roughness.base_color_texture,
+                                      "Failed to resolve base color texture index");
+        if (!slot) {
+            return std::unexpected(slot.error());
+        }
+        result.base_color_texture = *slot;
     }
 
     if (material->normal_texture.texture) {
-        auto index = checked_index(cgltf_texture_index(data, material->normal_texture.texture),
-                                   "Failed to resolve normal texture index");
-        if (!index) {
-            return std::unexpected(index.error());
+        auto slot = load_texture_slot(material->normal_texture,
+                                      "Failed to resolve normal texture index");
+        if (!slot) {
+            return std::unexpected(slot.error());
         }
-        result.normal_texture_index = *index;
+        result.normal_texture = *slot;
     }
 
     if (material->pbr_metallic_roughness.metallic_roughness_texture.texture) {
-        auto index = checked_index(cgltf_texture_index(data, material->pbr_metallic_roughness
-                                                                  .metallic_roughness_texture
-                                                                  .texture),
-                                   "Failed to resolve metallic/roughness texture index");
-        if (!index) {
-            return std::unexpected(index.error());
+        auto slot = load_texture_slot(material->pbr_metallic_roughness.metallic_roughness_texture,
+                                      "Failed to resolve metallic/roughness texture index");
+        if (!slot) {
+            return std::unexpected(slot.error());
         }
-        result.metallic_roughness_texture_index = *index;
+        result.metallic_roughness_texture = *slot;
+    }
+
+    return result;
+}
+
+static stellar::assets::TextureFilter to_texture_filter(cgltf_filter_type filter) {
+    switch (filter) {
+        case cgltf_filter_type_nearest:
+            return stellar::assets::TextureFilter::kNearest;
+        case cgltf_filter_type_linear:
+            return stellar::assets::TextureFilter::kLinear;
+        case cgltf_filter_type_nearest_mipmap_nearest:
+            return stellar::assets::TextureFilter::kNearestMipmapNearest;
+        case cgltf_filter_type_linear_mipmap_nearest:
+            return stellar::assets::TextureFilter::kLinearMipmapNearest;
+        case cgltf_filter_type_nearest_mipmap_linear:
+            return stellar::assets::TextureFilter::kNearestMipmapLinear;
+        case cgltf_filter_type_linear_mipmap_linear:
+            return stellar::assets::TextureFilter::kLinearMipmapLinear;
+        case cgltf_filter_type_undefined:
+        default:
+            return stellar::assets::TextureFilter::kUnspecified;
+    }
+}
+
+static stellar::assets::TextureWrapMode to_texture_wrap_mode(cgltf_wrap_mode mode) {
+    switch (mode) {
+        case cgltf_wrap_mode_clamp_to_edge:
+            return stellar::assets::TextureWrapMode::kClampToEdge;
+        case cgltf_wrap_mode_mirrored_repeat:
+            return stellar::assets::TextureWrapMode::kMirroredRepeat;
+        case cgltf_wrap_mode_repeat:
+        default:
+            return stellar::assets::TextureWrapMode::kRepeat;
+    }
+}
+
+std::expected<stellar::assets::SamplerAsset, stellar::platform::Error>
+CgltfImporter::load_sampler(const cgltf_sampler& sampler) {
+    stellar::assets::SamplerAsset result;
+    result.name = duplicate_to_string(sampler.name);
+    result.mag_filter = to_texture_filter(sampler.mag_filter);
+    result.min_filter = to_texture_filter(sampler.min_filter);
+    result.wrap_s = to_texture_wrap_mode(sampler.wrap_s);
+    result.wrap_t = to_texture_wrap_mode(sampler.wrap_t);
+    return result;
+}
+
+std::expected<stellar::assets::TextureAsset, stellar::platform::Error>
+CgltfImporter::load_texture(const cgltf_data* data, const cgltf_texture& texture) {
+    stellar::assets::TextureAsset result;
+    result.name = duplicate_to_string(texture.name);
+
+    if (texture.image) {
+        auto image_index = checked_index(cgltf_image_index(data, texture.image),
+                                         "Failed to resolve texture image index");
+        if (!image_index) {
+            return std::unexpected(image_index.error());
+        }
+        result.image_index = *image_index;
+    }
+
+    if (texture.sampler) {
+        auto sampler_index = checked_index(cgltf_sampler_index(data, texture.sampler),
+                                           "Failed to resolve texture sampler index");
+        if (!sampler_index) {
+            return std::unexpected(sampler_index.error());
+        }
+        result.sampler_index = *sampler_index;
     }
 
     return result;
@@ -465,24 +547,6 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
     scene.source_uri = path_string;
     const std::filesystem::path source_path(path_string);
 
-    scene.materials.reserve(data->materials_count);
-    for (cgltf_size i = 0; i < data->materials_count; ++i) {
-        auto material = load_material(data.get(), &data->materials[i]);
-        if (!material) {
-            return std::unexpected(material.error());
-        }
-        scene.materials.push_back(*material);
-    }
-
-    scene.meshes.reserve(data->meshes_count);
-    for (cgltf_size i = 0; i < data->meshes_count; ++i) {
-        auto mesh = load_mesh(data.get(), data->meshes[i]);
-        if (!mesh) {
-            return std::unexpected(mesh.error());
-        }
-        scene.meshes.push_back(*mesh);
-    }
-
     scene.images.reserve(data->images_count);
     for (cgltf_size i = 0; i < data->images_count; ++i) {
         const cgltf_image& image = data->images[i];
@@ -536,6 +600,42 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
 
         return std::unexpected(
             stellar::platform::Error("Image is missing both a uri and a buffer view"));
+    }
+
+    scene.samplers.reserve(data->samplers_count);
+    for (cgltf_size i = 0; i < data->samplers_count; ++i) {
+        auto sampler = load_sampler(data->samplers[i]);
+        if (!sampler) {
+            return std::unexpected(sampler.error());
+        }
+        scene.samplers.push_back(*sampler);
+    }
+
+    scene.textures.reserve(data->textures_count);
+    for (cgltf_size i = 0; i < data->textures_count; ++i) {
+        auto texture = load_texture(data.get(), data->textures[i]);
+        if (!texture) {
+            return std::unexpected(texture.error());
+        }
+        scene.textures.push_back(*texture);
+    }
+
+    scene.materials.reserve(data->materials_count);
+    for (cgltf_size i = 0; i < data->materials_count; ++i) {
+        auto material = load_material(data.get(), &data->materials[i]);
+        if (!material) {
+            return std::unexpected(material.error());
+        }
+        scene.materials.push_back(*material);
+    }
+
+    scene.meshes.reserve(data->meshes_count);
+    for (cgltf_size i = 0; i < data->meshes_count; ++i) {
+        auto mesh = load_mesh(data.get(), data->meshes[i]);
+        if (!mesh) {
+            return std::unexpected(mesh.error());
+        }
+        scene.meshes.push_back(*mesh);
     }
 
     scene.nodes.reserve(data->nodes_count);

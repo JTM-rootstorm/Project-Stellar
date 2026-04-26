@@ -14,7 +14,8 @@
 namespace {
 
 constexpr std::string_view kPngBase64 =
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7X5eoAAAAASUVORK5CYII=";
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7X"
+    "5eoAAAAASUVORK5CYII=";
 
 struct BufferFixture {
     std::vector<std::uint8_t> bytes;
@@ -114,7 +115,8 @@ std::vector<std::uint8_t> base64_decode(std::string_view input) {
 
 void write_binary_file(const std::filesystem::path& path, std::span<const std::uint8_t> content) {
     std::ofstream file(path, std::ios::binary);
-    file.write(reinterpret_cast<const char*>(content.data()), static_cast<std::streamsize>(content.size()));
+    file.write(reinterpret_cast<const char*>(content.data()),
+               static_cast<std::streamsize>(content.size()));
 }
 
 void write_text_file(const std::filesystem::path& path, std::string_view content) {
@@ -168,8 +170,10 @@ std::string build_scene_json(const std::string& buffer_uri, std::size_t buffer_s
     json += "    { \"buffer\": 0, \"byteOffset\": 36, \"byteLength\": 6 }\n";
     json += "  ],\n";
     json += "  \"accessors\": [\n";
-    json += "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, \"type\": \"VEC3\", \"max\": [1, 1, 0], \"min\": [0, 0, 0] },\n";
-    json += "    { \"bufferView\": 2, \"componentType\": 5123, \"count\": 3, \"type\": \"SCALAR\" }\n";
+    json += "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+            "\"type\": \"VEC3\", \"max\": [1, 1, 0], \"min\": [0, 0, 0] },\n";
+    json += "    { \"bufferView\": 2, \"componentType\": 5123, \"count\": 3, "
+            "\"type\": \"SCALAR\" }\n";
     json += "  ],\n";
     json += "  \"images\": [\n";
     json += "    " + std::string(image0_definition) + "\n";
@@ -177,9 +181,23 @@ std::string build_scene_json(const std::string& buffer_uri, std::size_t buffer_s
         json += ",    " + std::string(external_image_definition) + "\n";
     }
     json += "  ],\n";
-    json += "  \"textures\": [{ \"source\": 0 }],\n";
-    json += "  \"materials\": [{ \"name\": \"material0\", \"pbrMetallicRoughness\": { \"baseColorTexture\": { \"index\": 0 } } }],\n";
-    json += "  \"meshes\": [{ \"name\": \"mesh0\", \"primitives\": [{ \"attributes\": { \"POSITION\": 0 }, \"indices\": 1, \"material\": 0, \"mode\": 4 }] }],\n";
+    json += "  \"samplers\": [{ \"name\": \"nearestClamp\", \"magFilter\": 9728, "
+            "\"minFilter\": 9986, \"wrapS\": 33071, \"wrapT\": 33648 }],\n";
+    if (include_external_image) {
+        json += "  \"textures\": [{ \"name\": \"externalTexture\", \"source\": 1, "
+                "\"sampler\": 0 }, { \"name\": \"embeddedTexture\", \"source\": 0, "
+                "\"sampler\": 0 }],\n";
+    } else {
+        json += "  \"textures\": [{ \"name\": \"embeddedTexture\", \"source\": 0, "
+                "\"sampler\": 0 }],\n";
+    }
+    json += "  \"materials\": [{ \"name\": \"material0\", \"alphaMode\": \"MASK\", "
+            "\"alphaCutoff\": 0.25, \"doubleSided\": true, \"pbrMetallicRoughness\": { "
+            "\"baseColorTexture\": { \"index\": 0, \"texCoord\": 1 }, "
+            "\"metallicRoughnessTexture\": { \"index\": 0, \"texCoord\": 2 } }, "
+            "\"normalTexture\": { \"index\": 0, \"texCoord\": 3 } }],\n";
+    json += "  \"meshes\": [{ \"name\": \"mesh0\", \"primitives\": [{ \"attributes\": { "
+            "\"POSITION\": 0 }, \"indices\": 1, \"material\": 0, \"mode\": 4 }] }],\n";
     json += "  \"nodes\": [{ \"name\": \"node0\", \"mesh\": 0 }],\n";
     json += "  \"scenes\": [{ \"name\": \"scene0\", \"nodes\": [0] }],\n";
     json += "  \"scene\": 0\n";
@@ -225,15 +243,76 @@ bool validate_scene(const stellar::assets::SceneAsset& scene, bool expect_extern
                "expected primitive material index 0")) {
         return false;
     }
-    if (!check(scene.materials[0].base_color_texture_index.has_value() &&
-                   *scene.materials[0].base_color_texture_index == 0,
-               "expected base color texture index 0")) {
+    if (!check(scene.samplers.size() == 1, "expected one sampler")) {
+        return false;
+    }
+    if (!check(scene.samplers[0].mag_filter == stellar::assets::TextureFilter::kNearest,
+               "expected nearest sampler mag filter")) {
+        return false;
+    }
+    if (!check(scene.samplers[0].min_filter ==
+                   stellar::assets::TextureFilter::kNearestMipmapLinear,
+               "expected mipmapped sampler min filter")) {
+        return false;
+    }
+    if (!check(scene.samplers[0].wrap_s == stellar::assets::TextureWrapMode::kClampToEdge,
+               "expected clamp sampler wrap_s")) {
+        return false;
+    }
+    if (!check(scene.samplers[0].wrap_t == stellar::assets::TextureWrapMode::kMirroredRepeat,
+               "expected mirrored sampler wrap_t")) {
+        return false;
+    }
+    if (!check(scene.textures.size() == (expect_external_image ? 2u : 1u),
+               "unexpected texture count")) {
+        return false;
+    }
+    if (!check(scene.textures[0].image_index.has_value() &&
+                   *scene.textures[0].image_index == (expect_external_image ? 1u : 0u),
+               "expected texture source image mapping")) {
+        return false;
+    }
+    if (!check(scene.textures[0].sampler_index.has_value() &&
+                   *scene.textures[0].sampler_index == 0,
+               "expected texture sampler mapping")) {
+        return false;
+    }
+    if (!check(scene.materials[0].base_color_texture.has_value() &&
+                   scene.materials[0].base_color_texture->texture_index == 0,
+                "expected base color texture index 0")) {
+        return false;
+    }
+    if (!check(scene.materials[0].base_color_texture->texcoord_set == 1,
+               "expected base color texcoord set 1")) {
+        return false;
+    }
+    if (!check(scene.materials[0].metallic_roughness_texture.has_value() &&
+                   scene.materials[0].metallic_roughness_texture->texcoord_set == 2,
+               "expected metallic roughness texcoord set 2")) {
+        return false;
+    }
+    if (!check(scene.materials[0].normal_texture.has_value() &&
+                   scene.materials[0].normal_texture->texcoord_set == 3,
+               "expected normal texcoord set 3")) {
+        return false;
+    }
+    if (!check(scene.materials[0].alpha_mode == stellar::assets::AlphaMode::kMask,
+               "expected alpha mask mode")) {
+        return false;
+    }
+    if (!check(scene.materials[0].alpha_cutoff > 0.249f &&
+                   scene.materials[0].alpha_cutoff < 0.251f,
+               "expected alpha cutoff 0.25")) {
+        return false;
+    }
+    if (!check(scene.materials[0].double_sided, "expected double-sided material")) {
         return false;
     }
     if (!check(scene.nodes[0].mesh_instances.size() == 1, "expected node mesh instance")) {
         return false;
     }
-    if (!check(scene.nodes[0].mesh_instances[0].mesh_index == 0, "expected node mesh index 0")) {
+    if (!check(scene.nodes[0].mesh_instances[0].mesh_index == 0,
+               "expected node mesh index 0")) {
         return false;
     }
     if (!check(scene.scenes[0].root_nodes.size() == 1 && scene.scenes[0].root_nodes[0] == 0,
@@ -285,9 +364,10 @@ bool run_buffer_view_fixture(const std::filesystem::path& root) {
         "{ \"name\": \"external\", \"uri\": \"external.png\" }";
 
     const auto gltf_path = work_dir / "scene.gltf";
-    write_text_file(gltf_path, build_scene_json(buffer_uri, fixture.bytes.size(), fixture.image_offset,
-                                                image_bytes.size(), image0_definition,
-                                                external_image_definition, true));
+    write_text_file(gltf_path,
+                    build_scene_json(buffer_uri, fixture.bytes.size(), fixture.image_offset,
+                                     image_bytes.size(), image0_definition,
+                                     external_image_definition, true));
 
     auto scene = stellar::import::gltf::load_scene(gltf_path.string());
     if (!scene) {
@@ -311,8 +391,9 @@ bool run_data_uri_fixture(const std::filesystem::path& root) {
         "{ \"name\": \"embedded\", \"uri\": \"" + image_uri + "\" }";
 
     const auto gltf_path = work_dir / "scene.gltf";
-    write_text_file(gltf_path, build_scene_json(buffer_uri, fixture.bytes.size(), fixture.image_offset,
-                                                image_bytes.size(), image0_definition, {}, false));
+    write_text_file(gltf_path,
+                    build_scene_json(buffer_uri, fixture.bytes.size(), fixture.image_offset,
+                                     image_bytes.size(), image0_definition, {}, false));
 
     auto scene = stellar::import::gltf::load_scene(gltf_path.string());
     if (!scene) {

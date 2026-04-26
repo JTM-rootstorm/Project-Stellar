@@ -5,6 +5,8 @@
 
 #include <SDL2/SDL.h>
 
+#include <utility>
+
 namespace stellar::client {
 
 namespace {
@@ -17,7 +19,13 @@ constexpr float kRotationSpeed = 45.0f;
 
 } // namespace
 
+Application::Application(ApplicationConfig config) noexcept : config_(std::move(config)) {}
+
 std::expected<void, stellar::platform::Error> Application::run() {
+    // Phase 1A only records the optional asset path. Runtime glTF loading and rendering remain
+    // deferred, so the debug cube renderer stays the fallback when no asset is provided.
+    (void)config_;
+
     stellar::platform::Window window;
     if (auto result = window.create(kWindowWidth, kWindowHeight, "Stellar Engine",
                                     SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
