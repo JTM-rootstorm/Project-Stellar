@@ -5,9 +5,9 @@
 #include <span>
 
 #include "stellar/assets/ImageAsset.hpp"
-#include "stellar/assets/MaterialAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
 #include "stellar/graphics/GraphicsHandles.hpp"
+#include "stellar/graphics/MaterialUpload.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::graphics {
@@ -48,11 +48,11 @@ public:
 
     /**
      * @brief Register a material for later rendering use.
-     * @param material CPU-side material description.
+     * @param material Backend-neutral material description with resolved textures.
      * @return Opaque material handle on success.
      */
     [[nodiscard]] virtual std::expected<MaterialHandle, stellar::platform::Error>
-    create_material(const stellar::assets::MaterialAsset& material) = 0;
+    create_material(const MaterialUpload& material) = 0;
 
     /**
      * @brief Begin a frame and clear the target.

@@ -58,19 +58,46 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
         mesh_handles_.push_back(*handle);
     }
 
-    texture_handles_.reserve(scene_.images.size());
-    for (const auto& image : scene_.images) {
+    texture_handles_.resize(scene_.textures.size());
+    owned_texture_handles_.reserve(scene_.textures.size());
+    for (std::size_t texture_index = 0; texture_index < scene_.textures.size(); ++texture_index) {
+        const auto& texture = scene_.textures[texture_index];
+        if (!texture.image_index.has_value() || *texture.image_index >= scene_.images.size()) {
+            continue;
+        }
+
+        const auto& image = scene_.images[*texture.image_index];
         auto handle = device_->create_texture(image);
         if (!handle) {
             destroy();
             return std::unexpected(handle.error());
         }
-        texture_handles_.push_back(*handle);
+        texture_handles_[texture_index] = *handle;
+        owned_texture_handles_.push_back(*handle);
     }
 
     material_handles_.reserve(scene_.materials.size());
     for (const auto& material : scene_.materials) {
-        auto handle = device_->create_material(material);
+        MaterialUpload upload;
+        upload.material = material;
+        if (material.base_color_texture.has_value()) {
+            const auto& slot = *material.base_color_texture;
+            if (slot.texture_index < texture_handles_.size() && texture_handles_[slot.texture_index]) {
+                stellar::assets::SamplerAsset sampler;
+                const auto& texture = scene_.textures[slot.texture_index];
+                if (texture.sampler_index.has_value() &&
+                    *texture.sampler_index < scene_.samplers.size()) {
+                    sampler = scene_.samplers[*texture.sampler_index];
+                }
+                upload.base_color_texture = MaterialTextureBinding{
+                    .texture = texture_handles_[slot.texture_index],
+                    .sampler = sampler,
+                    .texcoord_set = slot.texcoord_set,
+                };
+            }
+        }
+
+        auto handle = device_->create_material(upload);
         if (!handle) {
             destroy();
             return std::unexpected(handle.error());
@@ -177,21 +204,12 @@ void RenderScene::render_node(std::size_t node_index,
     }
 }
 
-std::span<const MaterialHandle>
-RenderScene::material_span(std::optional<std::size_t> material_index) noexcept {
-    if (!material_index.has_value() || *material_index >= material_handles_.size()) {
-        return {};
-    }
-
-    return std::span<const MaterialHandle>(&material_handles_[*material_index], 1);
-}
-
 void RenderScene::destroy() noexcept {
     if (device_) {
         for (auto handle : material_handles_) {
             device_->destroy_material(handle);
         }
-        for (auto handle : texture_handles_) {
+        for (auto handle : owned_texture_handles_) {
             device_->destroy_texture(handle);
         }
         for (auto handle : mesh_handles_) {
@@ -201,6 +219,7 @@ void RenderScene::destroy() noexcept {
 
     material_handles_.clear();
     texture_handles_.clear();
+    owned_texture_handles_.clear();
     mesh_handles_.clear();
     scene_ = {};
     active_scene_index_.reset();

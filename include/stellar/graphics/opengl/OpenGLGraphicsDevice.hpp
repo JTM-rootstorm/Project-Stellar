@@ -32,7 +32,7 @@ public:
     create_texture(const stellar::assets::ImageAsset& image) override;
 
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
-    create_material(const stellar::assets::MaterialAsset& material) override;
+    create_material(const MaterialUpload& material) override;
 
     void begin_frame(int width, int height) noexcept override;
 
@@ -65,7 +65,7 @@ private:
     };
 
     struct MaterialRecord {
-        stellar::assets::MaterialAsset material;
+        MaterialUpload upload;
     };
 
     struct DrawBinding {

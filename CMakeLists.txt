@@ -71,6 +71,7 @@ add_library(stellar_graphics
     src/graphics/RendererFactory.cpp
     src/graphics/GraphicsDeviceFactory.cpp
     src/graphics/RenderScene.cpp
+    src/graphics/SceneRenderer.cpp
     src/graphics/opengl/CubeRenderer.cpp
     src/graphics/opengl/OpenGLGraphicsDevice.cpp
 )
@@ -91,6 +92,20 @@ target_link_libraries(stellar_graphics PUBLIC
 
 target_link_libraries(stellar_graphics PUBLIC stellar_assets)
 
+add_executable(stellar_render_scene_upload_test
+    tests/graphics/RenderSceneUpload.cpp
+)
+
+target_include_directories(stellar_render_scene_upload_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_render_scene_upload_test PRIVATE
+    stellar_graphics
+)
+
+add_test(NAME render_scene_upload COMMAND stellar_render_scene_upload_test)
+
 add_executable(stellar-client
     src/client/main.cpp
     src/client/Application.cpp
@@ -108,6 +123,9 @@ target_link_libraries(stellar-client PRIVATE
 )
 
 if(STELLAR_ENABLE_GLTF)
+    target_compile_definitions(stellar-client PRIVATE STELLAR_ENABLE_GLTF=1)
+    target_link_libraries(stellar-client PRIVATE stellar_import_gltf)
+
     add_executable(stellar_import_gltf_regression
         tests/import/gltf/ImporterRegression.cpp
     )

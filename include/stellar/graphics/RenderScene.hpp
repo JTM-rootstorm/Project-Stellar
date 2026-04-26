@@ -5,7 +5,6 @@
 #include <expected>
 #include <memory>
 #include <optional>
-#include <span>
 #include <vector>
 
 #include "stellar/assets/SceneAsset.hpp"
@@ -69,14 +68,13 @@ private:
     void render_node(std::size_t node_index,
                      const std::array<float, 16>& parent_world,
                      const std::array<float, 16>& view_projection) noexcept;
-    [[nodiscard]] std::span<const MaterialHandle>
-    material_span(std::optional<std::size_t> material_index) noexcept;
     void destroy() noexcept;
 
     std::unique_ptr<GraphicsDevice> device_;
     stellar::assets::SceneAsset scene_;
     std::vector<MeshHandle> mesh_handles_;
     std::vector<TextureHandle> texture_handles_;
+    std::vector<TextureHandle> owned_texture_handles_;
     std::vector<MaterialHandle> material_handles_;
     std::optional<std::size_t> active_scene_index_;
 };

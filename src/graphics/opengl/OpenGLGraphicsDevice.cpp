@@ -1,6 +1,8 @@
 #include "stellar/graphics/opengl/OpenGLGraphicsDevice.hpp"
 
 #include <cstddef>
+#include <expected>
+#include <string>
 
 #include <GL/glew.h>
 #include <SDL2/SDL_opengl.h>
@@ -19,7 +21,10 @@ layout(location = 3) in vec4 a_tangent;
 
 uniform mat4 u_mvp;
 
+out vec2 v_uv0;
+
 void main() {
+    v_uv0 = a_uv0;
     gl_Position = u_mvp * vec4(a_position, 1.0);
 }
 )";
@@ -28,39 +33,117 @@ constexpr const char* kFragmentShader = R"(
 #version 330 core
 
 uniform vec4 u_base_color;
+uniform sampler2D u_base_color_texture;
+uniform bool u_has_base_color_texture;
+uniform int u_alpha_mode;
+uniform float u_alpha_cutoff;
+
+in vec2 v_uv0;
 
 out vec4 frag_color;
 
 void main() {
-    frag_color = u_base_color;
+    vec4 color = u_base_color;
+    if (u_has_base_color_texture) {
+        color *= texture(u_base_color_texture, v_uv0);
+    }
+    if (u_alpha_mode == 1 && color.a < u_alpha_cutoff) {
+        discard;
+    }
+    frag_color = color;
 }
 )";
 
-GLuint compile_shader_impl(GLenum type, const char* source) {
+std::string shader_info_log(GLuint shader) {
+    GLint log_length = 0;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_length);
+    if (log_length <= 1) {
+        return {};
+    }
+
+    std::string log(static_cast<std::size_t>(log_length), '\0');
+    GLsizei written = 0;
+    glGetShaderInfoLog(shader, log_length, &written, log.data());
+    log.resize(static_cast<std::size_t>(written));
+    return log;
+}
+
+std::string program_info_log(GLuint program) {
+    GLint log_length = 0;
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
+    if (log_length <= 1) {
+        return {};
+    }
+
+    std::string log(static_cast<std::size_t>(log_length), '\0');
+    GLsizei written = 0;
+    glGetProgramInfoLog(program, log_length, &written, log.data());
+    log.resize(static_cast<std::size_t>(written));
+    return log;
+}
+
+std::expected<GLuint, stellar::platform::Error>
+compile_shader_impl(GLenum type, const char* source) {
     GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
+
+    GLint compile_status = GL_FALSE;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
+    if (compile_status != GL_TRUE) {
+        std::string message = "Failed to compile OpenGL shader";
+        const std::string log = shader_info_log(shader);
+        if (!log.empty()) {
+            message += ": ";
+            message += log;
+        }
+        glDeleteShader(shader);
+        return std::unexpected(stellar::platform::Error(message));
+    }
+
     return shader;
 }
 
-GLuint create_shader_program_impl(const char* vertex_src, const char* fragment_src) {
-    GLuint vs = compile_shader_impl(GL_VERTEX_SHADER, vertex_src);
-    GLuint fs = compile_shader_impl(GL_FRAGMENT_SHADER, fragment_src);
+std::expected<GLuint, stellar::platform::Error>
+create_shader_program_impl(const char* vertex_src, const char* fragment_src) {
+    auto vs = compile_shader_impl(GL_VERTEX_SHADER, vertex_src);
+    if (!vs) {
+        return std::unexpected(vs.error());
+    }
+
+    auto fs = compile_shader_impl(GL_FRAGMENT_SHADER, fragment_src);
+    if (!fs) {
+        glDeleteShader(*vs);
+        return std::unexpected(fs.error());
+    }
 
     GLuint program = glCreateProgram();
-    glAttachShader(program, vs);
-    glAttachShader(program, fs);
+    glAttachShader(program, *vs);
+    glAttachShader(program, *fs);
     glLinkProgram(program);
 
-    glDeleteShader(vs);
-    glDeleteShader(fs);
+    glDeleteShader(*vs);
+    glDeleteShader(*fs);
+
+    GLint link_status = GL_FALSE;
+    glGetProgramiv(program, GL_LINK_STATUS, &link_status);
+    if (link_status != GL_TRUE) {
+        std::string message = "Failed to link OpenGL shader program";
+        const std::string log = program_info_log(program);
+        if (!log.empty()) {
+            message += ": ";
+            message += log;
+        }
+        glDeleteProgram(program);
+        return std::unexpected(stellar::platform::Error(message));
+    }
 
     return program;
 }
 
 constexpr GLenum texture_format_from_image(stellar::assets::ImageFormat format,
-                                           GLint& internal_format,
-                                           GLenum& external_format) {
+                                            GLint& internal_format,
+                                            GLenum& external_format) {
     switch (format) {
         case stellar::assets::ImageFormat::kR8G8B8:
             internal_format = GL_RGB8;
@@ -75,6 +158,50 @@ constexpr GLenum texture_format_from_image(stellar::assets::ImageFormat format,
             internal_format = GL_NONE;
             external_format = GL_NONE;
             return GL_NONE;
+    }
+}
+
+GLint to_gl_filter(stellar::assets::TextureFilter filter, GLint fallback) noexcept {
+    switch (filter) {
+        case stellar::assets::TextureFilter::kNearest:
+            return GL_NEAREST;
+        case stellar::assets::TextureFilter::kLinear:
+            return GL_LINEAR;
+        case stellar::assets::TextureFilter::kNearestMipmapNearest:
+            return GL_NEAREST_MIPMAP_NEAREST;
+        case stellar::assets::TextureFilter::kLinearMipmapNearest:
+            return GL_LINEAR_MIPMAP_NEAREST;
+        case stellar::assets::TextureFilter::kNearestMipmapLinear:
+            return GL_NEAREST_MIPMAP_LINEAR;
+        case stellar::assets::TextureFilter::kLinearMipmapLinear:
+            return GL_LINEAR_MIPMAP_LINEAR;
+        case stellar::assets::TextureFilter::kUnspecified:
+        default:
+            return fallback;
+    }
+}
+
+GLint to_gl_wrap(stellar::assets::TextureWrapMode mode) noexcept {
+    switch (mode) {
+        case stellar::assets::TextureWrapMode::kClampToEdge:
+            return GL_CLAMP_TO_EDGE;
+        case stellar::assets::TextureWrapMode::kMirroredRepeat:
+            return GL_MIRRORED_REPEAT;
+        case stellar::assets::TextureWrapMode::kRepeat:
+        default:
+            return GL_REPEAT;
+    }
+}
+
+int to_alpha_mode(stellar::assets::AlphaMode mode) noexcept {
+    switch (mode) {
+        case stellar::assets::AlphaMode::kMask:
+            return 1;
+        case stellar::assets::AlphaMode::kBlend:
+            return 2;
+        case stellar::assets::AlphaMode::kOpaque:
+        default:
+            return 0;
     }
 }
 
@@ -133,7 +260,14 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window& window) {
         return std::unexpected(stellar::platform::Error("Failed to initialize GLEW"));
     }
 
-    shader_program_ = create_shader_program_impl(kVertexShader, kFragmentShader);
+    auto shader_program = create_shader_program_impl(kVertexShader, kFragmentShader);
+    if (!shader_program) {
+        SDL_GL_DeleteContext(context_);
+        context_ = nullptr;
+        return std::unexpected(shader_program.error());
+    }
+
+    shader_program_ = *shader_program;
     glUseProgram(shader_program_);
     mvp_loc_ = glGetUniformLocation(shader_program_, "u_mvp");
     glUseProgram(0);
@@ -258,7 +392,7 @@ OpenGLGraphicsDevice::create_texture(const stellar::assets::ImageAsset& image) {
 }
 
 std::expected<MaterialHandle, stellar::platform::Error>
-OpenGLGraphicsDevice::create_material(const stellar::assets::MaterialAsset& material) {
+OpenGLGraphicsDevice::create_material(const MaterialUpload& material) {
     if (!context_) {
         return std::unexpected(stellar::platform::Error("Graphics device is not initialized"));
     }
@@ -301,18 +435,67 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
                                                    : MaterialHandle{};
 
         const auto material_it = materials_.find(material_handle.value);
-        const std::array<float, 4> base_color =
-            material_it != materials_.end()
-                ? material_it->second.material.base_color_factor
-                : std::array<float, 4>{0.85f, 0.9f, 1.0f, 1.0f};
+        const MaterialRecord* material = material_it != materials_.end() ? &material_it->second
+                                                                         : nullptr;
+        const std::array<float, 4> base_color = material != nullptr
+                                                    ? material->upload.material.base_color_factor
+                                                    : std::array<float, 4>{0.85f, 0.9f, 1.0f, 1.0f};
+
+        const auto alpha_mode = material != nullptr ? material->upload.material.alpha_mode
+                                                    : stellar::assets::AlphaMode::kOpaque;
+        if (alpha_mode == stellar::assets::AlphaMode::kBlend) {
+            // Alpha blending is per primitive; transparent depth sorting is not implemented yet.
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            glDisable(GL_BLEND);
+        }
+
+        if (material != nullptr && material->upload.material.double_sided) {
+            glDisable(GL_CULL_FACE);
+        } else {
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+        }
+
+        bool has_base_color_texture = false;
+        if (material != nullptr && material->upload.base_color_texture.has_value()) {
+            const auto& binding = *material->upload.base_color_texture;
+            const auto texture_it = textures_.find(binding.texture.value);
+            if (texture_it != textures_.end() && binding.texcoord_set == 0) {
+                has_base_color_texture = true;
+                const auto& sampler = binding.sampler;
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texture_it->second.texture);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                                to_gl_filter(sampler.min_filter, GL_LINEAR_MIPMAP_LINEAR));
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                                to_gl_filter(sampler.mag_filter, GL_LINEAR));
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, to_gl_wrap(sampler.wrap_s));
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, to_gl_wrap(sampler.wrap_t));
+            }
+        }
 
         const GLint base_color_loc = glGetUniformLocation(shader_program_, "u_base_color");
+        const GLint texture_loc = glGetUniformLocation(shader_program_, "u_base_color_texture");
+        const GLint has_texture_loc = glGetUniformLocation(shader_program_,
+                                                          "u_has_base_color_texture");
+        const GLint alpha_mode_loc = glGetUniformLocation(shader_program_, "u_alpha_mode");
+        const GLint alpha_cutoff_loc = glGetUniformLocation(shader_program_, "u_alpha_cutoff");
         glUniform4fv(base_color_loc, 1, base_color.data());
+        glUniform1i(texture_loc, 0);
+        glUniform1i(has_texture_loc, has_base_color_texture ? 1 : 0);
+        glUniform1i(alpha_mode_loc, to_alpha_mode(alpha_mode));
+        glUniform1f(alpha_cutoff_loc,
+                    material != nullptr ? material->upload.material.alpha_cutoff : 0.5f);
         glBindVertexArray(primitive.vao);
         glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT, nullptr);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     glBindVertexArray(0);
+    glDisable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
 }
 
 void OpenGLGraphicsDevice::end_frame() noexcept {
