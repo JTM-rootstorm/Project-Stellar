@@ -10,7 +10,7 @@ namespace stellar::client {
  * @brief Top-level client application runner.
  *
  * Owns the client loop, coordinates platform input/windowing, and delegates
- * rendering work to the graphics subsystem.
+ * rendering work to the graphics subsystem through an abstract interface.
  */
 class Application {
 public:

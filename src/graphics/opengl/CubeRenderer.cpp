@@ -1,6 +1,7 @@
 #include "stellar/graphics/opengl/CubeRenderer.hpp"
 
 #include <GL/glew.h>
+#include <SDL2/SDL_opengl.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -108,9 +109,26 @@ CubeRenderer::~CubeRenderer() noexcept {
     destroy();
 }
 
-std::expected<void, stellar::platform::Error> CubeRenderer::initialize() {
+std::expected<void, stellar::platform::Error>
+CubeRenderer::initialize(stellar::platform::Window& window) {
+    window_ = window.native_handle();
+    if (!window_) {
+        return std::unexpected(stellar::platform::Error("Window is not initialized"));
+    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    context_ = SDL_GL_CreateContext(window_);
+    if (!context_) {
+        return std::unexpected(stellar::platform::Error("Failed to create OpenGL context"));
+    }
+
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
+        destroy();
         return std::unexpected(stellar::platform::Error("Failed to initialize GLEW"));
     }
 
@@ -148,6 +166,10 @@ std::expected<void, stellar::platform::Error> CubeRenderer::initialize() {
 }
 
 void CubeRenderer::render(float rotation_degrees, int width, int height) noexcept {
+    if (!context_ || !window_) {
+        return;
+    }
+
     glViewport(0, 0, width, height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -170,6 +192,8 @@ void CubeRenderer::render(float rotation_degrees, int width, int height) noexcep
     glBindVertexArray(vao_);
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
     glBindVertexArray(0);
+
+    SDL_GL_SwapWindow(window_);
 }
 
 void CubeRenderer::destroy() noexcept {
@@ -193,6 +217,13 @@ void CubeRenderer::destroy() noexcept {
         shader_program_ = 0;
         mvp_loc_ = -1;
     }
+
+    if (context_) {
+        SDL_GL_DeleteContext(context_);
+        context_ = nullptr;
+    }
+
+    window_ = nullptr;
 }
 
 } // namespace stellar::graphics::opengl

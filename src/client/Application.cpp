@@ -1,6 +1,6 @@
 #include "stellar/client/Application.hpp"
 
-#include "stellar/graphics/opengl/CubeRenderer.hpp"
+#include "stellar/graphics/RendererFactory.hpp"
 #include "stellar/platform/Input.hpp"
 
 #include <SDL2/SDL.h>
@@ -24,8 +24,8 @@ std::expected<void, stellar::platform::Error> Application::run() {
         return result;
     }
 
-    stellar::graphics::opengl::CubeRenderer renderer;
-    if (auto result = renderer.initialize(); !result) {
+    auto renderer = stellar::graphics::create_renderer();
+    if (auto result = renderer->initialize(window); !result) {
         return result;
     }
 
@@ -39,8 +39,7 @@ std::expected<void, stellar::platform::Error> Application::run() {
         const float elapsed_seconds = static_cast<float>(frame_start) / 1000.0f;
         const float rotation_angle = elapsed_seconds * kRotationSpeed;
 
-        renderer.render(rotation_angle, kWindowWidth, kWindowHeight);
-        window.swap_buffers();
+        renderer->render(rotation_angle, kWindowWidth, kWindowHeight);
 
         input.reset_frame_state();
 

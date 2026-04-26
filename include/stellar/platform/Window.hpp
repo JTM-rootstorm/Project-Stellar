@@ -3,6 +3,7 @@
 #include <expected>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <SDL2/SDL.h>
 
@@ -56,11 +57,6 @@ public:
     void destroy() noexcept;
 
     /**
-     * @brief Swap the front/back buffers.
-     */
-    void swap_buffers() noexcept;
-
-    /**
      * @brief Poll and process pending OS events.
      */
     void poll_events() noexcept;
@@ -88,7 +84,6 @@ public:
 
 private:
     SDL_Window* window_ = nullptr;
-    SDL_GLContext context_ = nullptr;
     bool should_close_ = false;
 };
 

@@ -14,29 +14,49 @@ pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 
 add_subdirectory(thirdparty/miniaudio)
 
-# Add executable
-add_executable(stellar-client
-    src/client/main.cpp
-    src/client/Application.cpp
+add_library(stellar_platform
     src/platform/Window.cpp
     src/platform/Input.cpp
+)
+
+target_include_directories(stellar_platform PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+    ${SDL2_INCLUDE_DIRS}
+)
+
+target_link_libraries(stellar_platform PUBLIC
+    ${SDL2_LIBRARIES}
+)
+
+add_library(stellar_graphics
+    src/graphics/RendererFactory.cpp
     src/graphics/opengl/CubeRenderer.cpp
 )
 
-# Include directories
-target_include_directories(stellar-client PRIVATE 
-    ${SDL2_INCLUDE_DIRS}
+target_include_directories(stellar_graphics PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
     ${OPENGL_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${GLM_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/include
 )
 
-# Link libraries
-target_link_libraries(stellar-client 
-    ${SDL2_LIBRARIES}
+target_link_libraries(stellar_graphics PUBLIC
+    stellar_platform
     ${OPENGL_LIBRARIES}
     PkgConfig::GLEW
     PkgConfig::GLM
+)
+
+add_executable(stellar-client
+    src/client/main.cpp
+    src/client/Application.cpp
+)
+
+target_include_directories(stellar-client PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar-client PRIVATE
+    stellar_graphics
     miniaudio
 )

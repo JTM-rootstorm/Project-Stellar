@@ -2,7 +2,7 @@
 
 #include <expected>
 
-#include "stellar/platform/Window.hpp"
+#include "stellar/graphics/Renderer.hpp"
 
 namespace stellar::graphics::opengl {
 
@@ -12,7 +12,7 @@ namespace stellar::graphics::opengl {
  * Encapsulates shader creation, buffer setup, and frame submission for the
  * current prototype scene.
  */
-class CubeRenderer {
+class CubeRenderer final : public stellar::graphics::Renderer {
 public:
     CubeRenderer() noexcept = default;
     ~CubeRenderer() noexcept;
@@ -21,10 +21,12 @@ public:
     CubeRenderer& operator=(const CubeRenderer&) = delete;
 
     /**
-     * @brief Initialize OpenGL resources.
+     * @brief Initialize OpenGL resources and bind to the window.
+     * @param window Platform window used to create the OpenGL context.
      * @return std::expected<void, stellar::platform::Error> on failure.
      */
-    [[nodiscard]] std::expected<void, stellar::platform::Error> initialize();
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    initialize(stellar::platform::Window& window) override;
 
     /**
      * @brief Render the cube for the current frame.
@@ -32,14 +34,13 @@ public:
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
      */
-    void render(float rotation_degrees, int width, int height) noexcept;
-
-    /**
-     * @brief Release all owned OpenGL resources.
-     */
-    void destroy() noexcept;
+    void render(float rotation_degrees, int width, int height) noexcept override;
 
 private:
+    void destroy() noexcept;
+
+    SDL_Window* window_ = nullptr;
+    SDL_GLContext context_ = nullptr;
     unsigned int shader_program_ = 0;
     int mvp_loc_ = -1;
     unsigned int vao_ = 0;
