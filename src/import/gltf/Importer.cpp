@@ -1,6 +1,7 @@
 #include "stellar/import/gltf/Importer.hpp"
 
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -14,6 +15,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
 namespace stellar::import::gltf {
@@ -32,13 +34,28 @@ private:
     load_scene_from_file(std::string_view path);
     [[nodiscard]] static std::expected<stellar::assets::ImageAsset, stellar::platform::Error>
     load_image_from_file(const std::filesystem::path& path, const char* name);
+    [[nodiscard]] static std::expected<stellar::assets::ImageAsset, stellar::platform::Error>
+    load_image_from_memory(std::span<const std::uint8_t> bytes, const char* name,
+                           std::string source_uri, const char* error_message);
+    [[nodiscard]] static std::expected<std::vector<std::uint8_t>, stellar::platform::Error>
+    decode_data_uri(std::string_view uri);
     [[nodiscard]] static std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
     load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh);
     [[nodiscard]] static std::expected<stellar::assets::MaterialAsset, stellar::platform::Error>
     load_material(const cgltf_data* data, const cgltf_material* material);
-    [[nodiscard]] static stellar::scene::Node load_node(const cgltf_data* data,
-                                                       const cgltf_node& node);
+    [[nodiscard]] static std::expected<stellar::scene::Node, stellar::platform::Error>
+    load_node(const cgltf_data* data, const cgltf_node& node);
 };
+
+struct CgltfDataDeleter {
+    void operator()(cgltf_data* data) const noexcept {
+        if (data) {
+            cgltf_free(data);
+        }
+    }
+};
+
+using CgltfDataPtr = std::unique_ptr<cgltf_data, CgltfDataDeleter>;
 
 std::string duplicate_to_string(const char* value) {
     return value ? std::string(value) : std::string();
@@ -53,8 +70,108 @@ std::filesystem::path resolve_relative_path(const std::filesystem::path& base,
     return base.parent_path() / std::filesystem::path(relative);
 }
 
-std::optional<std::size_t> to_index(std::size_t value) {
-    return value == static_cast<std::size_t>(-1) ? std::nullopt : std::optional<std::size_t>(value);
+[[nodiscard]] std::expected<std::size_t, stellar::platform::Error>
+checked_index(cgltf_size value, const char* error_message) {
+    if (value == static_cast<cgltf_size>(-1)) {
+        return std::unexpected(stellar::platform::Error(error_message));
+    }
+
+    return static_cast<std::size_t>(value);
+}
+
+std::array<int, 256> base64_decode_table() {
+    std::array<int, 256> table{};
+    table.fill(-1);
+
+    for (int c = 'A'; c <= 'Z'; ++c) {
+        table[static_cast<std::size_t>(c)] = c - 'A';
+    }
+    for (int c = 'a'; c <= 'z'; ++c) {
+        table[static_cast<std::size_t>(c)] = 26 + (c - 'a');
+    }
+    for (int c = '0'; c <= '9'; ++c) {
+        table[static_cast<std::size_t>(c)] = 52 + (c - '0');
+    }
+    table[static_cast<std::size_t>('+')] = 62;
+    table[static_cast<std::size_t>('/')] = 63;
+
+    return table;
+}
+
+std::expected<std::vector<std::uint8_t>, stellar::platform::Error>
+decode_base64(std::string_view payload) {
+    static const auto kDecodeTable = base64_decode_table();
+
+    std::vector<std::uint8_t> decoded;
+    decoded.reserve((payload.size() * 3) / 4);
+
+    int value = 0;
+    int bits = -8;
+    for (unsigned char ch : payload) {
+        if (std::isspace(ch)) {
+            continue;
+        }
+
+        if (ch == '=') {
+            break;
+        }
+
+        const int decoded_value = kDecodeTable[ch];
+        if (decoded_value < 0) {
+            return std::unexpected(stellar::platform::Error("Invalid base64 data URI payload"));
+        }
+
+        value = (value << 6) | decoded_value;
+        bits += 6;
+        if (bits >= 0) {
+            decoded.push_back(static_cast<std::uint8_t>((value >> bits) & 0xFF));
+            bits -= 8;
+        }
+    }
+
+    return decoded;
+}
+
+std::expected<std::vector<std::uint8_t>, stellar::platform::Error>
+decode_percent_encoded(std::string_view payload) {
+    std::vector<std::uint8_t> decoded;
+    decoded.reserve(payload.size());
+
+    auto hex_value = [](char ch) -> int {
+        if (ch >= '0' && ch <= '9') {
+            return ch - '0';
+        }
+        if (ch >= 'a' && ch <= 'f') {
+            return 10 + (ch - 'a');
+        }
+        if (ch >= 'A' && ch <= 'F') {
+            return 10 + (ch - 'A');
+        }
+        return -1;
+    };
+
+    for (std::size_t i = 0; i < payload.size(); ++i) {
+        const char ch = payload[i];
+        if (ch != '%') {
+            decoded.push_back(static_cast<std::uint8_t>(ch));
+            continue;
+        }
+
+        if (i + 2 >= payload.size()) {
+            return std::unexpected(stellar::platform::Error("Invalid percent-encoded data URI payload"));
+        }
+
+        const int high = hex_value(payload[i + 1]);
+        const int low = hex_value(payload[i + 2]);
+        if (high < 0 || low < 0) {
+            return std::unexpected(stellar::platform::Error("Invalid percent-encoded data URI payload"));
+        }
+
+        decoded.push_back(static_cast<std::uint8_t>((high << 4) | low));
+        i += 2;
+    }
+
+    return decoded;
 }
 
 std::array<float, 16> node_matrix(const cgltf_node& node) {
@@ -100,6 +217,51 @@ CgltfImporter::load_image_from_file(const std::filesystem::path& path, const cha
     return image;
 }
 
+std::expected<stellar::assets::ImageAsset, stellar::platform::Error>
+CgltfImporter::load_image_from_memory(std::span<const std::uint8_t> bytes, const char* name,
+                                      std::string source_uri, const char* error_message) {
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    stbi_uc* pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(bytes.data()),
+                                            static_cast<int>(bytes.size()), &width, &height,
+                                            &channels, 4);
+    if (!pixels) {
+        return std::unexpected(stellar::platform::Error(error_message));
+    }
+
+    stellar::assets::ImageAsset image;
+    image.name = duplicate_to_string(name);
+    image.width = static_cast<std::uint32_t>(width);
+    image.height = static_cast<std::uint32_t>(height);
+    image.format = stellar::assets::ImageFormat::kR8G8B8A8;
+    image.pixels.assign(pixels, pixels + static_cast<std::size_t>(width * height * 4));
+    image.source_uri = std::move(source_uri);
+
+    stbi_image_free(pixels);
+    return image;
+}
+
+std::expected<std::vector<std::uint8_t>, stellar::platform::Error>
+CgltfImporter::decode_data_uri(std::string_view uri) {
+    if (!uri.starts_with("data:")) {
+        return std::unexpected(stellar::platform::Error("Expected a data URI"));
+    }
+
+    const std::size_t comma = uri.find(',');
+    if (comma == std::string_view::npos) {
+        return std::unexpected(stellar::platform::Error("Invalid data URI"));
+    }
+
+    const std::string_view metadata = uri.substr(5, comma - 5);
+    const std::string_view payload = uri.substr(comma + 1);
+    if (metadata.find(";base64") == std::string_view::npos) {
+        return decode_percent_encoded(payload);
+    }
+
+    return decode_base64(payload);
+}
+
 std::expected<stellar::assets::MaterialAsset, stellar::platform::Error>
 CgltfImporter::load_material(const cgltf_data* data, const cgltf_material* material) {
     stellar::assets::MaterialAsset result;
@@ -131,19 +293,34 @@ CgltfImporter::load_material(const cgltf_data* data, const cgltf_material* mater
 
     if (material->has_pbr_metallic_roughness &&
         material->pbr_metallic_roughness.base_color_texture.texture) {
-        result.base_color_texture_index = static_cast<std::size_t>(
-            cgltf_texture_index(data, material->pbr_metallic_roughness.base_color_texture.texture));
+        auto index = checked_index(cgltf_texture_index(data,
+                                                        material->pbr_metallic_roughness
+                                                            .base_color_texture.texture),
+                                   "Failed to resolve base color texture index");
+        if (!index) {
+            return std::unexpected(index.error());
+        }
+        result.base_color_texture_index = *index;
     }
 
     if (material->normal_texture.texture) {
-        result.normal_texture_index = static_cast<std::size_t>(
-            cgltf_texture_index(data, material->normal_texture.texture));
+        auto index = checked_index(cgltf_texture_index(data, material->normal_texture.texture),
+                                   "Failed to resolve normal texture index");
+        if (!index) {
+            return std::unexpected(index.error());
+        }
+        result.normal_texture_index = *index;
     }
 
     if (material->pbr_metallic_roughness.metallic_roughness_texture.texture) {
-        result.metallic_roughness_texture_index = static_cast<std::size_t>(
-            cgltf_texture_index(data,
-                                material->pbr_metallic_roughness.metallic_roughness_texture.texture));
+        auto index = checked_index(cgltf_texture_index(data, material->pbr_metallic_roughness
+                                                                  .metallic_roughness_texture
+                                                                  .texture),
+                                   "Failed to resolve metallic/roughness texture index");
+        if (!index) {
+            return std::unexpected(index.error());
+        }
+        result.metallic_roughness_texture_index = *index;
     }
 
     return result;
@@ -209,33 +386,56 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
         mesh_primitive.topology = stellar::assets::PrimitiveTopology::kTriangles;
         mesh_primitive.vertices = std::move(vertices);
         mesh_primitive.indices = std::move(indices);
-        mesh_primitive.material_index = primitive.material
-                                            ? to_index(cgltf_material_index(data, primitive.material))
-                                            : std::nullopt;
+        if (primitive.material) {
+            auto index = checked_index(cgltf_material_index(data, primitive.material),
+                                       "Failed to resolve primitive material index");
+            if (!index) {
+                return std::unexpected(index.error());
+            }
+            mesh_primitive.material_index = *index;
+        }
         mesh.primitives.push_back(std::move(mesh_primitive));
     }
 
     return mesh;
 }
 
-stellar::scene::Node CgltfImporter::load_node(const cgltf_data* data, const cgltf_node& node) {
+std::expected<stellar::scene::Node, stellar::platform::Error>
+CgltfImporter::load_node(const cgltf_data* data, const cgltf_node& node) {
     stellar::scene::Node result;
     result.name = duplicate_to_string(node.name);
-    result.local_transform.translation = {node.translation[0], node.translation[1], node.translation[2]};
-    result.local_transform.rotation = {node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]};
-    result.local_transform.scale = {node.scale[0], node.scale[1], node.scale[2]};
+    if (node.has_translation) {
+        result.local_transform.translation = {node.translation[0], node.translation[1],
+                                              node.translation[2]};
+    }
+    if (node.has_rotation) {
+        result.local_transform.rotation = {node.rotation[0], node.rotation[1], node.rotation[2],
+                                           node.rotation[3]};
+    }
+    if (node.has_scale) {
+        result.local_transform.scale = {node.scale[0], node.scale[1], node.scale[2]};
+    }
     if (node.has_matrix) {
         result.local_transform.matrix = node_matrix(node);
     }
 
     if (node.mesh) {
-        result.mesh_instances.push_back(stellar::scene::MeshInstance{
-            .mesh_index = static_cast<std::size_t>(cgltf_mesh_index(data, node.mesh))});
+        auto mesh_index = checked_index(cgltf_mesh_index(data, node.mesh),
+                                        "Failed to resolve node mesh index");
+        if (!mesh_index) {
+            return std::unexpected(mesh_index.error());
+        }
+        result.mesh_instances.push_back(stellar::scene::MeshInstance{.mesh_index = *mesh_index});
     }
 
     result.children.reserve(node.children_count);
     for (cgltf_size i = 0; i < node.children_count; ++i) {
-        result.children.push_back(static_cast<std::size_t>(cgltf_node_index(data, node.children[i])));
+        auto child_index = checked_index(cgltf_node_index(data, node.children[i]),
+                                         "Failed to resolve node child index");
+        if (!child_index) {
+            return std::unexpected(child_index.error());
+        }
+        result.children.push_back(*child_index);
     }
 
     return result;
@@ -245,26 +445,19 @@ std::expected<stellar::assets::SceneAsset, stellar::platform::Error>
 CgltfImporter::load_scene_from_file(std::string_view path) {
     const std::string path_string(path);
     cgltf_options options{};
-    cgltf_data* data = nullptr;
+    cgltf_data* raw_data = nullptr;
 
-    if (cgltf_parse_file(&options, path_string.c_str(), &data) != cgltf_result_success) {
+    if (cgltf_parse_file(&options, path_string.c_str(), &raw_data) != cgltf_result_success) {
         return std::unexpected(stellar::platform::Error("Failed to parse glTF file"));
     }
 
-    const auto cleanup = [&]() {
-        if (data) {
-            cgltf_free(data);
-            data = nullptr;
-        }
-    };
+    CgltfDataPtr data(raw_data);
 
-    if (cgltf_load_buffers(&options, data, path_string.c_str()) != cgltf_result_success) {
-        cleanup();
+    if (cgltf_load_buffers(&options, data.get(), path_string.c_str()) != cgltf_result_success) {
         return std::unexpected(stellar::platform::Error("Failed to load glTF buffers"));
     }
 
-    if (cgltf_validate(data) != cgltf_result_success) {
-        cleanup();
+    if (cgltf_validate(data.get()) != cgltf_result_success) {
         return std::unexpected(stellar::platform::Error("Invalid glTF scene"));
     }
 
@@ -274,9 +467,8 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
 
     scene.materials.reserve(data->materials_count);
     for (cgltf_size i = 0; i < data->materials_count; ++i) {
-        auto material = load_material(data, &data->materials[i]);
+        auto material = load_material(data.get(), &data->materials[i]);
         if (!material) {
-            cleanup();
             return std::unexpected(material.error());
         }
         scene.materials.push_back(*material);
@@ -284,9 +476,8 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
 
     scene.meshes.reserve(data->meshes_count);
     for (cgltf_size i = 0; i < data->meshes_count; ++i) {
-        auto mesh = load_mesh(data, data->meshes[i]);
+        auto mesh = load_mesh(data.get(), data->meshes[i]);
         if (!mesh) {
-            cleanup();
             return std::unexpected(mesh.error());
         }
         scene.meshes.push_back(*mesh);
@@ -295,27 +486,75 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
     scene.images.reserve(data->images_count);
     for (cgltf_size i = 0; i < data->images_count; ++i) {
         const cgltf_image& image = data->images[i];
-        if (!image.uri) {
-            cleanup();
-            return std::unexpected(stellar::platform::Error("Only external images are supported in this importer pass"));
+
+        if (image.buffer_view) {
+            const cgltf_buffer_view* view = image.buffer_view;
+            const auto* bytes = static_cast<const std::uint8_t*>(
+                view->data ? view->data
+                           : (view->buffer ? static_cast<const std::uint8_t*>(view->buffer->data) + view->offset
+                                           : nullptr));
+            if (!bytes) {
+                return std::unexpected(
+                    stellar::platform::Error("Embedded image buffer view has no backing data"));
+            }
+
+            auto decoded = load_image_from_memory(
+                std::span<const std::uint8_t>(bytes, static_cast<std::size_t>(view->size)), image.name,
+                image.uri ? std::string(image.uri) : std::string(), "Failed to decode embedded image");
+            if (!decoded) {
+                return std::unexpected(decoded.error());
+            }
+            scene.images.push_back(*decoded);
+            continue;
         }
 
-        auto decoded = load_image_from_file(resolve_relative_path(source_path, image.uri), image.name);
-        if (!decoded) {
-            cleanup();
-            return std::unexpected(decoded.error());
+        if (image.uri) {
+            std::string_view uri(image.uri);
+            if (uri.starts_with("data:")) {
+                auto payload = decode_data_uri(uri);
+                if (!payload) {
+                    return std::unexpected(payload.error());
+                }
+
+                auto decoded = load_image_from_memory(
+                    std::span<const std::uint8_t>(*payload), image.name, std::string(image.uri),
+                    "Failed to decode embedded image");
+                if (!decoded) {
+                    return std::unexpected(decoded.error());
+                }
+                scene.images.push_back(*decoded);
+                continue;
+            }
+
+            auto decoded = load_image_from_file(resolve_relative_path(source_path, image.uri), image.name);
+            if (!decoded) {
+                return std::unexpected(decoded.error());
+            }
+            scene.images.push_back(*decoded);
+            continue;
         }
-        scene.images.push_back(*decoded);
+
+        return std::unexpected(
+            stellar::platform::Error("Image is missing both a uri and a buffer view"));
     }
 
     scene.nodes.reserve(data->nodes_count);
     for (cgltf_size i = 0; i < data->nodes_count; ++i) {
-        scene.nodes.push_back(load_node(data, data->nodes[i]));
+        auto node = load_node(data.get(), data->nodes[i]);
+        if (!node) {
+            return std::unexpected(node.error());
+        }
+        scene.nodes.push_back(*node);
     }
 
     for (cgltf_size i = 0; i < data->nodes_count; ++i) {
         if (data->nodes[i].parent) {
-            scene.nodes[i].parent_index = static_cast<std::size_t>(cgltf_node_index(data, data->nodes[i].parent));
+            auto parent_index = checked_index(cgltf_node_index(data.get(), data->nodes[i].parent),
+                                              "Failed to resolve node parent index");
+            if (!parent_index) {
+                return std::unexpected(parent_index.error());
+            }
+            scene.nodes[i].parent_index = *parent_index;
         }
     }
 
@@ -325,16 +564,25 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
         stellar::scene::Scene out_scene;
         out_scene.name = duplicate_to_string(source_scene.name);
         for (cgltf_size n = 0; n < source_scene.nodes_count; ++n) {
-            out_scene.root_nodes.push_back(static_cast<std::size_t>(cgltf_node_index(data, source_scene.nodes[n])));
+            auto node_index = checked_index(cgltf_node_index(data.get(), source_scene.nodes[n]),
+                                            "Failed to resolve scene root node index");
+            if (!node_index) {
+                return std::unexpected(node_index.error());
+            }
+            out_scene.root_nodes.push_back(*node_index);
         }
         scene.scenes.push_back(std::move(out_scene));
     }
 
     if (data->scene) {
-        scene.default_scene_index = static_cast<std::size_t>(cgltf_scene_index(data, data->scene));
+        auto default_scene_index = checked_index(cgltf_scene_index(data.get(), data->scene),
+                                                 "Failed to resolve default scene index");
+        if (!default_scene_index) {
+            return std::unexpected(default_scene_index.error());
+        }
+        scene.default_scene_index = *default_scene_index;
     }
 
-    cleanup();
     return scene;
 }
 

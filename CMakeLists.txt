@@ -4,6 +4,8 @@ project(StellarEngine VERSION 0.1.3 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+enable_testing()
+
 # Find packages
 find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
@@ -37,6 +39,7 @@ target_include_directories(stellar_import_gltf PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/thirdparty/cgltf
     ${CMAKE_SOURCE_DIR}/thirdparty
+    ${SDL2_INCLUDE_DIRS}
 )
 
 target_link_libraries(stellar_import_gltf PUBLIC
@@ -102,3 +105,18 @@ target_link_libraries(stellar-client PRIVATE
     stellar_import_gltf
     miniaudio
 )
+
+add_executable(stellar_import_gltf_regression
+    tests/import/gltf/ImporterRegression.cpp
+)
+
+target_include_directories(stellar_import_gltf_regression PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${SDL2_INCLUDE_DIRS}
+)
+
+target_link_libraries(stellar_import_gltf_regression PRIVATE
+    stellar_import_gltf
+)
+
+add_test(NAME gltf_importer_regression COMMAND stellar_import_gltf_regression)
