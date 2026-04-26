@@ -124,6 +124,24 @@ void write_text_file(const std::filesystem::path& path, std::string_view content
     file.write(content.data(), static_cast<std::streamsize>(content.size()));
 }
 
+void write_glb_file(const std::filesystem::path& path, std::string_view json) {
+    std::vector<std::uint8_t> json_chunk(json.begin(), json.end());
+    while (json_chunk.size() % 4 != 0) {
+        json_chunk.push_back(0x20);
+    }
+
+    std::vector<std::uint8_t> glb;
+    glb.reserve(12 + 8 + json_chunk.size());
+    append_u32_le(glb, 0x46546C67);
+    append_u32_le(glb, 2);
+    append_u32_le(glb, static_cast<std::uint32_t>(12 + 8 + json_chunk.size()));
+    append_u32_le(glb, static_cast<std::uint32_t>(json_chunk.size()));
+    append_u32_le(glb, 0x4E4F534A);
+    glb.insert(glb.end(), json_chunk.begin(), json_chunk.end());
+
+    write_binary_file(path, glb);
+}
+
 BufferFixture build_buffer_fixture(std::span<const std::uint8_t> image_bytes) {
     BufferFixture fixture;
     fixture.positions_offset = 0;
@@ -279,6 +297,13 @@ bool validate_scene(const stellar::assets::SceneAsset& scene, bool expect_extern
                "expected texture sampler mapping")) {
         return false;
     }
+    if (expect_external_image) {
+        if (!check(scene.textures[1].image_index.has_value() &&
+                       *scene.textures[1].image_index == 0,
+                   "expected second texture to map back to embedded image 0")) {
+            return false;
+        }
+    }
     if (!check(scene.materials[0].base_color_texture.has_value() &&
                    scene.materials[0].base_color_texture->texture_index == 0,
                 "expected base color texture index 0")) {
@@ -416,6 +441,82 @@ bool run_data_uri_fixture(const std::filesystem::path& root) {
     return validate_scene(*scene, false);
 }
 
+bool run_material_variants_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "material_variants";
+    std::filesystem::create_directories(work_dir);
+
+    const auto gltf_path = work_dir / "materials.gltf";
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"materials\": [\n"
+                    "    { \"name\": \"opaque\" },\n"
+                    "    { \"name\": \"mask\", \"alphaMode\": \"MASK\", "
+                    "\"alphaCutoff\": 0.35 },\n"
+                    "    { \"name\": \"blend\", \"alphaMode\": \"BLEND\", "
+                    "\"pbrMetallicRoughness\": { \"baseColorFactor\": "
+                    "[1.0, 0.5, 0.25, 0.4] } },\n"
+                    "    { \"name\": \"double_sided\", \"doubleSided\": true }\n"
+                    "  ]\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    if (!check(scene->materials.size() == 4, "expected four representative materials")) {
+        return false;
+    }
+    if (!check(scene->materials[1].alpha_mode == stellar::assets::AlphaMode::kMask,
+               "expected alpha-mask material")) {
+        return false;
+    }
+    if (!check(scene->materials[1].alpha_cutoff > 0.349f &&
+                   scene->materials[1].alpha_cutoff < 0.351f,
+               "expected alpha-mask cutoff")) {
+        return false;
+    }
+    if (!check(scene->materials[2].alpha_mode == stellar::assets::AlphaMode::kBlend,
+               "expected alpha-blend material")) {
+        return false;
+    }
+    if (!check(scene->materials[2].base_color_factor[3] > 0.399f &&
+                   scene->materials[2].base_color_factor[3] < 0.401f,
+               "expected alpha-blend base color alpha")) {
+        return false;
+    }
+    if (!check(scene->materials[3].double_sided, "expected double-sided material")) {
+        return false;
+    }
+
+    return true;
+}
+
+bool run_glb_smoke_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "glb_smoke";
+    std::filesystem::create_directories(work_dir);
+
+    const auto glb_path = work_dir / "empty_scene.glb";
+    write_glb_file(glb_path,
+                   "{\n"
+                   "  \"asset\": { \"version\": \"2.0\" },\n"
+                   "  \"scenes\": [{ \"name\": \"empty\", \"nodes\": [] }],\n"
+                   "  \"scene\": 0\n"
+                   "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(glb_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    return check(scene->scenes.size() == 1, "expected one scene from generated glb") &&
+           check(scene->default_scene_index.has_value() && *scene->default_scene_index == 0,
+                 "expected glb default scene index 0");
+}
+
 } // namespace
 
 int main() {
@@ -426,6 +527,12 @@ int main() {
         return 1;
     }
     if (!run_data_uri_fixture(root)) {
+        return 1;
+    }
+    if (!run_material_variants_fixture(root)) {
+        return 1;
+    }
+    if (!run_glb_smoke_fixture(root)) {
         return 1;
     }
 

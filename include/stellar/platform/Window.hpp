@@ -1,25 +1,15 @@
 #pragma once
 
 #include <expected>
-#include <string>
 #include <string_view>
-#include <utility>
 
 #include <SDL2/SDL.h>
+
+#include "stellar/platform/Error.hpp"
 
 namespace stellar::platform {
 
 class Input;
-
-/**
- * @brief Platform-agnostic error type for fallible operations.
- */
-struct Error {
-    std::string message;
-
-    explicit Error(std::string msg) : message(std::move(msg)) {}
-    explicit Error(const char* msg) : message(msg) {}
-};
 
 /**
  * @brief RAII wrapper for an OS window using SDL2.

@@ -3,13 +3,8 @@
 #include "stellar/graphics/RendererFactory.hpp"
 #include "stellar/platform/Input.hpp"
 
-#if defined(STELLAR_ENABLE_GLTF)
-#include "stellar/import/gltf/Loader.hpp"
-#endif
-
 #include <SDL2/SDL.h>
 
-#include <optional>
 #include <utility>
 
 namespace stellar::client {
@@ -27,18 +22,13 @@ constexpr float kRotationSpeed = 45.0f;
 Application::Application(ApplicationConfig config) noexcept : config_(std::move(config)) {}
 
 std::expected<void, stellar::platform::Error> Application::run() {
-    std::optional<stellar::assets::SceneAsset> scene;
-    if (config_.asset_path.has_value()) {
-#if defined(STELLAR_ENABLE_GLTF)
-        auto loaded_scene = stellar::import::gltf::load_scene(*config_.asset_path);
-        if (!loaded_scene) {
-            return std::unexpected(loaded_scene.error());
-        }
-        scene = std::move(*loaded_scene);
-#else
-        return std::unexpected(stellar::platform::Error(
-            "--asset requires a build configured with STELLAR_ENABLE_GLTF=ON"));
-#endif
+    auto validation = validate_application_config(config_);
+    if (!validation) {
+        return std::unexpected(validation.error());
+    }
+
+    if (config_.validate_only) {
+        return {};
     }
 
     stellar::platform::Window window;
@@ -48,7 +38,7 @@ std::expected<void, stellar::platform::Error> Application::run() {
         return result;
     }
 
-    auto renderer = stellar::graphics::create_renderer(std::move(scene));
+    auto renderer = stellar::graphics::create_renderer(std::move(validation->scene));
     if (auto result = renderer->initialize(window); !result) {
         return result;
     }

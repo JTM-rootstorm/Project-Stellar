@@ -25,6 +25,7 @@ public:
     std::expected<stellar::graphics::TextureHandle, stellar::platform::Error>
     create_texture(const stellar::assets::ImageAsset& image) override {
         uploaded_image_width = image.width;
+        uploaded_image_widths.push_back(image.width);
         return stellar::graphics::TextureHandle{next_handle++};
     }
 
@@ -68,6 +69,7 @@ public:
     bool ended_frame = false;
     std::size_t uploaded_primitive_count = 0;
     std::uint32_t uploaded_image_width = 0;
+    std::vector<std::uint32_t> uploaded_image_widths;
     int destroyed_meshes = 0;
     int destroyed_textures = 0;
     int destroyed_materials = 0;
@@ -79,7 +81,7 @@ stellar::assets::SceneAsset make_scene() {
     stellar::assets::SceneAsset scene;
     for (int image_index = 0; image_index < 3; ++image_index) {
         scene.images.push_back(stellar::assets::ImageAsset{
-            .width = 1,
+            .width = static_cast<std::uint32_t>(image_index + 1),
             .height = 1,
             .format = stellar::assets::ImageFormat::kR8G8B8A8,
             .pixels = {255, 255, 255, 255},
@@ -115,7 +117,7 @@ stellar::assets::SceneAsset make_scene() {
         }
         scene.textures.push_back(stellar::assets::TextureAsset{
             .name = texture_name,
-            .image_index = texture_index,
+            .image_index = (texture_index + 2) % 3,
             .sampler_index = texture_index,
         });
     }
@@ -132,6 +134,15 @@ stellar::assets::SceneAsset make_scene() {
         .roughness_factor = 0.35F,
         .alpha_mode = stellar::assets::AlphaMode::kMask,
         .alpha_cutoff = 0.25F,
+        .double_sided = true,
+    });
+    scene.materials.push_back(stellar::assets::MaterialAsset{
+        .name = "blend",
+        .base_color_factor = {1.0F, 0.75F, 0.5F, 0.4F},
+        .alpha_mode = stellar::assets::AlphaMode::kBlend,
+    });
+    scene.materials.push_back(stellar::assets::MaterialAsset{
+        .name = "double_sided",
         .double_sided = true,
     });
 
@@ -170,8 +181,9 @@ int main() {
     assert(result.has_value());
     assert(mock_ptr->initialized);
     assert(mock_ptr->uploaded_primitive_count == 1);
-    assert(mock_ptr->uploaded_image_width == 1);
-    assert(mock_ptr->material_uploads.size() == 1);
+    assert(mock_ptr->uploaded_image_width == 2);
+    assert((mock_ptr->uploaded_image_widths == std::vector<std::uint32_t>{3, 1, 2}));
+    assert(mock_ptr->material_uploads.size() == 3);
     assert(mock_ptr->material_uploads[0].base_color_texture.has_value());
     assert(mock_ptr->material_uploads[0].base_color_texture->texture.value != 0);
     assert(mock_ptr->material_uploads[0].base_color_texture->sampler.wrap_s ==
@@ -189,6 +201,10 @@ int main() {
     assert(mock_ptr->material_uploads[0].material.metallic_factor > 0.74F);
     assert(mock_ptr->material_uploads[0].material.roughness_factor < 0.36F);
     assert(mock_ptr->material_uploads[0].material.double_sided);
+    assert(mock_ptr->material_uploads[1].material.alpha_mode ==
+           stellar::assets::AlphaMode::kBlend);
+    assert(mock_ptr->material_uploads[1].material.base_color_factor[3] < 0.41F);
+    assert(mock_ptr->material_uploads[2].material.double_sided);
 
     const std::array<float, 16> identity{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
                                          0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F};

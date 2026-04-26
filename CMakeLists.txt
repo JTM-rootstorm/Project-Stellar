@@ -92,6 +92,19 @@ target_link_libraries(stellar_graphics PUBLIC
 
 target_link_libraries(stellar_graphics PUBLIC stellar_assets)
 
+add_library(stellar_client_config
+    src/client/ApplicationConfig.cpp
+)
+
+target_include_directories(stellar_client_config PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_config PUBLIC
+    stellar_assets
+    stellar_scene
+)
+
 add_executable(stellar_render_scene_upload_test
     tests/graphics/RenderSceneUpload.cpp
 )
@@ -106,6 +119,20 @@ target_link_libraries(stellar_render_scene_upload_test PRIVATE
 
 add_test(NAME render_scene_upload COMMAND stellar_render_scene_upload_test)
 
+add_executable(stellar_client_asset_validation_smoke
+    tests/client/AssetValidationSmoke.cpp
+)
+
+target_include_directories(stellar_client_asset_validation_smoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_asset_validation_smoke PRIVATE
+    stellar_client_config
+)
+
+add_test(NAME client_asset_validation_smoke COMMAND stellar_client_asset_validation_smoke)
+
 add_executable(stellar-client
     src/client/main.cpp
     src/client/Application.cpp
@@ -116,15 +143,27 @@ target_include_directories(stellar-client PRIVATE
 )
 
 target_link_libraries(stellar-client PRIVATE
+    stellar_client_config
     stellar_graphics
     stellar_assets
     stellar_scene
     miniaudio
 )
 
+set(STELLAR_EMPTY_GLTF_FIXTURE
+    ${CMAKE_SOURCE_DIR}/tests/fixtures/gltf/empty_scene.gltf
+)
+
+add_test(NAME client_cli_asset_validation
+    COMMAND stellar-client --validate-config --asset ${STELLAR_EMPTY_GLTF_FIXTURE}
+)
+
 if(STELLAR_ENABLE_GLTF)
+    target_compile_definitions(stellar_client_config PRIVATE STELLAR_ENABLE_GLTF=1)
     target_compile_definitions(stellar-client PRIVATE STELLAR_ENABLE_GLTF=1)
+    target_link_libraries(stellar_client_config PUBLIC stellar_import_gltf)
     target_link_libraries(stellar-client PRIVATE stellar_import_gltf)
+    target_compile_definitions(stellar_client_asset_validation_smoke PRIVATE STELLAR_ENABLE_GLTF=1)
 
     add_executable(stellar_import_gltf_regression
         tests/import/gltf/ImporterRegression.cpp
@@ -140,4 +179,8 @@ if(STELLAR_ENABLE_GLTF)
     )
 
     add_test(NAME gltf_importer_regression COMMAND stellar_import_gltf_regression)
+else()
+    set_tests_properties(client_cli_asset_validation PROPERTIES
+        WILL_FAIL TRUE
+    )
 endif()

@@ -1,19 +1,11 @@
 #pragma once
 
 #include <expected>
-#include <optional>
-#include <string>
 
+#include "stellar/client/ApplicationConfig.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::client {
-
-/**
- * @brief Configuration supplied to the client application at startup.
- */
-struct ApplicationConfig {
-    std::optional<std::string> asset_path;
-};
 
 /**
  * @brief Top-level client application runner.

@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "stellar/client/Application.hpp"
+#include "stellar/client/ApplicationConfig.hpp"
 
 #include <cstdio>
 
@@ -15,6 +16,11 @@ parse_application_config(int argc, char* argv[]) {
     stellar::client::ApplicationConfig config;
 
     for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--validate-config") == 0) {
+            config.validate_only = true;
+            continue;
+        }
+
         if (std::strcmp(argv[i], "--asset") == 0) {
             if (i + 1 >= argc) {
                 return std::unexpected(stellar::platform::Error("--asset requires a path"));
