@@ -41,7 +41,9 @@ target_link_libraries(stellar_platform PUBLIC
 
 add_library(stellar_graphics
     src/graphics/RendererFactory.cpp
+    src/graphics/GraphicsDeviceFactory.cpp
     src/graphics/opengl/CubeRenderer.cpp
+    src/graphics/opengl/OpenGLGraphicsDevice.cpp
 )
 
 target_include_directories(stellar_graphics PUBLIC
