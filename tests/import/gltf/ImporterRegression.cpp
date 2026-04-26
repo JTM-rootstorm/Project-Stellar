@@ -242,13 +242,21 @@ std::string build_scene_json(const std::string& buffer_uri, std::size_t buffer_s
         json += "  \"textures\": [{ \"name\": \"embeddedTexture\", \"source\": 0, "
                 "\"sampler\": 0 }],\n";
     }
+    const int data_texture_index = include_external_image ? 1 : 0;
     json += "  \"materials\": [{ \"name\": \"material0\", \"alphaMode\": \"MASK\", "
-            "\"alphaCutoff\": 0.25, \"doubleSided\": true, \"pbrMetallicRoughness\": { "
+            "\"alphaCutoff\": 0.25, \"doubleSided\": true, "
+            "\"emissiveFactor\": [0.1, 0.2, 0.3], \"pbrMetallicRoughness\": { "
             "\"baseColorFactor\": [0.25, 0.5, 0.75, 0.8], "
             "\"metallicFactor\": 0.6, \"roughnessFactor\": 0.4, "
             "\"baseColorTexture\": { \"index\": 0, \"texCoord\": 1 }, "
-            "\"metallicRoughnessTexture\": { \"index\": 0, \"texCoord\": 2 } }, "
-            "\"normalTexture\": { \"index\": 0, \"texCoord\": 3 } }],\n";
+            "\"metallicRoughnessTexture\": { \"index\": ";
+    json += std::to_string(data_texture_index);
+    json += ", \"texCoord\": 2 } }, \"normalTexture\": { \"index\": ";
+    json += std::to_string(data_texture_index);
+    json += ", \"texCoord\": 3, \"scale\": 0.65 }, \"occlusionTexture\": { \"index\": ";
+    json += std::to_string(data_texture_index);
+    json += ", \"texCoord\": 4, \"strength\": 0.7 }, "
+            "\"emissiveTexture\": { \"index\": 0, \"texCoord\": 5 } }],\n";
     json += "  \"meshes\": [{ \"name\": \"mesh0\", \"primitives\": [{ \"attributes\": { "
             "\"POSITION\": 0 }, \"indices\": 1, \"material\": 0, \"mode\": 4 }] }],\n";
     json += "  \"nodes\": [{ \"name\": \"node0\", \"mesh\": 0 }],\n";
@@ -363,8 +371,16 @@ bool validate_scene(const stellar::assets::SceneAsset& scene, bool expect_extern
     }
     if (expect_external_image) {
         if (!check(scene.textures[1].image_index.has_value() &&
-                       *scene.textures[1].image_index == 0,
-                   "expected second texture to map back to embedded image 0")) {
+                        *scene.textures[1].image_index == 0,
+                    "expected second texture to map back to embedded image 0")) {
+            return false;
+        }
+        if (!check(scene.textures[0].color_space == stellar::assets::TextureColorSpace::kSrgb,
+                   "expected base/emissive texture to use sRGB color space")) {
+            return false;
+        }
+        if (!check(scene.textures[1].color_space == stellar::assets::TextureColorSpace::kLinear,
+                   "expected data texture to use linear color space")) {
             return false;
         }
     }
@@ -383,8 +399,30 @@ bool validate_scene(const stellar::assets::SceneAsset& scene, bool expect_extern
         return false;
     }
     if (!check(scene.materials[0].normal_texture.has_value() &&
-                    scene.materials[0].normal_texture->texcoord_set == 3,
-                "expected normal texcoord set 3")) {
+                     scene.materials[0].normal_texture->texcoord_set == 3,
+                 "expected normal texcoord set 3")) {
+        return false;
+    }
+    if (!check_near(scene.materials[0].normal_texture->scale, 0.65f,
+                    "expected normal texture scale")) {
+        return false;
+    }
+    if (!check(scene.materials[0].occlusion_texture.has_value() &&
+                   scene.materials[0].occlusion_texture->texcoord_set == 4,
+               "expected occlusion texture texcoord set 4")) {
+        return false;
+    }
+    if (!check_near(scene.materials[0].occlusion_strength, 0.7f,
+                    "expected occlusion strength")) {
+        return false;
+    }
+    if (!check(scene.materials[0].emissive_texture.has_value() &&
+                   scene.materials[0].emissive_texture->texcoord_set == 5,
+               "expected emissive texture texcoord set 5")) {
+        return false;
+    }
+    if (!check_vec3(scene.materials[0].emissive_factor, {0.1f, 0.2f, 0.3f},
+                    "expected emissive factor")) {
         return false;
     }
     if (!check(scene.materials[0].base_color_factor[0] > 0.249f &&

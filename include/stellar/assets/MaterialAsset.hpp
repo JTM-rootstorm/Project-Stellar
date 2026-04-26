@@ -27,6 +27,10 @@ struct MaterialAsset {
     std::optional<MaterialTextureSlot> base_color_texture;
     std::optional<MaterialTextureSlot> normal_texture;
     std::optional<MaterialTextureSlot> metallic_roughness_texture;
+    std::optional<MaterialTextureSlot> occlusion_texture;
+    std::optional<MaterialTextureSlot> emissive_texture;
+    std::array<float, 3> emissive_factor{0.0f, 0.0f, 0.0f};
+    float occlusion_strength = 1.0f;
     float metallic_factor = 1.0f;
     float roughness_factor = 1.0f;
     AlphaMode alpha_mode = AlphaMode::kOpaque;

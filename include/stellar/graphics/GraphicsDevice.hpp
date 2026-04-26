@@ -6,6 +6,7 @@
 
 #include "stellar/assets/ImageAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
+#include "stellar/assets/TextureAsset.hpp"
 #include "stellar/graphics/GraphicsHandles.hpp"
 #include "stellar/graphics/MaterialUpload.hpp"
 #include "stellar/platform/Window.hpp"
@@ -24,6 +25,22 @@ struct MeshDrawTransforms {
 
     /** @brief Column-major inverse-transpose world-space normal transform matrix. */
     std::array<float, 9> normal{};
+};
+
+/**
+ * @brief Backend-neutral image upload payload with color-space metadata.
+ */
+struct TextureUpload {
+    stellar::assets::ImageAsset image;
+    stellar::assets::TextureColorSpace color_space = stellar::assets::TextureColorSpace::kLinear;
+};
+
+/**
+ * @brief One primitive draw within an uploaded mesh.
+ */
+struct MeshPrimitiveDrawCommand {
+    std::size_t primitive_index = 0;
+    MaterialHandle material;
 };
 
 /**
@@ -54,11 +71,11 @@ public:
 
     /**
      * @brief Upload an image as a GPU texture.
-     * @param image CPU-side image asset.
+     * @param texture CPU-side image asset and upload metadata.
      * @return Opaque texture handle on success.
      */
     [[nodiscard]] virtual std::expected<TextureHandle, stellar::platform::Error>
-    create_texture(const stellar::assets::ImageAsset& image) = 0;
+    create_texture(const TextureUpload& texture) = 0;
 
     /**
      * @brief Register a material for later rendering use.
@@ -78,11 +95,11 @@ public:
     /**
      * @brief Draw a mesh using backend-neutral world and projection transforms.
      * @param mesh Opaque mesh handle.
-     * @param materials Primitive material handles matching the mesh primitive order.
+     * @param commands Primitive draw commands in submission order.
      * @param transforms Column-major MVP, world, and normal transform matrices.
      */
     virtual void draw_mesh(MeshHandle mesh,
-                           std::span<const MaterialHandle> materials,
+                           std::span<const MeshPrimitiveDrawCommand> commands,
                            const MeshDrawTransforms& transforms) noexcept = 0;
 
     /**

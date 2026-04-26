@@ -7,6 +7,8 @@
 #include <optional>
 #include <vector>
 
+#include <glm/mat4x4.hpp>
+
 #include "stellar/assets/SceneAsset.hpp"
 #include "stellar/graphics/GraphicsDevice.hpp"
 
@@ -42,6 +44,18 @@ public:
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
      * @param view_projection Column-major view-projection matrix.
+     * @param view Column-major view matrix used for transparent primitive sorting.
+     */
+    void render(int width,
+                 int height,
+                 const std::array<float, 16>& view_projection,
+                 const std::array<float, 16>& view) noexcept;
+
+    /**
+     * @brief Render the active scene using view-projection depth as a compatibility fallback.
+     * @param width Viewport width in pixels.
+     * @param height Viewport height in pixels.
+     * @param view_projection Column-major view-projection matrix.
      */
     void render(int width,
                 int height,
@@ -65,9 +79,12 @@ public:
 private:
     [[nodiscard]] static std::array<float, 16>
     compose_transform(const stellar::scene::Transform& transform) noexcept;
-    void render_node(std::size_t node_index,
-                     const std::array<float, 16>& parent_world,
-                     const std::array<float, 16>& view_projection) noexcept;
+    void collect_node_draws(std::size_t node_index,
+                            const std::array<float, 16>& parent_world,
+                            const glm::mat4& view_projection,
+                            const glm::mat4& view,
+                            std::vector<struct QueuedMeshDraw>& opaque_draws,
+                            std::vector<struct QueuedMeshDraw>& blend_draws) noexcept;
     void destroy() noexcept;
 
     std::unique_ptr<GraphicsDevice> device_;

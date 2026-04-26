@@ -29,7 +29,7 @@ public:
     create_mesh(const stellar::assets::MeshAsset& mesh) override;
 
     [[nodiscard]] std::expected<TextureHandle, stellar::platform::Error>
-    create_texture(const stellar::assets::ImageAsset& image) override;
+    create_texture(const TextureUpload& texture) override;
 
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
     create_material(const MaterialUpload& material) override;
@@ -37,7 +37,7 @@ public:
     void begin_frame(int width, int height) noexcept override;
 
     void draw_mesh(MeshHandle mesh,
-                   std::span<const MaterialHandle> materials,
+                   std::span<const MeshPrimitiveDrawCommand> commands,
                    const MeshDrawTransforms& transforms) noexcept override;
 
     void end_frame() noexcept override;

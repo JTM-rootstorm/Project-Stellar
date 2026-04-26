@@ -133,7 +133,7 @@ void CubeRenderer::render(float rotation_degrees, int width, int height) noexcep
         glm::radians(rotation_degrees), glm::vec3(1.0f, 0.0f, 0.0f));
 
     scene_.node_transform(0).matrix = to_array(model);
-    scene_.render(width, height, to_array(projection * view));
+    scene_.render(width, height, to_array(projection * view), to_array(view));
 }
 
 } // namespace stellar::graphics::opengl

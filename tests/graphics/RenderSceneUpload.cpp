@@ -23,9 +23,10 @@ public:
     }
 
     std::expected<stellar::graphics::TextureHandle, stellar::platform::Error>
-    create_texture(const stellar::assets::ImageAsset& image) override {
-        uploaded_image_width = image.width;
-        uploaded_image_widths.push_back(image.width);
+    create_texture(const stellar::graphics::TextureUpload& texture) override {
+        uploaded_image_width = texture.image.width;
+        uploaded_image_widths.push_back(texture.image.width);
+        uploaded_texture_color_spaces.push_back(texture.color_space);
         return stellar::graphics::TextureHandle{next_handle++};
     }
 
@@ -40,11 +41,12 @@ public:
     }
 
     void draw_mesh(stellar::graphics::MeshHandle mesh,
-                   std::span<const stellar::graphics::MaterialHandle> materials,
+                   std::span<const stellar::graphics::MeshPrimitiveDrawCommand> commands,
                    const stellar::graphics::MeshDrawTransforms& transforms) noexcept override {
-        drew_mesh = static_cast<bool>(mesh) && materials.size() == 1 &&
-                    static_cast<bool>(materials[0]) && transforms.mvp[0] == 2.0F &&
+        drew_mesh = static_cast<bool>(mesh) && commands.size() == 1 &&
+                    static_cast<bool>(commands[0].material) && transforms.mvp[0] == 2.0F &&
                     transforms.world[5] == 3.0F && transforms.normal[8] == 0.25F;
+        draw_order.push_back(commands[0].primitive_index);
     }
 
     void end_frame() noexcept override {
@@ -70,6 +72,8 @@ public:
     std::size_t uploaded_primitive_count = 0;
     std::uint32_t uploaded_image_width = 0;
     std::vector<std::uint32_t> uploaded_image_widths;
+    std::vector<stellar::assets::TextureColorSpace> uploaded_texture_color_spaces;
+    std::vector<std::size_t> draw_order;
     int destroyed_meshes = 0;
     int destroyed_textures = 0;
     int destroyed_materials = 0;
@@ -119,6 +123,8 @@ stellar::assets::SceneAsset make_scene() {
             .name = texture_name,
             .image_index = (texture_index + 2) % 3,
             .sampler_index = texture_index,
+            .color_space = texture_index == 0 ? stellar::assets::TextureColorSpace::kSrgb
+                                               : stellar::assets::TextureColorSpace::kLinear,
         });
     }
     scene.materials.push_back(stellar::assets::MaterialAsset{
@@ -127,9 +133,17 @@ stellar::assets::SceneAsset make_scene() {
         .base_color_texture = stellar::assets::MaterialTextureSlot{.texture_index = 0,
                                                                     .texcoord_set = 0},
         .normal_texture = stellar::assets::MaterialTextureSlot{.texture_index = 1,
-                                                               .texcoord_set = 0},
+                                                               .texcoord_set = 0,
+                                                               .scale = 0.5F},
         .metallic_roughness_texture = stellar::assets::MaterialTextureSlot{.texture_index = 2,
                                                                            .texcoord_set = 0},
+        .occlusion_texture = stellar::assets::MaterialTextureSlot{.texture_index = 2,
+                                                                  .texcoord_set = 0,
+                                                                  .scale = 0.75F},
+        .emissive_texture = stellar::assets::MaterialTextureSlot{.texture_index = 0,
+                                                                 .texcoord_set = 0},
+        .emissive_factor = {0.1F, 0.2F, 0.3F},
+        .occlusion_strength = 0.75F,
         .metallic_factor = 0.75F,
         .roughness_factor = 0.35F,
         .alpha_mode = stellar::assets::AlphaMode::kMask,
@@ -157,8 +171,19 @@ stellar::assets::SceneAsset make_scene() {
     };
     primitive.indices = {0, 1, 2};
     primitive.material_index = 0;
+    primitive.bounds_min = {-0.5F, -0.5F, 0.0F};
+    primitive.bounds_max = {0.5F, 0.5F, 0.0F};
+    stellar::assets::MeshPrimitive far_blend = primitive;
+    far_blend.material_index = 1;
+    far_blend.bounds_min = {-0.5F, -0.5F, -5.0F};
+    far_blend.bounds_max = {0.5F, 0.5F, -5.0F};
+    stellar::assets::MeshPrimitive near_blend = primitive;
+    near_blend.material_index = 1;
+    near_blend.bounds_min = {-0.5F, -0.5F, -1.0F};
+    near_blend.bounds_max = {0.5F, 0.5F, -1.0F};
     scene.meshes.push_back(stellar::assets::MeshAsset{.name = "triangle",
-                                                      .primitives = {primitive}});
+                                                       .primitives = {primitive, far_blend,
+                                                                      near_blend}});
     stellar::scene::Node root_node;
     root_node.name = "root";
     root_node.local_transform.scale = {2.0F, 3.0F, 4.0F};
@@ -180,9 +205,14 @@ int main() {
     auto result = render_scene.initialize(std::move(mock), window, make_scene());
     assert(result.has_value());
     assert(mock_ptr->initialized);
-    assert(mock_ptr->uploaded_primitive_count == 1);
+    assert(mock_ptr->uploaded_primitive_count == 3);
     assert(mock_ptr->uploaded_image_width == 2);
     assert((mock_ptr->uploaded_image_widths == std::vector<std::uint32_t>{3, 1, 2}));
+    assert((mock_ptr->uploaded_texture_color_spaces ==
+            std::vector<stellar::assets::TextureColorSpace>{
+                stellar::assets::TextureColorSpace::kSrgb,
+                stellar::assets::TextureColorSpace::kLinear,
+                stellar::assets::TextureColorSpace::kLinear}));
     assert(mock_ptr->material_uploads.size() == 3);
     assert(mock_ptr->material_uploads[0].base_color_texture.has_value());
     assert(mock_ptr->material_uploads[0].base_color_texture->texture.value != 0);
@@ -190,12 +220,17 @@ int main() {
            stellar::assets::TextureWrapMode::kClampToEdge);
     assert(mock_ptr->material_uploads[0].normal_texture.has_value());
     assert(mock_ptr->material_uploads[0].normal_texture->texture.value != 0);
+    assert(mock_ptr->material_uploads[0].material.normal_texture->scale == 0.5F);
     assert(mock_ptr->material_uploads[0].normal_texture->sampler.min_filter ==
            stellar::assets::TextureFilter::kLinearMipmapLinear);
     assert(mock_ptr->material_uploads[0].normal_texture->sampler.wrap_t ==
            stellar::assets::TextureWrapMode::kMirroredRepeat);
     assert(mock_ptr->material_uploads[0].metallic_roughness_texture.has_value());
     assert(mock_ptr->material_uploads[0].metallic_roughness_texture->texture.value != 0);
+    assert(mock_ptr->material_uploads[0].occlusion_texture.has_value());
+    assert(mock_ptr->material_uploads[0].emissive_texture.has_value());
+    assert(mock_ptr->material_uploads[0].material.occlusion_strength == 0.75F);
+    assert(mock_ptr->material_uploads[0].material.emissive_factor[2] == 0.3F);
     assert(mock_ptr->material_uploads[0].metallic_roughness_texture->sampler.wrap_s ==
            stellar::assets::TextureWrapMode::kRepeat);
     assert(mock_ptr->material_uploads[0].material.metallic_factor > 0.74F);
@@ -211,6 +246,7 @@ int main() {
     render_scene.render(64, 64, identity);
     assert(mock_ptr->began_frame);
     assert(mock_ptr->drew_mesh);
+    assert((mock_ptr->draw_order == std::vector<std::size_t>{0, 1, 2}));
     assert(mock_ptr->ended_frame);
 
     return 0;

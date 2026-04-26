@@ -373,6 +373,7 @@ CgltfImporter::load_material(const cgltf_data* data, const cgltf_material* mater
         stellar::assets::MaterialTextureSlot slot;
         slot.texture_index = *index;
         slot.texcoord_set = view.texcoord < 0 ? 0u : static_cast<std::uint32_t>(view.texcoord);
+        slot.scale = view.scale;
         return slot;
     };
 
@@ -393,6 +394,7 @@ CgltfImporter::load_material(const cgltf_data* data, const cgltf_material* mater
             return std::unexpected(slot.error());
         }
         result.normal_texture = *slot;
+        result.normal_texture->scale = material->normal_texture.scale;
     }
 
     if (material->pbr_metallic_roughness.metallic_roughness_texture.texture) {
@@ -404,7 +406,51 @@ CgltfImporter::load_material(const cgltf_data* data, const cgltf_material* mater
         result.metallic_roughness_texture = *slot;
     }
 
+    if (material->occlusion_texture.texture) {
+        auto slot = load_texture_slot(material->occlusion_texture,
+                                      "Failed to resolve occlusion texture index");
+        if (!slot) {
+            return std::unexpected(slot.error());
+        }
+        result.occlusion_texture = *slot;
+        result.occlusion_strength = material->occlusion_texture.scale;
+    }
+
+    if (material->emissive_texture.texture) {
+        auto slot = load_texture_slot(material->emissive_texture,
+                                      "Failed to resolve emissive texture index");
+        if (!slot) {
+            return std::unexpected(slot.error());
+        }
+        result.emissive_texture = *slot;
+    }
+    for (std::size_t i = 0; i < 3; ++i) {
+        result.emissive_factor[i] = material->emissive_factor[i];
+    }
+
     return result;
+}
+
+static void classify_texture_color_spaces(stellar::assets::SceneAsset& scene) noexcept {
+    for (auto& texture : scene.textures) {
+        texture.color_space = stellar::assets::TextureColorSpace::kLinear;
+    }
+
+    auto mark_srgb = [&scene](const std::optional<stellar::assets::MaterialTextureSlot>& slot) {
+        if (slot.has_value() && slot->texture_index < scene.textures.size()) {
+            scene.textures[slot->texture_index].color_space =
+                stellar::assets::TextureColorSpace::kSrgb;
+        }
+    };
+
+    for (const auto& material : scene.materials) {
+        mark_srgb(material.base_color_texture);
+        mark_srgb(material.emissive_texture);
+        // Normal, metallic-roughness, and occlusion textures remain linear non-color data. If a
+        // glTF reuses one texture for color and non-color slots, the current one-upload-per-texture
+        // asset model cannot assign per-use color spaces; color usage wins until texture views are
+        // split during upload in a later renderer phase.
+    }
 }
 
 static stellar::assets::TextureFilter to_texture_filter(cgltf_filter_type filter) {
@@ -774,6 +820,8 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
         }
         scene.materials.push_back(*material);
     }
+
+    classify_texture_color_spaces(scene);
 
     scene.meshes.reserve(data->meshes_count);
     for (cgltf_size i = 0; i < data->meshes_count; ++i) {

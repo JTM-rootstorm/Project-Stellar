@@ -42,11 +42,18 @@ uniform vec4 u_base_color;
 uniform sampler2D u_base_color_texture;
 uniform sampler2D u_normal_texture;
 uniform sampler2D u_metallic_roughness_texture;
+uniform sampler2D u_occlusion_texture;
+uniform sampler2D u_emissive_texture;
 uniform bool u_has_base_color_texture;
 uniform bool u_has_normal_texture;
 uniform bool u_has_metallic_roughness_texture;
+uniform bool u_has_occlusion_texture;
+uniform bool u_has_emissive_texture;
 uniform float u_metallic_factor;
 uniform float u_roughness_factor;
+uniform float u_normal_scale;
+uniform float u_occlusion_strength;
+uniform vec3 u_emissive_factor;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
 
@@ -79,6 +86,7 @@ void main() {
         vec3 bitangent = normalize(cross(normal, tangent) * v_tangent.w);
         mat3 tbn = mat3(tangent, bitangent, normal);
         vec3 sampled_normal = texture(u_normal_texture, v_uv0).xyz * 2.0 - 1.0;
+        sampled_normal.xy *= u_normal_scale;
         normal = normalize(tbn * sampled_normal);
     }
 
@@ -88,7 +96,15 @@ void main() {
     float metal_attenuation = mix(1.0, 0.45, clamp(metallic, 0.0, 1.0));
     float lit = 0.18 + diffuse * metal_attenuation *
         mix(1.0, 0.65, perceptual_roughness);
-    frag_color = vec4(color.rgb * lit, color.a);
+    float occlusion = 1.0;
+    if (u_has_occlusion_texture) {
+        occlusion = mix(1.0, texture(u_occlusion_texture, v_uv0).r, u_occlusion_strength);
+    }
+    vec3 emissive = u_emissive_factor;
+    if (u_has_emissive_texture) {
+        emissive *= texture(u_emissive_texture, v_uv0).rgb;
+    }
+    frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
 }
 )";
 
@@ -180,15 +196,18 @@ create_shader_program_impl(const char* vertex_src, const char* fragment_src) {
 }
 
 constexpr GLenum texture_format_from_image(stellar::assets::ImageFormat format,
+                                            stellar::assets::TextureColorSpace color_space,
                                             GLint& internal_format,
                                             GLenum& external_format) {
     switch (format) {
         case stellar::assets::ImageFormat::kR8G8B8:
-            internal_format = GL_RGB8;
+            internal_format = color_space == stellar::assets::TextureColorSpace::kSrgb ? GL_SRGB8
+                                                                                       : GL_RGB8;
             external_format = GL_RGB;
             return GL_RGB;
         case stellar::assets::ImageFormat::kR8G8B8A8:
-            internal_format = GL_RGBA8;
+            internal_format = color_space == stellar::assets::TextureColorSpace::kSrgb ? GL_SRGB8_ALPHA8
+                                                                                       : GL_RGBA8;
             external_format = GL_RGBA;
             return GL_RGBA;
         case stellar::assets::ImageFormat::kUnknown:
@@ -407,18 +426,20 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
 }
 
 std::expected<TextureHandle, stellar::platform::Error>
-OpenGLGraphicsDevice::create_texture(const stellar::assets::ImageAsset& image) {
+OpenGLGraphicsDevice::create_texture(const TextureUpload& texture) {
     if (!context_) {
         return std::unexpected(stellar::platform::Error("Graphics device is not initialized"));
     }
 
+    const auto& image = texture.image;
     if (image.width == 0 || image.height == 0 || image.pixels.empty()) {
         return std::unexpected(stellar::platform::Error("Image asset is empty"));
     }
 
     GLint internal_format = GL_NONE;
     GLenum external_format = GL_NONE;
-    if (texture_format_from_image(image.format, internal_format, external_format) == GL_NONE) {
+    if (texture_format_from_image(image.format, texture.color_space, internal_format,
+                                  external_format) == GL_NONE) {
         return std::unexpected(stellar::platform::Error("Unsupported image format"));
     }
 
@@ -465,7 +486,7 @@ void OpenGLGraphicsDevice::begin_frame(int width, int height) noexcept {
 }
 
 void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
-                                      std::span<const MaterialHandle> materials,
+                                      std::span<const MeshPrimitiveDrawCommand> commands,
                                       const MeshDrawTransforms& transforms) noexcept {
     if (!context_ || shader_program_ == 0 || mvp_loc_ < 0 || model_loc_ < 0 ||
         normal_matrix_loc_ < 0) {
@@ -499,12 +520,13 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         return true;
     };
 
-    for (std::size_t primitive_index = 0; primitive_index < it->second.primitives.size();
-         ++primitive_index) {
+    for (const MeshPrimitiveDrawCommand& command : commands) {
+        const std::size_t primitive_index = command.primitive_index;
+        if (primitive_index >= it->second.primitives.size()) {
+            continue;
+        }
         const auto& primitive = it->second.primitives[primitive_index];
-        const MaterialHandle material_handle = primitive_index < materials.size()
-                                                   ? materials[primitive_index]
-                                                   : MaterialHandle{};
+        const MaterialHandle material_handle = command.material;
 
         const auto material_it = materials_.find(material_handle.value);
         const MaterialRecord* material = material_it != materials_.end() ? &material_it->second
@@ -517,7 +539,8 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         const auto alpha_mode = material != nullptr ? material->upload.material.alpha_mode
                                                     : stellar::assets::AlphaMode::kOpaque;
         if (alpha_mode == stellar::assets::AlphaMode::kBlend) {
-            // Alpha blending is per primitive; transparent depth sorting is not implemented yet.
+            // RenderScene orders transparent primitives; direct device submissions should already
+            // be preordered by the caller.
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         } else {
@@ -548,36 +571,77 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
                 bind_texture(material->upload.metallic_roughness_texture, GL_TEXTURE2);
         }
 
+        bool has_occlusion_texture = false;
+        if (material != nullptr) {
+            has_occlusion_texture = bind_texture(material->upload.occlusion_texture, GL_TEXTURE3);
+        }
+
+        bool has_emissive_texture = false;
+        if (material != nullptr) {
+            has_emissive_texture = bind_texture(material->upload.emissive_texture, GL_TEXTURE4);
+        }
+
         const GLint base_color_loc = glGetUniformLocation(shader_program_, "u_base_color");
         const GLint texture_loc = glGetUniformLocation(shader_program_, "u_base_color_texture");
         const GLint normal_texture_loc = glGetUniformLocation(shader_program_, "u_normal_texture");
         const GLint mr_texture_loc =
             glGetUniformLocation(shader_program_, "u_metallic_roughness_texture");
+        const GLint occlusion_texture_loc = glGetUniformLocation(shader_program_,
+                                                                 "u_occlusion_texture");
+        const GLint emissive_texture_loc = glGetUniformLocation(shader_program_,
+                                                                "u_emissive_texture");
         const GLint has_texture_loc = glGetUniformLocation(shader_program_,
                                                            "u_has_base_color_texture");
         const GLint has_normal_loc = glGetUniformLocation(shader_program_, "u_has_normal_texture");
         const GLint has_mr_loc =
             glGetUniformLocation(shader_program_, "u_has_metallic_roughness_texture");
+        const GLint has_occlusion_loc = glGetUniformLocation(shader_program_,
+                                                             "u_has_occlusion_texture");
+        const GLint has_emissive_loc = glGetUniformLocation(shader_program_,
+                                                            "u_has_emissive_texture");
         const GLint metallic_loc = glGetUniformLocation(shader_program_, "u_metallic_factor");
         const GLint roughness_loc = glGetUniformLocation(shader_program_, "u_roughness_factor");
+        const GLint normal_scale_loc = glGetUniformLocation(shader_program_, "u_normal_scale");
+        const GLint occlusion_strength_loc = glGetUniformLocation(shader_program_,
+                                                                  "u_occlusion_strength");
+        const GLint emissive_factor_loc = glGetUniformLocation(shader_program_,
+                                                               "u_emissive_factor");
         const GLint alpha_mode_loc = glGetUniformLocation(shader_program_, "u_alpha_mode");
         const GLint alpha_cutoff_loc = glGetUniformLocation(shader_program_, "u_alpha_cutoff");
         glUniform4fv(base_color_loc, 1, base_color.data());
         glUniform1i(texture_loc, 0);
         glUniform1i(normal_texture_loc, 1);
         glUniform1i(mr_texture_loc, 2);
+        glUniform1i(occlusion_texture_loc, 3);
+        glUniform1i(emissive_texture_loc, 4);
         glUniform1i(has_texture_loc, has_base_color_texture ? 1 : 0);
         glUniform1i(has_normal_loc, has_normal_texture ? 1 : 0);
         glUniform1i(has_mr_loc, has_metallic_roughness_texture ? 1 : 0);
+        glUniform1i(has_occlusion_loc, has_occlusion_texture ? 1 : 0);
+        glUniform1i(has_emissive_loc, has_emissive_texture ? 1 : 0);
         glUniform1f(metallic_loc,
                     material != nullptr ? material->upload.material.metallic_factor : 0.0f);
         glUniform1f(roughness_loc,
                     material != nullptr ? material->upload.material.roughness_factor : 1.0f);
+        glUniform1f(normal_scale_loc,
+                    material != nullptr && material->upload.material.normal_texture.has_value()
+                        ? material->upload.material.normal_texture->scale
+                        : 1.0f);
+        glUniform1f(occlusion_strength_loc,
+                    material != nullptr ? material->upload.material.occlusion_strength : 1.0f);
+        const std::array<float, 3> emissive_factor = material != nullptr
+            ? material->upload.material.emissive_factor
+            : std::array<float, 3>{0.0f, 0.0f, 0.0f};
+        glUniform3fv(emissive_factor_loc, 1, emissive_factor.data());
         glUniform1i(alpha_mode_loc, to_alpha_mode(alpha_mode));
         glUniform1f(alpha_cutoff_loc,
                     material != nullptr ? material->upload.material.alpha_cutoff : 0.5f);
         glBindVertexArray(primitive.vao);
         glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT, nullptr);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE1);

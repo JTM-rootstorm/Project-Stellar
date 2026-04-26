@@ -1,6 +1,7 @@
 #include "stellar/graphics/RenderScene.hpp"
 
 #include <cmath>
+#include <algorithm>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -8,6 +9,13 @@
 #include <glm/gtc/type_ptr.hpp>
 
 namespace stellar::graphics {
+
+struct QueuedMeshDraw {
+    MeshHandle mesh;
+    MeshPrimitiveDrawCommand command;
+    MeshDrawTransforms transforms;
+    float depth = 0.0f;
+};
 
 namespace {
 
@@ -63,6 +71,20 @@ resolve_material_texture_binding(const stellar::assets::MaterialTextureSlot& slo
     };
 }
 
+std::array<float, 3> primitive_center(const stellar::assets::MeshPrimitive& primitive) noexcept {
+    return {(primitive.bounds_min[0] + primitive.bounds_max[0]) * 0.5f,
+            (primitive.bounds_min[1] + primitive.bounds_max[1]) * 0.5f,
+            (primitive.bounds_min[2] + primitive.bounds_max[2]) * 0.5f};
+}
+
+float view_space_depth(const glm::mat4& view,
+                       const glm::mat4& world,
+                       const stellar::assets::MeshPrimitive& primitive) noexcept {
+    const auto center = primitive_center(primitive);
+    const glm::vec4 view_position = view * world * glm::vec4(center[0], center[1], center[2], 1.0f);
+    return view_position.z;
+}
+
 } // namespace
 
 RenderScene::~RenderScene() noexcept {
@@ -106,7 +128,8 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
         }
 
         const auto& image = scene_.images[*texture.image_index];
-        auto handle = device_->create_texture(image);
+        auto handle = device_->create_texture(TextureUpload{.image = image,
+                                                            .color_space = texture.color_space});
         if (!handle) {
             destroy();
             return std::unexpected(handle.error());
@@ -131,6 +154,14 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
             upload.metallic_roughness_texture = resolve_material_texture_binding(
                 *material.metallic_roughness_texture, scene_, texture_handles_);
         }
+        if (material.occlusion_texture.has_value()) {
+            upload.occlusion_texture = resolve_material_texture_binding(
+                *material.occlusion_texture, scene_, texture_handles_);
+        }
+        if (material.emissive_texture.has_value()) {
+            upload.emissive_texture = resolve_material_texture_binding(
+                *material.emissive_texture, scene_, texture_handles_);
+        }
 
         auto handle = device_->create_material(upload);
         if (!handle) {
@@ -153,7 +184,8 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
 
 void RenderScene::render(int width,
                          int height,
-                         const std::array<float, 16>& view_projection) noexcept {
+                         const std::array<float, 16>& view_projection,
+                         const std::array<float, 16>& view) noexcept {
     if (!device_ || !active_scene_index_.has_value()) {
         return;
     }
@@ -167,12 +199,38 @@ void RenderScene::render(int width,
 
     const glm::mat4 identity = glm::mat4(1.0f);
     const std::array<float, 16> identity_array = to_array(identity);
+    const glm::mat4 vp = to_glm_mat4(view_projection);
+    const glm::mat4 view_matrix = to_glm_mat4(view);
+    std::vector<QueuedMeshDraw> opaque_draws;
+    std::vector<QueuedMeshDraw> blend_draws;
     const auto& scene = scene_.scenes[scene_index];
     for (std::size_t root_node : scene.root_nodes) {
-        render_node(root_node, identity_array, view_projection);
+        collect_node_draws(root_node, identity_array, vp, view_matrix, opaque_draws, blend_draws);
+    }
+
+    std::sort(blend_draws.begin(), blend_draws.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.depth < rhs.depth;
+    });
+    // Alpha BLEND primitives are sorted by primitive bounds center in view space. This keeps the
+    // static path display-free and backend-neutral, but intersecting or concave transparent
+    // geometry can still require asset-side splitting or later order-independent transparency.
+
+    for (const QueuedMeshDraw& draw : opaque_draws) {
+        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&draw.command, 1),
+                           draw.transforms);
+    }
+    for (const QueuedMeshDraw& draw : blend_draws) {
+        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&draw.command, 1),
+                           draw.transforms);
     }
 
     device_->end_frame();
+}
+
+void RenderScene::render(int width,
+                         int height,
+                         const std::array<float, 16>& view_projection) noexcept {
+    render(width, height, view_projection, view_projection);
 }
 
 stellar::scene::Transform& RenderScene::node_transform(std::size_t node_index) noexcept {
@@ -202,9 +260,12 @@ RenderScene::compose_transform(const stellar::scene::Transform& transform) noexc
     return to_array(translation * rotation_matrix * scale);
 }
 
-void RenderScene::render_node(std::size_t node_index,
-                              const std::array<float, 16>& parent_world,
-                              const std::array<float, 16>& view_projection) noexcept {
+void RenderScene::collect_node_draws(std::size_t node_index,
+                                      const std::array<float, 16>& parent_world,
+                                      const glm::mat4& view_projection,
+                                      const glm::mat4& view,
+                                      std::vector<QueuedMeshDraw>& opaque_draws,
+                                      std::vector<QueuedMeshDraw>& blend_draws) noexcept {
     if (node_index >= scene_.nodes.size()) {
         return;
     }
@@ -213,37 +274,49 @@ void RenderScene::render_node(std::size_t node_index,
     const glm::mat4 parent = to_glm_mat4(parent_world);
     const glm::mat4 local = to_glm_mat4(compose_transform(node.local_transform));
     const glm::mat4 world = parent * local;
-    const glm::mat4 vp = to_glm_mat4(view_projection);
-    const std::array<float, 16> mvp = to_array(vp * world);
+    const std::array<float, 16> mvp = to_array(view_projection * world);
 
     for (const auto& mesh_instance : node.mesh_instances) {
         if (mesh_instance.mesh_index < mesh_handles_.size()) {
-            std::vector<MaterialHandle> materials;
             const auto& mesh_asset = scene_.meshes[mesh_instance.mesh_index];
-            materials.reserve(mesh_asset.primitives.size());
-            for (const auto& primitive : mesh_asset.primitives) {
-                if (primitive.material_index.has_value() &&
-                    *primitive.material_index < material_handles_.size()) {
-                    materials.push_back(material_handles_[*primitive.material_index]);
-                } else {
-                    materials.push_back(MaterialHandle{});
-                }
-            }
-
             const MeshDrawTransforms transforms{
                 .mvp = mvp,
                 .world = to_array(world),
                 .normal = normal_matrix_for(world),
             };
-            device_->draw_mesh(mesh_handles_[mesh_instance.mesh_index],
-                               materials,
-                               transforms);
+            for (std::size_t primitive_index = 0; primitive_index < mesh_asset.primitives.size();
+                 ++primitive_index) {
+                const auto& primitive = mesh_asset.primitives[primitive_index];
+                MaterialHandle material_handle{};
+                if (primitive.material_index.has_value() &&
+                    *primitive.material_index < material_handles_.size()) {
+                    material_handle = material_handles_[*primitive.material_index];
+                }
+
+                const bool is_blend = primitive.material_index.has_value() &&
+                    *primitive.material_index < scene_.materials.size() &&
+                    scene_.materials[*primitive.material_index].alpha_mode ==
+                        stellar::assets::AlphaMode::kBlend;
+                QueuedMeshDraw draw{
+                    .mesh = mesh_handles_[mesh_instance.mesh_index],
+                    .command = MeshPrimitiveDrawCommand{.primitive_index = primitive_index,
+                                                        .material = material_handle},
+                    .transforms = transforms,
+                    .depth = view_space_depth(view, world, primitive),
+                };
+                if (is_blend) {
+                    blend_draws.push_back(draw);
+                } else {
+                    opaque_draws.push_back(draw);
+                }
+            }
         }
     }
 
     const std::array<float, 16> world_array = to_array(world);
     for (std::size_t child_index : node.children) {
-        render_node(child_index, world_array, view_projection);
+        collect_node_draws(child_index, world_array, view_projection, view, opaque_draws,
+                           blend_draws);
     }
 }
 

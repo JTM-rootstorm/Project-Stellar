@@ -41,12 +41,21 @@ struct SamplerAsset {
 };
 
 /**
+ * @brief Texture color-space interpretation used during GPU upload and sampling.
+ */
+enum class TextureColorSpace {
+    kLinear,
+    kSrgb,
+};
+
+/**
  * @brief Backend-neutral texture binding to an imported image and optional sampler.
  */
 struct TextureAsset {
     std::string name;
     std::optional<std::size_t> image_index;
     std::optional<std::size_t> sampler_index;
+    TextureColorSpace color_space = TextureColorSpace::kLinear;
 };
 
 /**
@@ -55,6 +64,7 @@ struct TextureAsset {
 struct MaterialTextureSlot {
     std::size_t texture_index = 0;
     std::uint32_t texcoord_set = 0;
+    float scale = 1.0f;
 };
 
 } // namespace stellar::assets

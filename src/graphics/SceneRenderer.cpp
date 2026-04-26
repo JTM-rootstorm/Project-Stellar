@@ -138,7 +138,7 @@ void SceneRenderer::render(float rotation_degrees, int width, int height) noexce
         scene_.node_transform(0).matrix = to_array(model);
     }
 
-    scene_.render(width, height, to_array(projection * view));
+    scene_.render(width, height, to_array(projection * view), to_array(view));
 }
 
 } // namespace stellar::graphics
