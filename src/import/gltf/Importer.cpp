@@ -1,11 +1,13 @@
 #include "stellar/import/gltf/Importer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -81,6 +83,72 @@ checked_index(cgltf_size value, const char* error_message) {
     }
 
     return static_cast<std::size_t>(value);
+}
+
+[[nodiscard]] std::unexpected<stellar::platform::Error> import_error(const char* message) {
+    return std::unexpected(stellar::platform::Error(message));
+}
+
+[[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_float_accessor(const cgltf_accessor* accessor, cgltf_type type, cgltf_size expected_count,
+                        const char* label) {
+    if (!accessor) {
+        return import_error(label);
+    }
+    if (accessor->component_type != cgltf_component_type_r_32f || accessor->type != type) {
+        return import_error(label);
+    }
+    if (accessor->count != expected_count) {
+        return import_error(label);
+    }
+
+    return {};
+}
+
+[[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_index_accessor(const cgltf_accessor* accessor) {
+    if (!accessor || accessor->type != cgltf_type_scalar) {
+        return import_error("Invalid index accessor");
+    }
+
+    switch (accessor->component_type) {
+        case cgltf_component_type_r_8u:
+        case cgltf_component_type_r_16u:
+        case cgltf_component_type_r_32u:
+            return {};
+        default:
+            return import_error("Invalid index accessor component type");
+    }
+}
+
+[[nodiscard]] std::expected<std::array<float, 2>, stellar::platform::Error>
+read_vec2(const cgltf_accessor* accessor, std::size_t index, const char* error_message) {
+    cgltf_float value[4] = {};
+    if (!cgltf_accessor_read_float(accessor, index, value, 2)) {
+        return import_error(error_message);
+    }
+
+    return std::array<float, 2>{value[0], value[1]};
+}
+
+[[nodiscard]] std::expected<std::array<float, 3>, stellar::platform::Error>
+read_vec3(const cgltf_accessor* accessor, std::size_t index, const char* error_message) {
+    cgltf_float value[4] = {};
+    if (!cgltf_accessor_read_float(accessor, index, value, 3)) {
+        return import_error(error_message);
+    }
+
+    return std::array<float, 3>{value[0], value[1], value[2]};
+}
+
+[[nodiscard]] std::expected<std::array<float, 4>, stellar::platform::Error>
+read_vec4(const cgltf_accessor* accessor, std::size_t index, const char* error_message) {
+    cgltf_float value[4] = {};
+    if (!cgltf_accessor_read_float(accessor, index, value, 4)) {
+        return import_error(error_message);
+    }
+
+    return std::array<float, 4>{value[0], value[1], value[2], value[3]};
 }
 
 std::array<int, 256> base64_decode_table() {
@@ -413,6 +481,9 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
     stellar::assets::MeshAsset mesh;
     mesh.name = duplicate_to_string(source_mesh.name);
 
+    // Static import policy: fail on data needed to draw the primitive correctly, but ignore
+    // optional features without a runtime representation such as colors, UV1+, skins, animations,
+    // morph targets, cameras, lights, and extensions.
     for (cgltf_size p = 0; p < source_mesh.primitives_count; ++p) {
         const cgltf_primitive& primitive = source_mesh.primitives[p];
         if (primitive.type != cgltf_primitive_type_triangles) {
@@ -424,43 +495,112 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
         if (!position_accessor) {
             return std::unexpected(stellar::platform::Error("Primitive is missing positions"));
         }
+        if (position_accessor->count == 0) {
+            return std::unexpected(stellar::platform::Error("Primitive has no positions"));
+        }
+        if (auto valid = validate_float_accessor(position_accessor, cgltf_type_vec3,
+                                                 position_accessor->count,
+                                                 "Invalid POSITION accessor");
+            !valid) {
+            return std::unexpected(valid.error());
+        }
 
         std::vector<stellar::assets::StaticVertex> vertices(position_accessor->count);
+        std::array<float, 3> bounds_min{
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max(),
+        };
+        std::array<float, 3> bounds_max{
+            std::numeric_limits<float>::lowest(),
+            std::numeric_limits<float>::lowest(),
+            std::numeric_limits<float>::lowest(),
+        };
+
         for (std::size_t i = 0; i < position_accessor->count; ++i) {
-            cgltf_float value[4] = {};
-            if (cgltf_accessor_read_float(position_accessor, i, value, 3)) {
-                vertices[i].position = {value[0], value[1], value[2]};
+            auto position = read_vec3(position_accessor, i, "Failed to read POSITION accessor");
+            if (!position) {
+                return std::unexpected(position.error());
+            }
+            vertices[i].position = *position;
+            for (std::size_t axis = 0; axis < 3; ++axis) {
+                bounds_min[axis] = std::min(bounds_min[axis], (*position)[axis]);
+                bounds_max[axis] = std::max(bounds_max[axis], (*position)[axis]);
             }
         }
 
         if (const auto* normal_accessor =
                 cgltf_find_accessor(&primitive, cgltf_attribute_type_normal, 0)) {
+            if (auto valid = validate_float_accessor(normal_accessor, cgltf_type_vec3,
+                                                     position_accessor->count,
+                                                     "Invalid NORMAL accessor");
+                !valid) {
+                return std::unexpected(valid.error());
+            }
             for (std::size_t i = 0; i < position_accessor->count; ++i) {
-                cgltf_float value[4] = {};
-                if (cgltf_accessor_read_float(normal_accessor, i, value, 3)) {
-                    vertices[i].normal = {value[0], value[1], value[2]};
+                auto normal = read_vec3(normal_accessor, i, "Failed to read NORMAL accessor");
+                if (!normal) {
+                    return std::unexpected(normal.error());
                 }
+                vertices[i].normal = *normal;
             }
         }
 
         if (const auto* texcoord_accessor =
                 cgltf_find_accessor(&primitive, cgltf_attribute_type_texcoord, 0)) {
-            for (std::size_t i = 0; i < position_accessor->count; ++i) {
-                cgltf_float value[4] = {};
-                if (cgltf_accessor_read_float(texcoord_accessor, i, value, 2)) {
-                    vertices[i].uv0 = {value[0], value[1]};
-                }
+            if (auto valid = validate_float_accessor(texcoord_accessor, cgltf_type_vec2,
+                                                     position_accessor->count,
+                                                     "Invalid TEXCOORD_0 accessor");
+                !valid) {
+                return std::unexpected(valid.error());
             }
+            for (std::size_t i = 0; i < position_accessor->count; ++i) {
+                auto texcoord =
+                    read_vec2(texcoord_accessor, i, "Failed to read TEXCOORD_0 accessor");
+                if (!texcoord) {
+                    return std::unexpected(texcoord.error());
+                }
+                vertices[i].uv0 = *texcoord;
+            }
+        }
+
+        bool has_tangents = false;
+        if (const auto* tangent_accessor =
+                cgltf_find_accessor(&primitive, cgltf_attribute_type_tangent, 0)) {
+            if (auto valid = validate_float_accessor(tangent_accessor, cgltf_type_vec4,
+                                                     position_accessor->count,
+                                                     "Invalid TANGENT accessor");
+                !valid) {
+                return std::unexpected(valid.error());
+            }
+            for (std::size_t i = 0; i < position_accessor->count; ++i) {
+                auto tangent = read_vec4(tangent_accessor, i, "Failed to read TANGENT accessor");
+                if (!tangent) {
+                    return std::unexpected(tangent.error());
+                }
+                vertices[i].tangent = *tangent;
+            }
+            has_tangents = true;
         }
 
         std::vector<std::uint32_t> indices;
         if (primitive.indices) {
+            if (auto valid = validate_index_accessor(primitive.indices); !valid) {
+                return std::unexpected(valid.error());
+            }
             indices.resize(primitive.indices->count);
             for (std::size_t i = 0; i < primitive.indices->count; ++i) {
                 const auto index = cgltf_accessor_read_index(primitive.indices, i);
+                if (index >= vertices.size() ||
+                    index > static_cast<cgltf_size>(std::numeric_limits<std::uint32_t>::max())) {
+                    return std::unexpected(stellar::platform::Error("Index exceeds vertex count"));
+                }
                 indices[i] = static_cast<std::uint32_t>(index);
             }
         } else {
+            if (vertices.size() > std::numeric_limits<std::uint32_t>::max()) {
+                return std::unexpected(stellar::platform::Error("Primitive has too many vertices"));
+            }
             indices.reserve(vertices.size());
             for (std::size_t i = 0; i < vertices.size(); ++i) {
                 indices.push_back(static_cast<std::uint32_t>(i));
@@ -471,6 +611,9 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
         mesh_primitive.topology = stellar::assets::PrimitiveTopology::kTriangles;
         mesh_primitive.vertices = std::move(vertices);
         mesh_primitive.indices = std::move(indices);
+        mesh_primitive.has_tangents = has_tangents;
+        mesh_primitive.bounds_min = bounds_min;
+        mesh_primitive.bounds_max = bounds_max;
         if (primitive.material) {
             auto index = checked_index(cgltf_material_index(data, primitive.material),
                                        "Failed to resolve primitive material index");
