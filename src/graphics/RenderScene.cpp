@@ -155,7 +155,19 @@ void RenderScene::render_node(std::size_t node_index,
 
     for (const auto& mesh_instance : node.mesh_instances) {
         if (mesh_instance.mesh_index < mesh_handles_.size()) {
-            device_->draw_mesh(mesh_handles_[mesh_instance.mesh_index], mvp);
+            std::vector<MaterialHandle> materials;
+            const auto& mesh_asset = scene_.meshes[mesh_instance.mesh_index];
+            materials.reserve(mesh_asset.primitives.size());
+            for (const auto& primitive : mesh_asset.primitives) {
+                if (primitive.material_index.has_value() &&
+                    *primitive.material_index < material_handles_.size()) {
+                    materials.push_back(material_handles_[*primitive.material_index]);
+                } else {
+                    materials.push_back(MaterialHandle{});
+                }
+            }
+
+            device_->draw_mesh(mesh_handles_[mesh_instance.mesh_index], materials, mvp);
         }
     }
 
@@ -163,6 +175,15 @@ void RenderScene::render_node(std::size_t node_index,
     for (std::size_t child_index : node.children) {
         render_node(child_index, world_array, view_projection);
     }
+}
+
+std::span<const MaterialHandle>
+RenderScene::material_span(std::optional<std::size_t> material_index) noexcept {
+    if (!material_index.has_value() || *material_index >= material_handles_.size()) {
+        return {};
+    }
+
+    return std::span<const MaterialHandle>(&material_handles_[*material_index], 1);
 }
 
 void RenderScene::destroy() noexcept {

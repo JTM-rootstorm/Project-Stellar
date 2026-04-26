@@ -2,6 +2,7 @@
 
 #include <array>
 #include <map>
+#include <span>
 #include <vector>
 
 #include <expected>
@@ -35,7 +36,9 @@ public:
 
     void begin_frame(int width, int height) noexcept override;
 
-    void draw_mesh(MeshHandle mesh, const std::array<float, 16>& mvp) noexcept override;
+    void draw_mesh(MeshHandle mesh,
+                   std::span<const MaterialHandle> materials,
+                   const std::array<float, 16>& mvp) noexcept override;
 
     void end_frame() noexcept override;
 
@@ -65,6 +68,11 @@ private:
         stellar::assets::MaterialAsset material;
     };
 
+    struct DrawBinding {
+        MeshHandle mesh;
+        std::vector<MaterialHandle> materials;
+    };
+
     [[nodiscard]] std::uint64_t allocate_handle() noexcept;
     void destroy_mesh_record(MeshRecord& record) noexcept;
     void destroy_texture_record(TextureRecord& record) noexcept;
@@ -77,6 +85,7 @@ private:
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;
     std::map<std::uint64_t, MaterialRecord> materials_;
+    std::map<std::uint64_t, DrawBinding> draw_bindings_;
 };
 
 } // namespace stellar::graphics::opengl

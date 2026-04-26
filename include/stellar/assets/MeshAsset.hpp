@@ -36,6 +36,7 @@ struct MeshPrimitive {
     std::array<float, 3> bounds_min{0.0f, 0.0f, 0.0f};
     std::array<float, 3> bounds_max{0.0f, 0.0f, 0.0f};
     std::optional<std::size_t> material_index;
+    std::optional<std::size_t> texture_index;
 };
 
 /**

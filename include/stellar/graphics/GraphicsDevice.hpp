@@ -2,6 +2,7 @@
 
 #include <array>
 #include <expected>
+#include <span>
 
 #include "stellar/assets/ImageAsset.hpp"
 #include "stellar/assets/MaterialAsset.hpp"
@@ -65,7 +66,9 @@ public:
      * @param mesh Opaque mesh handle.
      * @param mvp Column-major transform matrix.
      */
-    virtual void draw_mesh(MeshHandle mesh, const std::array<float, 16>& mvp) noexcept = 0;
+    virtual void draw_mesh(MeshHandle mesh,
+                           std::span<const MaterialHandle> materials,
+                           const std::array<float, 16>& mvp) noexcept = 0;
 
     /**
      * @brief Present the current frame.

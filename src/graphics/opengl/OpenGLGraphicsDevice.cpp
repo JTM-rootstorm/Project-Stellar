@@ -27,10 +27,12 @@ void main() {
 constexpr const char* kFragmentShader = R"(
 #version 330 core
 
+uniform vec4 u_base_color;
+
 out vec4 frag_color;
 
 void main() {
-    frag_color = vec4(0.85, 0.9, 1.0, 1.0);
+    frag_color = u_base_color;
 }
 )";
 
@@ -134,6 +136,7 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window& window) {
     shader_program_ = create_shader_program_impl(kVertexShader, kFragmentShader);
     glUseProgram(shader_program_);
     mvp_loc_ = glGetUniformLocation(shader_program_, "u_mvp");
+    glUseProgram(0);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
@@ -276,6 +279,7 @@ void OpenGLGraphicsDevice::begin_frame(int width, int height) noexcept {
 }
 
 void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
+                                     std::span<const MaterialHandle> materials,
                                      const std::array<float, 16>& mvp) noexcept {
     if (!context_ || shader_program_ == 0 || mvp_loc_ < 0) {
         return;
@@ -289,7 +293,21 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
     glUseProgram(shader_program_);
     glUniformMatrix4fv(mvp_loc_, 1, GL_FALSE, mvp.data());
 
-    for (const auto& primitive : it->second.primitives) {
+    for (std::size_t primitive_index = 0; primitive_index < it->second.primitives.size();
+         ++primitive_index) {
+        const auto& primitive = it->second.primitives[primitive_index];
+        const MaterialHandle material_handle = primitive_index < materials.size()
+                                                   ? materials[primitive_index]
+                                                   : MaterialHandle{};
+
+        const auto material_it = materials_.find(material_handle.value);
+        const std::array<float, 4> base_color =
+            material_it != materials_.end()
+                ? material_it->second.material.base_color_factor
+                : std::array<float, 4>{0.85f, 0.9f, 1.0f, 1.0f};
+
+        const GLint base_color_loc = glGetUniformLocation(shader_program_, "u_base_color");
+        glUniform4fv(base_color_loc, 1, base_color.data());
         glBindVertexArray(primitive.vao);
         glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT, nullptr);
     }
