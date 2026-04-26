@@ -46,10 +46,11 @@ public:
      * @param width  Window width in pixels.
      * @param height Window height in pixels.
      * @param title  Window title string.
+     * @param flags  SDL window flags to apply.
      * @return std::expected<void, Error> on failure.
      */
     [[nodiscard]] std::expected<void, Error>
-    create(int width, int height, std::string_view title);
+    create(int width, int height, std::string_view title, Uint32 flags = SDL_WINDOW_SHOWN);
 
     /**
      * @brief Destroy the window.

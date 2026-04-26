@@ -50,7 +50,7 @@ Window& Window::operator=(Window&& other) noexcept {
 }
 
 std::expected<void, Error>
-Window::create(int width, int height, std::string_view title) {
+Window::create(int width, int height, std::string_view title, Uint32 flags) {
     if (window_) {
         return std::unexpected(Error("Window already created"));
     }
@@ -67,7 +67,7 @@ Window::create(int width, int height, std::string_view title) {
         SDL_WINDOWPOS_CENTERED,
         width,
         height,
-        SDL_WINDOW_SHOWN
+        flags
     );
 
     if (!window_) {

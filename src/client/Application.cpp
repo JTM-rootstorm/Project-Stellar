@@ -19,7 +19,8 @@ constexpr float kRotationSpeed = 45.0f;
 
 std::expected<void, stellar::platform::Error> Application::run() {
     stellar::platform::Window window;
-    if (auto result = window.create(kWindowWidth, kWindowHeight, "Stellar Engine");
+    if (auto result = window.create(kWindowWidth, kWindowHeight, "Stellar Engine",
+                                    SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
         !result) {
         return result;
     }

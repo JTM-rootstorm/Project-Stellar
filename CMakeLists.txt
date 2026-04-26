@@ -14,6 +14,17 @@ pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 
 add_subdirectory(thirdparty/miniaudio)
 
+add_library(stellar_scene INTERFACE)
+target_include_directories(stellar_scene INTERFACE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+add_library(stellar_assets INTERFACE)
+target_include_directories(stellar_assets INTERFACE
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(stellar_assets INTERFACE stellar_scene)
+
 add_library(stellar_platform
     src/platform/Window.cpp
     src/platform/Input.cpp
@@ -47,6 +58,8 @@ target_link_libraries(stellar_graphics PUBLIC
     PkgConfig::GLM
 )
 
+target_link_libraries(stellar_graphics PUBLIC stellar_assets)
+
 add_executable(stellar-client
     src/client/main.cpp
     src/client/Application.cpp
@@ -58,5 +71,7 @@ target_include_directories(stellar-client PRIVATE
 
 target_link_libraries(stellar-client PRIVATE
     stellar_graphics
+    stellar_assets
+    stellar_scene
     miniaudio
 )
