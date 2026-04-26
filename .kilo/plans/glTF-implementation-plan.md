@@ -368,18 +368,3 @@ Goal: make graphics validation stronger and less dependent on manual visual insp
 ### Expected Outcome
 
 Future renderer and glTF work can be validated with less risk of silent visual regressions.
-
-## Recommended Next Step
-
-Proceed with Phase 2A first.
-
-Rationale:
-- It directly addresses the highest-value remaining static glTF importer gaps.
-- It unlocks normal maps for real imported assets through `TANGENT` support.
-- Bounds are needed for future culling, sorting, and scene management.
-- A clear unsupported-feature policy will keep future phases from accumulating ambiguous
-  behavior.
-
-Before implementation, decide one Phase 2A tradeoff:
-- Should `TEXCOORD_1` remain explicitly unsupported for now, or should Phase 2A include the
-  vertex/runtime changes needed to support it?
