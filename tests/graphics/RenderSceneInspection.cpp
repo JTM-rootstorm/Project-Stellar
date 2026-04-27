@@ -8,7 +8,9 @@
 #include <vector>
 
 #include "RecordingGraphicsDevice.hpp"
+#include "stellar/assets/AnimationAsset.hpp"
 #include "stellar/assets/SkinAsset.hpp"
+#include "stellar/graphics/SceneRenderer.hpp"
 
 namespace {
 
@@ -171,6 +173,79 @@ void verify_large_static_scene_count(stellar::platform::Window& window) {
     assert(device->ended_frame_count == 1);
 }
 
+void verify_scene_bounds_and_camera_fit() {
+    stellar::assets::SceneAsset scene;
+    stellar::assets::MeshPrimitive primitive;
+    primitive.vertices.resize(3);
+    primitive.indices = {0, 1, 2};
+    primitive.bounds_min = {-1.0F, -2.0F, -3.0F};
+    primitive.bounds_max = {1.0F, 2.0F, 3.0F};
+    scene.meshes.push_back(
+        stellar::assets::MeshAsset{.name = "bounds", .primitives = {primitive}});
+    stellar::scene::Node root;
+    root.local_transform.translation = {10.0F, 0.0F, 0.0F};
+    root.local_transform.scale = {2.0F, 1.0F, 1.0F};
+    root.mesh_instances = {stellar::scene::MeshInstance{0}};
+    scene.nodes.push_back(root);
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0}});
+    scene.default_scene_index = 0;
+
+    const auto bounds = stellar::graphics::compute_scene_bounds(scene);
+    assert(bounds.min[0] == 8.0F);
+    assert(bounds.max[0] == 12.0F);
+    assert(bounds.min[1] == -2.0F);
+    assert(bounds.max[2] == 3.0F);
+    assert(bounds.center[0] == 10.0F);
+    assert(bounds.radius > 3.0F);
+
+    const auto camera = stellar::graphics::fit_camera_to_bounds(bounds, 45.0F, 16.0F / 9.0F);
+    assert(camera.target[0] == 10.0F);
+    assert(camera.eye[2] > bounds.max[2]);
+    assert(camera.far_plane > camera.near_plane);
+
+    const auto empty_bounds =
+        stellar::graphics::compute_scene_bounds(stellar::assets::SceneAsset{});
+    assert(empty_bounds.center[0] == 0.0F);
+    assert(empty_bounds.radius == 1.0F);
+}
+
+void verify_animation_pose_forwarding(stellar::platform::Window& window) {
+    stellar::assets::SceneAsset scene;
+    scene.meshes.push_back(stellar::assets::MeshAsset{
+        .name = "animated", .primitives = {make_primitive(std::nullopt, 0.0F)}});
+    stellar::scene::Node root;
+    root.mesh_instances = {stellar::scene::MeshInstance{0}};
+    scene.nodes.push_back(root);
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0}});
+    scene.default_scene_index = 0;
+    scene.animations.push_back(stellar::assets::AnimationAsset{
+        .name = "move",
+        .samplers = {stellar::assets::AnimationSamplerAsset{.input_times = {0.0F, 1.0F},
+                                                            .output_values = {0.0F, 0.0F, 0.0F,
+                                                                              4.0F, 0.0F, 0.0F},
+                                                            .output_components = 3}},
+        .channels = {stellar::assets::AnimationChannelAsset{
+            .sampler_index = 0,
+            .target_node = 0,
+            .target_path = stellar::assets::AnimationTargetPath::kTranslation}}});
+
+    stellar::scene::AnimationPlayer player;
+    player.bind(scene);
+    auto selected = player.select_animation(0);
+    assert(selected.has_value());
+    player.play();
+    auto updated = player.update(0.5F);
+    assert(updated.has_value());
+
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, std::move(scene));
+    render_scene.render(64, 64, kIdentity, kIdentity, player.pose());
+
+    assert(device->draw_calls.size() == 1);
+    assert(device->draw_calls[0].transforms.world[12] > 1.99F);
+    assert(device->draw_calls[0].transforms.world[12] < 2.01F);
+}
+
 } // namespace
 
 int main() {
@@ -179,5 +254,7 @@ int main() {
     verify_material_identity_and_invalid_indices(window);
     verify_mixed_static_and_skinned_spans(window);
     verify_large_static_scene_count(window);
+    verify_scene_bounds_and_camera_fit();
+    verify_animation_pose_forwarding(window);
     return 0;
 }

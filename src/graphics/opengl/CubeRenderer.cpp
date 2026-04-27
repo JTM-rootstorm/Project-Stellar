@@ -118,7 +118,11 @@ CubeRenderer::initialize(stellar::platform::Window& window) {
     return scene_.initialize(std::move(device), window, std::move(scene));
 }
 
-void CubeRenderer::render(float rotation_degrees, int width, int height) noexcept {
+void CubeRenderer::render(float elapsed_seconds,
+                          float /*delta_seconds*/,
+                          int width,
+                          int height) noexcept {
+    const float rotation_degrees = elapsed_seconds * 45.0F;
     if (scene_.node_transform(0).matrix.has_value()) {
         scene_.node_transform(0).matrix = std::nullopt;
     }

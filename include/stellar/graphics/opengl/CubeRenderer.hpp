@@ -33,11 +33,15 @@ public:
 
     /**
      * @brief Render the cube for the current frame.
-     * @param rotation_degrees Rotation angle in degrees.
+     * @param elapsed_seconds Monotonic application time in seconds.
+     * @param delta_seconds Time elapsed since the previous frame in seconds.
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
      */
-    void render(float rotation_degrees, int width, int height) noexcept override;
+    void render(float elapsed_seconds,
+                float delta_seconds,
+                int width,
+                int height) noexcept override;
 
 private:
     [[nodiscard]] static std::expected<stellar::assets::MeshAsset, stellar::platform::Error>

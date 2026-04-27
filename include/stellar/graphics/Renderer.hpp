@@ -26,11 +26,15 @@ public:
 
     /**
      * @brief Render a frame.
-     * @param rotation_degrees Rotation angle in degrees for the sample scene.
+     * @param elapsed_seconds Monotonic application time in seconds.
+     * @param delta_seconds Time elapsed since the previous frame in seconds.
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
      */
-    virtual void render(float rotation_degrees, int width, int height) noexcept = 0;
+    virtual void render(float elapsed_seconds,
+                        float delta_seconds,
+                        int width,
+                        int height) noexcept = 0;
 };
 
 } // namespace stellar::graphics

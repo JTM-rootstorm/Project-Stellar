@@ -2,14 +2,14 @@
 
 ## Summary
 
-Further implementation is needed. The current branch has substantial glTF support: static mesh import, materials/textures, UV1, vertex colors, generated/authored tangents, skins, animation assets, runtime animation evaluation, OpenGL GPU skinning, backend selection, Vulkan upload-record skeleton, and display-free render inspection tests.
+Further implementation is needed. The current branch has substantial glTF support: static mesh import, materials/textures, UV1, vertex colors, generated/authored tangents, skins, animation assets, runtime animation evaluation, OpenGL GPU skinning, backend selection, Vulkan upload-record skeleton, display-free render inspection tests, runtime viewer animation playback for imported scenes, and auto-fit viewer camera placement.
 
 The work is not complete because several paths are still explicitly unsupported or not wired into runtime use:
 
 - Vulkan rendering is still a no-op after initialization/upload recording.
-- Client/runtime rendering does not drive `AnimationPlayer`, so imported animations are not played by the viewer.
-- The viewer camera is fixed and does not frame arbitrary glTF scenes.
-- Phase 5A preflight now rejects required glTF extensions; remaining importer validation gaps are Phase 5B accessor, animation, and cross-reference checks.
+- Phase 5C now drives `AnimationPlayer` for imported scenes and auto-fits the viewer camera to scene bounds.
+- Deferred viewer controls remain play/pause defaults, manual camera distance/FOV, and scene index selection.
+- Phase 5A preflight and Phase 5B accessor, animation, and skin joint palette validation are complete.
 - Phase 4B test infrastructure is partially complete, but optional headless render tests and representative render fixtures remain.
 - Morph targets, cameras, lights, UV2+, JOINTS_1/WEIGHTS_1, full glTF PBR, and most material extensions remain unsupported.
 
@@ -18,10 +18,10 @@ The work is not complete because several paths are still explicitly unsupported 
 - `.kilo/plans/glTF-implementation-plan.md` lists Phase 4B as in progress and still has Phase 4B tasks for optional headless/context tests and representative assets.
 - `.kilo/plans/glTF-implementation-plan.md` known limitations still include Vulkan no-op rendering, lightweight metallic-roughness shading, skinned Vulkan non-rendering, and unsupported morph targets/cameras/lights/extensions.
 - `src/graphics/vulkan/VulkanGraphicsDevice.cpp` keeps `begin_frame`, `draw_mesh`, and `end_frame` as explicit Phase 4A no-ops.
-- `src/graphics/SceneRenderer.cpp` renders with a fixed camera and always calls `RenderScene::render(..., view)` without an evaluated `ScenePose`.
-- `src/client/main.cpp` and `include/stellar/client/ApplicationConfig.hpp` expose no animation, camera, or selected-scene controls.
-- `src/import/gltf/Importer.cpp` now performs the Phase 5A unsupported `extensionsRequired` policy gate after `cgltf_validate`; remaining validation work is tracked in Phase 5B for accessor, animation, and cross-reference correctness.
-- `src/scene/AnimationRuntime.cpp` preserves `weights` animation channels but intentionally no-ops them because morph targets are not represented.
+- `src/graphics/SceneRenderer.cpp` now auto-fits camera placement from aggregate scene bounds and drives imported scene animation through `AnimationPlayer` when animations exist.
+- `src/client/main.cpp` and `include/stellar/client/ApplicationConfig.hpp` expose animation selection/loop controls; play/pause defaults, manual camera distance/FOV, and selected-scene controls remain deferred.
+- `src/import/gltf/Importer.cpp` now performs the Phase 5A unsupported `extensionsRequired` policy gate after `cgltf_validate`; Phase 5B accessor, animation, and skin joint palette validation is complete.
+- `src/import/gltf/Importer.cpp` now rejects `weights` animation channels clearly because morph targets are not represented by the runtime asset model.
 
 ## Phase 0: Plan And Status Hygiene - Completed
 
@@ -113,9 +113,24 @@ Validation:
 - Animation runtime tests for any changed sampler assumptions.
 - glTF enabled and disabled builds to preserve feature-gate behavior.
 
-## Phase 5C: Runtime Viewer Usability
+## Phase 5C: Runtime Viewer Usability - Completed
 
 Goal: make imported glTF scenes viewable and animated in the client, not just importable/renderable through lower-level APIs.
+
+### Completion Notes
+
+Phase 5C has been completed with backend-neutral aggregate scene bounds, stable empty-scene
+fallback bounds, auto-fit viewer camera placement, and runtime animation playback for imported
+scenes. `SceneRenderer` now binds `AnimationPlayer` when animations exist, selects animation 0 by
+default, supports CLI selection by `--animation-index` or `--animation-name`, honors
+`--animation-loop`, advances by frame delta time, and renders animated scenes through the pose-aware
+`RenderScene::render` path. Deferred controls: play/pause defaults, manual camera distance/FOV, and
+scene index selection remain future viewer usability work rather than part of this minimal slice.
+
+Validation completed:
+
+- `cmake --build build --target stellar_render_scene_inspection_test stellar_render_scene_upload_test stellar_animation_runtime_test stellar_client_asset_validation_smoke stellar-client -j$(nproc)`
+- `ctest --test-dir build -R '^(render_scene_inspection|render_scene_upload|animation_runtime|client_asset_validation_smoke|client_cli_asset_validation)$' --output-on-failure`
 
 Tasks:
 
