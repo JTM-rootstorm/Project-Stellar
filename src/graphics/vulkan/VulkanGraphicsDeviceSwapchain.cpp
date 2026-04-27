@@ -466,6 +466,18 @@ void VulkanGraphicsDevice::destroy_swapchain_resources() noexcept {
         vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
         graphics_pipeline_ = VK_NULL_HANDLE;
     }
+    if (graphics_pipeline_double_sided_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, graphics_pipeline_double_sided_, nullptr);
+        graphics_pipeline_double_sided_ = VK_NULL_HANDLE;
+    }
+    if (alpha_blend_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, alpha_blend_pipeline_, nullptr);
+        alpha_blend_pipeline_ = VK_NULL_HANDLE;
+    }
+    if (alpha_blend_pipeline_double_sided_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, alpha_blend_pipeline_double_sided_, nullptr);
+        alpha_blend_pipeline_double_sided_ = VK_NULL_HANDLE;
+    }
 
     for (VkFramebuffer framebuffer : swapchain_framebuffers_) {
         if (framebuffer != VK_NULL_HANDLE) {

@@ -15,9 +15,9 @@ namespace stellar::graphics::vulkan {
  * @brief Initial Vulkan backend for the backend-neutral GraphicsDevice interface.
  *
  * This implementation creates a Vulkan instance, SDL surface, physical device, logical device,
-     * swapchain, render pass, graphics pipeline, and graphics queue when initialized. Mesh buffers
-     * and texture images are uploaded to Vulkan resources. The static draw path renders opaque and
-     * alpha-mask material factors and textures through Vulkan descriptors.
+ * swapchain, render pass, graphics pipelines, and graphics queue when initialized. Mesh buffers
+ * and texture images are uploaded to Vulkan resources. The static draw path renders opaque,
+ * alpha-mask, and alpha-blend material factors and textures through Vulkan descriptors.
  */
 class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
@@ -223,6 +223,9 @@ private:
     VkDescriptorSet default_material_descriptor_set_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
+    VkPipeline graphics_pipeline_double_sided_ = VK_NULL_HANDLE;
+    VkPipeline alpha_blend_pipeline_ = VK_NULL_HANDLE;
+    VkPipeline alpha_blend_pipeline_double_sided_ = VK_NULL_HANDLE;
     VkImage depth_image_ = VK_NULL_HANDLE;
     VkDeviceMemory depth_image_memory_ = VK_NULL_HANDLE;
     VkImageView depth_image_view_ = VK_NULL_HANDLE;

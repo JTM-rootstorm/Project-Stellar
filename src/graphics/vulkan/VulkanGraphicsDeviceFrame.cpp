@@ -20,7 +20,15 @@ constexpr std::uint32_t kHasVertexColor = 1U << 5U;
 constexpr std::uint32_t kHasTangents = 1U << 6U;
 
 std::uint32_t alpha_mode_value(stellar::assets::AlphaMode mode) noexcept {
-    return mode == stellar::assets::AlphaMode::kMask ? 1U : 0U;
+    switch (mode) {
+        case stellar::assets::AlphaMode::kMask:
+            return 1U;
+        case stellar::assets::AlphaMode::kBlend:
+            return 2U;
+        case stellar::assets::AlphaMode::kOpaque:
+        default:
+            return 0U;
+    }
 }
 
 template <typename TextureMap>
@@ -168,7 +176,7 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         return;
     }
 
-    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+    VkPipeline bound_pipeline = VK_NULL_HANDLE;
 
     for (const MeshPrimitiveDrawCommand& command : commands) {
         if (command.primitive_index >= mesh_it->second.primitives.size()) {
@@ -196,9 +204,18 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         const bool has_emissive_texture = material != nullptr &&
             has_live_texture(textures_, material->upload.emissive_texture);
         const auto alpha_mode = material != nullptr ? material->upload.material.alpha_mode
-                                                   : stellar::assets::AlphaMode::kOpaque;
-        if (alpha_mode == stellar::assets::AlphaMode::kBlend) {
+                                                    : stellar::assets::AlphaMode::kOpaque;
+        const bool alpha_blend = alpha_mode == stellar::assets::AlphaMode::kBlend;
+        const bool double_sided = material != nullptr && material->upload.material.double_sided;
+        const VkPipeline pipeline = alpha_blend
+            ? (double_sided ? alpha_blend_pipeline_double_sided_ : alpha_blend_pipeline_)
+            : (double_sided ? graphics_pipeline_double_sided_ : graphics_pipeline_);
+        if (pipeline == VK_NULL_HANDLE) {
             continue;
+        }
+        if (bound_pipeline != pipeline) {
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            bound_pipeline = pipeline;
         }
 
         std::uint32_t texture_flags = 0;

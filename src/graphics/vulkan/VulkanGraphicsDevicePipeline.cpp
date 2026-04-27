@@ -545,7 +545,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_graph
         .scissorCount = 1,
         .pScissors = &scissor,
     };
-    const VkPipelineRasterizationStateCreateInfo rasterizer{
+    VkPipelineRasterizationStateCreateInfo rasterizer{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
@@ -562,7 +562,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_graph
         .depthWriteEnable = VK_TRUE,
         .depthCompareOp = VK_COMPARE_OP_LESS,
     };
-    const VkPipelineColorBlendAttachmentState color_blend_attachment{
+    VkPipelineColorBlendAttachmentState color_blend_attachment{
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
@@ -587,11 +587,54 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_graph
         .subpass = 0,
     };
 
-    const VkResult result = vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info,
-                                                      nullptr, &graphics_pipeline_);
+    struct PipelineVariant {
+        VkCullModeFlags cull_mode;
+        bool blend_enabled;
+        VkPipeline* pipeline;
+    };
+    const PipelineVariant variants[] = {
+        PipelineVariant{VK_CULL_MODE_BACK_BIT, false, &graphics_pipeline_},
+        PipelineVariant{VK_CULL_MODE_NONE, false, &graphics_pipeline_double_sided_},
+        PipelineVariant{VK_CULL_MODE_BACK_BIT, true, &alpha_blend_pipeline_},
+        PipelineVariant{VK_CULL_MODE_NONE, true, &alpha_blend_pipeline_double_sided_},
+    };
+
+    VkResult result = VK_SUCCESS;
+    for (const PipelineVariant& variant : variants) {
+        rasterizer.cullMode = variant.cull_mode;
+        color_blend_attachment.blendEnable = variant.blend_enabled ? VK_TRUE : VK_FALSE;
+        color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+        color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        result = vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
+                                           variant.pipeline);
+        if (result != VK_SUCCESS) {
+            break;
+        }
+    }
     vkDestroyShaderModule(device_, *fragment_shader, nullptr);
     vkDestroyShaderModule(device_, *vertex_shader, nullptr);
     if (result != VK_SUCCESS) {
+        if (graphics_pipeline_ != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
+            graphics_pipeline_ = VK_NULL_HANDLE;
+        }
+        if (graphics_pipeline_double_sided_ != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device_, graphics_pipeline_double_sided_, nullptr);
+            graphics_pipeline_double_sided_ = VK_NULL_HANDLE;
+        }
+        if (alpha_blend_pipeline_ != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device_, alpha_blend_pipeline_, nullptr);
+            alpha_blend_pipeline_ = VK_NULL_HANDLE;
+        }
+        if (alpha_blend_pipeline_double_sided_ != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device_, alpha_blend_pipeline_double_sided_, nullptr);
+            alpha_blend_pipeline_double_sided_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkCreateGraphicsPipelines", result));
     }
     return {};
