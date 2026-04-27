@@ -14,9 +14,9 @@ namespace stellar::graphics::vulkan {
  * @brief Initial Vulkan backend for the backend-neutral GraphicsDevice interface.
  *
  * This implementation creates a Vulkan instance, SDL surface, physical device, logical device,
- * swapchain, render pass, graphics pipeline, and graphics queue when initialized. Mesh buffers are
- * uploaded to Vulkan buffers, textures are still recorded as backend-neutral metadata, and the
- * initial draw path renders opaque static geometry with base-color material factors.
+     * swapchain, render pass, graphics pipeline, and graphics queue when initialized. Mesh buffers
+     * and texture images are uploaded to Vulkan resources, and the initial draw path renders opaque
+     * static geometry with base-color material factors.
  */
 class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
@@ -45,7 +45,7 @@ public:
     create_mesh(const stellar::assets::MeshAsset& mesh) override;
 
     /**
-     * @brief Validate and record backend-neutral texture upload data.
+     * @brief Validate image data and upload a sampled Vulkan texture image.
      */
     [[nodiscard]] std::expected<TextureHandle, stellar::platform::Error>
     create_texture(const TextureUpload& texture) override;
@@ -107,12 +107,20 @@ private:
     };
 
     struct TextureRecord {
-        stellar::assets::ImageAsset image;
+        VkImage image = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkImageView view = VK_NULL_HANDLE;
+        VkSampler sampler = VK_NULL_HANDLE;
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        std::uint32_t mip_levels = 1;
+        VkFormat format = VK_FORMAT_UNDEFINED;
         stellar::assets::TextureColorSpace color_space = stellar::assets::TextureColorSpace::kLinear;
     };
 
     struct MaterialRecord {
         MaterialUpload upload;
+        std::vector<VkSampler> samplers;
     };
 
     struct FrameResources {
@@ -151,11 +159,45 @@ private:
                   VkDeviceMemory& memory);
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     upload_to_buffer(VkDeviceMemory memory, const void* data, VkDeviceSize size);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    create_image(std::uint32_t width,
+                 std::uint32_t height,
+                 std::uint32_t mip_levels,
+                 VkFormat format,
+                 VkImageTiling tiling,
+                 VkImageUsageFlags usage,
+                 VkMemoryPropertyFlags properties,
+                 VkImage& image,
+                 VkDeviceMemory& memory);
+    [[nodiscard]] std::expected<VkCommandBuffer, stellar::platform::Error>
+    begin_single_time_commands();
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    end_single_time_commands(VkCommandBuffer command_buffer);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    transition_image_layout(VkImage image,
+                            VkFormat format,
+                            std::uint32_t mip_levels,
+                            VkImageLayout old_layout,
+                            VkImageLayout new_layout);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    copy_buffer_to_image(VkBuffer buffer, VkImage image, std::uint32_t width, std::uint32_t height);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    generate_texture_mipmaps(VkImage image,
+                             VkFormat format,
+                             std::uint32_t width,
+                             std::uint32_t height,
+                             std::uint32_t mip_levels);
+    [[nodiscard]] std::expected<VkImageView, stellar::platform::Error>
+    create_texture_image_view(VkImage image, VkFormat format, std::uint32_t mip_levels);
+    [[nodiscard]] std::expected<VkSampler, stellar::platform::Error>
+    create_sampler(const stellar::assets::SamplerAsset& sampler, std::uint32_t mip_levels);
     [[nodiscard]] std::expected<std::uint32_t, stellar::platform::Error>
     find_memory_type(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] std::expected<VkFormat, stellar::platform::Error> find_depth_format() const;
     void destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memory) noexcept;
     void destroy_mesh_record(MeshRecord& record) noexcept;
+    void destroy_texture_record(TextureRecord& record) noexcept;
+    void destroy_material_record(MaterialRecord& record) noexcept;
     void destroy_swapchain_resources() noexcept;
     void destroy_command_resources() noexcept;
     void destroy_sync_objects() noexcept;

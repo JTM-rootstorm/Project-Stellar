@@ -29,7 +29,31 @@ stellar::assets::MeshAsset make_upload_mesh() {
     colored.vertices[2].color = {0.0F, 0.0F, 1.0F, 1.0F};
 
     return stellar::assets::MeshAsset{.name = "vulkan_upload_smoke",
-                                      .primitives = {primitive, colored}};
+                                       .primitives = {primitive, colored}};
+}
+
+stellar::graphics::TextureUpload make_white_rgb_texture() {
+    stellar::assets::ImageAsset image;
+    image.name = "vulkan_white_rgb";
+    image.width = 2;
+    image.height = 2;
+    image.format = stellar::assets::ImageFormat::kR8G8B8;
+    image.pixels = {255, 255, 255, 255, 255, 255,
+                    255, 255, 255, 255, 255, 255};
+    return stellar::graphics::TextureUpload{.image = image,
+                                            .color_space = stellar::assets::TextureColorSpace::kSrgb};
+}
+
+stellar::graphics::TextureUpload make_normal_rgba_texture() {
+    stellar::assets::ImageAsset image;
+    image.name = "vulkan_flat_normal_rgba";
+    image.width = 2;
+    image.height = 2;
+    image.format = stellar::assets::ImageFormat::kR8G8B8A8;
+    image.pixels = {128, 128, 255, 255, 128, 128, 255, 255,
+                    128, 128, 255, 255, 128, 128, 255, 255};
+    return stellar::graphics::TextureUpload{.image = image,
+                                            .color_space = stellar::assets::TextureColorSpace::kLinear};
 }
 
 } // namespace
@@ -58,6 +82,36 @@ int main() {
     auto mesh = device.create_mesh(make_upload_mesh());
     if (!mesh) {
         std::cerr << mesh.error().message << '\n';
+        return 1;
+    }
+
+    auto white_texture = device.create_texture(make_white_rgb_texture());
+    if (!white_texture) {
+        std::cerr << white_texture.error().message << '\n';
+        return 1;
+    }
+
+    auto normal_texture = device.create_texture(make_normal_rgba_texture());
+    if (!normal_texture) {
+        std::cerr << normal_texture.error().message << '\n';
+        return 1;
+    }
+
+    stellar::graphics::MaterialUpload textured_material_upload;
+    textured_material_upload.base_color_texture = stellar::graphics::MaterialTextureBinding{
+        .texture = *white_texture,
+        .sampler = stellar::assets::SamplerAsset{
+            .name = "nearest_repeat",
+            .mag_filter = stellar::assets::TextureFilter::kNearest,
+            .min_filter = stellar::assets::TextureFilter::kNearestMipmapNearest,
+            .wrap_s = stellar::assets::TextureWrapMode::kRepeat,
+            .wrap_t = stellar::assets::TextureWrapMode::kClampToEdge,
+        },
+        .texcoord_set = 0,
+    };
+    auto textured_material = device.create_material(textured_material_upload);
+    if (!textured_material) {
+        std::cerr << textured_material.error().message << '\n';
         return 1;
     }
 
@@ -91,6 +145,9 @@ int main() {
     }
 
     device.destroy_material(*material);
+    device.destroy_material(*textured_material);
+    device.destroy_texture(*normal_texture);
+    device.destroy_texture(*white_texture);
     device.destroy_mesh(*mesh);
 
     return 0;
