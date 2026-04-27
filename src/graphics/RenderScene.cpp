@@ -8,6 +8,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "stellar/scene/AnimationRuntime.hpp"
+
 namespace stellar::graphics {
 
 struct QueuedMeshDraw {
@@ -244,20 +246,7 @@ RenderScene::node_transform(std::size_t node_index) const noexcept {
 
 std::array<float, 16>
 RenderScene::compose_transform(const stellar::scene::Transform& transform) noexcept {
-    if (transform.matrix.has_value()) {
-        return *transform.matrix;
-    }
-
-    glm::mat4 translation = glm::translate(
-        glm::mat4(1.0f),
-        glm::vec3(transform.translation[0], transform.translation[1], transform.translation[2]));
-    glm::quat rotation(transform.rotation[3], transform.rotation[0], transform.rotation[1],
-                       transform.rotation[2]);
-    glm::mat4 rotation_matrix = glm::mat4_cast(rotation);
-    glm::mat4 scale = glm::scale(
-        glm::mat4(1.0f), glm::vec3(transform.scale[0], transform.scale[1], transform.scale[2]));
-
-    return to_array(translation * rotation_matrix * scale);
+    return stellar::scene::compose_transform(transform);
 }
 
 void RenderScene::collect_node_draws(std::size_t node_index,

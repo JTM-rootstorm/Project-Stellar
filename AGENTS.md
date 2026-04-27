@@ -97,4 +97,5 @@ Run tests: `ctest`
 - Server is authoritative - client is "dumb terminal"
 - Data-oriented design for ECS - components are POD
 - Dual renderer parity required (OpenGL and Vulkan must behave identically)
-- only @director can create sub-agents. @miyamoto, @carmack, @kojima, @molyneux, and @suzuki can not create agents or delegate work.
+- only @director can create sub-agents. 
+- @miyamoto , @carmack , @kojima , @molyneux , and @suzuki can not create agents or delegate work.

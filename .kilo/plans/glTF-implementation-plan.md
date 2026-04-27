@@ -3,7 +3,7 @@
 ## Status
 
 Static glTF work has been split into implementation and validation milestones. The current
-branch contains uncommitted work through Phase 2C.
+branch contains uncommitted work through Phase 3B.
 
 Completed so far:
 - Phase 1A: backend-neutral texture/sampler asset model, material texture slots, importer
@@ -27,6 +27,11 @@ Completed so far:
 - Phase 2C: UV and vertex attribute expansion, including static `TEXCOORD_1` import/render
   routing, vertex color import/render modulation, and conservative tangent generation for
   normal-mapped primitives without authored tangents.
+- Phase 3A: animation and skin asset model, including skins, inverse bind matrices,
+  first-set skinning vertex attributes, animation samplers/channels, target paths, and
+  interpolation mode preservation.
+- Phase 3B: backend-neutral runtime animation evaluation, playback controls, mutable node
+  transform poses, CPU-side node world transforms, and final joint matrices for later skinning.
 
 Known remaining limitations:
 - Normal maps are only active for primitives with `MeshPrimitive::has_tangents = true`; importer
@@ -39,7 +44,9 @@ Known remaining limitations:
 - Reusing one texture for both color and non-color material slots keeps one upload color-space;
   color usage currently wins until per-use texture views are added.
 - Vulkan backend/runtime parity is still absent.
-- Animation, skinning, morph targets, cameras, lights, and extensions are not supported.
+- Animation playback updates node transforms and CPU skin poses, but CPU/GPU mesh deformation,
+  shader skinning, and render-path skinned drawing are not implemented until Phase 3C.
+- Morph targets, cameras, lights, and extensions are not supported.
 
 ## Phase 2A: Static Importer Completeness - Completed
 
@@ -282,9 +289,30 @@ Phase 3A has been completed in the current branch.
 The engine can represent glTF skin and animation data after import, but does not yet animate
 or skin meshes at runtime.
 
-## Phase 3B: Runtime Animation Evaluation
+## Phase 3B: Runtime Animation Evaluation - Completed
 
 Goal: evaluate glTF animations and update scene node transforms over time.
+
+### Completion Notes
+
+Phase 3B has been completed in the current branch.
+
+- Added backend-neutral `stellar::scene::AnimationPlayer`, `ScenePose`, and `SkinPose` runtime
+  types. The player binds an imported `SceneAsset`, preserves static node transforms when no
+  animation is selected or playback is stopped, and evaluates animation channels into mutable
+  runtime local transforms.
+- Playback controls include selection by index or exact animation name, play/pause/stop,
+  looping, explicit-time evaluation, and delta-time update independent from the render path.
+- Runtime sampling supports step, linear, and cubic-spline animation samplers. Rotation channels
+  normalize sampled quaternions before storing them in runtime transforms.
+- CPU-side pose updates compose node world transforms from hierarchy TRS/matrix data and compute
+  per-skin final joint matrices as `joint_world * inverse_bind_matrix` for later Phase 3C
+  skinning upload/deformation.
+- Added display-free `animation_runtime` tests for translation/scale/rotation interpolation,
+  cubic spline sampling, node world transform updates, skeleton joint matrices, playback looping,
+  and static/no-animation behavior.
+- No CPU mesh deformation, GPU skinning, shader changes, or render-path skinned drawing were
+  added; those remain deferred to Phase 3C.
 
 ### Tasks
 

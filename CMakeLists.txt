@@ -21,10 +21,14 @@ if(STELLAR_ENABLE_GLTF)
     add_subdirectory(thirdparty/cgltf)
 endif()
 
-add_library(stellar_scene INTERFACE)
-target_include_directories(stellar_scene INTERFACE
-    ${CMAKE_SOURCE_DIR}/include
+add_library(stellar_scene
+    src/scene/AnimationRuntime.cpp
 )
+target_include_directories(stellar_scene PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+    ${GLM_INCLUDE_DIRS}
+)
+target_link_libraries(stellar_scene PUBLIC PkgConfig::GLM)
 
 add_library(stellar_assets INTERFACE)
 target_include_directories(stellar_assets INTERFACE
@@ -118,6 +122,20 @@ target_link_libraries(stellar_render_scene_upload_test PRIVATE
 )
 
 add_test(NAME render_scene_upload COMMAND stellar_render_scene_upload_test)
+
+add_executable(stellar_animation_runtime_test
+    tests/scene/AnimationRuntime.cpp
+)
+
+target_include_directories(stellar_animation_runtime_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_animation_runtime_test PRIVATE
+    stellar_scene
+)
+
+add_test(NAME animation_runtime COMMAND stellar_animation_runtime_test)
 
 add_executable(stellar_client_asset_validation_smoke
     tests/client/AssetValidationSmoke.cpp
