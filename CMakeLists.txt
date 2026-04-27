@@ -196,7 +196,6 @@ if(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS)
     )
 
     add_test(NAME vulkan_context_smoke COMMAND stellar_vulkan_context_smoke_test)
-    set_tests_properties(vulkan_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
 add_executable(stellar_animation_runtime_test

@@ -85,6 +85,12 @@ public:
 
 private:
     struct MeshPrimitiveRecord {
+        VkBuffer vertex_buffer = VK_NULL_HANDLE;
+        VkDeviceMemory vertex_memory = VK_NULL_HANDLE;
+        VkDeviceSize vertex_buffer_size = 0;
+        VkBuffer index_buffer = VK_NULL_HANDLE;
+        VkDeviceMemory index_memory = VK_NULL_HANDLE;
+        VkDeviceSize index_buffer_size = 0;
         std::size_t vertex_count = 0;
         std::size_t index_count = 0;
         bool has_tangents = false;
@@ -131,9 +137,19 @@ private:
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_render_pass();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_depth_resources();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_framebuffers();
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    create_buffer(VkDeviceSize size,
+                  VkBufferUsageFlags usage,
+                  VkMemoryPropertyFlags properties,
+                  VkBuffer& buffer,
+                  VkDeviceMemory& memory);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    upload_to_buffer(VkDeviceMemory memory, const void* data, VkDeviceSize size);
     [[nodiscard]] std::expected<std::uint32_t, stellar::platform::Error>
     find_memory_type(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] std::expected<VkFormat, stellar::platform::Error> find_depth_format() const;
+    void destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memory) noexcept;
+    void destroy_mesh_record(MeshRecord& record) noexcept;
     void destroy_swapchain_resources() noexcept;
     void destroy_command_resources() noexcept;
     void destroy_sync_objects() noexcept;

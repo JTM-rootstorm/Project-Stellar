@@ -264,10 +264,9 @@ std::uint32_t sanitize_dimension(int value, std::uint32_t fallback) noexcept {
 } // namespace
 
 VulkanGraphicsDevice::~VulkanGraphicsDevice() noexcept {
-    meshes_.clear();
+    destroy_vulkan_objects();
     textures_.clear();
     materials_.clear();
-    destroy_vulkan_objects();
 }
 
 std::expected<void, stellar::platform::Error>
@@ -338,13 +337,66 @@ VulkanGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
         if (primitive.vertices.empty() || primitive.indices.empty()) {
             return std::unexpected(stellar::platform::Error("Mesh primitive is empty"));
         }
-        record.primitives.push_back(MeshPrimitiveRecord{
+        const auto invalid_index = std::ranges::find_if(primitive.indices, [&](std::uint32_t index) {
+            return index >= primitive.vertices.size();
+        });
+        if (invalid_index != primitive.indices.end()) {
+            destroy_mesh_record(record);
+            return std::unexpected(stellar::platform::Error("Mesh primitive index is out of range"));
+        }
+
+        MeshPrimitiveRecord primitive_record{
             .vertex_count = primitive.vertices.size(),
             .index_count = primitive.indices.size(),
             .has_tangents = primitive.has_tangents,
             .has_colors = primitive.has_colors,
             .has_skinning = primitive.has_skinning,
-        });
+        };
+
+        primitive_record.vertex_buffer_size = static_cast<VkDeviceSize>(
+            primitive.vertices.size() * sizeof(stellar::assets::StaticVertex));
+        primitive_record.index_buffer_size = static_cast<VkDeviceSize>(
+            primitive.indices.size() * sizeof(std::uint32_t));
+
+        if (auto result = create_buffer(primitive_record.vertex_buffer_size,
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                        primitive_record.vertex_buffer,
+                                        primitive_record.vertex_memory);
+            !result) {
+            destroy_mesh_record(record);
+            return std::unexpected(result.error());
+        }
+        if (auto result = upload_to_buffer(primitive_record.vertex_memory, primitive.vertices.data(),
+                                           primitive_record.vertex_buffer_size);
+            !result) {
+            destroy_buffer(primitive_record.vertex_buffer, primitive_record.vertex_memory);
+            destroy_mesh_record(record);
+            return std::unexpected(result.error());
+        }
+
+        if (auto result = create_buffer(primitive_record.index_buffer_size,
+                                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                        primitive_record.index_buffer,
+                                        primitive_record.index_memory);
+            !result) {
+            destroy_buffer(primitive_record.vertex_buffer, primitive_record.vertex_memory);
+            destroy_mesh_record(record);
+            return std::unexpected(result.error());
+        }
+        if (auto result = upload_to_buffer(primitive_record.index_memory, primitive.indices.data(),
+                                           primitive_record.index_buffer_size);
+            !result) {
+            destroy_buffer(primitive_record.index_buffer, primitive_record.index_memory);
+            destroy_buffer(primitive_record.vertex_buffer, primitive_record.vertex_memory);
+            destroy_mesh_record(record);
+            return std::unexpected(result.error());
+        }
+
+        record.primitives.push_back(primitive_record);
     }
 
     const std::uint64_t handle_value = allocate_handle();
@@ -505,8 +557,8 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
     if (!initialized_ || meshes_.find(mesh.value) == meshes_.end()) {
         return;
     }
-    // Phase 5E.1 limitation: frame acquire/clear/present is live, but Vulkan draw submission
-    // remains a no-op until graphics pipelines and GPU mesh buffers exist.
+    // Phase 5E.3 limitation: mesh buffers are uploaded, but Vulkan draw submission remains a no-op
+    // until graphics pipelines, descriptors, and shader resources exist.
 }
 
 void VulkanGraphicsDevice::end_frame() noexcept {
@@ -581,7 +633,13 @@ void VulkanGraphicsDevice::end_frame() noexcept {
 }
 
 void VulkanGraphicsDevice::destroy_mesh(MeshHandle mesh) noexcept {
-    meshes_.erase(mesh.value);
+    auto it = meshes_.find(mesh.value);
+    if (it == meshes_.end()) {
+        return;
+    }
+
+    destroy_mesh_record(it->second);
+    meshes_.erase(it);
 }
 
 void VulkanGraphicsDevice::destroy_texture(TextureHandle texture) noexcept {
@@ -1076,6 +1134,65 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_frame
     return {};
 }
 
+std::expected<void, stellar::platform::Error>
+VulkanGraphicsDevice::create_buffer(VkDeviceSize size,
+                                    VkBufferUsageFlags usage,
+                                    VkMemoryPropertyFlags properties,
+                                    VkBuffer& buffer,
+                                    VkDeviceMemory& memory) {
+    const VkBufferCreateInfo buffer_create_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+    VkResult result = vkCreateBuffer(device_, &buffer_create_info, nullptr, &buffer);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vulkan_error("vkCreateBuffer", result));
+    }
+
+    VkMemoryRequirements memory_requirements{};
+    vkGetBufferMemoryRequirements(device_, buffer, &memory_requirements);
+    const auto memory_type_index =
+        find_memory_type(memory_requirements.memoryTypeBits, properties);
+    if (!memory_type_index) {
+        destroy_buffer(buffer, memory);
+        return std::unexpected(memory_type_index.error());
+    }
+
+    const VkMemoryAllocateInfo allocate_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = *memory_type_index,
+    };
+    result = vkAllocateMemory(device_, &allocate_info, nullptr, &memory);
+    if (result != VK_SUCCESS) {
+        destroy_buffer(buffer, memory);
+        return std::unexpected(vulkan_error("vkAllocateMemory", result));
+    }
+
+    result = vkBindBufferMemory(device_, buffer, memory, 0);
+    if (result != VK_SUCCESS) {
+        destroy_buffer(buffer, memory);
+        return std::unexpected(vulkan_error("vkBindBufferMemory", result));
+    }
+
+    return {};
+}
+
+std::expected<void, stellar::platform::Error>
+VulkanGraphicsDevice::upload_to_buffer(VkDeviceMemory memory, const void* data, VkDeviceSize size) {
+    void* mapped_memory = nullptr;
+    const VkResult result = vkMapMemory(device_, memory, 0, size, 0, &mapped_memory);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vulkan_error("vkMapMemory", result));
+    }
+
+    std::memcpy(mapped_memory, data, static_cast<std::size_t>(size));
+    vkUnmapMemory(device_, memory);
+    return {};
+}
+
 std::expected<std::uint32_t, stellar::platform::Error>
 VulkanGraphicsDevice::find_memory_type(std::uint32_t type_filter,
                                        VkMemoryPropertyFlags properties) const {
@@ -1111,6 +1228,29 @@ std::expected<VkFormat, stellar::platform::Error> VulkanGraphicsDevice::find_dep
 
     return std::unexpected(stellar::platform::Error(
         "No Vulkan depth format supports VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT"));
+}
+
+void VulkanGraphicsDevice::destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memory) noexcept {
+    if (buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device_, buffer, nullptr);
+        buffer = VK_NULL_HANDLE;
+    }
+    if (memory != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, memory, nullptr);
+        memory = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanGraphicsDevice::destroy_mesh_record(MeshRecord& record) noexcept {
+    for (MeshPrimitiveRecord& primitive : record.primitives) {
+        destroy_buffer(primitive.vertex_buffer, primitive.vertex_memory);
+        primitive.vertex_buffer_size = 0;
+        destroy_buffer(primitive.index_buffer, primitive.index_memory);
+        primitive.index_buffer_size = 0;
+        primitive.vertex_count = 0;
+        primitive.index_count = 0;
+    }
+    record.primitives.clear();
 }
 
 void VulkanGraphicsDevice::destroy_swapchain_resources() noexcept {
@@ -1196,6 +1336,11 @@ void VulkanGraphicsDevice::destroy_vulkan_objects() noexcept {
 
     if (device_ != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device_);
+        for (auto& [handle, mesh] : meshes_) {
+            (void)handle;
+            destroy_mesh_record(mesh);
+        }
+        meshes_.clear();
         destroy_swapchain_resources();
         destroy_sync_objects();
         destroy_command_resources();
