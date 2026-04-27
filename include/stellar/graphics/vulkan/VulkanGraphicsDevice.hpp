@@ -14,10 +14,11 @@ namespace stellar::graphics::vulkan {
  * @brief Initial Vulkan backend for the backend-neutral GraphicsDevice interface.
  *
  * This implementation creates a Vulkan instance, SDL surface, physical device, logical device,
- * and graphics queue when initialized. Meshes, textures, samplers, and materials are recorded in
- * backend-neutral upload records so RenderScene and glTF resource paths can exercise the same
- * public API as OpenGL. Full Vulkan swapchain, pipeline, GPU memory uploads, and drawing are
- * intentionally deferred; frame and draw calls are explicit no-ops until that renderer exists.
+ * swapchain, clear-only render pass, and graphics queue when initialized. Meshes, textures,
+ * samplers, and materials are still recorded as backend-neutral upload records so RenderScene and
+ * glTF resource paths can exercise the same public API as OpenGL. Graphics pipelines, GPU uploads,
+ * and mesh drawing are intentionally deferred while presented clear/pass-through frame management
+ * is built out incrementally.
  */
 class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
@@ -52,7 +53,7 @@ public:
     create_material(const MaterialUpload& material) override;
 
     /**
-     * @brief Begin a Vulkan frame; currently a no-op until swapchain support is implemented.
+     * @brief Begin a Vulkan frame by acquiring and clearing the swapchain image.
      */
     void begin_frame(int width, int height) noexcept override;
 
@@ -64,7 +65,7 @@ public:
                    const MeshDrawTransforms& transforms) noexcept override;
 
     /**
-     * @brief End a Vulkan frame; currently a no-op until presentation support is implemented.
+     * @brief End a Vulkan frame by submitting the clear pass and presenting the swapchain image.
      */
     void end_frame() noexcept override;
 
@@ -110,17 +111,54 @@ private:
     create_surface(stellar::platform::Window& window);
     [[nodiscard]] std::expected<void, stellar::platform::Error> select_physical_device();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_logical_device();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_command_resources();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_sync_objects();
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    create_swapchain_resources(std::uint32_t preferred_width, std::uint32_t preferred_height);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    recreate_swapchain_resources(std::uint32_t preferred_width, std::uint32_t preferred_height);
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_swapchain(
+        std::uint32_t preferred_width, std::uint32_t preferred_height);
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_swapchain_image_views();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_render_pass();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_depth_resources();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_framebuffers();
+    [[nodiscard]] std::expected<std::uint32_t, stellar::platform::Error>
+    find_memory_type(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
+    [[nodiscard]] std::expected<VkFormat, stellar::platform::Error> find_depth_format() const;
+    void destroy_swapchain_resources() noexcept;
+    void destroy_command_resources() noexcept;
+    void destroy_sync_objects() noexcept;
     void destroy_vulkan_objects() noexcept;
     [[nodiscard]] std::uint64_t allocate_handle() noexcept;
 
+    SDL_Window* window_ = nullptr;
     VkInstance instance_ = VK_NULL_HANDLE;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue graphics_queue_ = VK_NULL_HANDLE;
+    VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
+    VkRenderPass render_pass_ = VK_NULL_HANDLE;
+    VkCommandPool command_pool_ = VK_NULL_HANDLE;
+    VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
+    VkSemaphore image_available_semaphore_ = VK_NULL_HANDLE;
+    VkSemaphore render_finished_semaphore_ = VK_NULL_HANDLE;
+    VkImage depth_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory depth_image_memory_ = VK_NULL_HANDLE;
+    VkImageView depth_image_view_ = VK_NULL_HANDLE;
+    VkFormat swapchain_image_format_ = VK_FORMAT_UNDEFINED;
+    VkFormat depth_format_ = VK_FORMAT_UNDEFINED;
+    VkExtent2D swapchain_extent_{0, 0};
     std::uint32_t graphics_queue_family_ = 0;
+    std::uint32_t current_swapchain_image_index_ = 0;
     bool initialized_ = false;
+    bool frame_in_progress_ = false;
+    bool swapchain_needs_rebuild_ = false;
     std::uint64_t next_handle_ = 1;
+    std::vector<VkImage> swapchain_images_;
+    std::vector<VkImageView> swapchain_image_views_;
+    std::vector<VkFramebuffer> swapchain_framebuffers_;
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;
     std::map<std::uint64_t, MaterialRecord> materials_;
