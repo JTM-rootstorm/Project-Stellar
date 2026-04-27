@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "RecordingGraphicsDevice.hpp"
+#include "GeneratedRenderFixtures.hpp"
 #include "stellar/assets/AnimationAsset.hpp"
 #include "stellar/assets/SkinAsset.hpp"
 #include "stellar/graphics/SceneRenderer.hpp"
@@ -246,6 +247,41 @@ void verify_animation_pose_forwarding(stellar::platform::Window& window) {
     assert(device->draw_calls[0].transforms.world[12] < 2.01F);
 }
 
+void verify_generated_representative_fixtures(stellar::platform::Window& window) {
+    auto scene = stellar::graphics::testing::fixtures::make_representative_render_scene();
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, std::move(scene));
+
+    stellar::scene::ScenePose pose;
+    pose.world_transforms = {kIdentity, kIdentity};
+    pose.skin_poses.resize(1);
+    pose.skin_poses[0].joint_matrices = {kIdentity};
+    render_scene.render(64, 64, kIdentity, kIdentity, pose);
+
+    assert(device->uploaded_meshes.size() == 1);
+    assert(device->uploaded_meshes[0].primitives.size() == 7);
+    assert(device->uploaded_textures.size() == 2);
+    assert(device->uploaded_materials.size() == 7);
+    assert(device->uploaded_meshes[0].primitives[3].vertices[0].uv1[0] == 1.0F);
+    assert(device->uploaded_meshes[0].primitives[4].has_colors);
+    assert(device->uploaded_meshes[0].primitives[5].has_tangents);
+    assert(device->uploaded_meshes[0].primitives[6].has_skinning);
+    assert(device->uploaded_materials[1].material.alpha_mode ==
+           stellar::assets::AlphaMode::kMask);
+    assert(device->uploaded_materials[2].material.alpha_mode ==
+           stellar::assets::AlphaMode::kBlend);
+    assert(device->uploaded_materials[3].base_color_texture->texcoord_set == 1);
+    assert(device->uploaded_materials[5].normal_texture.has_value());
+    assert(device->draw_calls.size() == 7);
+    bool drew_skinned_primitive = false;
+    for (const auto& draw_call : device->draw_calls) {
+        if (draw_call.commands[0].primitive_index == 6) {
+            drew_skinned_primitive = draw_call.commands[0].skin_joint_matrices.size() == 1;
+        }
+    }
+    assert(drew_skinned_primitive);
+}
+
 } // namespace
 
 int main() {
@@ -256,5 +292,6 @@ int main() {
     verify_large_static_scene_count(window);
     verify_scene_bounds_and_camera_fit();
     verify_animation_pose_forwarding(window);
+    verify_generated_representative_fixtures(window);
     return 0;
 }

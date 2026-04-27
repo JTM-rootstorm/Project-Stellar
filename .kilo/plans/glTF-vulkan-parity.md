@@ -150,9 +150,27 @@ Validation:
 - client validation smoke tests
 - Manual OpenGL run with a small static and animated glTF asset when a display is available.
 
-## Phase 5D: Complete Phase 4B Test Infrastructure
+## Phase 5D: Complete Phase 4B Test Infrastructure - Completed
 
 Goal: reduce reliance on manual visual testing while keeping CI stable.
+
+### Completion Notes
+
+Generated representative render fixtures now cover textured, alpha mask/blend, UV1,
+vertex color, normal map, and skinned scenes using display-free
+`RecordingGraphicsDevice` inspection. Optional OpenGL context/readback smoke coverage is
+behind `STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` and
+`STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, with skip return code 77 when not enabled. Vulkan
+render tests remain disabled/deferred until Vulkan presents frames. Default performance
+sanity remains count-based, not timing-threshold based.
+
+Validation completed:
+
+- `cmake --build build --target stellar_render_scene_inspection_test -j$(nproc)`
+- `ctest --test-dir build --output-on-failure`
+- `cmake -S . -B build-opengl-context -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_OPENGL_CONTEXT_TESTS=ON`
+- `cmake --build build-opengl-context --target stellar_opengl_context_smoke_test -j$(nproc)`
+- `ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure` (skip path validated unless `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1` is set)
 
 Tasks:
 
@@ -210,4 +228,4 @@ Validation:
 
 ## Recommended Next Implementation Slice
 
-Continue with Phase 5B before adding more rendering features. It is display-free and tightens remaining accessor, animation, and cross-reference validation gaps after the completed Phase 5A required-extension preflight. After that, Phase 5C gives the biggest user-visible improvement because imported animated assets will actually animate in the client and arbitrary-sized scenes will be framed correctly.
+Continue with Phase 5E Vulkan Render Parity next so `--renderer vulkan` moves from upload-only behavior toward presented glTF frames. Actual GPU/context Vulkan render tests should remain opt-in to keep default CI display-free and deterministic.

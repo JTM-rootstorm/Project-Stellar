@@ -16,6 +16,8 @@ pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 
 option(STELLAR_ENABLE_GLTF "Enable the glTF importer seam" OFF)
+option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
+       "Build optional OpenGL context/readback smoke tests" OFF)
 
 add_subdirectory(thirdparty/miniaudio)
 if(STELLAR_ENABLE_GLTF)
@@ -156,6 +158,25 @@ target_link_libraries(stellar_graphics_backend_selection_test PRIVATE
 )
 
 add_test(NAME graphics_backend_selection COMMAND stellar_graphics_backend_selection_test)
+
+if(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
+    add_executable(stellar_opengl_context_smoke_test
+        tests/graphics/OpenGLContextSmoke.cpp
+    )
+
+    target_include_directories(stellar_opengl_context_smoke_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${OPENGL_INCLUDE_DIRS}
+        ${GLEW_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(stellar_opengl_context_smoke_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME opengl_context_smoke COMMAND stellar_opengl_context_smoke_test)
+    set_tests_properties(opengl_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+endif()
 
 add_executable(stellar_animation_runtime_test
     tests/scene/AnimationRuntime.cpp
