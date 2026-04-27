@@ -6,8 +6,10 @@
 #include <vector>
 
 #include "stellar/assets/ImageAsset.hpp"
+#include "stellar/assets/AnimationAsset.hpp"
 #include "stellar/assets/MaterialAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
+#include "stellar/assets/SkinAsset.hpp"
 #include "stellar/assets/TextureAsset.hpp"
 #include "stellar/scene/SceneGraph.hpp"
 
@@ -23,6 +25,8 @@ struct SceneAsset {
     std::vector<SamplerAsset> samplers;
     std::vector<MeshAsset> meshes;
     std::vector<MaterialAsset> materials;
+    std::vector<SkinAsset> skins;
+    std::vector<AnimationAsset> animations;
     std::vector<stellar::scene::Node> nodes;
     std::vector<stellar::scene::Scene> scenes;
     std::optional<std::size_t> default_scene_index;

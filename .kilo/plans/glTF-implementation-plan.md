@@ -228,9 +228,28 @@ Phase 2C has been completed in the current branch.
 Common static assets using secondary UVs or vertex colors have a correct import and render
 path.
 
-## Phase 3A: Animation and Skin Asset Model
+## Phase 3A: Animation and Skin Asset Model - Completed
 
 Goal: represent skeletal animation data in CPU-side assets without implementing playback yet.
+
+### Completion Notes
+
+Phase 3A has been completed in the current branch.
+
+- Backend-neutral `SkinAsset` and `AnimationAsset` structures now preserve glTF skins,
+  skeleton roots, inverse bind matrices, animation samplers, channels, target paths, and
+  interpolation modes without renderer-specific fields.
+- `StaticVertex` carries first-set skinning inputs (`JOINTS_0` and normalized `WEIGHTS_0`), and
+  `MeshPrimitive::has_skinning` records when paired skin attributes were imported successfully.
+- The glTF importer now populates node `skin_index`, skin assets, animation assets, and
+  CPU-side keyframe input/output arrays. Missing inverse bind matrices default to identity as
+  specified by glTF.
+- Skin attribute validation fails clearly for unpaired `JOINTS_0`/`WEIGHTS_0`, unsupported joint
+  or weight component types, non-normalized integer weights, zero/negative/non-finite weight
+  sums, and malformed inverse bind matrix data.
+- Regression coverage includes a generated minimal skinned and animated asset plus invalid skin
+  attribute cases. No runtime playback, skin evaluation, CPU/GPU deformation, shader changes, or
+  render-path skinning were added.
 
 ### Tasks
 

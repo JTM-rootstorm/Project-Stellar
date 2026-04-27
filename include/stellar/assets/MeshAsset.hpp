@@ -30,6 +30,12 @@ struct StaticVertex {
 
     /** @brief Vertex color multiplier in linear RGBA. */
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+
+    /** @brief Joint indices for the first glTF skinning influence set. */
+    std::array<std::uint16_t, 4> joints0{0, 0, 0, 0};
+
+    /** @brief Normalized skinning weights for the first glTF skinning influence set. */
+    std::array<float, 4> weights0{0.0f, 0.0f, 0.0f, 0.0f};
 };
 
 /**
@@ -57,6 +63,9 @@ struct MeshPrimitive {
 
     /** @brief True when every vertex has authored COLOR_0 data. */
     bool has_colors = false;
+
+    /** @brief True when every vertex has valid JOINTS_0 and WEIGHTS_0 data. */
+    bool has_skinning = false;
 
     /** @brief Object-space axis-aligned bounds minimum. */
     std::array<float, 3> bounds_min{0.0f, 0.0f, 0.0f};

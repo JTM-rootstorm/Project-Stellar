@@ -44,6 +44,10 @@ private:
     decode_data_uri(std::string_view uri);
     [[nodiscard]] static std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
     load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh);
+    [[nodiscard]] static std::expected<stellar::assets::SkinAsset, stellar::platform::Error>
+    load_skin(const cgltf_data* data, const cgltf_skin& source_skin);
+    [[nodiscard]] static std::expected<stellar::assets::AnimationAsset, stellar::platform::Error>
+    load_animation(const cgltf_data* data, const cgltf_animation& source_animation);
     [[nodiscard]] static std::expected<stellar::assets::MaterialAsset, stellar::platform::Error>
     load_material(const cgltf_data* data, const cgltf_material* material);
     [[nodiscard]] static std::expected<stellar::assets::SamplerAsset, stellar::platform::Error>
@@ -142,6 +146,41 @@ validate_index_accessor(const cgltf_accessor* accessor) {
     }
 }
 
+[[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_joints_accessor(const cgltf_accessor* accessor, cgltf_size expected_count) {
+    if (!accessor || accessor->type != cgltf_type_vec4 || accessor->count != expected_count) {
+        return import_error("Invalid JOINTS_0 accessor");
+    }
+
+    switch (accessor->component_type) {
+        case cgltf_component_type_r_8u:
+        case cgltf_component_type_r_16u:
+            return {};
+        default:
+            return import_error("Invalid JOINTS_0 accessor component type");
+    }
+}
+
+[[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_weights_accessor(const cgltf_accessor* accessor, cgltf_size expected_count) {
+    if (!accessor || accessor->type != cgltf_type_vec4 || accessor->count != expected_count) {
+        return import_error("Invalid WEIGHTS_0 accessor");
+    }
+
+    switch (accessor->component_type) {
+        case cgltf_component_type_r_8u:
+        case cgltf_component_type_r_16u:
+            if (!accessor->normalized) {
+                return import_error("Integer WEIGHTS_0 accessor must be normalized");
+            }
+            return {};
+        case cgltf_component_type_r_32f:
+            return {};
+        default:
+            return import_error("Invalid WEIGHTS_0 accessor component type");
+    }
+}
+
 [[nodiscard]] std::expected<std::array<float, 2>, stellar::platform::Error>
 read_vec2(const cgltf_accessor* accessor, std::size_t index, const char* error_message) {
     cgltf_float value[4] = {};
@@ -170,6 +209,65 @@ read_vec4(const cgltf_accessor* accessor, std::size_t index, const char* error_m
     }
 
     return std::array<float, 4>{value[0], value[1], value[2], value[3]};
+}
+
+[[nodiscard]] std::expected<std::array<std::uint16_t, 4>, stellar::platform::Error>
+read_u16_vec4(const cgltf_accessor* accessor, std::size_t index, const char* error_message) {
+    cgltf_uint value[4] = {};
+    if (!cgltf_accessor_read_uint(accessor, index, value, 4)) {
+        return import_error(error_message);
+    }
+
+    for (cgltf_uint component : value) {
+        if (component > std::numeric_limits<std::uint16_t>::max()) {
+            return import_error(error_message);
+        }
+    }
+
+    return std::array<std::uint16_t, 4>{static_cast<std::uint16_t>(value[0]),
+                                       static_cast<std::uint16_t>(value[1]),
+                                       static_cast<std::uint16_t>(value[2]),
+                                       static_cast<std::uint16_t>(value[3])};
+}
+
+[[nodiscard]] std::expected<std::array<float, 16>, stellar::platform::Error>
+read_mat4(const cgltf_accessor* accessor, std::size_t index, const char* error_message) {
+    cgltf_float value[16] = {};
+    if (!cgltf_accessor_read_float(accessor, index, value, 16)) {
+        return import_error(error_message);
+    }
+
+    std::array<float, 16> result{};
+    for (std::size_t i = 0; i < result.size(); ++i) {
+        result[i] = value[i];
+    }
+    return result;
+}
+
+bool normalize_weights(std::array<float, 4>& weights) noexcept {
+    float sum = 0.0f;
+    for (float weight : weights) {
+        if (!std::isfinite(weight) || weight < 0.0f) {
+            return false;
+        }
+        sum += weight;
+    }
+
+    if (!std::isfinite(sum) || sum <= 0.0f) {
+        return false;
+    }
+
+    for (float& weight : weights) {
+        weight /= sum;
+    }
+    return true;
+}
+
+std::array<float, 16> identity_matrix() noexcept {
+    return {1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f};
 }
 
 std::array<int, 256> base64_decode_table() {
@@ -664,9 +762,8 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
     mesh.name = duplicate_to_string(source_mesh.name);
 
     // Static import policy: fail on data needed to draw the primitive correctly, import common
-    // draw-affecting optional attributes with runtime support, and ignore optional features without
-    // a runtime representation such as UV2+, skins, animations, morph targets, cameras, lights, and
-    // extensions.
+    // draw-affecting optional attributes with asset/runtime support, and ignore optional features
+    // without a runtime representation such as UV2+, morph targets, cameras, lights, and extensions.
     for (cgltf_size p = 0; p < source_mesh.primitives_count; ++p) {
         const cgltf_primitive& primitive = source_mesh.primitives[p];
         if (primitive.type != cgltf_primitive_type_triangles) {
@@ -797,6 +894,42 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
             has_colors = true;
         }
 
+        bool has_skinning = false;
+        const auto* joints_accessor =
+            cgltf_find_accessor(&primitive, cgltf_attribute_type_joints, 0);
+        const auto* weights_accessor =
+            cgltf_find_accessor(&primitive, cgltf_attribute_type_weights, 0);
+        if (joints_accessor || weights_accessor) {
+            if (!joints_accessor || !weights_accessor) {
+                return std::unexpected(
+                    stellar::platform::Error("JOINTS_0 and WEIGHTS_0 must be provided together"));
+            }
+            if (auto valid = validate_joints_accessor(joints_accessor, position_accessor->count);
+                !valid) {
+                return std::unexpected(valid.error());
+            }
+            if (auto valid = validate_weights_accessor(weights_accessor, position_accessor->count);
+                !valid) {
+                return std::unexpected(valid.error());
+            }
+            for (std::size_t i = 0; i < position_accessor->count; ++i) {
+                auto joints = read_u16_vec4(joints_accessor, i, "Failed to read JOINTS_0 accessor");
+                if (!joints) {
+                    return std::unexpected(joints.error());
+                }
+                auto weights = read_vec4(weights_accessor, i, "Failed to read WEIGHTS_0 accessor");
+                if (!weights) {
+                    return std::unexpected(weights.error());
+                }
+                if (!normalize_weights(*weights)) {
+                    return std::unexpected(stellar::platform::Error("Invalid WEIGHTS_0 values"));
+                }
+                vertices[i].joints0 = *joints;
+                vertices[i].weights0 = *weights;
+            }
+            has_skinning = true;
+        }
+
         bool has_tangents = false;
         if (const auto* tangent_accessor =
                 cgltf_find_accessor(&primitive, cgltf_attribute_type_tangent, 0)) {
@@ -850,6 +983,7 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
         mesh_primitive.indices = std::move(indices);
         mesh_primitive.has_tangents = has_tangents;
         mesh_primitive.has_colors = has_colors;
+        mesh_primitive.has_skinning = has_skinning;
         mesh_primitive.bounds_min = bounds_min;
         mesh_primitive.bounds_max = bounds_max;
         if (primitive.material) {
@@ -864,6 +998,185 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
     }
 
     return mesh;
+}
+
+std::expected<stellar::assets::SkinAsset, stellar::platform::Error>
+CgltfImporter::load_skin(const cgltf_data* data, const cgltf_skin& source_skin) {
+    stellar::assets::SkinAsset skin;
+    skin.name = duplicate_to_string(source_skin.name);
+
+    if (source_skin.joints_count == 0) {
+        return std::unexpected(stellar::platform::Error("Skin is missing joints"));
+    }
+
+    skin.joints.reserve(source_skin.joints_count);
+    for (cgltf_size i = 0; i < source_skin.joints_count; ++i) {
+        auto joint_index = checked_index(cgltf_node_index(data, source_skin.joints[i]),
+                                         "Failed to resolve skin joint index");
+        if (!joint_index) {
+            return std::unexpected(joint_index.error());
+        }
+        skin.joints.push_back(*joint_index);
+    }
+
+    if (source_skin.skeleton) {
+        auto skeleton_index = checked_index(cgltf_node_index(data, source_skin.skeleton),
+                                            "Failed to resolve skin skeleton root index");
+        if (!skeleton_index) {
+            return std::unexpected(skeleton_index.error());
+        }
+        skin.skeleton_root = *skeleton_index;
+    }
+
+    skin.inverse_bind_matrices.reserve(source_skin.joints_count);
+    if (source_skin.inverse_bind_matrices) {
+        if (auto valid = validate_float_accessor(source_skin.inverse_bind_matrices, cgltf_type_mat4,
+                                                 source_skin.joints_count,
+                                                 "Invalid inverse bind matrices accessor");
+            !valid) {
+            return std::unexpected(valid.error());
+        }
+        for (std::size_t i = 0; i < source_skin.joints_count; ++i) {
+            auto matrix = read_mat4(source_skin.inverse_bind_matrices, i,
+                                    "Failed to read inverse bind matrices accessor");
+            if (!matrix) {
+                return std::unexpected(matrix.error());
+            }
+            skin.inverse_bind_matrices.push_back(*matrix);
+        }
+    } else {
+        skin.inverse_bind_matrices.assign(static_cast<std::size_t>(source_skin.joints_count),
+                                          identity_matrix());
+    }
+
+    return skin;
+}
+
+static std::expected<stellar::assets::AnimationInterpolation, stellar::platform::Error>
+to_animation_interpolation(cgltf_interpolation_type interpolation) {
+    switch (interpolation) {
+        case cgltf_interpolation_type_step:
+            return stellar::assets::AnimationInterpolation::kStep;
+        case cgltf_interpolation_type_cubic_spline:
+            return stellar::assets::AnimationInterpolation::kCubicSpline;
+        case cgltf_interpolation_type_linear:
+            return stellar::assets::AnimationInterpolation::kLinear;
+        default:
+            return import_error("Unsupported animation interpolation mode");
+    }
+}
+
+static std::expected<stellar::assets::AnimationTargetPath, stellar::platform::Error>
+to_animation_target_path(cgltf_animation_path_type path) {
+    switch (path) {
+        case cgltf_animation_path_type_translation:
+            return stellar::assets::AnimationTargetPath::kTranslation;
+        case cgltf_animation_path_type_rotation:
+            return stellar::assets::AnimationTargetPath::kRotation;
+        case cgltf_animation_path_type_scale:
+            return stellar::assets::AnimationTargetPath::kScale;
+        case cgltf_animation_path_type_weights:
+            return stellar::assets::AnimationTargetPath::kWeights;
+        default:
+            return import_error("Unsupported animation target path");
+    }
+}
+
+std::expected<stellar::assets::AnimationAsset, stellar::platform::Error>
+CgltfImporter::load_animation(const cgltf_data* data, const cgltf_animation& source_animation) {
+    stellar::assets::AnimationAsset animation;
+    animation.name = duplicate_to_string(source_animation.name);
+
+    animation.samplers.reserve(source_animation.samplers_count);
+    for (cgltf_size i = 0; i < source_animation.samplers_count; ++i) {
+        const cgltf_animation_sampler& source_sampler = source_animation.samplers[i];
+        if (!source_sampler.input || source_sampler.input->component_type != cgltf_component_type_r_32f ||
+            source_sampler.input->type != cgltf_type_scalar || source_sampler.input->count == 0) {
+            return std::unexpected(stellar::platform::Error("Invalid animation sampler input"));
+        }
+        if (!source_sampler.output || source_sampler.output->count == 0) {
+            return std::unexpected(stellar::platform::Error("Invalid animation sampler output"));
+        }
+
+        auto interpolation = to_animation_interpolation(source_sampler.interpolation);
+        if (!interpolation) {
+            return std::unexpected(interpolation.error());
+        }
+
+        const std::size_t output_components = cgltf_num_components(source_sampler.output->type);
+        const std::size_t expected_outputs =
+            source_sampler.input->count *
+            (*interpolation == stellar::assets::AnimationInterpolation::kCubicSpline ? 3u : 1u);
+        if (output_components == 0 || source_sampler.output->count != expected_outputs) {
+            return std::unexpected(stellar::platform::Error("Animation sampler output count mismatch"));
+        }
+        if (source_sampler.output->component_type != cgltf_component_type_r_32f) {
+            return std::unexpected(
+                stellar::platform::Error("Animation sampler output must use float components"));
+        }
+
+        stellar::assets::AnimationSamplerAsset sampler;
+        sampler.interpolation = *interpolation;
+        sampler.output_components = output_components;
+        sampler.input_times.resize(source_sampler.input->count);
+        for (std::size_t key = 0; key < source_sampler.input->count; ++key) {
+            cgltf_float time = 0.0f;
+            if (!cgltf_accessor_read_float(source_sampler.input, key, &time, 1) ||
+                !std::isfinite(time)) {
+                return std::unexpected(stellar::platform::Error("Failed to read animation input"));
+            }
+            sampler.input_times[key] = time;
+        }
+
+        sampler.output_values.resize(static_cast<std::size_t>(source_sampler.output->count) *
+                                     output_components);
+        std::vector<cgltf_float> value(output_components);
+        for (std::size_t key = 0; key < source_sampler.output->count; ++key) {
+            if (!cgltf_accessor_read_float(source_sampler.output, key, value.data(),
+                                           output_components)) {
+                return std::unexpected(stellar::platform::Error("Failed to read animation output"));
+            }
+            for (std::size_t component = 0; component < output_components; ++component) {
+                if (!std::isfinite(value[component])) {
+                    return std::unexpected(
+                        stellar::platform::Error("Invalid animation output value"));
+                }
+                sampler.output_values[key * output_components + component] = value[component];
+            }
+        }
+
+        animation.samplers.push_back(std::move(sampler));
+    }
+
+    animation.channels.reserve(source_animation.channels_count);
+    for (cgltf_size i = 0; i < source_animation.channels_count; ++i) {
+        const cgltf_animation_channel& source_channel = source_animation.channels[i];
+        auto sampler_index = checked_index(
+            cgltf_animation_sampler_index(&source_animation, source_channel.sampler),
+            "Failed to resolve animation channel sampler index");
+        if (!sampler_index) {
+            return std::unexpected(sampler_index.error());
+        }
+        auto target_path = to_animation_target_path(source_channel.target_path);
+        if (!target_path) {
+            return std::unexpected(target_path.error());
+        }
+
+        stellar::assets::AnimationChannelAsset channel;
+        channel.sampler_index = *sampler_index;
+        channel.target_path = *target_path;
+        if (source_channel.target_node) {
+            auto node_index = checked_index(cgltf_node_index(data, source_channel.target_node),
+                                            "Failed to resolve animation channel target node");
+            if (!node_index) {
+                return std::unexpected(node_index.error());
+            }
+            channel.target_node = *node_index;
+        }
+        animation.channels.push_back(channel);
+    }
+
+    return animation;
 }
 
 std::expected<stellar::scene::Node, stellar::platform::Error>
@@ -892,6 +1205,15 @@ CgltfImporter::load_node(const cgltf_data* data, const cgltf_node& node) {
             return std::unexpected(mesh_index.error());
         }
         result.mesh_instances.push_back(stellar::scene::MeshInstance{.mesh_index = *mesh_index});
+    }
+
+    if (node.skin) {
+        auto skin_index = checked_index(cgltf_skin_index(data, node.skin),
+                                        "Failed to resolve node skin index");
+        if (!skin_index) {
+            return std::unexpected(skin_index.error());
+        }
+        result.skin_index = *skin_index;
     }
 
     result.children.reserve(node.children_count);
@@ -1042,6 +1364,24 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
             }
             scene.nodes[i].parent_index = *parent_index;
         }
+    }
+
+    scene.skins.reserve(data->skins_count);
+    for (cgltf_size i = 0; i < data->skins_count; ++i) {
+        auto skin = load_skin(data.get(), data->skins[i]);
+        if (!skin) {
+            return std::unexpected(skin.error());
+        }
+        scene.skins.push_back(*skin);
+    }
+
+    scene.animations.reserve(data->animations_count);
+    for (cgltf_size i = 0; i < data->animations_count; ++i) {
+        auto animation = load_animation(data.get(), data->animations[i]);
+        if (!animation) {
+            return std::unexpected(animation.error());
+        }
+        scene.animations.push_back(*animation);
     }
 
     scene.scenes.reserve(data->scenes_count);

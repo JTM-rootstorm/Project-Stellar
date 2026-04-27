@@ -1055,6 +1055,220 @@ bool run_degenerate_tangent_fixture(const std::filesystem::path& root) {
                  "expected degenerate UVs to disable generated tangents");
 }
 
+bool run_skin_animation_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "skin_animation";
+    std::filesystem::create_directories(work_dir);
+
+    std::vector<std::uint8_t> bytes;
+    const std::size_t positions_offset = bytes.size();
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 1.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 1.0f, 0.0f);
+
+    const std::size_t joints_offset = bytes.size();
+    for (int i = 0; i < 3; ++i) {
+        append_u16_le(bytes, 0);
+        append_u16_le(bytes, 1);
+        append_u16_le(bytes, 0);
+        append_u16_le(bytes, 0);
+    }
+
+    const std::size_t weights_offset = bytes.size();
+    append_vec4(bytes, 0.25f, 0.75f, 0.0f, 0.0f);
+    append_vec4(bytes, 2.0f, 2.0f, 0.0f, 0.0f);
+    append_vec4(bytes, 1.0f, 0.0f, 0.0f, 0.0f);
+
+    const std::size_t inverse_bind_offset = bytes.size();
+    for (int matrix = 0; matrix < 2; ++matrix) {
+        append_vec4(bytes, matrix == 0 ? 1.0f : 2.0f, 0.0f, 0.0f, 0.0f);
+        append_vec4(bytes, 0.0f, 1.0f, 0.0f, 0.0f);
+        append_vec4(bytes, 0.0f, 0.0f, 1.0f, 0.0f);
+        append_vec4(bytes, 0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
+    const std::size_t time_offset = bytes.size();
+    append_f32_le(bytes, 0.0f);
+    append_f32_le(bytes, 1.0f);
+
+    const std::size_t translation_offset = bytes.size();
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 2.0f, 0.0f);
+
+    const std::size_t rotation_time_offset = bytes.size();
+    append_f32_le(bytes, 0.0f);
+    append_f32_le(bytes, 1.0f);
+
+    const std::size_t rotation_offset = bytes.size();
+    append_vec4(bytes, 0.0f, 0.0f, 0.0f, 1.0f);
+    append_vec4(bytes, 0.0f, 0.0f, 1.0f, 0.0f);
+
+    const auto gltf_path = work_dir / "skin_animation.gltf";
+    const std::string buffer_uri = data_uri("application/octet-stream", bytes);
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"buffers\": [{ \"byteLength\": " +
+                        std::to_string(bytes.size()) + ", \"uri\": \"" + buffer_uri +
+                        "\" }],\n"
+                    "  \"bufferViews\": [\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(positions_offset) + ", \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(joints_offset) + ", \"byteLength\": 24 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(weights_offset) + ", \"byteLength\": 48 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(inverse_bind_offset) + ", \"byteLength\": 128 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(time_offset) + ", \"byteLength\": 8 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(translation_offset) + ", \"byteLength\": 24 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(rotation_time_offset) + ", \"byteLength\": 8 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(rotation_offset) + ", \"byteLength\": 32 }\n"
+                    "  ],\n"
+                    "  \"accessors\": [\n"
+                    "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\" },\n"
+                    "    { \"bufferView\": 1, \"componentType\": 5123, \"count\": 3, "
+                    "\"type\": \"VEC4\" },\n"
+                    "    { \"bufferView\": 2, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC4\" },\n"
+                    "    { \"bufferView\": 3, \"componentType\": 5126, \"count\": 2, "
+                    "\"type\": \"MAT4\" },\n"
+                    "    { \"bufferView\": 4, \"componentType\": 5126, \"count\": 2, "
+                    "\"type\": \"SCALAR\" },\n"
+                    "    { \"bufferView\": 5, \"componentType\": 5126, \"count\": 2, "
+                    "\"type\": \"VEC3\" },\n"
+                    "    { \"bufferView\": 6, \"componentType\": 5126, \"count\": 2, "
+                    "\"type\": \"SCALAR\" },\n"
+                    "    { \"bufferView\": 7, \"componentType\": 5126, \"count\": 2, "
+                    "\"type\": \"VEC4\" }\n"
+                    "  ],\n"
+                    "  \"skins\": [{ \"name\": \"skin0\", \"joints\": [1, 2], "
+                    "\"skeleton\": 0, \"inverseBindMatrices\": 3 }],\n"
+                    "  \"meshes\": [{ \"primitives\": [{ \"attributes\": { "
+                    "\"POSITION\": 0, \"JOINTS_0\": 1, \"WEIGHTS_0\": 2 }, "
+                    "\"mode\": 4 }] }],\n"
+                    "  \"nodes\": [\n"
+                    "    { \"name\": \"root\", \"children\": [1, 2, 3] },\n"
+                    "    { \"name\": \"joint0\" },\n"
+                    "    { \"name\": \"joint1\" },\n"
+                    "    { \"name\": \"skinnedMesh\", \"mesh\": 0, \"skin\": 0 }\n"
+                    "  ],\n"
+                    "  \"animations\": [{\n"
+                    "    \"name\": \"anim0\",\n"
+                    "    \"samplers\": [\n"
+                    "      { \"input\": 4, \"output\": 5, \"interpolation\": \"LINEAR\" },\n"
+                    "      { \"input\": 6, \"output\": 7, \"interpolation\": \"STEP\" }\n"
+                    "    ],\n"
+                    "    \"channels\": [\n"
+                    "      { \"sampler\": 0, \"target\": { \"node\": 1, "
+                    "\"path\": \"translation\" } },\n"
+                    "      { \"sampler\": 1, \"target\": { \"node\": 2, "
+                    "\"path\": \"rotation\" } }\n"
+                    "    ]\n"
+                    "  }],\n"
+                    "  \"scenes\": [{ \"nodes\": [0] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    const auto& primitive = scene->meshes[0].primitives[0];
+    const auto& skin = scene->skins[0];
+    const auto& animation = scene->animations[0];
+    return check(scene->skins.size() == 1, "expected one skin") &&
+           check(scene->animations.size() == 1, "expected one animation") &&
+           check(scene->nodes[3].skin_index.has_value() && *scene->nodes[3].skin_index == 0,
+                 "expected node skin index") &&
+           check(primitive.has_skinning, "expected skinned primitive") &&
+           check(primitive.vertices[0].joints0[0] == 0 && primitive.vertices[0].joints0[1] == 1,
+                 "expected first JOINTS_0 values") &&
+           check_vec4(primitive.vertices[1].weights0, {0.5f, 0.5f, 0.0f, 0.0f},
+                      "expected normalized WEIGHTS_0 values") &&
+           check(skin.joints.size() == 2 && skin.joints[0] == 1 && skin.joints[1] == 2,
+                 "expected skin joint node indices") &&
+           check(skin.skeleton_root.has_value() && *skin.skeleton_root == 0,
+                 "expected skin skeleton root") &&
+           check(skin.inverse_bind_matrices.size() == 2,
+                 "expected inverse bind matrix count") &&
+           check_near(skin.inverse_bind_matrices[1][0], 2.0f,
+                      "expected second inverse bind matrix value") &&
+           check(animation.samplers.size() == 2, "expected animation samplers") &&
+           check(animation.channels.size() == 2, "expected animation channels") &&
+           check(animation.samplers[0].input_times.size() == 2,
+                 "expected animation input times") &&
+           check(animation.samplers[0].output_components == 3,
+                 "expected translation output components") &&
+           check_vec3({animation.samplers[0].output_values[3], animation.samplers[0].output_values[4],
+                       animation.samplers[0].output_values[5]},
+                      {0.0f, 2.0f, 0.0f}, "expected translation output values") &&
+           check(animation.channels[0].target_node.has_value() &&
+                     *animation.channels[0].target_node == 1,
+                 "expected animation channel target node") &&
+           check(animation.channels[0].target_path ==
+                     stellar::assets::AnimationTargetPath::kTranslation,
+                 "expected translation target path") &&
+           check(animation.samplers[1].interpolation ==
+                     stellar::assets::AnimationInterpolation::kStep,
+                 "expected step interpolation");
+}
+
+bool run_skin_attribute_validation_failures_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "skin_attribute_failures";
+    std::filesystem::create_directories(work_dir);
+
+    std::vector<std::uint8_t> bytes;
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 1.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 1.0f, 0.0f);
+    for (int i = 0; i < 3; ++i) {
+        append_u16_le(bytes, 0);
+        append_u16_le(bytes, 0);
+        append_u16_le(bytes, 0);
+        append_u16_le(bytes, 0);
+    }
+
+    const std::string buffer_uri = data_uri("application/octet-stream", bytes);
+    const std::string prefix =
+        "{\n"
+        "  \"asset\": { \"version\": \"2.0\" },\n"
+        "  \"buffers\": [{ \"byteLength\": " +
+        std::to_string(bytes.size()) + ", \"uri\": \"" + buffer_uri + "\" }],\n"
+        "  \"bufferViews\": [\n"
+        "    { \"buffer\": 0, \"byteOffset\": 0, \"byteLength\": 36 },\n"
+        "    { \"buffer\": 0, \"byteOffset\": 36, \"byteLength\": 24 }\n"
+        "  ],\n"
+        "  \"accessors\": [\n"
+        "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+        "\"type\": \"VEC3\" },\n"
+        "    { \"bufferView\": 1, \"componentType\": 5123, \"count\": 3, "
+        "\"type\": \"VEC4\" }\n"
+        "  ],\n"
+        "  \"meshes\": [{ \"primitives\": [{ \"attributes\": { ";
+    const std::string suffix =
+        " }, \"mode\": 4 }] }],\n"
+        "  \"nodes\": [{ \"mesh\": 0 }],\n"
+        "  \"scenes\": [{ \"nodes\": [0] }],\n"
+        "  \"scene\": 0\n"
+        "}\n";
+
+    const auto missing_weights = prefix + "\"POSITION\": 0, \"JOINTS_0\": 1" + suffix;
+    const auto invalid_weights =
+        prefix + "\"POSITION\": 0, \"JOINTS_0\": 1, \"WEIGHTS_0\": 1" + suffix;
+
+    return expect_load_failure(work_dir / "missing_weights.gltf", missing_weights,
+                               "missing WEIGHTS_0") &&
+           expect_load_failure(work_dir / "invalid_weights.gltf", invalid_weights,
+                               "invalid WEIGHTS_0");
+}
+
 bool run_glb_smoke_fixture(const std::filesystem::path& root) {
     const auto work_dir = root / "glb_smoke";
     std::filesystem::create_directories(work_dir);
@@ -1109,6 +1323,12 @@ int main() {
         return 1;
     }
     if (!run_degenerate_tangent_fixture(root)) {
+        return 1;
+    }
+    if (!run_skin_animation_fixture(root)) {
+        return 1;
+    }
+    if (!run_skin_attribute_validation_failures_fixture(root)) {
         return 1;
     }
     if (!run_glb_smoke_fixture(root)) {
