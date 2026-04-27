@@ -77,3 +77,4 @@ Run tests: `ctest`
 - Data-oriented design for ECS - components are POD
 - Dual renderer parity required (OpenGL and Vulkan must behave identically)
 - Subagents can not create more subagents or delegate work.
+- Prompt user for more information if needed

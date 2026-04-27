@@ -18,6 +18,8 @@ pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 option(STELLAR_ENABLE_GLTF "Enable the glTF importer seam" OFF)
 option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
        "Build optional OpenGL context/readback smoke tests" OFF)
+option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS
+       "Build optional Vulkan context/init smoke tests" OFF)
 
 add_subdirectory(thirdparty/miniaudio)
 if(STELLAR_ENABLE_GLTF)
@@ -177,6 +179,24 @@ if(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
 
     add_test(NAME opengl_context_smoke COMMAND stellar_opengl_context_smoke_test)
     set_tests_properties(opengl_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS)
+    add_executable(stellar_vulkan_context_smoke_test
+        tests/graphics/VulkanContextSmoke.cpp
+    )
+
+    target_include_directories(stellar_vulkan_context_smoke_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${Vulkan_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(stellar_vulkan_context_smoke_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME vulkan_context_smoke COMMAND stellar_vulkan_context_smoke_test)
+    set_tests_properties(vulkan_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
 add_executable(stellar_animation_runtime_test
