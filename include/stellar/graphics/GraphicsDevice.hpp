@@ -39,8 +39,19 @@ struct TextureUpload {
  * @brief One primitive draw within an uploaded mesh.
  */
 struct MeshPrimitiveDrawCommand {
+    /** @brief Primitive index inside the uploaded mesh. */
     std::size_t primitive_index = 0;
+
+    /** @brief Material handle to use for this primitive draw. */
     MaterialHandle material;
+
+    /**
+     * @brief Final skin joint matrices for this draw, in skin joint order.
+     *
+     * An empty span means the primitive should use the static mesh path. Matrix data is
+     * backend-neutral and must remain valid for the duration of the draw_mesh call.
+     */
+    std::span<const std::array<float, 16>> skin_joint_matrices;
 };
 
 /**

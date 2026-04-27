@@ -54,6 +54,7 @@ private:
         int index_count = 0;
         bool has_tangents = false;
         bool has_colors = false;
+        bool has_skinning = false;
     };
 
     struct MeshRecord {
@@ -85,6 +86,8 @@ private:
     int mvp_loc_ = -1;
     int model_loc_ = -1;
     int normal_matrix_loc_ = -1;
+    int has_skinning_loc_ = -1;
+    int joint_matrices_loc_ = -1;
     std::uint64_t next_handle_ = 1;
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;

@@ -98,4 +98,4 @@ Run tests: `ctest`
 - Data-oriented design for ECS - components are POD
 - Dual renderer parity required (OpenGL and Vulkan must behave identically)
 - only @director can create sub-agents. 
-- @miyamoto , @carmack , @kojima , @molyneux , and @suzuki can not create agents or delegate work.
+- @miyamoto , @carmack , @kojima , @molyneux , and @suzuki can not create agents, subagents, or delegate work.

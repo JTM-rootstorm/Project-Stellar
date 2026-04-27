@@ -16,6 +16,7 @@ struct QueuedMeshDraw {
     MeshHandle mesh;
     MeshPrimitiveDrawCommand command;
     MeshDrawTransforms transforms;
+    std::vector<std::array<float, 16>> skin_joint_matrices;
     float depth = 0.0f;
 };
 
@@ -50,6 +51,30 @@ std::array<float, 9> normal_matrix_for(const glm::mat4& world) {
     }
 
     return to_array(glm::transpose(glm::inverse(linear)));
+}
+
+std::vector<std::array<float, 16>> skin_matrices_for_draw(
+    const stellar::scene::ScenePose* pose,
+    const stellar::scene::Node& node,
+    const glm::mat4& world,
+    const stellar::assets::MeshPrimitive& primitive) {
+    if (pose == nullptr || !primitive.has_skinning || !node.skin_index.has_value() ||
+        *node.skin_index >= pose->skin_poses.size()) {
+        return {};
+    }
+
+    const auto& skin_pose = pose->skin_poses[*node.skin_index];
+    if (skin_pose.joint_matrices.empty()) {
+        return {};
+    }
+
+    const glm::mat4 inverse_world = glm::inverse(world);
+    std::vector<std::array<float, 16>> result;
+    result.reserve(skin_pose.joint_matrices.size());
+    for (const auto& joint_matrix : skin_pose.joint_matrices) {
+        result.push_back(to_array(inverse_world * to_glm_mat4(joint_matrix)));
+    }
+    return result;
 }
 
 std::optional<MaterialTextureBinding>
@@ -188,6 +213,22 @@ void RenderScene::render(int width,
                          int height,
                          const std::array<float, 16>& view_projection,
                          const std::array<float, 16>& view) noexcept {
+    render(width, height, view_projection, view, nullptr);
+}
+
+void RenderScene::render(int width,
+                         int height,
+                         const std::array<float, 16>& view_projection,
+                         const std::array<float, 16>& view,
+                         const stellar::scene::ScenePose& pose) noexcept {
+    render(width, height, view_projection, view, &pose);
+}
+
+void RenderScene::render(int width,
+                         int height,
+                         const std::array<float, 16>& view_projection,
+                         const std::array<float, 16>& view,
+                         const stellar::scene::ScenePose* pose) noexcept {
     if (!device_ || !active_scene_index_.has_value()) {
         return;
     }
@@ -207,7 +248,8 @@ void RenderScene::render(int width,
     std::vector<QueuedMeshDraw> blend_draws;
     const auto& scene = scene_.scenes[scene_index];
     for (std::size_t root_node : scene.root_nodes) {
-        collect_node_draws(root_node, identity_array, vp, view_matrix, opaque_draws, blend_draws);
+        collect_node_draws(root_node, identity_array, vp, view_matrix, pose, opaque_draws,
+                           blend_draws);
     }
 
     std::sort(blend_draws.begin(), blend_draws.end(), [](const auto& lhs, const auto& rhs) {
@@ -218,11 +260,17 @@ void RenderScene::render(int width,
     // geometry can still require asset-side splitting or later order-independent transparency.
 
     for (const QueuedMeshDraw& draw : opaque_draws) {
-        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&draw.command, 1),
+        MeshPrimitiveDrawCommand command = draw.command;
+        command.skin_joint_matrices = std::span<const std::array<float, 16>>(
+            draw.skin_joint_matrices.data(), draw.skin_joint_matrices.size());
+        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&command, 1),
                            draw.transforms);
     }
     for (const QueuedMeshDraw& draw : blend_draws) {
-        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&draw.command, 1),
+        MeshPrimitiveDrawCommand command = draw.command;
+        command.skin_joint_matrices = std::span<const std::array<float, 16>>(
+            draw.skin_joint_matrices.data(), draw.skin_joint_matrices.size());
+        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&command, 1),
                            draw.transforms);
     }
 
@@ -250,11 +298,12 @@ RenderScene::compose_transform(const stellar::scene::Transform& transform) noexc
 }
 
 void RenderScene::collect_node_draws(std::size_t node_index,
-                                      const std::array<float, 16>& parent_world,
-                                      const glm::mat4& view_projection,
-                                      const glm::mat4& view,
-                                      std::vector<QueuedMeshDraw>& opaque_draws,
-                                      std::vector<QueuedMeshDraw>& blend_draws) noexcept {
+                                       const std::array<float, 16>& parent_world,
+                                       const glm::mat4& view_projection,
+                                       const glm::mat4& view,
+                                       const stellar::scene::ScenePose* pose,
+                                       std::vector<QueuedMeshDraw>& opaque_draws,
+                                       std::vector<QueuedMeshDraw>& blend_draws) noexcept {
     if (node_index >= scene_.nodes.size()) {
         return;
     }
@@ -262,7 +311,10 @@ void RenderScene::collect_node_draws(std::size_t node_index,
     const auto& node = scene_.nodes[node_index];
     const glm::mat4 parent = to_glm_mat4(parent_world);
     const glm::mat4 local = to_glm_mat4(compose_transform(node.local_transform));
-    const glm::mat4 world = parent * local;
+    glm::mat4 world = parent * local;
+    if (pose != nullptr && node_index < pose->world_transforms.size()) {
+        world = to_glm_mat4(pose->world_transforms[node_index]);
+    }
     const std::array<float, 16> mvp = to_array(view_projection * world);
 
     for (const auto& mesh_instance : node.mesh_instances) {
@@ -291,6 +343,7 @@ void RenderScene::collect_node_draws(std::size_t node_index,
                     .command = MeshPrimitiveDrawCommand{.primitive_index = primitive_index,
                                                         .material = material_handle},
                     .transforms = transforms,
+                    .skin_joint_matrices = skin_matrices_for_draw(pose, node, world, primitive),
                     .depth = view_space_depth(view, world, primitive),
                 };
                 if (is_blend) {
@@ -304,7 +357,7 @@ void RenderScene::collect_node_draws(std::size_t node_index,
 
     const std::array<float, 16> world_array = to_array(world);
     for (std::size_t child_index : node.children) {
-        collect_node_draws(child_index, world_array, view_projection, view, opaque_draws,
+        collect_node_draws(child_index, world_array, view_projection, view, pose, opaque_draws,
                            blend_draws);
     }
 }

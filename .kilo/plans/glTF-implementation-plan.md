@@ -32,6 +32,9 @@ Completed so far:
   interpolation mode preservation.
 - Phase 3B: backend-neutral runtime animation evaluation, playback controls, mutable node
   transform poses, CPU-side node world transforms, and final joint matrices for later skinning.
+- Phase 3C: OpenGL GPU skinning render path, including backend-neutral skinned draw data,
+  ScenePose-driven render submission, JOINTS_0/WEIGHTS_0 vertex upload, shader joint matrix
+  blending, and display-free draw-command validation.
 
 Known remaining limitations:
 - Normal maps are only active for primitives with `MeshPrimitive::has_tangents = true`; importer
@@ -44,8 +47,9 @@ Known remaining limitations:
 - Reusing one texture for both color and non-color material slots keeps one upload color-space;
   color usage currently wins until per-use texture views are added.
 - Vulkan backend/runtime parity is still absent.
-- Animation playback updates node transforms and CPU skin poses, but CPU/GPU mesh deformation,
-  shader skinning, and render-path skinned drawing are not implemented until Phase 3C.
+- OpenGL can render skinned meshes with up to 96 joints per draw using GPU skinning; Vulkan
+  backend/runtime parity is still absent and larger skins require later uniform-buffer or texture
+  palette support.
 - Morph targets, cameras, lights, and extensions are not supported.
 
 ## Phase 2A: Static Importer Completeness - Completed
@@ -346,9 +350,31 @@ Phase 3B has been completed in the current branch.
 Runtime can evaluate glTF animations and compute skeleton poses, but mesh deformation may
 still be deferred to Phase 3C.
 
-## Phase 3C: Skinning Render Path
+## Phase 3C: Skinning Render Path - Completed
 
 Goal: render skinned glTF meshes.
+
+### Completion Notes
+
+Phase 3C has been completed in the current branch.
+
+- The first implementation uses GPU skinning for the OpenGL render path. Static primitives keep
+  the existing path by submitting an empty skin joint matrix span.
+- `RenderScene` now accepts an evaluated `ScenePose` at render time without owning an animation
+  player, uses pose world transforms for animated nodes, and attaches per-draw joint matrices for
+  primitives whose node has a valid skin and whose primitive has skinning attributes.
+- Joint matrices are converted into mesh-local space before submission so the shader can apply
+  skinning before the existing model/view/projection transform.
+- `GraphicsDevice` draw commands expose backend-neutral skin joint matrix spans, keeping OpenGL
+  details out of public asset/runtime types.
+- OpenGL uploads `StaticVertex::joints0` and `StaticVertex::weights0` as vertex attributes and
+  applies a uniform joint matrix palette in the vertex shader. Normal and tangent inputs are
+  transformed by the same blended skin matrix before the existing world/normal transforms.
+- Display-free `RenderSceneUpload` coverage verifies static draws submit no skin data and skinned
+  draws select the expected evaluated skin pose/joint matrix.
+- Limitation: the OpenGL shader currently supports up to 96 joint matrices per draw through
+  uniforms; larger skins intentionally fall back to the static path until a UBO/SSBO/texture
+  palette path is added. Vulkan parity remains deferred to Phase 4A.
 
 ### Tasks
 

@@ -2,9 +2,12 @@
 
 #include <cassert>
 #include <expected>
+#include <array>
 #include <memory>
 #include <span>
 #include <vector>
+
+#include "stellar/assets/SkinAsset.hpp"
 
 namespace {
 
@@ -48,6 +51,10 @@ public:
                     static_cast<bool>(commands[0].material) && transforms.mvp[0] == 2.0F &&
                     transforms.world[5] == 3.0F && transforms.normal[8] == 0.25F;
         draw_order.push_back(commands[0].primitive_index);
+        skin_joint_counts.push_back(commands[0].skin_joint_matrices.size());
+        if (!commands[0].skin_joint_matrices.empty()) {
+            first_skin_joint_matrix = commands[0].skin_joint_matrices[0];
+        }
     }
 
     void end_frame() noexcept override {
@@ -76,6 +83,8 @@ public:
     std::vector<std::uint32_t> uploaded_image_widths;
     std::vector<stellar::assets::TextureColorSpace> uploaded_texture_color_spaces;
     std::vector<std::size_t> draw_order;
+    std::vector<std::size_t> skin_joint_counts;
+    std::array<float, 16> first_skin_joint_matrix{};
     int destroyed_meshes = 0;
     int destroyed_textures = 0;
     int destroyed_materials = 0;
@@ -261,7 +270,52 @@ int main() {
     assert(mock_ptr->began_frame);
     assert(mock_ptr->drew_mesh);
     assert((mock_ptr->draw_order == std::vector<std::size_t>{0, 1, 2}));
+    assert((mock_ptr->skin_joint_counts == std::vector<std::size_t>{0, 0, 0}));
     assert(mock_ptr->ended_frame);
+
+    stellar::assets::SceneAsset skinned_scene;
+    stellar::assets::MeshPrimitive skinned_primitive;
+    skinned_primitive.vertices.resize(3);
+    skinned_primitive.indices = {0, 1, 2};
+    skinned_primitive.has_skinning = true;
+    skinned_scene.meshes.push_back(stellar::assets::MeshAsset{.name = "skinned",
+                                                               .primitives = {skinned_primitive}});
+    skinned_scene.skins.push_back(stellar::assets::SkinAsset{.name = "skin", .joints = {1}});
+    stellar::scene::Node skinned_root;
+    skinned_root.name = "skinned_root";
+    skinned_root.mesh_instances = {stellar::scene::MeshInstance{0}};
+    skinned_root.skin_index = 0;
+    skinned_root.local_transform.translation = {2.0F, 0.0F, 0.0F};
+    stellar::scene::Node joint_node;
+    joint_node.name = "joint";
+    joint_node.local_transform.translation = {5.0F, 0.0F, 0.0F};
+    skinned_scene.nodes = {skinned_root, joint_node};
+    skinned_scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0, 1}});
+    skinned_scene.default_scene_index = 0;
+
+    auto skinned_mock = std::make_unique<MockGraphicsDevice>();
+    MockGraphicsDevice* skinned_mock_ptr = skinned_mock.get();
+    stellar::graphics::RenderScene skinned_render_scene;
+    auto skinned_result = skinned_render_scene.initialize(std::move(skinned_mock), window,
+                                                          skinned_scene);
+    assert(skinned_result.has_value());
+
+    stellar::scene::ScenePose pose;
+    pose.local_transforms.resize(2);
+    pose.world_transforms = {
+        std::array<float, 16>{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
+                              0.0F, 0.0F, 1.0F, 0.0F, 2.0F, 0.0F, 0.0F, 1.0F},
+        std::array<float, 16>{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
+                              0.0F, 0.0F, 1.0F, 0.0F, 7.0F, 0.0F, 0.0F, 1.0F},
+    };
+    pose.skin_poses.resize(1);
+    pose.skin_poses[0].joint_matrices = {
+        std::array<float, 16>{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
+                              0.0F, 0.0F, 1.0F, 0.0F, 7.0F, 0.0F, 0.0F, 1.0F},
+    };
+    skinned_render_scene.render(64, 64, identity, identity, pose);
+    assert((skinned_mock_ptr->skin_joint_counts == std::vector<std::size_t>{1}));
+    assert(skinned_mock_ptr->first_skin_joint_matrix[12] == 5.0F);
 
     return 0;
 }

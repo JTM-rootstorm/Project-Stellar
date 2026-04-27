@@ -11,6 +11,8 @@ namespace stellar::graphics::opengl {
 
 namespace {
 
+constexpr int kMaxSkinJoints = 96;
+
 constexpr const char* kVertexShader = R"(
 #version 330 core
 
@@ -20,10 +22,14 @@ layout(location = 2) in vec2 a_uv0;
 layout(location = 3) in vec4 a_tangent;
 layout(location = 4) in vec2 a_uv1;
 layout(location = 5) in vec4 a_color;
+layout(location = 6) in uvec4 a_joints0;
+layout(location = 7) in vec4 a_weights0;
 
 uniform mat4 u_mvp;
 uniform mat4 u_model;
 uniform mat3 u_normal_matrix;
+uniform bool u_has_skinning;
+uniform mat4 u_joint_matrices[96];
 
 out vec2 v_uv0;
 out vec2 v_uv1;
@@ -32,12 +38,21 @@ out vec4 v_tangent;
 out vec4 v_color;
 
 void main() {
+    mat4 skin = mat4(1.0);
+    if (u_has_skinning) {
+        skin = a_weights0.x * u_joint_matrices[a_joints0.x] +
+            a_weights0.y * u_joint_matrices[a_joints0.y] +
+            a_weights0.z * u_joint_matrices[a_joints0.z] +
+            a_weights0.w * u_joint_matrices[a_joints0.w];
+    }
+    vec4 local_position = skin * vec4(a_position, 1.0);
+    mat3 skinned_normal_matrix = mat3(skin);
     v_uv0 = a_uv0;
     v_uv1 = a_uv1;
-    v_normal = normalize(u_normal_matrix * a_normal);
-    v_tangent = vec4(mat3(u_model) * a_tangent.xyz, a_tangent.w);
+    v_normal = normalize(u_normal_matrix * skinned_normal_matrix * a_normal);
+    v_tangent = vec4(mat3(u_model) * skinned_normal_matrix * a_tangent.xyz, a_tangent.w);
     v_color = a_color;
-    gl_Position = u_mvp * vec4(a_position, 1.0);
+    gl_Position = u_mvp * local_position;
 }
 )";
 
@@ -304,6 +319,8 @@ OpenGLGraphicsDevice::~OpenGLGraphicsDevice() noexcept {
         mvp_loc_ = -1;
         model_loc_ = -1;
         normal_matrix_loc_ = -1;
+        has_skinning_loc_ = -1;
+        joint_matrices_loc_ = -1;
     }
 
     for (auto& [handle, record] : meshes_) {
@@ -364,6 +381,8 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window& window) {
     mvp_loc_ = glGetUniformLocation(shader_program_, "u_mvp");
     model_loc_ = glGetUniformLocation(shader_program_, "u_model");
     normal_matrix_loc_ = glGetUniformLocation(shader_program_, "u_normal_matrix");
+    has_skinning_loc_ = glGetUniformLocation(shader_program_, "u_has_skinning");
+    joint_matrices_loc_ = glGetUniformLocation(shader_program_, "u_joint_matrices[0]");
     glUseProgram(0);
 
     glEnable(GL_DEPTH_TEST);
@@ -446,14 +465,27 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
         glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE,
                               sizeof(stellar::assets::StaticVertex),
                               reinterpret_cast<void*>(offsetof(stellar::assets::StaticVertex,
-                                                               color)));
+                                                                color)));
         glEnableVertexAttribArray(5);
+
+        glVertexAttribIPointer(6, 4, GL_UNSIGNED_SHORT,
+                               sizeof(stellar::assets::StaticVertex),
+                               reinterpret_cast<void*>(offsetof(stellar::assets::StaticVertex,
+                                                                joints0)));
+        glEnableVertexAttribArray(6);
+
+        glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE,
+                              sizeof(stellar::assets::StaticVertex),
+                              reinterpret_cast<void*>(offsetof(stellar::assets::StaticVertex,
+                                                               weights0)));
+        glEnableVertexAttribArray(7);
 
         glBindVertexArray(0);
 
         gpu_primitive.index_count = static_cast<int>(primitive.indices.size());
         gpu_primitive.has_tangents = primitive.has_tangents;
         gpu_primitive.has_colors = primitive.has_colors;
+        gpu_primitive.has_skinning = primitive.has_skinning;
         record.primitives.push_back(gpu_primitive);
     }
 
@@ -564,6 +596,16 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         }
         const auto& primitive = it->second.primitives[primitive_index];
         const MaterialHandle material_handle = command.material;
+        const std::size_t joint_count = command.skin_joint_matrices.size();
+        const bool use_skinning = primitive.has_skinning && !command.skin_joint_matrices.empty() &&
+            joint_count <= static_cast<std::size_t>(kMaxSkinJoints);
+        if (has_skinning_loc_ >= 0) {
+            glUniform1i(has_skinning_loc_, use_skinning ? 1 : 0);
+        }
+        if (use_skinning && joint_matrices_loc_ >= 0 && joint_count > 0) {
+            glUniformMatrix4fv(joint_matrices_loc_, static_cast<GLsizei>(joint_count), GL_FALSE,
+                               command.skin_joint_matrices.data()->data());
+        }
 
         const auto material_it = materials_.find(material_handle.value);
         const MaterialRecord* material = material_it != materials_.end() ? &material_it->second
