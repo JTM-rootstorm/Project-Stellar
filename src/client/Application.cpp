@@ -32,13 +32,18 @@ std::expected<void, stellar::platform::Error> Application::run() {
     }
 
     stellar::platform::Window window;
+    const Uint32 backend_window_flags =
+        config_.graphics_backend == stellar::graphics::GraphicsBackend::kVulkan
+            ? SDL_WINDOW_VULKAN
+            : SDL_WINDOW_OPENGL;
     if (auto result = window.create(kWindowWidth, kWindowHeight, "Stellar Engine",
-                                    SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
+                                    SDL_WINDOW_SHOWN | backend_window_flags);
         !result) {
         return result;
     }
 
-    auto renderer = stellar::graphics::create_renderer(std::move(validation->scene));
+    auto renderer = stellar::graphics::create_renderer(config_.graphics_backend,
+                                                       std::move(validation->scene));
     if (auto result = renderer->initialize(window); !result) {
         return result;
     }

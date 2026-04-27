@@ -6,6 +6,7 @@
 
 #include "stellar/assets/MeshAsset.hpp"
 #include "stellar/assets/SceneAsset.hpp"
+#include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/graphics/RenderScene.hpp"
 #include "stellar/graphics/Renderer.hpp"
 
@@ -17,9 +18,15 @@ namespace stellar::graphics {
 class SceneRenderer final : public Renderer {
 public:
     /**
-     * @brief Construct a renderer from an optional CPU-side scene asset.
+     * @brief Construct a renderer from an optional CPU-side scene asset using OpenGL.
      */
     explicit SceneRenderer(std::optional<stellar::assets::SceneAsset> scene = std::nullopt) noexcept;
+
+    /**
+     * @brief Construct a renderer for a specific runtime backend.
+     */
+    explicit SceneRenderer(GraphicsBackend backend,
+                           std::optional<stellar::assets::SceneAsset> scene = std::nullopt) noexcept;
 
     /**
      * @brief Release renderer-owned scene resources.
@@ -46,6 +53,7 @@ private:
 
     [[nodiscard]] static stellar::assets::SceneAsset create_cube_scene();
 
+    GraphicsBackend backend_ = GraphicsBackend::kOpenGL;
     std::optional<stellar::assets::SceneAsset> source_scene_;
     RenderScene scene_;
     bool using_debug_cube_ = false;

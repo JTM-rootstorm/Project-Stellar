@@ -10,6 +10,7 @@ enable_testing()
 find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 
 pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
@@ -72,17 +73,20 @@ target_link_libraries(stellar_platform PUBLIC
 )
 
 add_library(stellar_graphics
+    src/graphics/GraphicsBackend.cpp
     src/graphics/RendererFactory.cpp
     src/graphics/GraphicsDeviceFactory.cpp
     src/graphics/RenderScene.cpp
     src/graphics/SceneRenderer.cpp
     src/graphics/opengl/CubeRenderer.cpp
     src/graphics/opengl/OpenGLGraphicsDevice.cpp
+    src/graphics/vulkan/VulkanGraphicsDevice.cpp
 )
 
 target_include_directories(stellar_graphics PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${OPENGL_INCLUDE_DIRS}
+    ${Vulkan_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${GLM_INCLUDE_DIRS}
 )
@@ -90,6 +94,7 @@ target_include_directories(stellar_graphics PUBLIC
 target_link_libraries(stellar_graphics PUBLIC
     stellar_platform
     ${OPENGL_LIBRARIES}
+    Vulkan::Vulkan
     PkgConfig::GLEW
     PkgConfig::GLM
 )
@@ -122,6 +127,20 @@ target_link_libraries(stellar_render_scene_upload_test PRIVATE
 )
 
 add_test(NAME render_scene_upload COMMAND stellar_render_scene_upload_test)
+
+add_executable(stellar_graphics_backend_selection_test
+    tests/graphics/BackendSelection.cpp
+)
+
+target_include_directories(stellar_graphics_backend_selection_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_graphics_backend_selection_test PRIVATE
+    stellar_graphics
+)
+
+add_test(NAME graphics_backend_selection COMMAND stellar_graphics_backend_selection_test)
 
 add_executable(stellar_animation_runtime_test
     tests/scene/AnimationRuntime.cpp

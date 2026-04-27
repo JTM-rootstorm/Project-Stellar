@@ -46,10 +46,12 @@ Known remaining limitations:
   geometry can still require asset-side splitting or later order-independent transparency.
 - Reusing one texture for both color and non-color material slots keeps one upload color-space;
   color usage currently wins until per-use texture views are added.
-- Vulkan backend/runtime parity is still absent.
-- OpenGL can render skinned meshes with up to 96 joints per draw using GPU skinning; Vulkan
-  backend/runtime parity is still absent and larger skins require later uniform-buffer or texture
-  palette support.
+- Vulkan backend/runtime parity has an initial Phase 4A skeleton with runtime selection,
+  instance/device/surface initialization, and backend-neutral upload records, but Vulkan drawing
+  and presentation are still explicit no-ops until the full swapchain/pipeline path is added.
+- OpenGL can render skinned meshes with up to 96 joints per draw using GPU skinning; Vulkan stores
+  skinned draw upload metadata but does not render it yet, and larger OpenGL skins require later
+  uniform-buffer or texture palette support.
 - Morph targets, cameras, lights, and extensions are not supported.
 
 ## Phase 2A: Static Importer Completeness - Completed
@@ -405,10 +407,28 @@ Phase 3C has been completed in the current branch.
 
 Skeletal animated glTF assets can be represented, evaluated, and rendered.
 
-## Phase 4A: Renderer Backend Parity Decision
+## Phase 4A: Renderer Backend Parity Decision - Completed
 
 Goal: reconcile current OpenGL-only runtime implementation with the project design goal of
 OpenGL/Vulkan runtime-selectable parity.
+
+### Completion Notes
+
+Phase 4A has been completed with Option B: start the Vulkan backend implementation for the same
+backend-neutral `GraphicsDevice`, `RenderScene`, and `MaterialUpload` model.
+
+- Added `stellar::graphics::GraphicsBackend` parsing and runtime backend selection through
+  `--renderer` / `--graphics-backend`, while keeping OpenGL as the default.
+- Added an initial `stellar::graphics::vulkan::VulkanGraphicsDevice` that creates a Vulkan
+  instance, SDL surface, physical device, logical device, and graphics/present queue when Vulkan is
+  requested and available.
+- The Vulkan backend validates and stores mesh primitive metadata, texture upload payloads with
+  color-space metadata, sampler/material bindings, and skinned draw inputs using the existing
+  backend-neutral handles and public APIs.
+- Vulkan frame, draw, and present calls are truthful no-ops in this phase. Full swapchain,
+  render-pass, descriptor, GPU buffer/image upload, shader, and pipeline work remains deferred.
+- Added display-free backend-selection/factory coverage so Vulkan factory availability and config
+  parsing are validated without requiring a GPU or display.
 
 ### Tasks
 

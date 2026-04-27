@@ -29,6 +29,19 @@ parse_application_config(int argc, char* argv[]) {
             continue;
         }
 
+        if (std::strcmp(argv[i], "--renderer") == 0 ||
+            std::strcmp(argv[i], "--graphics-backend") == 0) {
+            if (i + 1 >= argc) {
+                return std::unexpected(stellar::platform::Error("--renderer requires a backend"));
+            }
+            auto backend = stellar::graphics::parse_graphics_backend(argv[++i]);
+            if (!backend) {
+                return std::unexpected(backend.error());
+            }
+            config.graphics_backend = *backend;
+            continue;
+        }
+
         return std::unexpected(stellar::platform::Error("Unknown client argument"));
     }
 

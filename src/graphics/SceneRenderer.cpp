@@ -44,7 +44,11 @@ std::array<float, 16> to_array(const glm::mat4& matrix) {
 } // namespace
 
 SceneRenderer::SceneRenderer(std::optional<stellar::assets::SceneAsset> scene) noexcept
-    : source_scene_(std::move(scene)) {}
+    : SceneRenderer(GraphicsBackend::kOpenGL, std::move(scene)) {}
+
+SceneRenderer::SceneRenderer(GraphicsBackend backend,
+                             std::optional<stellar::assets::SceneAsset> scene) noexcept
+    : backend_(backend), source_scene_(std::move(scene)) {}
 
 SceneRenderer::~SceneRenderer() noexcept = default;
 
@@ -112,7 +116,7 @@ stellar::assets::SceneAsset SceneRenderer::create_cube_scene() {
 std::expected<void, stellar::platform::Error> SceneRenderer::initialize(stellar::platform::Window& window) {
     using_debug_cube_ = !source_scene_.has_value();
     auto scene = source_scene_.has_value() ? std::move(*source_scene_) : create_cube_scene();
-    auto device = create_graphics_device();
+    auto device = create_graphics_device(backend_);
     if (!device) {
         return std::unexpected(stellar::platform::Error("Failed to create graphics device"));
     }

@@ -9,7 +9,12 @@
 namespace stellar::graphics {
 
 std::unique_ptr<Renderer> create_renderer(std::optional<stellar::assets::SceneAsset> scene) {
-    return std::make_unique<SceneRenderer>(std::move(scene));
+    return create_renderer(GraphicsBackend::kOpenGL, std::move(scene));
+}
+
+std::unique_ptr<Renderer> create_renderer(GraphicsBackend backend,
+                                          std::optional<stellar::assets::SceneAsset> scene) {
+    return std::make_unique<SceneRenderer>(backend, std::move(scene));
 }
 
 } // namespace stellar::graphics
