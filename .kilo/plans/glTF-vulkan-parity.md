@@ -9,7 +9,7 @@ The work is not complete because several paths are still explicitly unsupported 
 - Vulkan rendering is still a no-op after initialization/upload recording.
 - Client/runtime rendering does not drive `AnimationPlayer`, so imported animations are not played by the viewer.
 - The viewer camera is fixed and does not frame arbitrary glTF scenes.
-- Importer validation does not yet reject unsupported `extensionsRequired` or some invalid animation/accessor/cross-reference cases.
+- Phase 5A preflight now rejects required glTF extensions; remaining importer validation gaps are Phase 5B accessor, animation, and cross-reference checks.
 - Phase 4B test infrastructure is partially complete, but optional headless render tests and representative render fixtures remain.
 - Morph targets, cameras, lights, UV2+, JOINTS_1/WEIGHTS_1, full glTF PBR, and most material extensions remain unsupported.
 
@@ -20,7 +20,7 @@ The work is not complete because several paths are still explicitly unsupported 
 - `src/graphics/vulkan/VulkanGraphicsDevice.cpp` keeps `begin_frame`, `draw_mesh`, and `end_frame` as explicit Phase 4A no-ops.
 - `src/graphics/SceneRenderer.cpp` renders with a fixed camera and always calls `RenderScene::render(..., view)` without an evaluated `ScenePose`.
 - `src/client/main.cpp` and `include/stellar/client/ApplicationConfig.hpp` expose no animation, camera, or selected-scene controls.
-- `src/import/gltf/Importer.cpp` documents unsupported UV2+, morph targets, cameras, lights, and extensions, but does not yet appear to perform an upfront unsupported `extensionsRequired` policy gate.
+- `src/import/gltf/Importer.cpp` now performs the Phase 5A unsupported `extensionsRequired` policy gate after `cgltf_validate`; remaining validation work is tracked in Phase 5B for accessor, animation, and cross-reference correctness.
 - `src/scene/AnimationRuntime.cpp` preserves `weights` animation channels but intentionally no-ops them because morph targets are not represented.
 
 ## Phase 0: Plan And Status Hygiene - Completed
@@ -47,9 +47,22 @@ Validation:
 
 - Documentation/status review only.
 
-## Phase 5A: Importer Conformance Gate
+## Phase 5A: Importer Conformance Gate - Completed
 
 Goal: fail clearly for unsupported required glTF features and document optional degradation behavior.
+
+### Completion Notes
+
+Phase 5A has been completed with a conservative `extensionsRequired` preflight that rejects all
+required extensions after `cgltf_validate`, because no glTF extension is fully represented by the
+runtime asset model. Regression coverage now verifies unsupported required extension names appear in
+errors, and optional unsupported cameras, lights, morph targets, UV2+, JOINTS_1/WEIGHTS_1, and
+material extensions import without creating unsupported runtime state.
+
+Validation completed:
+
+- `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+- `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
 
 Tasks:
 
@@ -64,9 +77,24 @@ Validation:
 - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
 - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
 
-## Phase 5B: Accessor And Cross-Reference Validation
+## Phase 5B: Accessor And Cross-Reference Validation - Completed
 
 Goal: tighten correctness for valid glTF data and catch bad data earlier.
+
+### Completion Notes
+
+Phase 5B has been completed with backend-neutral importer validation. `TEXCOORD_0`,
+`TEXCOORD_1`, and `COLOR_0` now accept float data or normalized unsigned byte/short data and
+reject non-normalized integer encodings. Animation input times are required to be strictly
+increasing, channel output semantics are validated by target path, and weight animation channels now
+fail clearly because morph targets are not represented by the runtime asset model. Skinned mesh nodes
+now validate enabled `JOINTS_0` data against the node's bound skin joint palette.
+
+Validation completed:
+
+- `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+- `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+- `ctest --test-dir build -R '^animation_runtime$' --output-on-failure`
 
 Tasks:
 
@@ -167,4 +195,4 @@ Validation:
 
 ## Recommended Next Implementation Slice
 
-Start with Phase 5A and Phase 5B before adding more rendering features. They are smaller, display-free, and prevent silent acceptance of unsupported or invalid glTF files. After that, Phase 5C gives the biggest user-visible improvement because imported animated assets will actually animate in the client and arbitrary-sized scenes will be framed correctly.
+Continue with Phase 5B before adding more rendering features. It is display-free and tightens remaining accessor, animation, and cross-reference validation gaps after the completed Phase 5A required-extension preflight. After that, Phase 5C gives the biggest user-visible improvement because imported animated assets will actually animate in the client and arbitrary-sized scenes will be framed correctly.

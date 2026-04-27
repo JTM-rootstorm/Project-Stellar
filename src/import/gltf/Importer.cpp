@@ -95,6 +95,17 @@ checked_index(cgltf_size value, const char* error_message) {
 }
 
 [[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_required_extensions(const cgltf_data* data) {
+    for (cgltf_size i = 0; i < data->extensions_required_count; ++i) {
+        const char* extension = data->extensions_required[i];
+        return std::unexpected(stellar::platform::Error(
+            "Unsupported required glTF extension: " + duplicate_to_string(extension)));
+    }
+
+    return {};
+}
+
+[[nodiscard]] std::expected<void, stellar::platform::Error>
 validate_float_accessor(const cgltf_accessor* accessor, cgltf_type type, cgltf_size expected_count,
                         const char* label) {
     if (!accessor) {
@@ -111,8 +122,8 @@ validate_float_accessor(const cgltf_accessor* accessor, cgltf_type type, cgltf_s
 }
 
 [[nodiscard]] std::expected<void, stellar::platform::Error>
-validate_float_compatible_accessor(const cgltf_accessor* accessor, cgltf_type type,
-                                   cgltf_size expected_count, const char* label) {
+validate_normalized_float_attribute_accessor(const cgltf_accessor* accessor, cgltf_type type,
+                                             cgltf_size expected_count, const char* label) {
     if (!accessor) {
         return import_error(label);
     }
@@ -123,6 +134,10 @@ validate_float_compatible_accessor(const cgltf_accessor* accessor, cgltf_type ty
     switch (accessor->component_type) {
         case cgltf_component_type_r_8u:
         case cgltf_component_type_r_16u:
+            if (!accessor->normalized) {
+                return import_error(label);
+            }
+            return {};
         case cgltf_component_type_r_32f:
             return {};
         default:
@@ -828,9 +843,9 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
 
         if (const auto* texcoord_accessor =
                 cgltf_find_accessor(&primitive, cgltf_attribute_type_texcoord, 0)) {
-            if (auto valid = validate_float_accessor(texcoord_accessor, cgltf_type_vec2,
-                                                     position_accessor->count,
-                                                     "Invalid TEXCOORD_0 accessor");
+            if (auto valid = validate_normalized_float_attribute_accessor(
+                    texcoord_accessor, cgltf_type_vec2, position_accessor->count,
+                    "Invalid TEXCOORD_0 accessor");
                 !valid) {
                 return std::unexpected(valid.error());
             }
@@ -846,9 +861,9 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
 
         if (const auto* texcoord_accessor =
                 cgltf_find_accessor(&primitive, cgltf_attribute_type_texcoord, 1)) {
-            if (auto valid = validate_float_compatible_accessor(texcoord_accessor, cgltf_type_vec2,
-                                                                position_accessor->count,
-                                                                "Invalid TEXCOORD_1 accessor");
+            if (auto valid = validate_normalized_float_attribute_accessor(
+                    texcoord_accessor, cgltf_type_vec2, position_accessor->count,
+                    "Invalid TEXCOORD_1 accessor");
                 !valid) {
                 return std::unexpected(valid.error());
             }
@@ -870,9 +885,9 @@ CgltfImporter::load_mesh(const cgltf_data* data, const cgltf_mesh& source_mesh) 
             if (!is_vec3 && !is_vec4) {
                 return std::unexpected(stellar::platform::Error("Invalid COLOR_0 accessor"));
             }
-            if (auto valid = validate_float_compatible_accessor(color_accessor, color_accessor->type,
-                                                                position_accessor->count,
-                                                                "Invalid COLOR_0 accessor");
+            if (auto valid = validate_normalized_float_attribute_accessor(
+                    color_accessor, color_accessor->type, position_accessor->count,
+                    "Invalid COLOR_0 accessor");
                 !valid) {
                 return std::unexpected(valid.error());
             }
@@ -1082,6 +1097,64 @@ to_animation_target_path(cgltf_animation_path_type path) {
     }
 }
 
+[[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_animation_sampler_target(const stellar::assets::AnimationSamplerAsset& sampler,
+                                  stellar::assets::AnimationTargetPath target_path) {
+    switch (target_path) {
+        case stellar::assets::AnimationTargetPath::kTranslation:
+        case stellar::assets::AnimationTargetPath::kScale:
+            if (sampler.output_components != 3) {
+                return import_error("Animation translation/scale output must be VEC3");
+            }
+            return {};
+        case stellar::assets::AnimationTargetPath::kRotation:
+            if (sampler.output_components != 4) {
+                return import_error("Animation rotation output must be VEC4");
+            }
+            return {};
+        case stellar::assets::AnimationTargetPath::kWeights:
+            return import_error("Morph target weight animations are unsupported");
+    }
+
+    return import_error("Unsupported animation target path");
+}
+
+[[nodiscard]] std::expected<void, stellar::platform::Error>
+validate_skinned_mesh_joint_indices(const stellar::assets::SceneAsset& scene) {
+    for (const auto& node : scene.nodes) {
+        if (!node.skin_index.has_value()) {
+            continue;
+        }
+        if (*node.skin_index >= scene.skins.size()) {
+            return import_error("Node skin index exceeds skin count");
+        }
+
+        const std::size_t palette_size = scene.skins[*node.skin_index].joints.size();
+        for (const auto& instance : node.mesh_instances) {
+            if (instance.mesh_index >= scene.meshes.size()) {
+                return import_error("Node mesh index exceeds mesh count");
+            }
+
+            const auto& mesh = scene.meshes[instance.mesh_index];
+            for (const auto& primitive : mesh.primitives) {
+                if (!primitive.has_skinning) {
+                    continue;
+                }
+
+                for (const auto& vertex : primitive.vertices) {
+                    for (std::uint16_t joint : vertex.joints0) {
+                        if (joint >= palette_size) {
+                            return import_error("JOINTS_0 index exceeds bound skin joint palette");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return {};
+}
+
 std::expected<stellar::assets::AnimationAsset, stellar::platform::Error>
 CgltfImporter::load_animation(const cgltf_data* data, const cgltf_animation& source_animation) {
     stellar::assets::AnimationAsset animation;
@@ -1125,6 +1198,10 @@ CgltfImporter::load_animation(const cgltf_data* data, const cgltf_animation& sou
                 !std::isfinite(time)) {
                 return std::unexpected(stellar::platform::Error("Failed to read animation input"));
             }
+            if (key > 0 && time <= sampler.input_times[key - 1]) {
+                return std::unexpected(stellar::platform::Error(
+                    "Animation sampler input times must be strictly increasing"));
+            }
             sampler.input_times[key] = time;
         }
 
@@ -1160,6 +1237,15 @@ CgltfImporter::load_animation(const cgltf_data* data, const cgltf_animation& sou
         auto target_path = to_animation_target_path(source_channel.target_path);
         if (!target_path) {
             return std::unexpected(target_path.error());
+        }
+        if (*sampler_index >= animation.samplers.size()) {
+            return std::unexpected(
+                stellar::platform::Error("Animation channel sampler index exceeds sampler count"));
+        }
+        if (auto valid = validate_animation_sampler_target(animation.samplers[*sampler_index],
+                                                          *target_path);
+            !valid) {
+            return std::unexpected(valid.error());
         }
 
         stellar::assets::AnimationChannelAsset channel;
@@ -1247,6 +1333,10 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
 
     if (cgltf_validate(data.get()) != cgltf_result_success) {
         return std::unexpected(stellar::platform::Error("Invalid glTF scene"));
+    }
+
+    if (auto required_extensions = validate_required_extensions(data.get()); !required_extensions) {
+        return std::unexpected(required_extensions.error());
     }
 
     stellar::assets::SceneAsset scene;
@@ -1373,6 +1463,10 @@ CgltfImporter::load_scene_from_file(std::string_view path) {
             return std::unexpected(skin.error());
         }
         scene.skins.push_back(*skin);
+    }
+
+    if (auto valid = validate_skinned_mesh_joint_indices(scene); !valid) {
+        return std::unexpected(valid.error());
     }
 
     scene.animations.reserve(data->animations_count);
