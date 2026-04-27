@@ -277,6 +277,12 @@ bool check_near(float actual, float expected, std::string_view message) {
     return check(std::fabs(actual - expected) < 0.0001f, message);
 }
 
+bool check_vec2(const std::array<float, 2>& actual, const std::array<float, 2>& expected,
+                std::string_view message) {
+    return check_near(actual[0], expected[0], message) &&
+           check_near(actual[1], expected[1], message);
+}
+
 bool check_vec3(const std::array<float, 3>& actual, const std::array<float, 3>& expected,
                 std::string_view message) {
     return check_near(actual[0], expected[0], message) &&
@@ -747,8 +753,8 @@ bool run_attribute_validation_failures_fixture(const std::filesystem::path& root
                                "invalid TANGENT");
 }
 
-bool run_unsupported_optional_features_fixture(const std::filesystem::path& root) {
-    const auto work_dir = root / "unsupported_optional_features";
+bool run_uv1_vertex_color_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "uv1_vertex_color";
     std::filesystem::create_directories(work_dir);
 
     std::vector<std::uint8_t> bytes;
@@ -757,15 +763,15 @@ bool run_unsupported_optional_features_fixture(const std::filesystem::path& root
     append_vec3(bytes, 1.0f, 0.0f, 0.0f);
     append_vec3(bytes, 0.0f, 1.0f, 0.0f);
     const std::size_t uv1_offset = bytes.size();
-    append_vec2(bytes, 0.0f, 0.0f);
-    append_vec2(bytes, 1.0f, 0.0f);
-    append_vec2(bytes, 0.0f, 1.0f);
+    append_vec2(bytes, 0.25f, 0.75f);
+    append_vec2(bytes, 0.5f, 0.625f);
+    append_vec2(bytes, 0.875f, 0.125f);
     const std::size_t color_offset = bytes.size();
-    append_vec4(bytes, 1.0f, 0.0f, 0.0f, 1.0f);
-    append_vec4(bytes, 0.0f, 1.0f, 0.0f, 1.0f);
-    append_vec4(bytes, 0.0f, 0.0f, 1.0f, 1.0f);
+    append_vec4(bytes, 1.0f, 0.25f, 0.0f, 0.75f);
+    append_vec4(bytes, 0.0f, 1.0f, 0.25f, 0.5f);
+    append_vec4(bytes, 0.25f, 0.0f, 1.0f, 0.25f);
 
-    const auto gltf_path = work_dir / "unsupported_optional.gltf";
+    const auto gltf_path = work_dir / "uv1_color.gltf";
     const std::string buffer_uri = data_uri("application/octet-stream", bytes);
     write_text_file(gltf_path,
                     "{\n"
@@ -805,10 +811,20 @@ bool run_unsupported_optional_features_fixture(const std::filesystem::path& root
     }
 
     const auto& primitive = scene->meshes[0].primitives[0];
-    return check(primitive.vertices.size() == 3, "expected unsupported attributes ignored") &&
+    return check(primitive.vertices.size() == 3, "expected three vertices with UV1/color") &&
+           check(primitive.has_colors, "expected imported vertex colors") &&
+           check_vec2(primitive.vertices[0].uv1, {0.25f, 0.75f}, "expected first UV1") &&
+           check_vec2(primitive.vertices[1].uv1, {0.5f, 0.625f}, "expected second UV1") &&
+           check_vec2(primitive.vertices[2].uv1, {0.875f, 0.125f}, "expected third UV1") &&
+           check_vec4(primitive.vertices[0].color, {1.0f, 0.25f, 0.0f, 0.75f},
+                      "expected first vertex color") &&
+           check_vec4(primitive.vertices[1].color, {0.0f, 1.0f, 0.25f, 0.5f},
+                      "expected second vertex color") &&
+           check_vec4(primitive.vertices[2].color, {0.25f, 0.0f, 1.0f, 0.25f},
+                      "expected third vertex color") &&
            check(!primitive.has_tangents, "expected no tangents from unsupported attributes") &&
            check_vec3(primitive.bounds_max, {1.0f, 1.0f, 0.0f},
-                      "expected core mesh import with unsupported attributes");
+                       "expected core mesh import with UV1/color attributes");
 }
 
 bool run_glb_bin_chunk_fixture(const std::filesystem::path& root) {
@@ -881,6 +897,164 @@ bool run_glb_bin_chunk_fixture(const std::filesystem::path& root) {
                  "expected GLB default scene");
 }
 
+bool run_generated_tangent_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "generated_tangent";
+    std::filesystem::create_directories(work_dir);
+
+    std::vector<std::uint8_t> bytes;
+    const std::size_t positions_offset = bytes.size();
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 1.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 1.0f, 0.0f);
+    const std::size_t normals_offset = bytes.size();
+    append_vec3(bytes, 0.0f, 0.0f, 1.0f);
+    append_vec3(bytes, 0.0f, 0.0f, 1.0f);
+    append_vec3(bytes, 0.0f, 0.0f, 1.0f);
+    const std::size_t uv0_offset = bytes.size();
+    append_vec2(bytes, 0.0f, 0.0f);
+    append_vec2(bytes, 1.0f, 0.0f);
+    append_vec2(bytes, 0.0f, 1.0f);
+    const std::size_t indices_offset = bytes.size();
+    append_u16_le(bytes, 0);
+    append_u16_le(bytes, 1);
+    append_u16_le(bytes, 2);
+    const auto image_bytes = base64_decode(kPngBase64);
+    while (bytes.size() % 4 != 0) {
+        bytes.push_back(0);
+    }
+    const std::size_t image_offset = bytes.size();
+    bytes.insert(bytes.end(), image_bytes.begin(), image_bytes.end());
+
+    const auto gltf_path = work_dir / "generated_tangent.gltf";
+    const std::string buffer_uri = data_uri("application/octet-stream", bytes);
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"buffers\": [{ \"byteLength\": " +
+                        std::to_string(bytes.size()) + ", \"uri\": \"" + buffer_uri +
+                        "\" }],\n"
+                    "  \"bufferViews\": [\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(positions_offset) + ", \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(normals_offset) + ", \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(uv0_offset) + ", \"byteLength\": 24 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(indices_offset) + ", \"byteLength\": 6 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(image_offset) + ", \"byteLength\": " +
+                        std::to_string(image_bytes.size()) + " }\n"
+                    "  ],\n"
+                    "  \"accessors\": [\n"
+                    "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\" },\n"
+                    "    { \"bufferView\": 1, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\" },\n"
+                    "    { \"bufferView\": 2, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC2\" },\n"
+                    "    { \"bufferView\": 3, \"componentType\": 5123, \"count\": 3, "
+                    "\"type\": \"SCALAR\" }\n"
+                    "  ],\n"
+                    "  \"images\": [{ \"bufferView\": 4, \"mimeType\": \"image/png\" }],\n"
+                    "  \"textures\": [{ \"source\": 0 }],\n"
+                    "  \"materials\": [{ \"normalTexture\": { \"index\": 0 } }],\n"
+                    "  \"meshes\": [{ \"primitives\": [{ \"attributes\": { "
+                    "\"POSITION\": 0, \"NORMAL\": 1, \"TEXCOORD_0\": 2 }, "
+                    "\"indices\": 3, \"material\": 0, \"mode\": 4 }] }],\n"
+                    "  \"nodes\": [{ \"mesh\": 0 }],\n"
+                    "  \"scenes\": [{ \"nodes\": [0] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    const auto& primitive = scene->meshes[0].primitives[0];
+    return check(primitive.has_tangents, "expected generated tangents") &&
+           check_vec4(primitive.vertices[0].tangent, {1.0f, 0.0f, 0.0f, 1.0f},
+                      "expected generated tangent for first vertex") &&
+           check_vec4(primitive.vertices[1].tangent, {1.0f, 0.0f, 0.0f, 1.0f},
+                      "expected generated tangent for second vertex") &&
+           check_vec4(primitive.vertices[2].tangent, {1.0f, 0.0f, 0.0f, 1.0f},
+                      "expected generated tangent for third vertex");
+}
+
+bool run_degenerate_tangent_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "degenerate_tangent";
+    std::filesystem::create_directories(work_dir);
+
+    std::vector<std::uint8_t> bytes;
+    const std::size_t positions_offset = bytes.size();
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 1.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 1.0f, 0.0f);
+    const std::size_t normals_offset = bytes.size();
+    append_vec3(bytes, 0.0f, 0.0f, 1.0f);
+    append_vec3(bytes, 0.0f, 0.0f, 1.0f);
+    append_vec3(bytes, 0.0f, 0.0f, 1.0f);
+    const std::size_t uv0_offset = bytes.size();
+    append_vec2(bytes, 0.0f, 0.0f);
+    append_vec2(bytes, 0.0f, 0.0f);
+    append_vec2(bytes, 0.0f, 0.0f);
+    const auto image_bytes = base64_decode(kPngBase64);
+    while (bytes.size() % 4 != 0) {
+        bytes.push_back(0);
+    }
+    const std::size_t image_offset = bytes.size();
+    bytes.insert(bytes.end(), image_bytes.begin(), image_bytes.end());
+
+    const auto gltf_path = work_dir / "degenerate_tangent.gltf";
+    const std::string buffer_uri = data_uri("application/octet-stream", bytes);
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"buffers\": [{ \"byteLength\": " +
+                        std::to_string(bytes.size()) + ", \"uri\": \"" + buffer_uri +
+                        "\" }],\n"
+                    "  \"bufferViews\": [\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(positions_offset) + ", \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(normals_offset) + ", \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(uv0_offset) + ", \"byteLength\": 24 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(image_offset) + ", \"byteLength\": " +
+                        std::to_string(image_bytes.size()) + " }\n"
+                    "  ],\n"
+                    "  \"accessors\": [\n"
+                    "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\" },\n"
+                    "    { \"bufferView\": 1, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\" },\n"
+                    "    { \"bufferView\": 2, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC2\" }\n"
+                    "  ],\n"
+                    "  \"images\": [{ \"bufferView\": 3, \"mimeType\": \"image/png\" }],\n"
+                    "  \"textures\": [{ \"source\": 0 }],\n"
+                    "  \"materials\": [{ \"normalTexture\": { \"index\": 0 } }],\n"
+                    "  \"meshes\": [{ \"primitives\": [{ \"attributes\": { "
+                    "\"POSITION\": 0, \"NORMAL\": 1, \"TEXCOORD_0\": 2 }, "
+                    "\"material\": 0, \"mode\": 4 }] }],\n"
+                    "  \"nodes\": [{ \"mesh\": 0 }],\n"
+                    "  \"scenes\": [{ \"nodes\": [0] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    return check(!scene->meshes[0].primitives[0].has_tangents,
+                 "expected degenerate UVs to disable generated tangents");
+}
+
 bool run_glb_smoke_fixture(const std::filesystem::path& root) {
     const auto work_dir = root / "glb_smoke";
     std::filesystem::create_directories(work_dir);
@@ -925,10 +1099,16 @@ int main() {
     if (!run_attribute_validation_failures_fixture(root)) {
         return 1;
     }
-    if (!run_unsupported_optional_features_fixture(root)) {
+    if (!run_uv1_vertex_color_fixture(root)) {
         return 1;
     }
     if (!run_glb_bin_chunk_fixture(root)) {
+        return 1;
+    }
+    if (!run_generated_tangent_fixture(root)) {
+        return 1;
+    }
+    if (!run_degenerate_tangent_fixture(root)) {
         return 1;
     }
     if (!run_glb_smoke_fixture(root)) {

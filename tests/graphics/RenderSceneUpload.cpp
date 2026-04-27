@@ -19,6 +19,7 @@ public:
     std::expected<stellar::graphics::MeshHandle, stellar::platform::Error>
     create_mesh(const stellar::assets::MeshAsset& mesh) override {
         uploaded_primitive_count = mesh.primitives.size();
+        uploaded_first_primitive_has_colors = !mesh.primitives.empty() && mesh.primitives[0].has_colors;
         return stellar::graphics::MeshHandle{next_handle++};
     }
 
@@ -71,6 +72,7 @@ public:
     bool ended_frame = false;
     std::size_t uploaded_primitive_count = 0;
     std::uint32_t uploaded_image_width = 0;
+    bool uploaded_first_primitive_has_colors = false;
     std::vector<std::uint32_t> uploaded_image_widths;
     std::vector<stellar::assets::TextureColorSpace> uploaded_texture_color_spaces;
     std::vector<std::size_t> draw_order;
@@ -131,12 +133,12 @@ stellar::assets::SceneAsset make_scene() {
         .name = "textured",
         .base_color_factor = {0.5F, 0.5F, 0.5F, 1.0F},
         .base_color_texture = stellar::assets::MaterialTextureSlot{.texture_index = 0,
-                                                                    .texcoord_set = 0},
+                                                                    .texcoord_set = 1},
         .normal_texture = stellar::assets::MaterialTextureSlot{.texture_index = 1,
-                                                               .texcoord_set = 0,
+                                                                .texcoord_set = 0,
                                                                .scale = 0.5F},
         .metallic_roughness_texture = stellar::assets::MaterialTextureSlot{.texture_index = 2,
-                                                                           .texcoord_set = 0},
+                                                                           .texcoord_set = 2},
         .occlusion_texture = stellar::assets::MaterialTextureSlot{.texture_index = 2,
                                                                   .texcoord_set = 0,
                                                                   .scale = 0.75F},
@@ -161,15 +163,24 @@ stellar::assets::SceneAsset make_scene() {
     });
 
     stellar::assets::MeshPrimitive primitive;
-    primitive.vertices = {
-        stellar::assets::StaticVertex{{-0.5F, -0.5F, 0.0F}, {0.0F, 0.0F, 1.0F},
-                                      {0.0F, 0.0F}, {0.0F, 0.0F, 0.0F, 1.0F}},
-        stellar::assets::StaticVertex{{0.5F, -0.5F, 0.0F}, {0.0F, 0.0F, 1.0F},
-                                      {1.0F, 0.0F}, {0.0F, 0.0F, 0.0F, 1.0F}},
-        stellar::assets::StaticVertex{{0.0F, 0.5F, 0.0F}, {0.0F, 0.0F, 1.0F},
-                                      {0.5F, 1.0F}, {0.0F, 0.0F, 0.0F, 1.0F}},
-    };
+    primitive.vertices.resize(3);
+    primitive.vertices[0].position = {-0.5F, -0.5F, 0.0F};
+    primitive.vertices[0].normal = {0.0F, 0.0F, 1.0F};
+    primitive.vertices[0].uv0 = {0.0F, 0.0F};
+    primitive.vertices[0].uv1 = {0.25F, 0.25F};
+    primitive.vertices[0].color = {1.0F, 0.5F, 0.5F, 1.0F};
+    primitive.vertices[1].position = {0.5F, -0.5F, 0.0F};
+    primitive.vertices[1].normal = {0.0F, 0.0F, 1.0F};
+    primitive.vertices[1].uv0 = {1.0F, 0.0F};
+    primitive.vertices[1].uv1 = {0.75F, 0.25F};
+    primitive.vertices[1].color = {0.5F, 1.0F, 0.5F, 1.0F};
+    primitive.vertices[2].position = {0.0F, 0.5F, 0.0F};
+    primitive.vertices[2].normal = {0.0F, 0.0F, 1.0F};
+    primitive.vertices[2].uv0 = {0.5F, 1.0F};
+    primitive.vertices[2].uv1 = {0.5F, 0.75F};
+    primitive.vertices[2].color = {0.5F, 0.5F, 1.0F, 1.0F};
     primitive.indices = {0, 1, 2};
+    primitive.has_colors = true;
     primitive.material_index = 0;
     primitive.bounds_min = {-0.5F, -0.5F, 0.0F};
     primitive.bounds_max = {0.5F, 0.5F, 0.0F};
@@ -206,6 +217,7 @@ int main() {
     assert(result.has_value());
     assert(mock_ptr->initialized);
     assert(mock_ptr->uploaded_primitive_count == 3);
+    assert(mock_ptr->uploaded_first_primitive_has_colors);
     assert(mock_ptr->uploaded_image_width == 2);
     assert((mock_ptr->uploaded_image_widths == std::vector<std::uint32_t>{3, 1, 2}));
     assert((mock_ptr->uploaded_texture_color_spaces ==
@@ -216,6 +228,7 @@ int main() {
     assert(mock_ptr->material_uploads.size() == 3);
     assert(mock_ptr->material_uploads[0].base_color_texture.has_value());
     assert(mock_ptr->material_uploads[0].base_color_texture->texture.value != 0);
+    assert(mock_ptr->material_uploads[0].base_color_texture->texcoord_set == 1);
     assert(mock_ptr->material_uploads[0].base_color_texture->sampler.wrap_s ==
            stellar::assets::TextureWrapMode::kClampToEdge);
     assert(mock_ptr->material_uploads[0].normal_texture.has_value());
@@ -227,6 +240,7 @@ int main() {
            stellar::assets::TextureWrapMode::kMirroredRepeat);
     assert(mock_ptr->material_uploads[0].metallic_roughness_texture.has_value());
     assert(mock_ptr->material_uploads[0].metallic_roughness_texture->texture.value != 0);
+    assert(mock_ptr->material_uploads[0].metallic_roughness_texture->texcoord_set == 2);
     assert(mock_ptr->material_uploads[0].occlusion_texture.has_value());
     assert(mock_ptr->material_uploads[0].emissive_texture.has_value());
     assert(mock_ptr->material_uploads[0].material.occlusion_strength == 0.75F);

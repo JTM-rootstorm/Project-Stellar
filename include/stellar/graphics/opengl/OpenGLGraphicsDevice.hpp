@@ -53,6 +53,7 @@ private:
         unsigned int ebo = 0;
         int index_count = 0;
         bool has_tangents = false;
+        bool has_colors = false;
     };
 
     struct MeshRecord {

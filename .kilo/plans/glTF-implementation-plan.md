@@ -3,7 +3,7 @@
 ## Status
 
 Static glTF work has been split into implementation and validation milestones. The current
-branch contains uncommitted work through Phase 2B.
+branch contains uncommitted work through Phase 2C.
 
 Completed so far:
 - Phase 1A: backend-neutral texture/sampler asset model, material texture slots, importer
@@ -24,11 +24,15 @@ Completed so far:
 - Phase 2B: static material and transparency polish, including backend-neutral texture
   color-space metadata, normal texture scale, occlusion/emissive material inputs, and
   view-space sorted transparent primitive submission.
+- Phase 2C: UV and vertex attribute expansion, including static `TEXCOORD_1` import/render
+  routing, vertex color import/render modulation, and conservative tangent generation for
+  normal-mapped primitives without authored tangents.
 
 Known remaining limitations:
-- Normal maps are only active for primitives with `MeshPrimitive::has_tangents = true`.
-- Renderer currently supports only `TEXCOORD_0`; `TEXCOORD_1` runtime support has been
-  explicitly deferred to a later phase.
+- Normal maps are only active for primitives with `MeshPrimitive::has_tangents = true`; importer
+  tangent generation is intentionally disabled if any triangle has invalid UV0 tangent data.
+- Renderer supports `TEXCOORD_0` and `TEXCOORD_1`; texture slots requesting texcoord sets above 1
+  are treated as unsupported and are not bound.
 - Metallic-roughness shading is lightweight and not full glTF PBR.
 - Alpha blending uses primitive-center view-space sorting; intersecting or concave transparent
   geometry can still require asset-side splitting or later order-independent transparency.
@@ -169,10 +173,28 @@ Phase 2B has been completed in the current branch.
 Static textured assets render with fewer transparency and color-space surprises, and the
 material path remains backend-neutral.
 
-## Phase 2C: UV and Vertex Attribute Expansion
+## Phase 2C: UV and Vertex Attribute Expansion - Completed
 
 Goal: support additional common static glTF vertex attributes when they materially affect
 rendered output.
+
+### Completion Notes
+
+Phase 2C has been completed in the current branch.
+
+- `StaticVertex` now carries backend-neutral `uv1` and RGBA `color` data, and `MeshPrimitive`
+  records whether authored vertex colors are present.
+- glTF `TEXCOORD_1` is imported and uploaded to OpenGL as a second UV attribute; material texture
+  slots with texcoord set 0 or 1 sample UV0/UV1 respectively, while texcoord sets above 1 remain
+  predictably unsupported and unbound.
+- glTF `COLOR_0` is imported for VEC3/VEC4 float-compatible data; VEC3 colors default alpha to 1,
+  and the OpenGL shader multiplies base color by vertex color only for primitives marked with
+  `has_colors`.
+- If a primitive references a normal texture and has no authored tangents, the importer now
+  conservatively generates tangents from positions, normals, indices, and UV0. Tangents are enabled
+  only when generation succeeds for the entire primitive.
+- Regression coverage now verifies UV1 values, vertex colors, material texcoord routing through
+  mock upload, successful generated tangents, and degenerate UVs disabling generated tangents.
 
 ### Tasks
 

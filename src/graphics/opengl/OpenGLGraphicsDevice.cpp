@@ -18,19 +18,25 @@ layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec3 a_normal;
 layout(location = 2) in vec2 a_uv0;
 layout(location = 3) in vec4 a_tangent;
+layout(location = 4) in vec2 a_uv1;
+layout(location = 5) in vec4 a_color;
 
 uniform mat4 u_mvp;
 uniform mat4 u_model;
 uniform mat3 u_normal_matrix;
 
 out vec2 v_uv0;
+out vec2 v_uv1;
 out vec3 v_normal;
 out vec4 v_tangent;
+out vec4 v_color;
 
 void main() {
     v_uv0 = a_uv0;
+    v_uv1 = a_uv1;
     v_normal = normalize(u_normal_matrix * a_normal);
     v_tangent = vec4(mat3(u_model) * a_tangent.xyz, a_tangent.w);
+    v_color = a_color;
     gl_Position = u_mvp * vec4(a_position, 1.0);
 }
 )";
@@ -49,6 +55,12 @@ uniform bool u_has_normal_texture;
 uniform bool u_has_metallic_roughness_texture;
 uniform bool u_has_occlusion_texture;
 uniform bool u_has_emissive_texture;
+uniform bool u_has_vertex_color;
+uniform int u_base_color_texcoord_set;
+uniform int u_normal_texcoord_set;
+uniform int u_metallic_roughness_texcoord_set;
+uniform int u_occlusion_texcoord_set;
+uniform int u_emissive_texcoord_set;
 uniform float u_metallic_factor;
 uniform float u_roughness_factor;
 uniform float u_normal_scale;
@@ -58,15 +70,24 @@ uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
 
 in vec2 v_uv0;
+in vec2 v_uv1;
 in vec3 v_normal;
 in vec4 v_tangent;
+in vec4 v_color;
 
 out vec4 frag_color;
 
+vec2 uv_for_set(int texcoord_set) {
+    return texcoord_set == 1 ? v_uv1 : v_uv0;
+}
+
 void main() {
     vec4 color = u_base_color;
+    if (u_has_vertex_color) {
+        color *= v_color;
+    }
     if (u_has_base_color_texture) {
-        color *= texture(u_base_color_texture, v_uv0);
+        color *= texture(u_base_color_texture, uv_for_set(u_base_color_texcoord_set));
     }
     if (u_alpha_mode == 1 && color.a < u_alpha_cutoff) {
         discard;
@@ -75,7 +96,8 @@ void main() {
     float metallic = u_metallic_factor;
     float roughness = u_roughness_factor;
     if (u_has_metallic_roughness_texture) {
-        vec4 metallic_roughness = texture(u_metallic_roughness_texture, v_uv0);
+        vec4 metallic_roughness = texture(u_metallic_roughness_texture,
+            uv_for_set(u_metallic_roughness_texcoord_set));
         roughness *= metallic_roughness.g;
         metallic *= metallic_roughness.b;
     }
@@ -85,7 +107,8 @@ void main() {
         vec3 tangent = normalize(v_tangent.xyz - normal * dot(v_tangent.xyz, normal));
         vec3 bitangent = normalize(cross(normal, tangent) * v_tangent.w);
         mat3 tbn = mat3(tangent, bitangent, normal);
-        vec3 sampled_normal = texture(u_normal_texture, v_uv0).xyz * 2.0 - 1.0;
+        vec3 sampled_normal = texture(u_normal_texture, uv_for_set(u_normal_texcoord_set)).xyz *
+            2.0 - 1.0;
         sampled_normal.xy *= u_normal_scale;
         normal = normalize(tbn * sampled_normal);
     }
@@ -98,11 +121,12 @@ void main() {
         mix(1.0, 0.65, perceptual_roughness);
     float occlusion = 1.0;
     if (u_has_occlusion_texture) {
-        occlusion = mix(1.0, texture(u_occlusion_texture, v_uv0).r, u_occlusion_strength);
+        occlusion = mix(1.0, texture(u_occlusion_texture, uv_for_set(u_occlusion_texcoord_set)).r,
+            u_occlusion_strength);
     }
     vec3 emissive = u_emissive_factor;
     if (u_has_emissive_texture) {
-        emissive *= texture(u_emissive_texture, v_uv0).rgb;
+        emissive *= texture(u_emissive_texture, uv_for_set(u_emissive_texcoord_set)).rgb;
     }
     frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
 }
@@ -410,13 +434,26 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
         glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE,
                               sizeof(stellar::assets::StaticVertex),
                               reinterpret_cast<void*>(offsetof(stellar::assets::StaticVertex,
-                                                               tangent)));
+                                                                tangent)));
         glEnableVertexAttribArray(3);
+
+        glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE,
+                              sizeof(stellar::assets::StaticVertex),
+                              reinterpret_cast<void*>(offsetof(stellar::assets::StaticVertex,
+                                                               uv1)));
+        glEnableVertexAttribArray(4);
+
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE,
+                              sizeof(stellar::assets::StaticVertex),
+                              reinterpret_cast<void*>(offsetof(stellar::assets::StaticVertex,
+                                                               color)));
+        glEnableVertexAttribArray(5);
 
         glBindVertexArray(0);
 
         gpu_primitive.index_count = static_cast<int>(primitive.indices.size());
         gpu_primitive.has_tangents = primitive.has_tangents;
+        gpu_primitive.has_colors = primitive.has_colors;
         record.primitives.push_back(gpu_primitive);
     }
 
@@ -505,7 +542,7 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
 
     auto bind_texture = [this](const std::optional<MaterialTextureBinding>& binding,
                                GLenum texture_unit) noexcept -> bool {
-        if (!binding.has_value() || binding->texcoord_set != 0) {
+        if (!binding.has_value() || binding->texcoord_set > 1) {
             return false;
         }
 
@@ -596,9 +633,21 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         const GLint has_mr_loc =
             glGetUniformLocation(shader_program_, "u_has_metallic_roughness_texture");
         const GLint has_occlusion_loc = glGetUniformLocation(shader_program_,
-                                                             "u_has_occlusion_texture");
+                                                              "u_has_occlusion_texture");
         const GLint has_emissive_loc = glGetUniformLocation(shader_program_,
-                                                            "u_has_emissive_texture");
+                                                             "u_has_emissive_texture");
+        const GLint has_vertex_color_loc = glGetUniformLocation(shader_program_,
+                                                                "u_has_vertex_color");
+        const GLint base_color_texcoord_loc = glGetUniformLocation(shader_program_,
+                                                                   "u_base_color_texcoord_set");
+        const GLint normal_texcoord_loc = glGetUniformLocation(shader_program_,
+                                                               "u_normal_texcoord_set");
+        const GLint mr_texcoord_loc = glGetUniformLocation(shader_program_,
+                                                           "u_metallic_roughness_texcoord_set");
+        const GLint occlusion_texcoord_loc = glGetUniformLocation(shader_program_,
+                                                                 "u_occlusion_texcoord_set");
+        const GLint emissive_texcoord_loc = glGetUniformLocation(shader_program_,
+                                                                "u_emissive_texcoord_set");
         const GLint metallic_loc = glGetUniformLocation(shader_program_, "u_metallic_factor");
         const GLint roughness_loc = glGetUniformLocation(shader_program_, "u_roughness_factor");
         const GLint normal_scale_loc = glGetUniformLocation(shader_program_, "u_normal_scale");
@@ -619,6 +668,29 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         glUniform1i(has_mr_loc, has_metallic_roughness_texture ? 1 : 0);
         glUniform1i(has_occlusion_loc, has_occlusion_texture ? 1 : 0);
         glUniform1i(has_emissive_loc, has_emissive_texture ? 1 : 0);
+        glUniform1i(has_vertex_color_loc, primitive.has_colors ? 1 : 0);
+        glUniform1i(base_color_texcoord_loc,
+                    has_base_color_texture && material->upload.base_color_texture.has_value()
+                        ? static_cast<int>(material->upload.base_color_texture->texcoord_set)
+                        : 0);
+        glUniform1i(normal_texcoord_loc,
+                    has_normal_texture && material->upload.normal_texture.has_value()
+                        ? static_cast<int>(material->upload.normal_texture->texcoord_set)
+                        : 0);
+        glUniform1i(mr_texcoord_loc,
+                    has_metallic_roughness_texture &&
+                            material->upload.metallic_roughness_texture.has_value()
+                        ? static_cast<int>(
+                              material->upload.metallic_roughness_texture->texcoord_set)
+                        : 0);
+        glUniform1i(occlusion_texcoord_loc,
+                    has_occlusion_texture && material->upload.occlusion_texture.has_value()
+                        ? static_cast<int>(material->upload.occlusion_texture->texcoord_set)
+                        : 0);
+        glUniform1i(emissive_texcoord_loc,
+                    has_emissive_texture && material->upload.emissive_texture.has_value()
+                        ? static_cast<int>(material->upload.emissive_texture->texcoord_set)
+                        : 0);
         glUniform1f(metallic_loc,
                     material != nullptr ? material->upload.material.metallic_factor : 0.0f);
         glUniform1f(roughness_loc,
