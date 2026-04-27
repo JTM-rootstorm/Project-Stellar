@@ -45,8 +45,10 @@ int main() {
         return 1;
     }
 
-    device.begin_frame(16, 16);
-    device.end_frame();
+    for (int frame = 0; frame < 3; ++frame) {
+        device.begin_frame(16, 16);
+        device.end_frame();
+    }
 
     return 0;
 }

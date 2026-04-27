@@ -105,6 +105,14 @@ private:
         MaterialUpload upload;
     };
 
+    struct FrameResources {
+        VkCommandPool command_pool = VK_NULL_HANDLE;
+        VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+        VkSemaphore image_available_semaphore = VK_NULL_HANDLE;
+        VkSemaphore render_finished_semaphore = VK_NULL_HANDLE;
+        VkFence in_flight_fence = VK_NULL_HANDLE;
+    };
+
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     create_instance(stellar::platform::Window& window);
     [[nodiscard]] std::expected<void, stellar::platform::Error>
@@ -140,10 +148,6 @@ private:
     VkQueue graphics_queue_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
-    VkCommandPool command_pool_ = VK_NULL_HANDLE;
-    VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
-    VkSemaphore image_available_semaphore_ = VK_NULL_HANDLE;
-    VkSemaphore render_finished_semaphore_ = VK_NULL_HANDLE;
     VkImage depth_image_ = VK_NULL_HANDLE;
     VkDeviceMemory depth_image_memory_ = VK_NULL_HANDLE;
     VkImageView depth_image_view_ = VK_NULL_HANDLE;
@@ -151,12 +155,15 @@ private:
     VkFormat depth_format_ = VK_FORMAT_UNDEFINED;
     VkExtent2D swapchain_extent_{0, 0};
     std::uint32_t graphics_queue_family_ = 0;
+    std::uint32_t current_frame_index_ = 0;
     std::uint32_t current_swapchain_image_index_ = 0;
     bool initialized_ = false;
     bool frame_in_progress_ = false;
     bool swapchain_needs_rebuild_ = false;
     std::uint64_t next_handle_ = 1;
+    std::vector<FrameResources> frames_;
     std::vector<VkImage> swapchain_images_;
+    std::vector<VkFence> swapchain_image_fences_;
     std::vector<VkImageView> swapchain_image_views_;
     std::vector<VkFramebuffer> swapchain_framebuffers_;
     std::map<std::uint64_t, MeshRecord> meshes_;
