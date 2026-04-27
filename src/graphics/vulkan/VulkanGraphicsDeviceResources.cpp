@@ -1,15 +1,20 @@
 #include "VulkanGraphicsDevicePrivate.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace stellar::graphics::vulkan {
 
 namespace {
+
+constexpr std::uint32_t kMaterialTextureSlotCount = 5;
+constexpr std::uint32_t kMaterialDescriptorSetCapacity = 1024;
 
 bool valid_image_format(stellar::assets::ImageFormat format) noexcept {
     switch (format) {
@@ -133,6 +138,20 @@ float to_vk_max_lod(stellar::assets::TextureFilter min_filter, std::uint32_t mip
         default:
             return static_cast<float>(mip_levels > 0U ? mip_levels - 1U : 0U);
     }
+}
+
+stellar::graphics::TextureUpload make_default_texture_upload(const char* name,
+                                                             std::array<std::uint8_t, 4> rgba) {
+    stellar::assets::ImageAsset image{};
+    image.name = name;
+    image.width = 1;
+    image.height = 1;
+    image.format = stellar::assets::ImageFormat::kR8G8B8A8;
+    image.pixels.assign(rgba.begin(), rgba.end());
+    return stellar::graphics::TextureUpload{
+        .image = std::move(image),
+        .color_space = stellar::assets::TextureColorSpace::kLinear,
+    };
 }
 
 } // namespace
@@ -335,6 +354,140 @@ VulkanGraphicsDevice::create_texture(const TextureUpload& texture) {
     return TextureHandle{handle_value};
 }
 
+std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descriptor_resources() {
+    std::array<VkDescriptorSetLayoutBinding, kMaterialTextureSlotCount> bindings{};
+    for (std::uint32_t slot = 0; slot < kMaterialTextureSlotCount; ++slot) {
+        bindings[slot] = VkDescriptorSetLayoutBinding{
+            .binding = slot,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        };
+    }
+
+    const VkDescriptorSetLayoutCreateInfo layout_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<std::uint32_t>(bindings.size()),
+        .pBindings = bindings.data(),
+    };
+    VkResult result = vkCreateDescriptorSetLayout(device_, &layout_info, nullptr,
+                                                  &material_descriptor_set_layout_);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vulkan_error("vkCreateDescriptorSetLayout", result));
+    }
+
+    const VkDescriptorPoolSize pool_size{
+        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = kMaterialDescriptorSetCapacity * kMaterialTextureSlotCount,
+    };
+    const VkDescriptorPoolCreateInfo pool_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = kMaterialDescriptorSetCapacity,
+        .poolSizeCount = 1,
+        .pPoolSizes = &pool_size,
+    };
+    result = vkCreateDescriptorPool(device_, &pool_info, nullptr, &material_descriptor_pool_);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
+    }
+    return {};
+}
+
+std::expected<void, stellar::platform::Error>
+VulkanGraphicsDevice::create_default_material_textures() {
+    auto white = create_texture(
+        make_default_texture_upload("vulkan_default_white", {255, 255, 255, 255}));
+    if (!white) {
+        return std::unexpected(white.error());
+    }
+    auto normal = create_texture(
+        make_default_texture_upload("vulkan_default_normal", {128, 128, 255, 255}));
+    if (!normal) {
+        return std::unexpected(normal.error());
+    }
+    default_white_texture_ = *white;
+    default_normal_texture_ = *normal;
+
+    MaterialRecord default_material{};
+    if (auto result = allocate_material_descriptor_set(default_material); !result) {
+        return result;
+    }
+    default_material_descriptor_set_ = default_material.descriptor_set;
+    return {};
+}
+
+std::expected<void, stellar::platform::Error>
+VulkanGraphicsDevice::allocate_material_descriptor_set(MaterialRecord& record) {
+    const VkDescriptorSetAllocateInfo allocate_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = material_descriptor_pool_,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &material_descriptor_set_layout_,
+    };
+    VkResult result = vkAllocateDescriptorSets(device_, &allocate_info, &record.descriptor_set);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vulkan_error("vkAllocateDescriptorSets", result));
+    }
+
+    const std::array<const std::optional<MaterialTextureBinding>*, kMaterialTextureSlotCount>
+        material_bindings{&record.upload.base_color_texture,
+                          &record.upload.normal_texture,
+                          &record.upload.metallic_roughness_texture,
+                          &record.upload.occlusion_texture,
+                          &record.upload.emissive_texture};
+    std::array<VkDescriptorImageInfo, kMaterialTextureSlotCount> image_infos{};
+    std::array<VkWriteDescriptorSet, kMaterialTextureSlotCount> descriptor_writes{};
+    for (std::uint32_t slot = 0; slot < kMaterialTextureSlotCount; ++slot) {
+        const TextureRecord* texture = nullptr;
+        if (material_bindings[slot]->has_value()) {
+            const auto texture_it = textures_.find((*material_bindings[slot])->texture.value);
+            if (texture_it != textures_.end()) {
+                texture = &texture_it->second;
+            }
+        }
+        if (texture == nullptr) {
+            const TextureHandle fallback = slot == 1 ? default_normal_texture_
+                                                     : default_white_texture_;
+            const auto fallback_it = textures_.find(fallback.value);
+            if (fallback_it == textures_.end()) {
+                return std::unexpected(
+                    stellar::platform::Error("Vulkan default material texture is missing"));
+            }
+            texture = &fallback_it->second;
+        }
+
+        VkSampler sampler = texture->sampler;
+        if (material_bindings[slot]->has_value()) {
+            std::uint32_t mip_levels = texture->mip_levels;
+            auto material_sampler = create_sampler((*material_bindings[slot])->sampler, mip_levels);
+            if (!material_sampler) {
+                return std::unexpected(material_sampler.error());
+            }
+            record.samplers[slot] = *material_sampler;
+            sampler = *material_sampler;
+        }
+
+        image_infos[slot] = VkDescriptorImageInfo{
+            .sampler = sampler,
+            .imageView = texture->view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        descriptor_writes[slot] = VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = record.descriptor_set,
+            .dstBinding = slot,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &image_infos[slot],
+        };
+    }
+
+    vkUpdateDescriptorSets(device_, static_cast<std::uint32_t>(descriptor_writes.size()),
+                           descriptor_writes.data(), 0, nullptr);
+    return {};
+}
+
 std::expected<MaterialHandle, stellar::platform::Error>
 VulkanGraphicsDevice::create_material(const MaterialUpload& material) {
     if (!initialized_) {
@@ -342,33 +495,9 @@ VulkanGraphicsDevice::create_material(const MaterialUpload& material) {
     }
 
     MaterialRecord record{.upload = material};
-    auto add_sampler = [&](const std::optional<MaterialTextureBinding>& binding)
-        -> std::expected<void, stellar::platform::Error> {
-        if (!binding.has_value()) {
-            return {};
-        }
-        std::uint32_t mip_levels = 1;
-        const auto texture_it = textures_.find(binding->texture.value);
-        if (texture_it != textures_.end()) {
-            mip_levels = texture_it->second.mip_levels;
-        }
-        auto sampler = create_sampler(binding->sampler, mip_levels);
-        if (!sampler) {
-            return std::unexpected(sampler.error());
-        }
-        record.samplers.push_back(*sampler);
-        return {};
-    };
-
-    for (const auto* binding : {&material.base_color_texture,
-                                &material.normal_texture,
-                                &material.metallic_roughness_texture,
-                                &material.occlusion_texture,
-                                &material.emissive_texture}) {
-        if (auto result = add_sampler(*binding); !result) {
-            destroy_material_record(record);
-            return std::unexpected(result.error());
-        }
+    if (auto result = allocate_material_descriptor_set(record); !result) {
+        destroy_material_record(record);
+        return std::unexpected(result.error());
     }
 
     const std::uint64_t handle_value = allocate_handle();
@@ -839,6 +968,10 @@ void VulkanGraphicsDevice::destroy_material_record(MaterialRecord& record) noexc
             vkDestroySampler(device_, sampler, nullptr);
         }
     }
-    record.samplers.clear();
+    record.samplers.fill(VK_NULL_HANDLE);
+    if (record.descriptor_set != VK_NULL_HANDLE && material_descriptor_pool_ != VK_NULL_HANDLE) {
+        vkFreeDescriptorSets(device_, material_descriptor_pool_, 1, &record.descriptor_set);
+        record.descriptor_set = VK_NULL_HANDLE;
+    }
 }
 } // namespace stellar::graphics::vulkan

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <array>
 #include <map>
 #include <vector>
 
@@ -15,8 +16,8 @@ namespace stellar::graphics::vulkan {
  *
  * This implementation creates a Vulkan instance, SDL surface, physical device, logical device,
      * swapchain, render pass, graphics pipeline, and graphics queue when initialized. Mesh buffers
-     * and texture images are uploaded to Vulkan resources, and the initial draw path renders opaque
-     * static geometry with base-color material factors.
+     * and texture images are uploaded to Vulkan resources. The static draw path renders opaque and
+     * alpha-mask material factors and textures through Vulkan descriptors.
  */
 class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
@@ -51,7 +52,7 @@ public:
     create_texture(const TextureUpload& texture) override;
 
     /**
-     * @brief Record a backend-neutral material upload.
+     * @brief Create Vulkan material descriptors for a backend-neutral material upload.
      */
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
     create_material(const MaterialUpload& material) override;
@@ -62,7 +63,7 @@ public:
     void begin_frame(int width, int height) noexcept override;
 
     /**
-     * @brief Record opaque static mesh draw commands into the active Vulkan frame.
+     * @brief Record non-skinned static mesh draw commands into the active Vulkan frame.
      */
     void draw_mesh(MeshHandle mesh,
                    std::span<const MeshPrimitiveDrawCommand> commands,
@@ -120,7 +121,8 @@ private:
 
     struct MaterialRecord {
         MaterialUpload upload;
-        std::vector<VkSampler> samplers;
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+        std::array<VkSampler, 5> samplers{};
     };
 
     struct FrameResources {
@@ -147,6 +149,8 @@ private:
         std::uint32_t preferred_width, std::uint32_t preferred_height);
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_swapchain_image_views();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_render_pass();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_descriptor_resources();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_default_material_textures();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_pipeline_layout();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_graphics_pipeline();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_depth_resources();
@@ -191,6 +195,8 @@ private:
     create_texture_image_view(VkImage image, VkFormat format, std::uint32_t mip_levels);
     [[nodiscard]] std::expected<VkSampler, stellar::platform::Error>
     create_sampler(const stellar::assets::SamplerAsset& sampler, std::uint32_t mip_levels);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    allocate_material_descriptor_set(MaterialRecord& record);
     [[nodiscard]] std::expected<std::uint32_t, stellar::platform::Error>
     find_memory_type(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] std::expected<VkFormat, stellar::platform::Error> find_depth_format() const;
@@ -212,6 +218,9 @@ private:
     VkQueue graphics_queue_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout material_descriptor_set_layout_ = VK_NULL_HANDLE;
+    VkDescriptorPool material_descriptor_pool_ = VK_NULL_HANDLE;
+    VkDescriptorSet default_material_descriptor_set_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
     VkImage depth_image_ = VK_NULL_HANDLE;
@@ -227,6 +236,8 @@ private:
     bool frame_in_progress_ = false;
     bool swapchain_needs_rebuild_ = false;
     std::uint64_t next_handle_ = 1;
+    TextureHandle default_white_texture_{};
+    TextureHandle default_normal_texture_{};
     std::vector<FrameResources> frames_;
     std::vector<VkImage> swapchain_images_;
     std::vector<VkFence> swapchain_image_fences_;

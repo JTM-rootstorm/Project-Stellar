@@ -11,9 +11,12 @@ namespace stellar::graphics::vulkan {
 struct VulkanDrawPushConstants {
     std::array<float, 16> mvp{};
     std::array<float, 4> base_color{};
-    std::uint32_t has_vertex_color = 0;
-    std::array<std::uint32_t, 3> padding{};
+    std::array<float, 4> emissive_alpha_cutoff{};
+    std::array<float, 4> factors{};
+    std::array<std::uint32_t, 4> flags{};
 };
+
+static_assert(sizeof(VulkanDrawPushConstants) == 128);
 
 stellar::platform::Error vulkan_error(const char* operation, VkResult result);
 void log_vulkan_message(std::string_view message) noexcept;

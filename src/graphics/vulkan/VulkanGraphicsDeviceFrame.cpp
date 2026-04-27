@@ -11,6 +11,28 @@ namespace stellar::graphics::vulkan {
 namespace {
 
 constexpr std::array<float, 4> kFallbackBaseColor{0.85F, 0.9F, 1.0F, 1.0F};
+constexpr std::uint32_t kHasBaseColorTexture = 1U << 0U;
+constexpr std::uint32_t kHasNormalTexture = 1U << 1U;
+constexpr std::uint32_t kHasMetallicRoughnessTexture = 1U << 2U;
+constexpr std::uint32_t kHasOcclusionTexture = 1U << 3U;
+constexpr std::uint32_t kHasEmissiveTexture = 1U << 4U;
+constexpr std::uint32_t kHasVertexColor = 1U << 5U;
+constexpr std::uint32_t kHasTangents = 1U << 6U;
+
+std::uint32_t alpha_mode_value(stellar::assets::AlphaMode mode) noexcept {
+    return mode == stellar::assets::AlphaMode::kMask ? 1U : 0U;
+}
+
+template <typename TextureMap>
+bool has_live_texture(const TextureMap& textures,
+                      const std::optional<MaterialTextureBinding>& binding) noexcept {
+    return binding.has_value() && textures.find(binding->texture.value) != textures.end();
+}
+
+std::uint32_t uv_bit(const std::optional<MaterialTextureBinding>& binding,
+                     std::uint32_t slot) noexcept {
+    return binding.has_value() && binding->texcoord_set == 1U ? (1U << slot) : 0U;
+}
 
 } // namespace
 
@@ -163,25 +185,70 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         const auto material_it = materials_.find(command.material.value);
         const MaterialRecord* material = material_it != materials_.end() ? &material_it->second
                                                                          : nullptr;
-        if (material != nullptr) {
-            const bool textured = material->upload.base_color_texture.has_value() ||
-                material->upload.normal_texture.has_value() ||
-                material->upload.metallic_roughness_texture.has_value() ||
-                material->upload.occlusion_texture.has_value() ||
-                material->upload.emissive_texture.has_value();
-            const bool opaque = material->upload.material.alpha_mode ==
-                stellar::assets::AlphaMode::kOpaque;
-            if (textured || !opaque) {
-                continue;
-            }
+        const bool has_base_color_texture = material != nullptr &&
+            has_live_texture(textures_, material->upload.base_color_texture);
+        const bool has_normal_texture = material != nullptr && primitive.has_tangents &&
+            has_live_texture(textures_, material->upload.normal_texture);
+        const bool has_metallic_roughness_texture = material != nullptr &&
+            has_live_texture(textures_, material->upload.metallic_roughness_texture);
+        const bool has_occlusion_texture = material != nullptr &&
+            has_live_texture(textures_, material->upload.occlusion_texture);
+        const bool has_emissive_texture = material != nullptr &&
+            has_live_texture(textures_, material->upload.emissive_texture);
+        const auto alpha_mode = material != nullptr ? material->upload.material.alpha_mode
+                                                   : stellar::assets::AlphaMode::kOpaque;
+        if (alpha_mode == stellar::assets::AlphaMode::kBlend) {
+            continue;
         }
+
+        std::uint32_t texture_flags = 0;
+        texture_flags |= has_base_color_texture ? kHasBaseColorTexture : 0U;
+        texture_flags |= has_normal_texture ? kHasNormalTexture : 0U;
+        texture_flags |= has_metallic_roughness_texture ? kHasMetallicRoughnessTexture : 0U;
+        texture_flags |= has_occlusion_texture ? kHasOcclusionTexture : 0U;
+        texture_flags |= has_emissive_texture ? kHasEmissiveTexture : 0U;
+        texture_flags |= primitive.has_colors ? kHasVertexColor : 0U;
+        texture_flags |= primitive.has_tangents ? kHasTangents : 0U;
+
+        std::uint32_t uv_flags = 0;
+        if (material != nullptr) {
+            uv_flags |= uv_bit(material->upload.base_color_texture, 0U);
+            uv_flags |= uv_bit(material->upload.normal_texture, 1U);
+            uv_flags |= uv_bit(material->upload.metallic_roughness_texture, 2U);
+            uv_flags |= uv_bit(material->upload.occlusion_texture, 3U);
+            uv_flags |= uv_bit(material->upload.emissive_texture, 4U);
+        }
+
+        const std::array<float, 3> emissive = material != nullptr
+            ? material->upload.material.emissive_factor
+            : std::array<float, 3>{0.0F, 0.0F, 0.0F};
+        const float normal_scale = material != nullptr &&
+                material->upload.material.normal_texture.has_value()
+            ? material->upload.material.normal_texture->scale
+            : 1.0F;
 
         VulkanDrawPushConstants push_constants{
             .mvp = transforms.mvp,
             .base_color = material != nullptr ? material->upload.material.base_color_factor
-                                              : kFallbackBaseColor,
-            .has_vertex_color = primitive.has_colors ? 1U : 0U,
+                                               : kFallbackBaseColor,
+            .emissive_alpha_cutoff = {emissive[0], emissive[1], emissive[2],
+                                      material != nullptr ? material->upload.material.alpha_cutoff
+                                                          : 0.5F},
+            .factors = {material != nullptr ? material->upload.material.metallic_factor : 0.0F,
+                        material != nullptr ? material->upload.material.roughness_factor : 1.0F,
+                        normal_scale,
+                        material != nullptr ? material->upload.material.occlusion_strength : 1.0F},
+            .flags = {texture_flags, uv_flags, alpha_mode_value(alpha_mode), 0U},
         };
+        const VkDescriptorSet descriptor_set = material != nullptr &&
+                material->descriptor_set != VK_NULL_HANDLE
+            ? material->descriptor_set
+            : default_material_descriptor_set_;
+        if (descriptor_set == VK_NULL_HANDLE) {
+            continue;
+        }
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
         vkCmdPushConstants(command_buffer, pipeline_layout_,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                            sizeof(VulkanDrawPushConstants), &push_constants);

@@ -47,6 +47,15 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         destroy_vulkan_objects();
         return result;
     }
+    if (auto result = create_descriptor_resources(); !result) {
+        destroy_vulkan_objects();
+        return result;
+    }
+    initialized_ = true;
+    if (auto result = create_default_material_textures(); !result) {
+        destroy_vulkan_objects();
+        return result;
+    }
     if (auto result = create_pipeline_layout(); !result) {
         destroy_vulkan_objects();
         return result;
@@ -62,7 +71,6 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         return result;
     }
 
-    initialized_ = true;
     return {};
 }
 
@@ -94,10 +102,26 @@ void VulkanGraphicsDevice::destroy_vulkan_objects() noexcept {
             destroy_material_record(material);
         }
         materials_.clear();
+        default_white_texture_ = TextureHandle{};
+        default_normal_texture_ = TextureHandle{};
         destroy_swapchain_resources();
         if (pipeline_layout_ != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
             pipeline_layout_ = VK_NULL_HANDLE;
+        }
+        if (default_material_descriptor_set_ != VK_NULL_HANDLE &&
+            material_descriptor_pool_ != VK_NULL_HANDLE) {
+            vkFreeDescriptorSets(device_, material_descriptor_pool_, 1,
+                                 &default_material_descriptor_set_);
+            default_material_descriptor_set_ = VK_NULL_HANDLE;
+        }
+        if (material_descriptor_pool_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device_, material_descriptor_pool_, nullptr);
+            material_descriptor_pool_ = VK_NULL_HANDLE;
+        }
+        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
+            material_descriptor_set_layout_ = VK_NULL_HANDLE;
         }
         destroy_sync_objects();
         destroy_command_resources();
