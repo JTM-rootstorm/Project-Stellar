@@ -78,6 +78,7 @@ add_library(stellar_graphics
     src/graphics/GraphicsBackend.cpp
     src/graphics/RendererFactory.cpp
     src/graphics/GraphicsDeviceFactory.cpp
+    src/graphics/DebugCubeMesh.cpp
     src/graphics/RenderScene.cpp
     src/graphics/SceneRenderer.cpp
     src/graphics/opengl/CubeRenderer.cpp

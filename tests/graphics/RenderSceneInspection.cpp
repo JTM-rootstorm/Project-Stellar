@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -11,6 +12,7 @@
 #include "GeneratedRenderFixtures.hpp"
 #include "stellar/assets/AnimationAsset.hpp"
 #include "stellar/assets/SkinAsset.hpp"
+#include "stellar/graphics/DebugCubeMesh.hpp"
 #include "stellar/graphics/SceneRenderer.hpp"
 
 namespace {
@@ -210,6 +212,34 @@ void verify_scene_bounds_and_camera_fit() {
     assert(empty_bounds.radius == 1.0F);
 }
 
+void verify_debug_cube_winding_matches_normals() {
+    const auto mesh = stellar::graphics::create_debug_cube_mesh();
+    assert(mesh.has_value());
+    assert(mesh->primitives.size() == 6);
+
+    for (const auto& primitive : mesh->primitives) {
+        assert(primitive.vertices.size() == 4);
+        assert(primitive.indices == std::vector<std::uint32_t>({0, 1, 2, 0, 2, 3}));
+
+        const auto& p0 = primitive.vertices[0].position;
+        const auto& p1 = primitive.vertices[1].position;
+        const auto& p2 = primitive.vertices[2].position;
+        const auto edge_a = std::array<float, 3>{p1[0] - p0[0], p1[1] - p0[1],
+                                                 p1[2] - p0[2]};
+        const auto edge_b = std::array<float, 3>{p2[0] - p0[0], p2[1] - p0[1],
+                                                 p2[2] - p0[2]};
+        const auto face_normal = std::array<float, 3>{
+            edge_a[1] * edge_b[2] - edge_a[2] * edge_b[1],
+            edge_a[2] * edge_b[0] - edge_a[0] * edge_b[2],
+            edge_a[0] * edge_b[1] - edge_a[1] * edge_b[0],
+        };
+        const auto& normal = primitive.vertices[0].normal;
+        const float winding_dot = face_normal[0] * normal[0] + face_normal[1] * normal[1] +
+            face_normal[2] * normal[2];
+        assert(winding_dot > 0.0F);
+    }
+}
+
 void verify_animation_pose_forwarding(stellar::platform::Window& window) {
     stellar::assets::SceneAsset scene;
     scene.meshes.push_back(stellar::assets::MeshAsset{
@@ -291,6 +321,7 @@ int main() {
     verify_mixed_static_and_skinned_spans(window);
     verify_large_static_scene_count(window);
     verify_scene_bounds_and_camera_fit();
+    verify_debug_cube_winding_matches_normals();
     verify_animation_pose_forwarding(window);
     verify_generated_representative_fixtures(window);
     return 0;
