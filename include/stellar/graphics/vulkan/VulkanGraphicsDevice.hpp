@@ -14,18 +14,22 @@ namespace stellar::graphics::vulkan {
  * @brief Initial Vulkan backend for the backend-neutral GraphicsDevice interface.
  *
  * This implementation creates a Vulkan instance, SDL surface, physical device, logical device,
- * swapchain, clear-only render pass, and graphics queue when initialized. Meshes, textures,
- * samplers, and materials are still recorded as backend-neutral upload records so RenderScene and
- * glTF resource paths can exercise the same public API as OpenGL. Graphics pipelines, GPU uploads,
- * and mesh drawing are intentionally deferred while presented clear/pass-through frame management
- * is built out incrementally.
+ * swapchain, render pass, graphics pipeline, and graphics queue when initialized. Mesh buffers are
+ * uploaded to Vulkan buffers, textures are still recorded as backend-neutral metadata, and the
+ * initial draw path renders opaque static geometry with base-color material factors.
  */
 class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
+    /** @brief Construct an uninitialized Vulkan graphics device. */
     VulkanGraphicsDevice() noexcept = default;
+
+    /** @brief Destroy Vulkan resources owned by this graphics device. */
     ~VulkanGraphicsDevice() noexcept override;
 
+    /** @brief Copy construction is disabled because Vulkan handles have unique ownership. */
     VulkanGraphicsDevice(const VulkanGraphicsDevice&) = delete;
+
+    /** @brief Copy assignment is disabled because Vulkan handles have unique ownership. */
     VulkanGraphicsDevice& operator=(const VulkanGraphicsDevice&) = delete;
 
     /**
@@ -35,7 +39,7 @@ public:
     initialize(stellar::platform::Window& window) override;
 
     /**
-     * @brief Validate and record backend-neutral mesh upload data.
+     * @brief Validate mesh data and upload static vertex/index buffers to Vulkan memory.
      */
     [[nodiscard]] std::expected<MeshHandle, stellar::platform::Error>
     create_mesh(const stellar::assets::MeshAsset& mesh) override;
@@ -58,7 +62,7 @@ public:
     void begin_frame(int width, int height) noexcept override;
 
     /**
-     * @brief Submit a mesh draw; currently a no-op until Vulkan pipelines are implemented.
+     * @brief Record opaque static mesh draw commands into the active Vulkan frame.
      */
     void draw_mesh(MeshHandle mesh,
                    std::span<const MeshPrimitiveDrawCommand> commands,
@@ -135,6 +139,8 @@ private:
         std::uint32_t preferred_width, std::uint32_t preferred_height);
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_swapchain_image_views();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_render_pass();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_pipeline_layout();
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_graphics_pipeline();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_depth_resources();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_framebuffers();
     [[nodiscard]] std::expected<void, stellar::platform::Error>
@@ -164,6 +170,8 @@ private:
     VkQueue graphics_queue_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
+    VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
+    VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
     VkImage depth_image_ = VK_NULL_HANDLE;
     VkDeviceMemory depth_image_memory_ = VK_NULL_HANDLE;
     VkImageView depth_image_view_ = VK_NULL_HANDLE;

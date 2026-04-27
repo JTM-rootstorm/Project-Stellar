@@ -1,5 +1,6 @@
 #include "stellar/graphics/vulkan/VulkanGraphicsDevice.hpp"
 
+#include <array>
 #include <iostream>
 
 #include <SDL2/SDL.h>
@@ -60,11 +61,36 @@ int main() {
         return 1;
     }
 
+    stellar::graphics::MaterialUpload material_upload;
+    material_upload.material.base_color_factor = {0.85F, 0.9F, 1.0F, 1.0F};
+    auto material = device.create_material(material_upload);
+    if (!material) {
+        std::cerr << material.error().message << '\n';
+        return 1;
+    }
+
+    const std::array<float, 16> identity4{1.0F, 0.0F, 0.0F, 0.0F,
+                                          0.0F, 1.0F, 0.0F, 0.0F,
+                                          0.0F, 0.0F, 1.0F, 0.0F,
+                                          0.0F, 0.0F, 0.0F, 1.0F};
+    const std::array<float, 9> identity3{1.0F, 0.0F, 0.0F,
+                                         0.0F, 1.0F, 0.0F,
+                                         0.0F, 0.0F, 1.0F};
+    const stellar::graphics::MeshDrawTransforms transforms{.mvp = identity4,
+                                                           .world = identity4,
+                                                           .normal = identity3};
+    const stellar::graphics::MeshPrimitiveDrawCommand commands[] = {
+        stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 0, .material = *material},
+        stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 1},
+    };
+
     for (int frame = 0; frame < 3; ++frame) {
         device.begin_frame(16, 16);
+        device.draw_mesh(*mesh, commands, transforms);
         device.end_frame();
     }
 
+    device.destroy_material(*material);
     device.destroy_mesh(*mesh);
 
     return 0;
