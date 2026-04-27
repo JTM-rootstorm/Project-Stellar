@@ -5,6 +5,8 @@
 
 #include <SDL2/SDL.h>
 
+#include <utility>
+
 namespace stellar::client {
 
 namespace {
@@ -17,15 +19,31 @@ constexpr float kRotationSpeed = 45.0f;
 
 } // namespace
 
+Application::Application(ApplicationConfig config) noexcept : config_(std::move(config)) {}
+
 std::expected<void, stellar::platform::Error> Application::run() {
+    auto validation = validate_application_config(config_);
+    if (!validation) {
+        return std::unexpected(validation.error());
+    }
+
+    if (config_.validate_only) {
+        return {};
+    }
+
     stellar::platform::Window window;
+    const Uint32 backend_window_flags =
+        config_.graphics_backend == stellar::graphics::GraphicsBackend::kVulkan
+            ? SDL_WINDOW_VULKAN
+            : SDL_WINDOW_OPENGL;
     if (auto result = window.create(kWindowWidth, kWindowHeight, "Stellar Engine",
-                                    SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
+                                    SDL_WINDOW_SHOWN | backend_window_flags);
         !result) {
         return result;
     }
 
-    auto renderer = stellar::graphics::create_renderer();
+    auto renderer = stellar::graphics::create_renderer(config_.graphics_backend,
+                                                       std::move(validation->scene));
     if (auto result = renderer->initialize(window); !result) {
         return result;
     }

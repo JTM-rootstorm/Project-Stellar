@@ -5,11 +5,13 @@
 #include <expected>
 #include <memory>
 #include <optional>
-#include <span>
 #include <vector>
+
+#include <glm/mat4x4.hpp>
 
 #include "stellar/assets/SceneAsset.hpp"
 #include "stellar/graphics/GraphicsDevice.hpp"
+#include "stellar/scene/AnimationRuntime.hpp"
 
 namespace stellar::graphics {
 
@@ -43,6 +45,32 @@ public:
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
      * @param view_projection Column-major view-projection matrix.
+     * @param view Column-major view matrix used for transparent primitive sorting.
+     */
+    void render(int width,
+                  int height,
+                  const std::array<float, 16>& view_projection,
+                  const std::array<float, 16>& view) noexcept;
+
+    /**
+     * @brief Render the active scene with an evaluated runtime pose.
+     * @param width Viewport width in pixels.
+     * @param height Viewport height in pixels.
+     * @param view_projection Column-major view-projection matrix.
+     * @param view Column-major view matrix used for transparent primitive sorting.
+     * @param pose Evaluated node and skin pose to use for animated/skinned draws.
+     */
+    void render(int width,
+                int height,
+                const std::array<float, 16>& view_projection,
+                const std::array<float, 16>& view,
+                const stellar::scene::ScenePose& pose) noexcept;
+
+    /**
+     * @brief Render the active scene using view-projection depth as a compatibility fallback.
+     * @param width Viewport width in pixels.
+     * @param height Viewport height in pixels.
+     * @param view_projection Column-major view-projection matrix.
      */
     void render(int width,
                 int height,
@@ -66,17 +94,25 @@ public:
 private:
     [[nodiscard]] static std::array<float, 16>
     compose_transform(const stellar::scene::Transform& transform) noexcept;
-    void render_node(std::size_t node_index,
-                     const std::array<float, 16>& parent_world,
-                     const std::array<float, 16>& view_projection) noexcept;
-    [[nodiscard]] std::span<const MaterialHandle>
-    material_span(std::optional<std::size_t> material_index) noexcept;
+    void collect_node_draws(std::size_t node_index,
+                            const std::array<float, 16>& parent_world,
+                            const glm::mat4& view_projection,
+                            const glm::mat4& view,
+                            const stellar::scene::ScenePose* pose,
+                            std::vector<struct QueuedMeshDraw>& opaque_draws,
+                            std::vector<struct QueuedMeshDraw>& blend_draws) noexcept;
+    void render(int width,
+                int height,
+                const std::array<float, 16>& view_projection,
+                const std::array<float, 16>& view,
+                const stellar::scene::ScenePose* pose) noexcept;
     void destroy() noexcept;
 
     std::unique_ptr<GraphicsDevice> device_;
     stellar::assets::SceneAsset scene_;
     std::vector<MeshHandle> mesh_handles_;
     std::vector<TextureHandle> texture_handles_;
+    std::vector<TextureHandle> owned_texture_handles_;
     std::vector<MaterialHandle> material_handles_;
     std::optional<std::size_t> active_scene_index_;
 };

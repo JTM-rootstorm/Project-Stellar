@@ -5,12 +5,54 @@
 #include <span>
 
 #include "stellar/assets/ImageAsset.hpp"
-#include "stellar/assets/MaterialAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
+#include "stellar/assets/TextureAsset.hpp"
 #include "stellar/graphics/GraphicsHandles.hpp"
+#include "stellar/graphics/MaterialUpload.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::graphics {
+
+/**
+ * @brief Backend-neutral per-draw transforms for static mesh rendering.
+ */
+struct MeshDrawTransforms {
+    /** @brief Column-major model-view-projection transform matrix. */
+    std::array<float, 16> mvp{};
+
+    /** @brief Column-major model/world transform matrix. */
+    std::array<float, 16> world{};
+
+    /** @brief Column-major inverse-transpose world-space normal transform matrix. */
+    std::array<float, 9> normal{};
+};
+
+/**
+ * @brief Backend-neutral image upload payload with color-space metadata.
+ */
+struct TextureUpload {
+    stellar::assets::ImageAsset image;
+    stellar::assets::TextureColorSpace color_space = stellar::assets::TextureColorSpace::kLinear;
+};
+
+/**
+ * @brief One primitive draw within an uploaded mesh.
+ */
+struct MeshPrimitiveDrawCommand {
+    /** @brief Primitive index inside the uploaded mesh. */
+    std::size_t primitive_index = 0;
+
+    /** @brief Material handle to use for this primitive draw. */
+    MaterialHandle material;
+
+    /**
+     * @brief Final skin joint matrices for this draw, in skin joint order.
+     *
+     * An empty span means the primitive should use the static mesh path. Matrix data is
+     * backend-neutral and must remain valid for the duration of the draw_mesh call.
+     */
+    std::span<const std::array<float, 16>> skin_joint_matrices;
+};
 
 /**
  * @brief Backend-neutral GPU resource upload interface.
@@ -40,19 +82,19 @@ public:
 
     /**
      * @brief Upload an image as a GPU texture.
-     * @param image CPU-side image asset.
+     * @param texture CPU-side image asset and upload metadata.
      * @return Opaque texture handle on success.
      */
     [[nodiscard]] virtual std::expected<TextureHandle, stellar::platform::Error>
-    create_texture(const stellar::assets::ImageAsset& image) = 0;
+    create_texture(const TextureUpload& texture) = 0;
 
     /**
      * @brief Register a material for later rendering use.
-     * @param material CPU-side material description.
+     * @param material Backend-neutral material description with resolved textures.
      * @return Opaque material handle on success.
      */
     [[nodiscard]] virtual std::expected<MaterialHandle, stellar::platform::Error>
-    create_material(const stellar::assets::MaterialAsset& material) = 0;
+    create_material(const MaterialUpload& material) = 0;
 
     /**
      * @brief Begin a frame and clear the target.
@@ -62,13 +104,14 @@ public:
     virtual void begin_frame(int width, int height) noexcept = 0;
 
     /**
-     * @brief Draw a mesh using an MVP transform.
+     * @brief Draw a mesh using backend-neutral world and projection transforms.
      * @param mesh Opaque mesh handle.
-     * @param mvp Column-major transform matrix.
+     * @param commands Primitive draw commands in submission order.
+     * @param transforms Column-major MVP, world, and normal transform matrices.
      */
     virtual void draw_mesh(MeshHandle mesh,
-                           std::span<const MaterialHandle> materials,
-                           const std::array<float, 16>& mvp) noexcept = 0;
+                           std::span<const MeshPrimitiveDrawCommand> commands,
+                           const MeshDrawTransforms& transforms) noexcept = 0;
 
     /**
      * @brief Present the current frame.

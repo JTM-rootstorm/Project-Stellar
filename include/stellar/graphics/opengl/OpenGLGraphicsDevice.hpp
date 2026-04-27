@@ -29,16 +29,16 @@ public:
     create_mesh(const stellar::assets::MeshAsset& mesh) override;
 
     [[nodiscard]] std::expected<TextureHandle, stellar::platform::Error>
-    create_texture(const stellar::assets::ImageAsset& image) override;
+    create_texture(const TextureUpload& texture) override;
 
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
-    create_material(const stellar::assets::MaterialAsset& material) override;
+    create_material(const MaterialUpload& material) override;
 
     void begin_frame(int width, int height) noexcept override;
 
     void draw_mesh(MeshHandle mesh,
-                   std::span<const MaterialHandle> materials,
-                   const std::array<float, 16>& mvp) noexcept override;
+                   std::span<const MeshPrimitiveDrawCommand> commands,
+                   const MeshDrawTransforms& transforms) noexcept override;
 
     void end_frame() noexcept override;
 
@@ -52,6 +52,9 @@ private:
         unsigned int vbo = 0;
         unsigned int ebo = 0;
         int index_count = 0;
+        bool has_tangents = false;
+        bool has_colors = false;
+        bool has_skinning = false;
     };
 
     struct MeshRecord {
@@ -65,7 +68,7 @@ private:
     };
 
     struct MaterialRecord {
-        stellar::assets::MaterialAsset material;
+        MaterialUpload upload;
     };
 
     struct DrawBinding {
@@ -81,6 +84,10 @@ private:
     SDL_GLContext context_ = nullptr;
     unsigned int shader_program_ = 0;
     int mvp_loc_ = -1;
+    int model_loc_ = -1;
+    int normal_matrix_loc_ = -1;
+    int has_skinning_loc_ = -1;
+    int joint_matrices_loc_ = -1;
     std::uint64_t next_handle_ = 1;
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;

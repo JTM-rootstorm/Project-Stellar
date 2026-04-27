@@ -1,14 +1,14 @@
-#include "stellar/graphics/opengl/CubeRenderer.hpp"
+#include "stellar/graphics/SceneRenderer.hpp"
 
 #include <array>
+#include <utility>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
 
 #include "stellar/graphics/GraphicsDeviceFactory.hpp"
 
-namespace stellar::graphics::opengl {
+namespace stellar::graphics {
 
 namespace {
 
@@ -43,40 +43,48 @@ std::array<float, 16> to_array(const glm::mat4& matrix) {
 
 } // namespace
 
-std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
-CubeRenderer::create_cube_mesh() {
+SceneRenderer::SceneRenderer(std::optional<stellar::assets::SceneAsset> scene) noexcept
+    : SceneRenderer(GraphicsBackend::kOpenGL, std::move(scene)) {}
+
+SceneRenderer::SceneRenderer(GraphicsBackend backend,
+                             std::optional<stellar::assets::SceneAsset> scene) noexcept
+    : backend_(backend), source_scene_(std::move(scene)) {}
+
+SceneRenderer::~SceneRenderer() noexcept = default;
+
+std::expected<stellar::assets::MeshAsset, stellar::platform::Error> SceneRenderer::create_cube_mesh() {
     stellar::assets::MeshAsset mesh;
     mesh.name = "debug_cube";
 
     mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f,  0.5f}, { 0.5f, -0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f},
-          {-0.5f,  0.5f,  0.5f}}},
+        {{{-0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}, {0.5f, 0.5f, 0.5f},
+          {-0.5f, 0.5f, 0.5f}}},
         {0.0f, 0.0f, 1.0f}, 0));
     mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f, -0.5f}, {-0.5f,  0.5f, -0.5f}, { 0.5f,  0.5f, -0.5f},
-          { 0.5f, -0.5f, -0.5f}}},
+        {{{-0.5f, -0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f},
+          {0.5f, -0.5f, -0.5f}}},
         {0.0f, 0.0f, -1.0f}, 0));
     mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f,  0.5f}, {-0.5f,  0.5f,  0.5f},
-          {-0.5f,  0.5f, -0.5f}}},
+        {{{-0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f},
+          {-0.5f, 0.5f, -0.5f}}},
         {-1.0f, 0.0f, 0.0f}, 1));
     mesh.primitives.push_back(make_face_primitive(
-        {{{ 0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f},
-          { 0.5f,  0.5f, -0.5f}}},
+        {{{0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, 0.5f}, {0.5f, 0.5f, 0.5f},
+          {0.5f, 0.5f, -0.5f}}},
         {1.0f, 0.0f, 0.0f}, 1));
     mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f,  0.5f, -0.5f}, { 0.5f,  0.5f, -0.5f}, { 0.5f,  0.5f,  0.5f},
-          {-0.5f,  0.5f,  0.5f}}},
+        {{{-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f},
+          {-0.5f, 0.5f, 0.5f}}},
         {0.0f, 1.0f, 0.0f}, 2));
     mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f,  0.5f},
-          {-0.5f, -0.5f,  0.5f}}},
+        {{{-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, 0.5f},
+          {-0.5f, -0.5f, 0.5f}}},
         {0.0f, -1.0f, 0.0f}, 2));
 
     return mesh;
 }
 
-stellar::assets::SceneAsset CubeRenderer::create_cube_scene() {
+stellar::assets::SceneAsset SceneRenderer::create_cube_scene() {
     stellar::assets::SceneAsset scene;
     scene.source_uri = "debug:cube";
     scene.meshes.push_back(create_cube_mesh().value());
@@ -105,12 +113,10 @@ stellar::assets::SceneAsset CubeRenderer::create_cube_scene() {
     return scene;
 }
 
-CubeRenderer::~CubeRenderer() noexcept = default;
-
-std::expected<void, stellar::platform::Error>
-CubeRenderer::initialize(stellar::platform::Window& window) {
-    auto scene = create_cube_scene();
-    auto device = stellar::graphics::create_graphics_device();
+std::expected<void, stellar::platform::Error> SceneRenderer::initialize(stellar::platform::Window& window) {
+    using_debug_cube_ = !source_scene_.has_value();
+    auto scene = source_scene_.has_value() ? std::move(*source_scene_) : create_cube_scene();
+    auto device = create_graphics_device(backend_);
     if (!device) {
         return std::unexpected(stellar::platform::Error("Failed to create graphics device"));
     }
@@ -118,22 +124,25 @@ CubeRenderer::initialize(stellar::platform::Window& window) {
     return scene_.initialize(std::move(device), window, std::move(scene));
 }
 
-void CubeRenderer::render(float rotation_degrees, int width, int height) noexcept {
-    if (scene_.node_transform(0).matrix.has_value()) {
-        scene_.node_transform(0).matrix = std::nullopt;
-    }
-
+void SceneRenderer::render(float rotation_degrees, int width, int height) noexcept {
     const glm::mat4 projection = glm::perspective(
         glm::radians(45.0f), static_cast<float>(width) / static_cast<float>(height), 0.1f,
         100.0f);
     const glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f),
                                        glm::vec3(0.0f, 1.0f, 0.0f));
-    const glm::mat4 model = glm::rotate(
-        glm::rotate(glm::mat4(1.0f), glm::radians(rotation_degrees), glm::vec3(0.0f, 1.0f, 0.0f)),
-        glm::radians(rotation_degrees), glm::vec3(1.0f, 0.0f, 0.0f));
 
-    scene_.node_transform(0).matrix = to_array(model);
+    if (using_debug_cube_) {
+        if (scene_.node_transform(0).matrix.has_value()) {
+            scene_.node_transform(0).matrix = std::nullopt;
+        }
+        const glm::mat4 model = glm::rotate(
+            glm::rotate(glm::mat4(1.0f), glm::radians(rotation_degrees),
+                        glm::vec3(0.0f, 1.0f, 0.0f)),
+            glm::radians(rotation_degrees), glm::vec3(1.0f, 0.0f, 0.0f));
+        scene_.node_transform(0).matrix = to_array(model);
+    }
+
     scene_.render(width, height, to_array(projection * view), to_array(view));
 }
 
-} // namespace stellar::graphics::opengl
+} // namespace stellar::graphics
