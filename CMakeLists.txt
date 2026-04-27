@@ -128,6 +128,21 @@ target_link_libraries(stellar_render_scene_upload_test PRIVATE
 
 add_test(NAME render_scene_upload COMMAND stellar_render_scene_upload_test)
 
+add_executable(stellar_render_scene_inspection_test
+    tests/graphics/RenderSceneInspection.cpp
+)
+
+target_include_directories(stellar_render_scene_inspection_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tests/graphics
+)
+
+target_link_libraries(stellar_render_scene_inspection_test PRIVATE
+    stellar_graphics
+)
+
+add_test(NAME render_scene_inspection COMMAND stellar_render_scene_inspection_test)
+
 add_executable(stellar_graphics_backend_selection_test
     tests/graphics/BackendSelection.cpp
 )

@@ -461,6 +461,16 @@ The project status matches documented renderer promises instead of leaving parit
 
 Goal: make graphics validation stronger and less dependent on manual visual inspection.
 
+### Progress Notes
+
+- Added reusable display-free `RecordingGraphicsDevice` test infrastructure for backend-neutral
+  upload and draw-command inspection, including owned copies of per-draw skin joint matrices.
+- Added deterministic `RenderScene` inspection coverage for alpha grouping, transparent
+  back-to-front sorting, material handle identity/fallbacks, mixed static/skinned draw spans, and
+  large static scene traversal/count sanity.
+- Registered and validated the focused `render_scene_inspection` CTest target without creating an
+  OpenGL or Vulkan context.
+
 ### Tasks
 
 1. Add optional headless/context-capable render tests if environment support exists.
