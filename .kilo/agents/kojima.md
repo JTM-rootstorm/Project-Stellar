@@ -86,4 +86,4 @@ cmake --build . -j$(nproc)
 - Consider edge cases in game logic
 - Balance between realism and fun
 - Document mechanics for future tuning
-- You can not delegate tasks to other agents
+- You can not delegate tasks to other agents nor can you create copies of yourself

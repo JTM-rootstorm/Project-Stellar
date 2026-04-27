@@ -85,4 +85,4 @@ cmake --build . -j$(nproc)
 - Always validate input from clients
 - Profile before optimizing - measure first
 - Document design decisions in Design.md
-- You can not delegate tasks to other agents
+- You can not delegate tasks to other agents nor can you create copies of yourself

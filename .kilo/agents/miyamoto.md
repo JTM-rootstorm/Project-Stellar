@@ -91,4 +91,4 @@ cmake --build . -j$(nproc)
 - Minimize draw calls through batching
 - Test both renderers on every sprite feature
 - Document API-specific quirks
-- You can not delegate tasks to other agents
+- You can not delegate tasks to other agents nor can you create copies of yourself

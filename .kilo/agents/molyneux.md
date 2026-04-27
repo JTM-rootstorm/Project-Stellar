@@ -88,4 +88,4 @@ cmake --build . -j$(nproc)
 - Prototype in isolation where possible
 - Always have a path to remove failed experiments
 - "Wouldn't it be cool if..." is your mantra
-- You can not delegate tasks to other agents
+- You can not delegate tasks to other agents nor can you create copies of yourself
