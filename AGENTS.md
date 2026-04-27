@@ -32,38 +32,17 @@ Game Server (Authority)    ← ECS, Game Logic, Physics, AI
 - **Error Handling**: std::expected<T, Error> (C++23), no exceptions
 - **Documentation**: Doxygen @brief mandatory for all public APIs
 
-## Team Structure
-
-| Agent | Domain | Files |
-|-------|--------|-------|
-| @carmack | Engine/ECS, Networking, Server Logic | include/stellar/{core,ecs,network}/, src/{ecs,server}/ |
-| @miyamoto | Graphics (OpenGL/Vulkan) | include/stellar/graphics/, src/graphics/ |
-| @suzuki | Audio (stub/planning) | include/stellar/audio/ |
-| @kojima | Game Logic, Entity Archetypes | Entity archetypes, gameplay |
-| @molyneux | Prototypes, Features | Experimental work |
-| @director | Project Orchestration, Team Routing | (coordination role) |
-
-## Agent Invocation
-
-Use `@agent-name` to invoke specific agents:
-
-- `@carmack implement ECS world serialization`
-- `@miyamoto add sprite batch rendering`
-- `@sujiki create audio interface`
-- `@kojima design new entity archetype`
-- `@molyneux prototype particle system`
-
 ## Agent Failure Handling Protocol
 
 ### Subagent Responsibilities
-- Agents other than @director have 2 attempts to resolve issues they encounter
+- Subagents have 2 attempts to resolve issues they encounter
 - If an issue cannot be resolved after 2 attempts:
-  1. The subagent must report failure to @director
+  1. The subagent must report failure to their taskmaster
   2. Report must include:
      - What they think is wrong
      - Where in the code the problem might be located
   3. The subagent then terminates execution
-- Subagents should use the question tool to communicate failure to @director when needed
+- Subagents should use the question tool to communicate failure to their taskmaster when needed
 
 ### Director Responsibilities
 - Upon receiving failure notice from a subagent:
@@ -97,5 +76,4 @@ Run tests: `ctest`
 - Server is authoritative - client is "dumb terminal"
 - Data-oriented design for ECS - components are POD
 - Dual renderer parity required (OpenGL and Vulkan must behave identically)
-- only @director can create sub-agents. 
-- @miyamoto , @carmack , @kojima , @molyneux , and @suzuki can not create agents, subagents, or delegate work.
+- Subagents can not create more subagents or delegate work.

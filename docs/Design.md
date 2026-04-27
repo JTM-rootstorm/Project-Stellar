@@ -20,12 +20,11 @@
 7. [Networking & Client-Server Model](#7-networking--client-server-model)
 8. [Build System & Dependencies](#8-build-system--dependencies)
 9. [Directory Structure](#9-directory-structure)
-10. [Team Responsibilities](#10-team-responsibilities)
-11. [Development Guidelines](#11-development-guidelines)
-12. [Documentation Standards](#12-documentation-standards)
-13. [Testing Strategy](#13-testing-strategy)
-14. [Future Considerations](#14-future-considerations)
-15. [Change Log](#15-change-log)
+10. [Development Guidelines](#10-development-guidelines)
+11. [Documentation Standards](#11-documentation-standards)
+12. [Testing Strategy](#12-testing-strategy)
+13. [Future Considerations](#13-future-considerations)
+14. [Change Log](#14-change-log)
 
 ---
 
@@ -112,9 +111,6 @@ Stellar Engine is a modular, cross-platform game framework designed for creating
 
 ## 3. Core Engine Subsystem
 
-**Owner:** Engine Team  
-**Responsibility:** Game logic, ECS, world management, serialization
-
 ### 3.1 Core Components
 
 #### Application (Client Entry Point)
@@ -196,9 +192,6 @@ class MovementSystem : public System {
 
 ## 4. Graphics Subsystem
 
-**Owner:** Graphics Team  
-**Responsibility:** Rendering, resource management, shader compilation
-
 ### 4.1 Abstraction Layer
 
 ```cpp
@@ -277,9 +270,6 @@ class VulkanDevice : public GraphicsDevice { /* ... */ };
 
 ## 5. Audio Subsystem
 
-**Owner:** Sound Team  
-**Responsibility:** Audio playback, mixing, future implementation
-
 ### 5.1 Implementation Status
 
 Full audio implementation required. Library selection: **miniaudio** (see rationale in Appendix C).
@@ -326,9 +316,6 @@ public:
 ---
 
 ## 6. Entity Component System
-
-**Owner:** Engine Team  
-**Responsibility:** Core data structures and system execution
 
 ### 6.1 Design Philosophy
 
@@ -397,9 +384,6 @@ class MovementSystem : public System {
 
 ## 7. Networking & Client-Server Model
 
-**Owner:** Engine Team (with Graphics integration)  
-**Responsibility:** Network communication, state synchronization
-
 ### 7.1 Transport Layer
 
 #### Protocol Choice
@@ -465,9 +449,6 @@ class Serializer {
 ---
 
 ## 8. Build System & Dependencies
-
-**Owner:** Engine Team  
-**Responsibility:** Build configuration, dependency management
 
 ### 8.1 CMake Requirements
 
@@ -621,138 +602,9 @@ stellar-engine/
 ```
 
 ---
+## 10. Development Guidelines
 
-## 10. Team Responsibilities
-
-### 10.1 Engine Team
-
-**Lead:** carmack
-
-**Areas of Responsibility:**
-- ECS framework design and implementation
-- World management and entity lifecycle
-- Game logic systems (movement, collision, AI)
-- Serialization and networking protocol
-- Server authority and state synchronization
-- Configuration and time management
-- Core utilities (math, logging, assertions)
-- Platform integration (window creation, input handling, file system)
-
-**Key Files:**
-- `include/stellar/core/*`
-- `include/stellar/ecs/*`
-- `include/stellar/network/*`
-- `include/stellar/platform/*`
-- `src/ecs/`
-- `src/server/`
-- `src/common/`
-- `src/platform/`
-
-**Deliverables:**
-- Working ECS with ≥60 FPS for 10k entities on mid-range hardware
-- Stable client-server protocol with <100ms round-trip latency
-- Serializable world snapshots
-- Config files for game parameters
-- Platform abstraction layer for window/input
-
-### 10.2 Graphics Team
-
-**Lead:** miyamoto
-
-**Areas of Responsibility:**
-- Graphics device abstraction (OpenGL + Vulkan)
-- Sprite rendering pipeline
-- Texture atlas management
-- Shader compilation and management
-- Camera and viewport handling
-- Render batching and sorting
-- Window/context creation integration
-
-**Key Files:**
-- `include/stellar/graphics/*`
-- `src/graphics/`
-- `src/graphics/opengl/`
-- `src/graphics/vulkan/`
-- `assets/shaders/`
-
-**Deliverables:**
-- Both OpenGL and Vulkan renderers with identical behavior
-- Batch sprite rendering: ≥10,000 sprites at 60 FPS on integrated GPU
-- Smooth camera following with no stutter
-- Texture atlas packer tool
-
-### 10.3 Sound Team
-
-**Lead:** suzuki
-
-**Areas of Responsibility:**
-- Audio device interface definition
-- Future audio implementation planning
-- Integration points with engine (sound triggers, positional audio)
-
-**Key Files:**
-- `include/stellar/audio/*`
-- `src/audio/` (stubs only)
-
-**Deliverables:**
-- Audio device implementation using miniaudio
-- 3D positional audio integration with camera system
-- Sound loading and playback system
-- Music streaming with loop support
-- Listener management tied to player position
-
-### 10.4 Game Logic Team
-
-**Lead:** kojima
-
-**Areas of Responsibility:**
-- Entity archetype definitions and component compositions
-- Gameplay system design (movement, collision, health, inventory)
-- System balance and tuning
-- Game rules enforcement on server
-- Emergent gameplay patterns
-- Content design guidelines
-
-**Key Files:**
-- `include/stellar/core/archetypes/`
-- `src/ecs/systems/gameplay/`
-- `src/server/game_logic/`
-
-**Deliverables:**
-- Complete set of entity archetypes (Player, NPC, Item, Projectile, Environment)
-- Core gameplay systems (Movement, Collision, Health, AI)
-- Game rules validation logic
-- Balance parameters and tuning guide
-
-### 10.5 Prototyping Team
-
-**Lead:** molyneux
-
-**Areas of Responsibility:**
-- Rapid proof-of-concept implementation
-- Experimental feature exploration
-- New system prototyping
-- Evaluation of unproven approaches
-- Documentation of findings
-- Integration recommendations
-
-**Key Files:**
-- `prototypes/` directory for experimental code
-- `docs/prototypes/` for analysis documents
-
-**Deliverables:**
-- Working prototypes of new features
-- Performance evaluations and analysis
-- Integration feasibility studies
-- Documentation of experimental results
-
----
-
-*Note: Platform responsibilities (window management, input handling, file system) are incorporated into the Engine Team under @carmack's leadership, as they are core infrastructure requirements.*
-
-## 11. Development Guidelines
-
-### 11.1 Coding Standards
+### 10.1 Coding Standards
 
 - **Style**: Follow LLVM or Google C++ Style Guide (choose one, document)
 - **Indentation**: 4 spaces, no tabs
@@ -765,7 +617,7 @@ stellar-engine/
 - **Headers**: `#pragma once` for include guards
 - **Namespaces**: `stellar::` for all library code
 
-### 11.2 API Design Rules
+### 10.2 API Design Rules
 
 1. **Pure virtual interfaces** for swappable subsystems
 2. **PIMPL idiom** for implementation hiding in public headers
@@ -774,7 +626,7 @@ stellar-engine/
 5. **Move semantics** for performance (large objects)
 6. **`const` correctness** everywhere possible
 
-### 11.3 Interface Contracts
+### 10.3 Interface Contracts
 
 Each module must define a clear interface header:
 
@@ -794,14 +646,14 @@ namespace stellar::graphics {
 
 Implementation in separate `.cpp` files, not exposed in public headers.
 
-### 11.4 Error Handling
+### 10.4 Error Handling
 
 - Prefer return codes or `std::expected<T, Error>` (C++23)
 - Log errors with `std::cerr` or logging service (to be implemented)
 - Crashing on unrecoverable errors is acceptable (with message)
 - Never use `assert()` for production checks; use `ENSURE()` macro
 
-### 11.5 Threading Model
+### 10.5 Threading Model
 
 - **Main thread**: Rendering, window messages
 - **Worker threads**: ECS systems (parallelizable), network I/O
@@ -811,9 +663,9 @@ Implementation in separate `.cpp` files, not exposed in public headers.
 
 ---
 
-## 12. Documentation Standards
+## 11. Documentation Standards
 
-### 12.1 Doxygen Configuration
+### 11.1 Doxygen Configuration
 
 **File:** `.doxygen` at project root
 
@@ -825,7 +677,7 @@ Implementation in separate `.cpp` files, not exposed in public headers.
 - `GENERATE_HTML = YES`
 - `GENERATE_LATEX = NO`
 
-### 12.2 Documentation Requirements
+### 11.2 Documentation Requirements
 
 Every public-facing element must have Doxygen comment:
 
@@ -848,7 +700,7 @@ void MovementSystem::Update(World& world, float dt);
 - `@see` for related functions/classes
 - `@note` for important implementation notes
 
-### 12.3 Architecture Documentation
+### 11.3 Architecture Documentation
 
 - UML diagrams for class relationships (use PlantUML or Mermaid)
 - Sequence diagrams for network protocol
@@ -857,7 +709,7 @@ void MovementSystem::Update(World& world, float dt);
 
 Store in `docs/architecture/`.
 
-### 12.4 In-Code Examples
+### 11.4 In-Code Examples
 
 Include usage examples in documentation where helpful:
 
@@ -872,9 +724,9 @@ Place examples in `docs/examples/` or inline in header documentation.
 
 ---
 
-## 13. Testing Strategy
+## 12. Testing Strategy
 
-### 13.1 Unit Testing
+### 12.1 Unit Testing
 
 **Framework:** Catch2 or doctest (choose one)  
 **Location:** `tests/` mirroring source structure
@@ -892,14 +744,14 @@ Place examples in `docs/examples/` or inline in header documentation.
 - `tests/network/test_packet.cpp`
 - `tests/core/test_config.cpp`
 
-### 13.2 Integration Testing
+### 12.2 Integration Testing
 
 - Client-server handshake test
 - World snapshot round-trip
 - Input → state update pipeline
 - Renderer initialization with both OpenGL and Vulkan
 
-### 13.3 Performance Testing
+### 12.3 Performance Testing
 
 **Benchmarks:**
 - Entity creation/destruction rate
@@ -909,7 +761,7 @@ Place examples in `docs/examples/` or inline in header documentation.
 
 **Tools:** Custom benchmark harness or Google Benchmark
 
-### 13.4 CI/CD (Future)
+### 12.4 CI/CD (Future)
 
 - GitHub Actions or GitLab CI
 - Build on Ubuntu LTS (22.04 or 24.04)
@@ -918,9 +770,9 @@ Place examples in `docs/examples/` or inline in header documentation.
 
 ---
 
-## 14. Future Considerations
+## 13. Future Considerations
 
-### 14.1 Phase 2 Features
+### 13.1 Phase 2 Features
 
 - **Physics Engine**: Integrate Bullet or Box2D (2D physics in 3D space)
 - **Asset Pipeline**: Tools for texture packing, atlas generation, shader compilation
@@ -931,13 +783,13 @@ Place examples in `docs/examples/` or inline in header documentation.
 - **Post-Processing**: Bloom, tone mapping, anti-aliasing
 - **Model Support**: 3D models as billboards or with skeletal animation
 
-### 14.2 Platform Expansion
+### 13.2 Platform Expansion
 
 - Windows port (DirectX 12 backend)
 - macOS port (Metal backend)
 - WebAssembly (Emscripten, OpenGL ES)
 
-### 14.3 Optimization Targets
+### 13.3 Optimization Targets
 
 - SIMD for component processing (Eigen or custom)
 - Job system with work stealing
@@ -946,7 +798,7 @@ Place examples in `docs/examples/` or inline in header documentation.
 
 ---
 
-## 15. Change Log
+## 14. Change Log
 
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
