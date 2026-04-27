@@ -86,6 +86,12 @@ add_library(stellar_graphics
     src/graphics/opengl/CubeRenderer.cpp
     src/graphics/opengl/OpenGLGraphicsDevice.cpp
     src/graphics/vulkan/VulkanGraphicsDevice.cpp
+    src/graphics/vulkan/VulkanGraphicsDeviceCommon.cpp
+    src/graphics/vulkan/VulkanGraphicsDeviceDevice.cpp
+    src/graphics/vulkan/VulkanGraphicsDeviceSwapchain.cpp
+    src/graphics/vulkan/VulkanGraphicsDevicePipeline.cpp
+    src/graphics/vulkan/VulkanGraphicsDeviceFrame.cpp
+    src/graphics/vulkan/VulkanGraphicsDeviceResources.cpp
 )
 
 target_include_directories(stellar_graphics PUBLIC
