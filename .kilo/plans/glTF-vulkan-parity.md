@@ -23,9 +23,19 @@ The work is not complete because several paths are still explicitly unsupported 
 - `src/import/gltf/Importer.cpp` documents unsupported UV2+, morph targets, cameras, lights, and extensions, but does not yet appear to perform an upfront unsupported `extensionsRequired` policy gate.
 - `src/scene/AnimationRuntime.cpp` preserves `weights` animation channels but intentionally no-ops them because morph targets are not represented.
 
-## Phase 0: Plan And Status Hygiene
+## Phase 0: Plan And Status Hygiene - Completed
 
 Goal: make the roadmap match the code before adding more behavior.
+
+### Completion Notes
+
+Phase 0 has been completed as documentation/status hygiene only. The phased roadmap is
+preserved, current OpenGL/Vulkan implementation status is called out explicitly, and remaining
+Phase 4B test-infrastructure work stays visible rather than being treated as complete.
+
+Further implementation remains. Phase 5A and Phase 5B are the recommended next implementation
+slices because they are display-free, tighten importer correctness, and prevent silent acceptance
+of unsupported or malformed glTF data before additional runtime rendering features are added.
 
 Tasks:
 
