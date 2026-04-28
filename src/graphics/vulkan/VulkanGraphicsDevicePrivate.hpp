@@ -1,12 +1,28 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
 #include "stellar/graphics/vulkan/VulkanGraphicsDevice.hpp"
 
 namespace stellar::graphics::vulkan {
+
+constexpr std::size_t kMaxSkinJoints = 96;
+constexpr std::size_t kSkinDrawUniformSlotsPerFrame = 256;
+
+struct VulkanSkinDrawUniform {
+    std::array<float, 16> mvp{};
+    std::array<float, 16> world{};
+    std::array<float, 16> normal{};
+    std::uint32_t has_skinning = 0;
+    std::uint32_t joint_count = 0;
+    std::array<std::uint32_t, 2> padding{};
+    std::array<std::array<float, 16>, kMaxSkinJoints> joint_matrices{};
+};
+
+static_assert(sizeof(VulkanSkinDrawUniform) == 208 + (kMaxSkinJoints * 64));
 
 struct VulkanDrawPushConstants {
     std::array<float, 16> mvp{};

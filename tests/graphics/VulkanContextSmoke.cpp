@@ -2,6 +2,7 @@
 
 #include <array>
 #include <iostream>
+#include <vector>
 
 #include <SDL2/SDL.h>
 
@@ -28,8 +29,15 @@ stellar::assets::MeshAsset make_upload_mesh() {
     colored.vertices[1].color = {0.0F, 1.0F, 0.0F, 1.0F};
     colored.vertices[2].color = {0.0F, 0.0F, 1.0F, 1.0F};
 
+    stellar::assets::MeshPrimitive skinned = primitive;
+    skinned.has_skinning = true;
+    for (stellar::assets::StaticVertex& vertex : skinned.vertices) {
+        vertex.joints0 = {0, 0, 0, 0};
+        vertex.weights0 = {1.0F, 0.0F, 0.0F, 0.0F};
+    }
+
     return stellar::assets::MeshAsset{.name = "vulkan_upload_smoke",
-                                       .primitives = {primitive, colored}};
+                                       .primitives = {primitive, colored, skinned}};
 }
 
 stellar::graphics::TextureUpload make_white_rgb_texture() {
@@ -133,9 +141,23 @@ int main() {
     const stellar::graphics::MeshDrawTransforms transforms{.mvp = identity4,
                                                            .world = identity4,
                                                            .normal = identity3};
+    const std::array<float, 16> skin_matrix{1.0F, 0.0F, 0.0F, 0.0F,
+                                            0.0F, 1.0F, 0.0F, 0.0F,
+                                            0.0F, 0.0F, 1.0F, 0.0F,
+                                            0.1F, 0.0F, 0.0F, 1.0F};
+    const std::array<std::array<float, 16>, 1> skin_palette{skin_matrix};
+    std::vector<std::array<float, 16>> over_limit_skin_palette(97, identity4);
     const stellar::graphics::MeshPrimitiveDrawCommand commands[] = {
         stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 0, .material = *material},
         stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 1},
+        stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 2,
+                                                   .material = *material,
+                                                   .skin_joint_matrices = skin_palette},
+        stellar::graphics::MeshPrimitiveDrawCommand{
+            .primitive_index = 2,
+            .material = *material,
+            .skin_joint_matrices = std::span<const std::array<float, 16>>{
+                over_limit_skin_palette.data(), over_limit_skin_palette.size()}},
     };
 
     for (int frame = 0; frame < 3; ++frame) {

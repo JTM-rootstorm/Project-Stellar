@@ -215,6 +215,9 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_sync_
 
 void VulkanGraphicsDevice::destroy_command_resources() noexcept {
     for (FrameResources& frame : frames_) {
+        destroy_buffer(frame.skin_draw_uniform_buffer, frame.skin_draw_uniform_memory);
+        frame.skin_draw_descriptor_sets.clear();
+        frame.skin_draw_upload_cursor = 0;
         frame.command_buffer = VK_NULL_HANDLE;
         if (frame.command_pool != VK_NULL_HANDLE) {
             vkDestroyCommandPool(device_, frame.command_pool, nullptr);

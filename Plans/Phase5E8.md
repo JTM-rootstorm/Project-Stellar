@@ -2,7 +2,47 @@
 
 ## Status
 
-Drafted for Codex implementation.
+Completed on 2026-04-27.
+
+Completion notes (2026-04-27):
+- Added Vulkan skinned draw support for primitives with `JOINTS_0` / `WEIGHTS_0`, matching
+  OpenGL's current 96-joint cap with Vulkan-private `kMaxSkinJoints = 96`.
+- Added set `1` vertex-stage uniform-buffer descriptors backed by per-frame host-visible,
+  host-coherent draw-uniform buffers. Each frame owns 256 descriptor-backed slots and resets an
+  upload cursor at `begin_frame`, so multiple static or skinned draws can safely upload per-draw
+  transform/skin data without push constants for joint matrices.
+- Chose a single per-draw vertex uniform block containing `mvp`, `world`, padded normal matrix,
+  `has_skinning`, `joint_count`, and a 96-`mat4` skin palette; material factors and material flags
+  remain in the existing 128-byte push-constant block for fragment/material parity.
+- Extended the Vulkan pipeline layout with material set `0` plus transform/skin set `1`, and added
+  vertex attributes location `6` (`VK_FORMAT_R16G16B16A16_UINT` joints0) and location `7`
+  (`VK_FORMAT_R32G32B32A32_SFLOAT` weights0).
+- Regenerated the embedded Vulkan material vertex SPIR-V so skinned positions, normals, and tangents
+  follow the OpenGL lightweight skinning math while preserving the existing fragment/material shader
+  behavior.
+- Removed the previous Vulkan skinned-primitive skip. Static primitives and skinned primitives with
+  empty draw palettes use `has_skinning = false`; valid skinned draws upload and bind their palette;
+  over-limit palettes or palettes smaller than referenced joint indices are skipped with clear
+  Vulkan diagnostics.
+- Added upload-time validation for skinned Vulkan primitives: joint indices must be below 96 and
+  weights must be finite. Draw-time validation rejects palettes over 96 matrices and undersized
+  palettes for the primitive's recorded max joint index.
+- Extended `vulkan_context_smoke` with a generated skinned triangle using joints0/weights0, a
+  non-identity one-matrix palette draw, and a 97-matrix over-limit safety draw while keeping Vulkan
+  context coverage opt-in via `STELLAR_ENABLE_VULKAN_CONTEXT_TESTS`.
+- Validated default display-free coverage with `cmake --build build -j$(nproc)` and
+  `ctest --test-dir build --output-on-failure`; both passed. Also validated the required subset with
+  `cmake --build build --target stellar_graphics_backend_selection_test
+  stellar_render_scene_inspection_test stellar_render_scene_upload_test
+  stellar_animation_runtime_test -j$(nproc)` and `ctest --test-dir build -R
+  '^(graphics_backend_selection|render_scene_inspection|render_scene_upload|animation_runtime)$'
+  --output-on-failure`; both passed.
+- Validated opt-in Vulkan coverage with `cmake -S . -B build-vulkan-tests
+  -DSTELLAR_ENABLE_VULKAN_CONTEXT_TESTS=ON`, `cmake --build build-vulkan-tests --target
+  stellar_vulkan_context_smoke_test -j$(nproc)`, and `ctest --test-dir build-vulkan-tests -R
+  '^vulkan_context_smoke$' --output-on-failure`; all passed.
+- Remaining limitations deferred: larger skin palettes / storage-buffer or multi-palette model remain
+  Phase 5F work; resize/lifetime hardening remains Phase 5E.9.
 
 ## Objective
 
