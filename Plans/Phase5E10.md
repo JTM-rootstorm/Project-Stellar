@@ -374,3 +374,120 @@ Phase 5E.10 is complete only when:
 - OpenGL behavior is not regressed by any test scaffolding changes.
 - `.kilo/plans/1777257747393-clever-tiger.md` and this draft plan include completion notes.
 - Any remaining non-blocking Vulkan parity work is explicitly moved to Phase 5F or a follow-up bug note.
+
+## Phase 5E.10 Coverage Audit And Manual Validation Checklist
+
+### Default display-free CTest coverage
+
+- `render_scene_upload`: CPU-only `RenderScene` upload test using a mock `GraphicsDevice`.
+  Covers backend-neutral mesh, texture, sampler, material texture-slot resolution, alpha metadata,
+  double-sided metadata, draw ordering, skin-pose forwarding, and resource destruction calls without
+  creating a GL/Vulkan context or SDL window.
+- `render_scene_inspection`: CPU-only inspection with a recording graphics device. Covers alpha
+  opaque/mask before blend ordering, blend depth sorting, invalid/missing material fallback handles,
+  mixed static/skinned draw spans, large static scene submission, bounds/camera-fit helpers, debug
+  cube winding, animation pose forwarding, and generated representative render fixtures.
+- `graphics_backend_selection`: validates backend selection behavior without constructing a display
+  context.
+- `animation_runtime`: validates animation playback and pose generation without graphics context
+  creation.
+- `client_asset_validation_smoke` and `client_cli_asset_validation`: validate client asset/config
+  error paths without starting a render loop or creating a Vulkan window.
+- `gltf_importer_regression` is present in this configured build because `STELLAR_ENABLE_GLTF` was
+  already enabled in the existing build tree; it remains importer/asset coverage and does not create
+  a Vulkan display surface.
+
+`STELLAR_ENABLE_VULKAN_CONTEXT_TESTS` remains default `OFF` in `CMakeLists.txt`, and
+`vulkan_context_smoke` is only built/registered inside the opt-in `if(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS)`
+block. Default `ctest --test-dir build --output-on-failure` therefore does not create a Vulkan
+window or require a Vulkan-capable display.
+
+### Opt-in Vulkan context smoke coverage
+
+When configured with `-DSTELLAR_ENABLE_VULKAN_CONTEXT_TESTS=ON`, `vulkan_context_smoke` now covers:
+
+- Hidden `SDL_WINDOW_VULKAN` window creation and `VulkanGraphicsDevice` initialization.
+- Multiple begin/draw/end frames with clear/present through the public `GraphicsDevice` path.
+- Generated static triangle draw with position, normal, UV0/UV1, vertex-color, tangent, and index
+  streams.
+- Generated base-color, normal, metallic-roughness, occlusion, and emissive texture uploads.
+- Material descriptor routing for base color, vertex color, normal map with tangents,
+  metallic/roughness texture and scalar factors, occlusion texture/strength, emissive
+  texture/factor, and missing optional texture fallback.
+- Alpha mask and alpha blend material draws.
+- Back-face-culled, double-sided, alpha-blend, and double-sided alpha-blend pipeline variants.
+- Skinned draws using an empty/static palette path, a valid one-joint palette, a valid 96-joint
+  palette within the Phase 5E cap, an undersized-palette skip, and a 97-joint over-limit skip.
+- Hidden-window resize via `SDL_SetWindowSize(32, 32)` followed by another frame. Hidden SDL Vulkan
+  windows may not reliably trigger compositor-driven out-of-date presentation on every platform,
+  so manual resize validation remains listed below.
+- Destroy-after-submit lifetime behavior: texture destruction with descriptor fallback rewrite,
+  subsequent drawing, material/texture/mesh destruction, and additional no-op frames to exercise
+  deferred-deletion drain.
+
+### Manual validation checklist
+
+Automated smoke coverage intentionally avoids GPU readback, validation-layer requirements, shader
+compiler requirements, external asset paths, and public API additions. Manual visual parity should be
+run on a Vulkan-capable desktop with representative glTF assets when asset paths are available:
+
+```bash
+./build/stellar-client --renderer vulkan
+./build/stellar-client --renderer opengl
+```
+
+If the current client build supports asset selection, repeat both renderer commands with available
+representative assets for:
+
+- Static glTF scene: `<path-to-static-gltf>`
+- Textured/base-color glTF scene: `<path-to-textured-gltf>`
+- Vertex color material: `<path-to-vertex-color-gltf>`
+- Alpha mask material: `<path-to-alpha-mask-gltf>`
+- Alpha blend material: `<path-to-alpha-blend-gltf>`
+- Double-sided material: `<path-to-double-sided-gltf>`
+- Normal-map material with tangents: `<path-to-normal-map-gltf>`
+- Metallic/roughness, occlusion, and emissive factors/textures: `<path-to-material-suite-gltf>`
+- Skinned glTF scene within the 96-joint cap: `<path-to-skinned-gltf>`
+- Window resize while rendering and clean shutdown after rendering.
+
+Exact representative glTF asset paths were not available in the repo during this slice, so the
+asset-specific entries remain placeholders. Manual smoke run performed here:
+
+```bash
+timeout 5s ./build/stellar-client --renderer vulkan
+```
+
+Result: process ran until timeout without crashing; Vulkan logged a recoverable
+`VK_SUBOPTIMAL_KHR` present message during swapchain recovery.
+
+## Completion notes (2026-04-27)
+
+- Audited Phase 5E Vulkan coverage and confirmed the default test suite remains display-free.
+- Expanded `tests/graphics/VulkanContextSmoke.cpp` opt-in coverage for initialization,
+  clear/present, static draw, textured material routing, alpha mask/blend, double-sided pipeline
+  selection, skinned draw, resize/recreate behavior where feasible in a hidden SDL window, and
+  resource destruction after submitted frames.
+- Reused/generated deterministic in-test fixtures rather than external assets for automated Vulkan
+  smoke coverage.
+- Preserved the `STELLAR_ENABLE_VULKAN_CONTEXT_TESTS` opt-in gate; no Vulkan display/device
+  requirement was added to default CTest.
+- Added this manual validation checklist for static glTF, textured materials, alpha modes,
+  double-sided materials, normal/metallic/roughness/occlusion/emissive paths, skinned glTF within
+  the 96-joint cap, resize, shutdown, and OpenGL comparison.
+- Validated default build/tests with:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed, 7/7 tests.
+- Validated opt-in Vulkan build/tests with:
+  - `cmake -S . -B build-vulkan-tests -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_VULKAN_CONTEXT_TESTS=ON`
+  - `cmake --build build-vulkan-tests --target stellar_vulkan_context_smoke_test -j$(nproc)`
+  - `ctest --test-dir build-vulkan-tests -R '^vulkan_context_smoke$' --output-on-failure`
+  - Result: passed, 1/1 Vulkan smoke test.
+- Manual validation:
+  - `timeout 5s ./build/stellar-client --renderer vulkan`
+  - Result: ran until timeout without crashing; logged recoverable `VK_SUBOPTIMAL_KHR` present.
+- Phase 5E completion status: complete.
+- Remaining follow-up: Phase 5F should address larger skin palettes/storage-buffer expansion,
+  broader manual asset-library visual comparisons, and any future GPU-readback/validation-layer
+  harness only as optional tooling.
