@@ -1,5 +1,6 @@
 #include "stellar/graphics/opengl/OpenGLGraphicsDevice.hpp"
 
+#include <array>
 #include <cstddef>
 #include <expected>
 #include <string>
@@ -76,6 +77,8 @@ uniform int u_normal_texcoord_set;
 uniform int u_metallic_roughness_texcoord_set;
 uniform int u_occlusion_texcoord_set;
 uniform int u_emissive_texcoord_set;
+uniform vec4 u_texture_transform0[5];
+uniform vec4 u_texture_transform1[5];
 uniform float u_metallic_factor;
 uniform float u_roughness_factor;
 uniform float u_normal_scale;
@@ -96,13 +99,28 @@ vec2 uv_for_set(int texcoord_set) {
     return texcoord_set == 1 ? v_uv1 : v_uv0;
 }
 
+vec2 transformed_uv_for_slot(int texcoord_set, int slot) {
+    vec2 uv = uv_for_set(texcoord_set);
+    if (u_texture_transform0[slot].w == 0.0) {
+        return uv;
+    }
+
+    vec2 scaled = uv * u_texture_transform1[slot].xy;
+    float c = cos(u_texture_transform0[slot].z);
+    float s = sin(u_texture_transform0[slot].z);
+    return u_texture_transform0[slot].xy + vec2(
+        c * scaled.x - s * scaled.y,
+        s * scaled.x + c * scaled.y);
+}
+
 void main() {
     vec4 color = u_base_color;
     if (u_has_vertex_color) {
         color *= v_color;
     }
     if (u_has_base_color_texture) {
-        color *= texture(u_base_color_texture, uv_for_set(u_base_color_texcoord_set));
+        color *= texture(u_base_color_texture,
+            transformed_uv_for_slot(u_base_color_texcoord_set, 0));
     }
     if (u_alpha_mode == 1 && color.a < u_alpha_cutoff) {
         discard;
@@ -112,7 +130,7 @@ void main() {
     float roughness = u_roughness_factor;
     if (u_has_metallic_roughness_texture) {
         vec4 metallic_roughness = texture(u_metallic_roughness_texture,
-            uv_for_set(u_metallic_roughness_texcoord_set));
+            transformed_uv_for_slot(u_metallic_roughness_texcoord_set, 2));
         roughness *= metallic_roughness.g;
         metallic *= metallic_roughness.b;
     }
@@ -122,8 +140,8 @@ void main() {
         vec3 tangent = normalize(v_tangent.xyz - normal * dot(v_tangent.xyz, normal));
         vec3 bitangent = normalize(cross(normal, tangent) * v_tangent.w);
         mat3 tbn = mat3(tangent, bitangent, normal);
-        vec3 sampled_normal = texture(u_normal_texture, uv_for_set(u_normal_texcoord_set)).xyz *
-            2.0 - 1.0;
+        vec3 sampled_normal = texture(u_normal_texture,
+            transformed_uv_for_slot(u_normal_texcoord_set, 1)).xyz * 2.0 - 1.0;
         sampled_normal.xy *= u_normal_scale;
         normal = normalize(tbn * sampled_normal);
     }
@@ -136,12 +154,13 @@ void main() {
         mix(1.0, 0.65, perceptual_roughness);
     float occlusion = 1.0;
     if (u_has_occlusion_texture) {
-        occlusion = mix(1.0, texture(u_occlusion_texture, uv_for_set(u_occlusion_texcoord_set)).r,
-            u_occlusion_strength);
+        occlusion = mix(1.0, texture(u_occlusion_texture,
+            transformed_uv_for_slot(u_occlusion_texcoord_set, 3)).r, u_occlusion_strength);
     }
     vec3 emissive = u_emissive_factor;
     if (u_has_emissive_texture) {
-        emissive *= texture(u_emissive_texture, uv_for_set(u_emissive_texcoord_set)).rgb;
+        emissive *= texture(u_emissive_texture,
+            transformed_uv_for_slot(u_emissive_texcoord_set, 4)).rgb;
     }
     frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
 }
@@ -299,6 +318,25 @@ int to_alpha_mode(stellar::assets::AlphaMode mode) noexcept {
         default:
             return 0;
     }
+}
+
+std::array<float, 4> transform0_for(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {0.0F, 0.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.offset[0], binding->transform.offset[1],
+            binding->transform.rotation, 1.0F};
+}
+
+std::array<float, 4> transform1_for(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {1.0F, 1.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.scale[0], binding->transform.scale[1], 0.0F, 0.0F};
 }
 
 void apply_sampler_state(const stellar::assets::SamplerAsset& sampler) noexcept {
@@ -699,6 +737,10 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
                                                                "u_emissive_factor");
         const GLint alpha_mode_loc = glGetUniformLocation(shader_program_, "u_alpha_mode");
         const GLint alpha_cutoff_loc = glGetUniformLocation(shader_program_, "u_alpha_cutoff");
+        const GLint texture_transform0_loc = glGetUniformLocation(shader_program_,
+                                                                  "u_texture_transform0[0]");
+        const GLint texture_transform1_loc = glGetUniformLocation(shader_program_,
+                                                                  "u_texture_transform1[0]");
         glUniform4fv(base_color_loc, 1, base_color.data());
         glUniform1i(texture_loc, 0);
         glUniform1i(normal_texture_loc, 1);
@@ -750,6 +792,34 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         glUniform1i(alpha_mode_loc, to_alpha_mode(alpha_mode));
         glUniform1f(alpha_cutoff_loc,
                     material != nullptr ? material->upload.material.alpha_cutoff : 0.5f);
+        const std::array<std::array<float, 4>, 5> transform0{
+            material != nullptr ? transform0_for(material->upload.base_color_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.normal_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.metallic_roughness_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.occlusion_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.emissive_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+        };
+        const std::array<std::array<float, 4>, 5> transform1{
+            material != nullptr ? transform1_for(material->upload.base_color_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.normal_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.metallic_roughness_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.occlusion_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.emissive_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        };
+        glUniform4fv(texture_transform0_loc, static_cast<GLsizei>(transform0.size()),
+                     transform0[0].data());
+        glUniform4fv(texture_transform1_loc, static_cast<GLsizei>(transform1.size()),
+                     transform1[0].data());
         glBindVertexArray(primitive.vao);
         glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT, nullptr);
         glActiveTexture(GL_TEXTURE4);

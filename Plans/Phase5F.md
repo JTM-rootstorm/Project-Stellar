@@ -252,6 +252,48 @@ Acceptance criteria:
 - OpenGL and Vulkan sample with matching transformed UVs.
 - Default tests remain display-free.
 
+### Completion Notes (2026-04-27)
+
+- Implemented: `Phase 5F.1` `KHR_texture_transform` only. Base color, normal,
+  metallic-roughness, occlusion, and emissive material texture slots now carry offset,
+  rotation, scale, and extension `texCoord` override data through import, upload, and rendering.
+- Backend-neutral asset changes: added `assets::TextureTransform` to `MaterialTextureSlot` and
+  preserved the existing scalar slot `scale` for normal scale/occlusion strength semantics. Added
+  the same transform payload to resolved `graphics::MaterialTextureBinding`; `RenderScene` resolves
+  the effective texcoord set from the extension override while retaining original material slot data.
+- Importer behavior: `MaterialImport` parses `KHR_texture_transform` from all supported
+  textureInfo-like slots. `extensionsRequired` now accepts `KHR_texture_transform` because importer,
+  OpenGL, and Vulkan routing are implemented; unknown required extensions still fail with the
+  extension name in the error.
+- OpenGL behavior: the material fragment shader applies glTF transform order `T * R * S` before
+  sampling every supported texture slot and uses per-slot texcoord routing after extension override
+  resolution.
+- Vulkan behavior: added a per-material transform uniform buffer at material descriptor binding 5 so
+  push constants stay at 128 bytes. Regenerated embedded SPIR-V material shaders to sample all five
+  slots with the same transformed UV and texcoord routing behavior as OpenGL.
+- Tests added/updated: importer regression coverage for omitted/default transform, offset,
+  rotation, non-uniform scale, `texCoord` override, required-extension acceptance, and unknown
+  required-extension rejection. Render upload/inspection tests now verify transform data and UV0/UV1
+  override routing reach recording devices.
+- Default validation:
+  - `cmake --build build --target stellar_import_gltf_regression stellar_render_scene_inspection_test stellar_render_scene_upload_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(gltf_importer_regression|render_scene_inspection|render_scene_upload)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; focused suite passed 3/3 tests and full default suite passed 7/7 tests.
+- Optional backend validation:
+  - `cmake --build build-vulkan-tests --target stellar_vulkan_context_smoke_test -j$(nproc)`
+  - `ctest --test-dir build-vulkan-tests -R '^vulkan_context_smoke$' --output-on-failure`
+  - `cmake --build build-opengl-context --target stellar_opengl_context_smoke_test -j$(nproc) && ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure`
+  - Result: Vulkan smoke passed 1/1 tests. OpenGL optional smoke was not run because
+    `build-opengl-context` was not configured in this workspace.
+- Manual validation:
+  - Not run; no representative display/GPU visual comparison asset was exercised in this pass.
+- Deferred follow-up:
+  - No optional backend readback fixture was added for this slice. Phase 5F.2
+    `KHR_materials_unlit`, larger skin palettes, full PBR, morph targets, cameras, and lights remain
+    deferred to their planned slices/decision gates.
+
 ### Phase 5F.2: `KHR_materials_unlit`
 
 Goal: support unlit glTF materials for sprite-like/game assets.

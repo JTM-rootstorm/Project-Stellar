@@ -494,6 +494,84 @@ bool validate_scene(const stellar::assets::SceneAsset& scene, bool expect_extern
     return true;
 }
 
+std::string texture_transform_scene_json(std::string_view required_extensions = {}) {
+    std::string json;
+    json += "{\n";
+    json += "  \"asset\": { \"version\": \"2.0\" },\n";
+    if (!required_extensions.empty()) {
+        json += "  \"extensionsRequired\": [" + std::string(required_extensions) + "],\n";
+    }
+    json += "  \"images\": [{ \"uri\": \"data:image/png;base64,";
+    json += std::string(kPngBase64);
+    json += "\" }],\n";
+    json += "  \"textures\": [{ \"source\": 0 }],\n";
+    json += "  \"materials\": [{\n";
+    json += "    \"pbrMetallicRoughness\": {\n";
+    json += "      \"baseColorTexture\": { \"index\": 0 },\n";
+    json += "      \"metallicRoughnessTexture\": { \"index\": 0, \"extensions\": { "
+            "\"KHR_texture_transform\": { \"offset\": [0.25, 0.5] } } }\n";
+    json += "    },\n";
+    json += "    \"normalTexture\": { \"index\": 0, \"extensions\": { "
+            "\"KHR_texture_transform\": { \"rotation\": 1.5707964 } } },\n";
+    json += "    \"occlusionTexture\": { \"index\": 0, \"extensions\": { "
+            "\"KHR_texture_transform\": { \"scale\": [2.0, 0.5] } } },\n";
+    json += "    \"emissiveTexture\": { \"index\": 0, \"texCoord\": 0, \"extensions\": { "
+            "\"KHR_texture_transform\": { \"offset\": [0.1, 0.2], \"rotation\": 0.25, "
+            "\"scale\": [0.75, 1.25], \"texCoord\": 1 } } }\n";
+    json += "  }]\n";
+    json += "}\n";
+    return json;
+}
+
+bool verify_texture_transform_import(const std::filesystem::path& root) {
+    const auto work_dir = root / "texture_transform";
+    std::filesystem::create_directories(work_dir);
+    const auto path = work_dir / "texture_transform.gltf";
+    write_text_file(path, texture_transform_scene_json("\"KHR_texture_transform\""));
+
+    auto scene = stellar::import::gltf::load_scene(path.string());
+    if (!check(scene.has_value(), "expected KHR_texture_transform scene to import")) {
+        if (!scene) {
+            std::cerr << scene.error().message << '\n';
+        }
+        return false;
+    }
+    const auto& material = scene->materials[0];
+    if (!check(material.base_color_texture.has_value(), "expected base color slot")) {
+        return false;
+    }
+    if (!check(!material.base_color_texture->transform.enabled,
+               "expected omitted base color transform to stay disabled")) {
+        return false;
+    }
+    if (!check_vec2(material.metallic_roughness_texture->transform.offset, {0.25F, 0.5F},
+                    "expected metallic-roughness offset transform")) {
+        return false;
+    }
+    if (!check_near(material.normal_texture->transform.rotation, 1.5707964F,
+                    "expected normal rotation transform")) {
+        return false;
+    }
+    if (!check_vec2(material.occlusion_texture->transform.scale, {2.0F, 0.5F},
+                    "expected occlusion scale transform")) {
+        return false;
+    }
+    if (!check(material.emissive_texture->transform.texcoord_set.has_value() &&
+                   *material.emissive_texture->transform.texcoord_set == 1,
+               "expected emissive texture transform texCoord override")) {
+        return false;
+    }
+
+    const auto unknown_path = work_dir / "unknown_required.gltf";
+    write_text_file(unknown_path, texture_transform_scene_json("\"KHR_unknown_extension\""));
+    auto unknown_scene = stellar::import::gltf::load_scene(unknown_path.string());
+    if (!check(!unknown_scene.has_value(), "expected unknown required extension rejection")) {
+        return false;
+    }
+    return check(unknown_scene.error().message.find("KHR_unknown_extension") != std::string::npos,
+                 "expected unknown required extension name in error");
+}
+
 bool run_buffer_view_fixture(const std::filesystem::path& root) {
     const auto work_dir = root / "buffer_view";
     std::filesystem::create_directories(work_dir);
@@ -1829,6 +1907,9 @@ int main() {
         return 1;
     }
     if (!run_optional_unsupported_data_fixture(root)) {
+        return 1;
+    }
+    if (!verify_texture_transform_import(root)) {
         return 1;
     }
     if (!run_glb_smoke_fixture(root)) {

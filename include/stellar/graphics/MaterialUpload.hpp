@@ -16,6 +16,7 @@ struct MaterialTextureBinding {
     TextureHandle texture;
     stellar::assets::SamplerAsset sampler;
     std::uint32_t texcoord_set = 0;
+    stellar::assets::TextureTransform transform;
 };
 
 /**

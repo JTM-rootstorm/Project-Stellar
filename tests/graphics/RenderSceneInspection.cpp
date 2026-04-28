@@ -114,6 +114,66 @@ void verify_material_identity_and_invalid_indices(stellar::platform::Window& win
     assert(device->primitive_draw(3).material == device->material_handles[0]);
 }
 
+void verify_texture_transform_material_records(stellar::platform::Window& window) {
+    stellar::assets::SceneAsset scene;
+    scene.images.push_back(stellar::assets::ImageAsset{.width = 1,
+                                                       .height = 1,
+                                                       .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                                       .pixels = {255, 255, 255, 255}});
+    scene.textures.push_back(stellar::assets::TextureAsset{.image_index = 0});
+    stellar::assets::MaterialTextureSlot base_slot;
+    base_slot.texture_index = 0;
+    base_slot.texcoord_set = 1;
+    base_slot.transform.enabled = true;
+    base_slot.transform.offset = {0.25F, 0.5F};
+    base_slot.transform.rotation = 0.75F;
+    base_slot.transform.scale = {2.0F, 0.5F};
+    base_slot.transform.texcoord_set = 0U;
+    scene.materials.push_back(stellar::assets::MaterialAsset{.base_color_texture = base_slot});
+    scene.meshes.push_back(stellar::assets::MeshAsset{
+        .name = "texture_transform",
+        .primitives = {make_primitive(0, 0.0F)},
+    });
+    finish_single_node_scene(scene);
+
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, std::move(scene));
+    render_scene.render(64, 64, kIdentity, kIdentity);
+
+    assert(device->uploaded_materials.size() == 1);
+    assert(device->uploaded_materials[0].base_color_texture.has_value());
+    assert(device->uploaded_materials[0].base_color_texture->texcoord_set == 0);
+    assert(device->uploaded_materials[0].base_color_texture->transform.enabled);
+    assert(device->uploaded_materials[0].base_color_texture->transform.offset[1] == 0.5F);
+    assert(device->uploaded_materials[0].base_color_texture->transform.scale[0] == 2.0F);
+    assert(device->uploaded_materials[0].material.base_color_texture->texcoord_set == 1);
+    assert(device->draw_calls.size() == 1);
+    assert(device->primitive_draw(0).material == device->material_handles[0]);
+}
+
+void verify_texture_transform_uv1_routing(stellar::platform::Window& window) {
+    stellar::assets::SceneAsset scene;
+    scene.images.push_back(stellar::assets::ImageAsset{.width = 1,
+                                                       .height = 1,
+                                                       .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                                       .pixels = {255, 255, 255, 255}});
+    scene.textures.push_back(stellar::assets::TextureAsset{.image_index = 0});
+    stellar::assets::MaterialTextureSlot normal_slot;
+    normal_slot.texture_index = 0;
+    normal_slot.texcoord_set = 0;
+    normal_slot.transform.enabled = true;
+    normal_slot.transform.texcoord_set = 1U;
+    scene.materials.push_back(stellar::assets::MaterialAsset{.normal_texture = normal_slot});
+    scene.meshes.push_back(stellar::assets::MeshAsset{.name = "uv_route",
+                                                       .primitives = {make_primitive(0, 0.0F)}});
+    finish_single_node_scene(scene);
+
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, std::move(scene));
+    assert(device->uploaded_materials[0].normal_texture.has_value());
+    assert(device->uploaded_materials[0].normal_texture->texcoord_set == 1);
+}
+
 void verify_mixed_static_and_skinned_spans(stellar::platform::Window& window) {
     stellar::assets::SceneAsset scene;
     scene.meshes.push_back(stellar::assets::MeshAsset{
@@ -318,6 +378,8 @@ int main() {
     stellar::platform::Window window;
     verify_alpha_grouping_and_blend_sort(window);
     verify_material_identity_and_invalid_indices(window);
+    verify_texture_transform_material_records(window);
+    verify_texture_transform_uv1_routing(window);
     verify_mixed_static_and_skinned_spans(window);
     verify_large_static_scene_count(window);
     verify_scene_bounds_and_camera_fit();

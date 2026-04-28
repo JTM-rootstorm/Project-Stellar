@@ -44,6 +44,9 @@ checked_index(cgltf_size value, const char* error_message) {
 validate_required_extensions(const cgltf_data* data) {
     for (cgltf_size i = 0; i < data->extensions_required_count; ++i) {
         const char* extension = data->extensions_required[i];
+        if (duplicate_to_string(extension) == "KHR_texture_transform") {
+            continue;
+        }
         return std::unexpected(stellar::platform::Error(
             "Unsupported required glTF extension: " + duplicate_to_string(extension)));
     }

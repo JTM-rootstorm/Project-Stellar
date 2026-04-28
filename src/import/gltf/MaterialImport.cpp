@@ -43,6 +43,15 @@ load_material(const cgltf_data* data, const cgltf_material* material) {
         slot.texture_index = *index;
         slot.texcoord_set = view.texcoord < 0 ? 0u : static_cast<std::uint32_t>(view.texcoord);
         slot.scale = view.scale;
+        if (view.has_transform) {
+            slot.transform.enabled = true;
+            slot.transform.offset = {view.transform.offset[0], view.transform.offset[1]};
+            slot.transform.rotation = view.transform.rotation;
+            slot.transform.scale = {view.transform.scale[0], view.transform.scale[1]};
+            if (view.transform.has_texcoord && view.transform.texcoord >= 0) {
+                slot.transform.texcoord_set = static_cast<std::uint32_t>(view.transform.texcoord);
+            }
+        }
         return slot;
     };
 

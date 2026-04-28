@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -59,12 +60,33 @@ struct TextureAsset {
 };
 
 /**
+ * @brief KHR_texture_transform state for a material texture slot.
+ */
+struct TextureTransform {
+    /** @brief UV offset applied after rotation and scale. */
+    std::array<float, 2> offset{0.0f, 0.0f};
+
+    /** @brief Counter-clockwise UV rotation in radians. */
+    float rotation = 0.0f;
+
+    /** @brief Non-uniform UV scale applied before rotation. */
+    std::array<float, 2> scale{1.0f, 1.0f};
+
+    /** @brief Optional texture coordinate set override from the extension. */
+    std::optional<std::uint32_t> texcoord_set;
+
+    /** @brief True when KHR_texture_transform was present on the slot. */
+    bool enabled = false;
+};
+
+/**
  * @brief Material reference to an engine texture plus the glTF texture coordinate set.
  */
 struct MaterialTextureSlot {
     std::size_t texture_index = 0;
     std::uint32_t texcoord_set = 0;
     float scale = 1.0f;
+    TextureTransform transform;
 };
 
 } // namespace stellar::assets

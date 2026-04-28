@@ -111,6 +111,8 @@ void VulkanGraphicsDevice::destroy_vulkan_objects() noexcept {
                                  &default_material_descriptor_set_);
             default_material_descriptor_set_ = VK_NULL_HANDLE;
         }
+        destroy_buffer_immediate(default_material_uniform_buffer_,
+                                 default_material_uniform_memory_);
         for (auto it = textures_.begin(); it != textures_.end();) {
             if (it->first == default_white_texture_.value ||
                 it->first == default_normal_texture_.value) {

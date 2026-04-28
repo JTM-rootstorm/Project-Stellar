@@ -142,7 +142,14 @@ stellar::assets::SceneAsset make_scene() {
         .name = "textured",
         .base_color_factor = {0.5F, 0.5F, 0.5F, 1.0F},
         .base_color_texture = stellar::assets::MaterialTextureSlot{.texture_index = 0,
-                                                                    .texcoord_set = 1},
+                                                                    .texcoord_set = 1,
+                                                                    .scale = 1.0F,
+                                                                    .transform = {
+                                                                        .offset = {0.25F, 0.5F},
+                                                                        .rotation = 0.125F,
+                                                                        .scale = {2.0F, 0.5F},
+                                                                        .texcoord_set = 0U,
+                                                                        .enabled = true}},
         .normal_texture = stellar::assets::MaterialTextureSlot{.texture_index = 1,
                                                                 .texcoord_set = 0,
                                                                .scale = 0.5F},
@@ -237,7 +244,13 @@ int main() {
     assert(mock_ptr->material_uploads.size() == 3);
     assert(mock_ptr->material_uploads[0].base_color_texture.has_value());
     assert(mock_ptr->material_uploads[0].base_color_texture->texture.value != 0);
-    assert(mock_ptr->material_uploads[0].base_color_texture->texcoord_set == 1);
+    assert(mock_ptr->material_uploads[0].base_color_texture->texcoord_set == 0);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.enabled);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.offset[0] == 0.25F);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.rotation == 0.125F);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.scale[0] == 2.0F);
+    assert(mock_ptr->material_uploads[0].material.base_color_texture->texcoord_set == 1);
+    assert(mock_ptr->material_uploads[0].material.base_color_texture->transform.texcoord_set == 0U);
     assert(mock_ptr->material_uploads[0].base_color_texture->sampler.wrap_s ==
            stellar::assets::TextureWrapMode::kClampToEdge);
     assert(mock_ptr->material_uploads[0].normal_texture.has_value());

@@ -393,7 +393,7 @@ VulkanGraphicsDevice::create_texture(const TextureUpload& texture) {
 }
 
 std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descriptor_resources() {
-    std::array<VkDescriptorSetLayoutBinding, kMaterialTextureSlotCount> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, kMaterialTextureSlotCount + 1> bindings{};
     for (std::uint32_t slot = 0; slot < kMaterialTextureSlotCount; ++slot) {
         bindings[slot] = VkDescriptorSetLayoutBinding{
             .binding = slot,
@@ -402,6 +402,12 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         };
     }
+    bindings[kMaterialTextureSlotCount] = VkDescriptorSetLayoutBinding{
+        .binding = kMaterialTextureSlotCount,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
 
     const VkDescriptorSetLayoutCreateInfo layout_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -435,16 +441,19 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
         return std::unexpected(vulkan_error("vkCreateDescriptorSetLayout", result));
     }
 
-    const VkDescriptorPoolSize pool_size{
-        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = kMaterialDescriptorSetCapacity * kMaterialTextureSlotCount,
+    const VkDescriptorPoolSize pool_sizes[2]{
+        VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                             .descriptorCount = kMaterialDescriptorSetCapacity *
+                                 kMaterialTextureSlotCount},
+        VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                             .descriptorCount = kMaterialDescriptorSetCapacity},
     };
     const VkDescriptorPoolCreateInfo pool_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = kMaterialDescriptorSetCapacity,
-        .poolSizeCount = 1,
-        .pPoolSizes = &pool_size,
+        .poolSizeCount = 2,
+        .pPoolSizes = pool_sizes,
     };
     result = vkCreateDescriptorPool(device_, &pool_info, nullptr, &material_descriptor_pool_);
     if (result != VK_SUCCESS) {
@@ -615,11 +624,71 @@ VulkanGraphicsDevice::create_default_material_textures() {
     default_normal_texture_ = *normal;
 
     MaterialRecord default_material{};
+    if (auto result = create_material_uniform_buffer(default_material); !result) {
+        return result;
+    }
     if (auto result = allocate_material_descriptor_set(default_material); !result) {
+        destroy_buffer_immediate(default_material.uniform_buffer, default_material.uniform_memory);
         return result;
     }
     default_material_descriptor_set_ = default_material.descriptor_set;
+    default_material_uniform_buffer_ = default_material.uniform_buffer;
+    default_material_uniform_memory_ = default_material.uniform_memory;
+    default_material.uniform_buffer = VK_NULL_HANDLE;
+    default_material.uniform_memory = VK_NULL_HANDLE;
     return {};
+}
+
+namespace {
+
+std::array<float, 4> vulkan_transform0_for(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {0.0F, 0.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.offset[0], binding->transform.offset[1],
+            binding->transform.rotation, 1.0F};
+}
+
+std::array<float, 4> vulkan_transform1_for(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {1.0F, 1.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.scale[0], binding->transform.scale[1], 0.0F, 0.0F};
+}
+
+VulkanMaterialUniform material_uniform_for(const MaterialUpload& upload) noexcept {
+    return VulkanMaterialUniform{
+        .transform0 = {vulkan_transform0_for(upload.base_color_texture),
+                       vulkan_transform0_for(upload.normal_texture),
+                       vulkan_transform0_for(upload.metallic_roughness_texture),
+                       vulkan_transform0_for(upload.occlusion_texture),
+                       vulkan_transform0_for(upload.emissive_texture)},
+        .transform1 = {vulkan_transform1_for(upload.base_color_texture),
+                       vulkan_transform1_for(upload.normal_texture),
+                       vulkan_transform1_for(upload.metallic_roughness_texture),
+                       vulkan_transform1_for(upload.occlusion_texture),
+                       vulkan_transform1_for(upload.emissive_texture)},
+    };
+}
+
+} // namespace
+
+std::expected<void, stellar::platform::Error>
+VulkanGraphicsDevice::create_material_uniform_buffer(MaterialRecord& record) {
+    if (auto result = create_buffer(sizeof(VulkanMaterialUniform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                    record.uniform_buffer, record.uniform_memory);
+        !result) {
+        return result;
+    }
+
+    const VulkanMaterialUniform uniform = material_uniform_for(record.upload);
+    return upload_to_buffer(record.uniform_memory, &uniform, sizeof(uniform));
 }
 
 std::expected<void, stellar::platform::Error>
@@ -642,7 +711,7 @@ VulkanGraphicsDevice::allocate_material_descriptor_set(MaterialRecord& record) {
                           &record.upload.occlusion_texture,
                           &record.upload.emissive_texture};
     std::array<VkDescriptorImageInfo, kMaterialTextureSlotCount> image_infos{};
-    std::array<VkWriteDescriptorSet, kMaterialTextureSlotCount> descriptor_writes{};
+    std::array<VkWriteDescriptorSet, kMaterialTextureSlotCount + 1> descriptor_writes{};
     for (std::uint32_t slot = 0; slot < kMaterialTextureSlotCount; ++slot) {
         const TextureRecord* texture = nullptr;
         if (material_bindings[slot]->has_value()) {
@@ -687,6 +756,24 @@ VulkanGraphicsDevice::allocate_material_descriptor_set(MaterialRecord& record) {
             .pImageInfo = &image_infos[slot],
         };
     }
+
+    if (record.uniform_buffer == VK_NULL_HANDLE) {
+        return std::unexpected(
+            stellar::platform::Error("Vulkan material transform uniform buffer is missing"));
+    }
+    const VkDescriptorBufferInfo uniform_info{
+        .buffer = record.uniform_buffer,
+        .offset = 0,
+        .range = sizeof(VulkanMaterialUniform),
+    };
+    descriptor_writes[kMaterialTextureSlotCount] = VkWriteDescriptorSet{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = record.descriptor_set,
+        .dstBinding = kMaterialTextureSlotCount,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &uniform_info,
+    };
 
     vkUpdateDescriptorSets(device_, static_cast<std::uint32_t>(descriptor_writes.size()),
                            descriptor_writes.data(), 0, nullptr);
@@ -778,6 +865,10 @@ VulkanGraphicsDevice::create_material(const MaterialUpload& material) {
     }
 
     MaterialRecord record{.upload = material};
+    if (auto result = create_material_uniform_buffer(record); !result) {
+        destroy_material_record(record);
+        return std::unexpected(result.error());
+    }
     if (auto result = allocate_material_descriptor_set(record); !result) {
         destroy_material_record(record);
         return std::unexpected(result.error());
@@ -1250,9 +1341,16 @@ void VulkanGraphicsDevice::enqueue_material_deletion(MaterialRecord& record) noe
     if (device_ == VK_NULL_HANDLE) {
         record.samplers.fill(VK_NULL_HANDLE);
         record.descriptor_set = VK_NULL_HANDLE;
+        record.uniform_buffer = VK_NULL_HANDLE;
+        record.uniform_memory = VK_NULL_HANDLE;
         return;
     }
     DeferredDeletion deletion{.retire_serial = next_deferred_retire_serial()};
+    if (record.uniform_buffer != VK_NULL_HANDLE || record.uniform_memory != VK_NULL_HANDLE) {
+        deletion.buffers.emplace_back(record.uniform_buffer, record.uniform_memory);
+        record.uniform_buffer = VK_NULL_HANDLE;
+        record.uniform_memory = VK_NULL_HANDLE;
+    }
     for (VkSampler& sampler : record.samplers) {
         if (sampler != VK_NULL_HANDLE) {
             deletion.samplers.push_back(sampler);
@@ -1263,7 +1361,8 @@ void VulkanGraphicsDevice::enqueue_material_deletion(MaterialRecord& record) noe
         deletion.material_descriptor_sets.push_back(record.descriptor_set);
         record.descriptor_set = VK_NULL_HANDLE;
     }
-    if (!deletion.samplers.empty() || !deletion.material_descriptor_sets.empty()) {
+    if (!deletion.buffers.empty() || !deletion.samplers.empty() ||
+        !deletion.material_descriptor_sets.empty()) {
         deferred_deletions_.push_back(std::move(deletion));
     }
 }

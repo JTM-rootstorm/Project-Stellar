@@ -125,6 +125,8 @@ private:
     struct MaterialRecord {
         MaterialUpload upload;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+        VkBuffer uniform_buffer = VK_NULL_HANDLE;
+        VkDeviceMemory uniform_memory = VK_NULL_HANDLE;
         std::array<VkSampler, 5> samplers{};
     };
 
@@ -214,6 +216,8 @@ private:
     create_sampler(const stellar::assets::SamplerAsset& sampler, std::uint32_t mip_levels);
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     allocate_material_descriptor_set(MaterialRecord& record);
+    [[nodiscard]] std::expected<void, stellar::platform::Error>
+    create_material_uniform_buffer(MaterialRecord& record);
     void rewrite_material_descriptors_replacing_texture(TextureHandle texture) noexcept;
     [[nodiscard]] std::expected<VkDescriptorSet, stellar::platform::Error>
     upload_skin_draw_uniform(FrameResources& frame,
@@ -282,6 +286,8 @@ private:
     std::uint64_t next_handle_ = 1;
     TextureHandle default_white_texture_{};
     TextureHandle default_normal_texture_{};
+    VkBuffer default_material_uniform_buffer_ = VK_NULL_HANDLE;
+    VkDeviceMemory default_material_uniform_memory_ = VK_NULL_HANDLE;
     std::vector<FrameResources> frames_;
     std::vector<VkImage> swapchain_images_;
     std::vector<VkFence> swapchain_image_fences_;
