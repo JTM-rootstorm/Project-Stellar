@@ -8,8 +8,6 @@ namespace stellar::graphics::vulkan {
 
 VulkanGraphicsDevice::~VulkanGraphicsDevice() noexcept {
     destroy_vulkan_objects();
-    textures_.clear();
-    materials_.clear();
 }
 
 std::expected<void, stellar::platform::Error>
@@ -90,34 +88,55 @@ void VulkanGraphicsDevice::destroy_vulkan_objects() noexcept {
     current_swapchain_image_index_ = 0;
 
     if (device_ != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(device_);
+        const VkResult wait_result = vkDeviceWaitIdle(device_);
+        if (wait_result != VK_SUCCESS) {
+            log_vulkan_message(vulkan_error("vkDeviceWaitIdle", wait_result).message);
+        }
+        completed_frame_serial_ = submitted_frame_serial_;
+        drain_deferred_deletions(true);
         for (auto& [handle, mesh] : meshes_) {
             (void)handle;
             destroy_mesh_record(mesh);
         }
         meshes_.clear();
-        for (auto& [handle, texture] : textures_) {
-            (void)handle;
-            destroy_texture_record(texture);
-        }
-        textures_.clear();
         for (auto& [handle, material] : materials_) {
             (void)handle;
             destroy_material_record(material);
         }
         materials_.clear();
+        drain_deferred_deletions(true);
+        if (default_material_descriptor_set_ != VK_NULL_HANDLE &&
+            material_descriptor_pool_ != VK_NULL_HANDLE) {
+            vkFreeDescriptorSets(device_, material_descriptor_pool_, 1,
+                                 &default_material_descriptor_set_);
+            default_material_descriptor_set_ = VK_NULL_HANDLE;
+        }
+        for (auto it = textures_.begin(); it != textures_.end();) {
+            if (it->first == default_white_texture_.value ||
+                it->first == default_normal_texture_.value) {
+                ++it;
+                continue;
+            }
+            destroy_texture_record(it->second);
+            it = textures_.erase(it);
+        }
+        auto destroy_default_texture = [this](TextureHandle handle) noexcept {
+            auto it = textures_.find(handle.value);
+            if (it != textures_.end()) {
+                destroy_texture_record(it->second);
+                textures_.erase(it);
+            }
+        };
+        destroy_default_texture(default_white_texture_);
+        destroy_default_texture(default_normal_texture_);
+        drain_deferred_deletions(true);
+        textures_.clear();
         default_white_texture_ = TextureHandle{};
         default_normal_texture_ = TextureHandle{};
         destroy_swapchain_resources();
         if (pipeline_layout_ != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
             pipeline_layout_ = VK_NULL_HANDLE;
-        }
-        if (default_material_descriptor_set_ != VK_NULL_HANDLE &&
-            material_descriptor_pool_ != VK_NULL_HANDLE) {
-            vkFreeDescriptorSets(device_, material_descriptor_pool_, 1,
-                                 &default_material_descriptor_set_);
-            default_material_descriptor_set_ = VK_NULL_HANDLE;
         }
         if (material_descriptor_pool_ != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device_, material_descriptor_pool_, nullptr);
@@ -154,6 +173,9 @@ void VulkanGraphicsDevice::destroy_vulkan_objects() noexcept {
         instance_ = VK_NULL_HANDLE;
     }
     graphics_queue_family_ = 0;
+    submitted_frame_serial_ = 0;
+    completed_frame_serial_ = 0;
+    deferred_deletions_.clear();
     window_ = nullptr;
 }
 

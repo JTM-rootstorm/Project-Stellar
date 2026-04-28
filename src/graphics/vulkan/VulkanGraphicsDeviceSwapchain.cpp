@@ -222,11 +222,16 @@ VulkanGraphicsDevice::create_swapchain(std::uint32_t preferred_width,
 
     result = vkGetSwapchainImagesKHR(device_, swapchain_, &image_count, nullptr);
     if (result != VK_SUCCESS) {
+        vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+        swapchain_ = VK_NULL_HANDLE;
         return std::unexpected(vulkan_error("vkGetSwapchainImagesKHR", result));
     }
     swapchain_images_.resize(image_count);
     result = vkGetSwapchainImagesKHR(device_, swapchain_, &image_count, swapchain_images_.data());
     if (result != VK_SUCCESS) {
+        swapchain_images_.clear();
+        vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+        swapchain_ = VK_NULL_HANDLE;
         return std::unexpected(vulkan_error("vkGetSwapchainImagesKHR", result));
     }
 
@@ -264,6 +269,12 @@ VulkanGraphicsDevice::create_swapchain_image_views() {
         VkImageView image_view = VK_NULL_HANDLE;
         const VkResult result = vkCreateImageView(device_, &create_info, nullptr, &image_view);
         if (result != VK_SUCCESS) {
+            for (VkImageView created_view : swapchain_image_views_) {
+                if (created_view != VK_NULL_HANDLE) {
+                    vkDestroyImageView(device_, created_view, nullptr);
+                }
+            }
+            swapchain_image_views_.clear();
             return std::unexpected(vulkan_error("vkCreateImageView", result));
         }
         swapchain_image_views_.push_back(image_view);
@@ -368,6 +379,10 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_depth
     const auto memory_type_index =
         find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     if (!memory_type_index) {
+        if (depth_image_ != VK_NULL_HANDLE) {
+            vkDestroyImage(device_, depth_image_, nullptr);
+            depth_image_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(memory_type_index.error());
     }
 
@@ -378,11 +393,23 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_depth
     };
     result = vkAllocateMemory(device_, &allocate_info, nullptr, &depth_image_memory_);
     if (result != VK_SUCCESS) {
+        if (depth_image_ != VK_NULL_HANDLE) {
+            vkDestroyImage(device_, depth_image_, nullptr);
+            depth_image_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkAllocateMemory", result));
     }
 
     result = vkBindImageMemory(device_, depth_image_, depth_image_memory_, 0);
     if (result != VK_SUCCESS) {
+        if (depth_image_memory_ != VK_NULL_HANDLE) {
+            vkFreeMemory(device_, depth_image_memory_, nullptr);
+            depth_image_memory_ = VK_NULL_HANDLE;
+        }
+        if (depth_image_ != VK_NULL_HANDLE) {
+            vkDestroyImage(device_, depth_image_, nullptr);
+            depth_image_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkBindImageMemory", result));
     }
 
@@ -405,6 +432,14 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_depth
     };
     result = vkCreateImageView(device_, &image_view_create_info, nullptr, &depth_image_view_);
     if (result != VK_SUCCESS) {
+        if (depth_image_memory_ != VK_NULL_HANDLE) {
+            vkFreeMemory(device_, depth_image_memory_, nullptr);
+            depth_image_memory_ = VK_NULL_HANDLE;
+        }
+        if (depth_image_ != VK_NULL_HANDLE) {
+            vkDestroyImage(device_, depth_image_, nullptr);
+            depth_image_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkCreateImageView", result));
     }
 
@@ -431,6 +466,12 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_frame
         const VkResult result =
             vkCreateFramebuffer(device_, &framebuffer_create_info, nullptr, &framebuffer);
         if (result != VK_SUCCESS) {
+            for (VkFramebuffer created_framebuffer : swapchain_framebuffers_) {
+                if (created_framebuffer != VK_NULL_HANDLE) {
+                    vkDestroyFramebuffer(device_, created_framebuffer, nullptr);
+                }
+            }
+            swapchain_framebuffers_.clear();
             return std::unexpected(vulkan_error("vkCreateFramebuffer", result));
         }
         swapchain_framebuffers_.push_back(framebuffer);

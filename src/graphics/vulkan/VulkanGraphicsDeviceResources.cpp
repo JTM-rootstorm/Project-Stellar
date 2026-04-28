@@ -426,8 +426,12 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
         .pBindings = &skin_draw_binding,
     };
     result = vkCreateDescriptorSetLayout(device_, &skin_draw_layout_info, nullptr,
-                                         &skin_draw_descriptor_set_layout_);
+                                          &skin_draw_descriptor_set_layout_);
     if (result != VK_SUCCESS) {
+        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
+            material_descriptor_set_layout_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkCreateDescriptorSetLayout", result));
     }
 
@@ -444,6 +448,14 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
     };
     result = vkCreateDescriptorPool(device_, &pool_info, nullptr, &material_descriptor_pool_);
     if (result != VK_SUCCESS) {
+        if (skin_draw_descriptor_set_layout_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device_, skin_draw_descriptor_set_layout_, nullptr);
+            skin_draw_descriptor_set_layout_ = VK_NULL_HANDLE;
+        }
+        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
+            material_descriptor_set_layout_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
     }
     const VkDescriptorPoolSize skin_draw_pool_size{
@@ -459,6 +471,18 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
     result = vkCreateDescriptorPool(device_, &skin_draw_pool_info, nullptr,
                                     &skin_draw_descriptor_pool_);
     if (result != VK_SUCCESS) {
+        if (material_descriptor_pool_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device_, material_descriptor_pool_, nullptr);
+            material_descriptor_pool_ = VK_NULL_HANDLE;
+        }
+        if (skin_draw_descriptor_set_layout_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device_, skin_draw_descriptor_set_layout_, nullptr);
+            skin_draw_descriptor_set_layout_ = VK_NULL_HANDLE;
+        }
+        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
+            material_descriptor_set_layout_ = VK_NULL_HANDLE;
+        }
         return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
     }
     return {};
@@ -477,6 +501,12 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_skin_
                                         frame.skin_draw_uniform_buffer,
                                         frame.skin_draw_uniform_memory);
             !result) {
+            for (FrameResources& cleanup_frame : frames_) {
+                destroy_buffer_immediate(cleanup_frame.skin_draw_uniform_buffer,
+                                         cleanup_frame.skin_draw_uniform_memory);
+                cleanup_frame.skin_draw_descriptor_sets.clear();
+                cleanup_frame.skin_draw_upload_cursor = 0;
+            }
             return std::unexpected(result.error());
         }
 
@@ -492,6 +522,12 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_skin_
         VkResult result = vkAllocateDescriptorSets(device_, &allocate_info,
                                                    frame.skin_draw_descriptor_sets.data());
         if (result != VK_SUCCESS) {
+            for (FrameResources& cleanup_frame : frames_) {
+                destroy_buffer_immediate(cleanup_frame.skin_draw_uniform_buffer,
+                                         cleanup_frame.skin_draw_uniform_memory);
+                cleanup_frame.skin_draw_descriptor_sets.clear();
+                cleanup_frame.skin_draw_upload_cursor = 0;
+            }
             return std::unexpected(vulkan_error("vkAllocateDescriptorSets", result));
         }
 
@@ -657,6 +693,84 @@ VulkanGraphicsDevice::allocate_material_descriptor_set(MaterialRecord& record) {
     return {};
 }
 
+void VulkanGraphicsDevice::rewrite_material_descriptors_replacing_texture(
+    TextureHandle texture) noexcept {
+    if (device_ == VK_NULL_HANDLE || texture.value == 0 || material_descriptor_pool_ == VK_NULL_HANDLE) {
+        return;
+    }
+    const auto fallback_white_it = textures_.find(default_white_texture_.value);
+    const auto fallback_normal_it = textures_.find(default_normal_texture_.value);
+    if (fallback_white_it == textures_.end() || fallback_normal_it == textures_.end()) {
+        log_vulkan_message(
+            "Vulkan default textures are missing while invalidating material descriptors");
+        for (auto& [handle, material] : materials_) {
+            (void)handle;
+            const std::array<const std::optional<MaterialTextureBinding>*,
+                             kMaterialTextureSlotCount>
+                bindings{&material.upload.base_color_texture,
+                         &material.upload.normal_texture,
+                         &material.upload.metallic_roughness_texture,
+                         &material.upload.occlusion_texture,
+                         &material.upload.emissive_texture};
+            for (const auto* binding : bindings) {
+                if (binding->has_value() && (*binding)->texture.value == texture.value) {
+                    destroy_material_record(material);
+                    break;
+                }
+            }
+        }
+        return;
+    }
+
+    for (auto& [handle, material] : materials_) {
+        (void)handle;
+        if (material.descriptor_set == VK_NULL_HANDLE) {
+            continue;
+        }
+        const std::array<const std::optional<MaterialTextureBinding>*, kMaterialTextureSlotCount>
+            bindings{&material.upload.base_color_texture,
+                     &material.upload.normal_texture,
+                     &material.upload.metallic_roughness_texture,
+                     &material.upload.occlusion_texture,
+                     &material.upload.emissive_texture};
+        std::array<VkDescriptorImageInfo, kMaterialTextureSlotCount> image_infos{};
+        std::array<VkWriteDescriptorSet, kMaterialTextureSlotCount> writes{};
+        std::uint32_t write_count = 0;
+        for (std::uint32_t slot = 0; slot < kMaterialTextureSlotCount; ++slot) {
+            if (!bindings[slot]->has_value() || (*bindings[slot])->texture.value != texture.value) {
+                continue;
+            }
+            const TextureRecord& fallback = slot == 1 ? fallback_normal_it->second
+                                                      : fallback_white_it->second;
+            VkSampler sampler = material.samplers[slot] != VK_NULL_HANDLE ? material.samplers[slot]
+                                                                          : fallback.sampler;
+            if (fallback.view == VK_NULL_HANDLE || sampler == VK_NULL_HANDLE) {
+                log_vulkan_message(
+                    "Vulkan material descriptor invalidation found missing fallback handles");
+                destroy_material_record(material);
+                break;
+            }
+            image_infos[write_count] = VkDescriptorImageInfo{
+                .sampler = sampler,
+                .imageView = fallback.view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+            writes[write_count] = VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = material.descriptor_set,
+                .dstBinding = slot,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &image_infos[write_count],
+            };
+            ++write_count;
+        }
+        if (write_count > 0) {
+            vkUpdateDescriptorSets(device_, write_count, writes.data(), 0, nullptr);
+        }
+    }
+}
+
 std::expected<MaterialHandle, stellar::platform::Error>
 VulkanGraphicsDevice::create_material(const MaterialUpload& material) {
     if (!initialized_) {
@@ -690,7 +804,8 @@ void VulkanGraphicsDevice::destroy_texture(TextureHandle texture) noexcept {
         return;
     }
 
-    destroy_texture_record(it->second);
+    rewrite_material_descriptors_replacing_texture(texture);
+    enqueue_texture_deletion(it->second);
     textures_.erase(it);
 }
 
@@ -1085,7 +1200,8 @@ VulkanGraphicsDevice::find_memory_type(std::uint32_t type_filter,
     return std::unexpected(stellar::platform::Error("No compatible Vulkan memory type was found"));
 }
 
-void VulkanGraphicsDevice::destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memory) noexcept {
+void VulkanGraphicsDevice::destroy_buffer_immediate(VkBuffer& buffer,
+                                                    VkDeviceMemory& memory) noexcept {
     if (buffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device_, buffer, nullptr);
         buffer = VK_NULL_HANDLE;
@@ -1096,19 +1212,63 @@ void VulkanGraphicsDevice::destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memo
     }
 }
 
-void VulkanGraphicsDevice::destroy_mesh_record(MeshRecord& record) noexcept {
-    for (MeshPrimitiveRecord& primitive : record.primitives) {
-        destroy_buffer(primitive.vertex_buffer, primitive.vertex_memory);
-        primitive.vertex_buffer_size = 0;
-        destroy_buffer(primitive.index_buffer, primitive.index_memory);
-        primitive.index_buffer_size = 0;
-        primitive.vertex_count = 0;
-        primitive.index_count = 0;
-    }
-    record.primitives.clear();
+void VulkanGraphicsDevice::destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memory) noexcept {
+    destroy_buffer_immediate(buffer, memory);
 }
 
-void VulkanGraphicsDevice::destroy_texture_record(TextureRecord& record) noexcept {
+std::uint64_t VulkanGraphicsDevice::next_deferred_retire_serial() const noexcept {
+    return submitted_frame_serial_ + static_cast<std::uint64_t>(frames_.size()) + 1U;
+}
+
+void VulkanGraphicsDevice::enqueue_buffer_deletion(VkBuffer& buffer,
+                                                   VkDeviceMemory& memory) noexcept {
+    if (device_ == VK_NULL_HANDLE || (buffer == VK_NULL_HANDLE && memory == VK_NULL_HANDLE)) {
+        destroy_buffer_immediate(buffer, memory);
+        return;
+    }
+    DeferredDeletion deletion{.retire_serial = next_deferred_retire_serial()};
+    deletion.buffers.emplace_back(buffer, memory);
+    buffer = VK_NULL_HANDLE;
+    memory = VK_NULL_HANDLE;
+    deferred_deletions_.push_back(std::move(deletion));
+}
+
+void VulkanGraphicsDevice::enqueue_texture_deletion(TextureRecord& record) noexcept {
+    if (device_ == VK_NULL_HANDLE ||
+        (record.image == VK_NULL_HANDLE && record.memory == VK_NULL_HANDLE &&
+         record.view == VK_NULL_HANDLE && record.sampler == VK_NULL_HANDLE)) {
+        destroy_texture_record_immediate(record);
+        return;
+    }
+    DeferredDeletion deletion{.retire_serial = next_deferred_retire_serial()};
+    deletion.textures.push_back(record);
+    record = TextureRecord{};
+    deferred_deletions_.push_back(std::move(deletion));
+}
+
+void VulkanGraphicsDevice::enqueue_material_deletion(MaterialRecord& record) noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        record.samplers.fill(VK_NULL_HANDLE);
+        record.descriptor_set = VK_NULL_HANDLE;
+        return;
+    }
+    DeferredDeletion deletion{.retire_serial = next_deferred_retire_serial()};
+    for (VkSampler& sampler : record.samplers) {
+        if (sampler != VK_NULL_HANDLE) {
+            deletion.samplers.push_back(sampler);
+            sampler = VK_NULL_HANDLE;
+        }
+    }
+    if (record.descriptor_set != VK_NULL_HANDLE) {
+        deletion.material_descriptor_sets.push_back(record.descriptor_set);
+        record.descriptor_set = VK_NULL_HANDLE;
+    }
+    if (!deletion.samplers.empty() || !deletion.material_descriptor_sets.empty()) {
+        deferred_deletions_.push_back(std::move(deletion));
+    }
+}
+
+void VulkanGraphicsDevice::destroy_texture_record_immediate(TextureRecord& record) noexcept {
     if (record.sampler != VK_NULL_HANDLE) {
         vkDestroySampler(device_, record.sampler, nullptr);
         record.sampler = VK_NULL_HANDLE;
@@ -1131,16 +1291,65 @@ void VulkanGraphicsDevice::destroy_texture_record(TextureRecord& record) noexcep
     record.format = VK_FORMAT_UNDEFINED;
 }
 
-void VulkanGraphicsDevice::destroy_material_record(MaterialRecord& record) noexcept {
-    for (VkSampler sampler : record.samplers) {
-        if (sampler != VK_NULL_HANDLE) {
-            vkDestroySampler(device_, sampler, nullptr);
+void VulkanGraphicsDevice::destroy_sampler_immediate(VkSampler& sampler) noexcept {
+    if (sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(device_, sampler, nullptr);
+        sampler = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanGraphicsDevice::destroy_material_descriptor_set_immediate(
+    VkDescriptorSet& descriptor_set) noexcept {
+    if (descriptor_set != VK_NULL_HANDLE && material_descriptor_pool_ != VK_NULL_HANDLE) {
+        vkFreeDescriptorSets(device_, material_descriptor_pool_, 1, &descriptor_set);
+        descriptor_set = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanGraphicsDevice::drain_deferred_deletions(bool force) noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        deferred_deletions_.clear();
+        return;
+    }
+    auto it = deferred_deletions_.begin();
+    while (it != deferred_deletions_.end()) {
+        if (!force && it->retire_serial > completed_frame_serial_) {
+            ++it;
+            continue;
         }
+        for (auto& [buffer, memory] : it->buffers) {
+            destroy_buffer_immediate(buffer, memory);
+        }
+        for (TextureRecord& texture : it->textures) {
+            destroy_texture_record_immediate(texture);
+        }
+        for (VkSampler& sampler : it->samplers) {
+            destroy_sampler_immediate(sampler);
+        }
+        for (VkDescriptorSet& descriptor_set : it->material_descriptor_sets) {
+            destroy_material_descriptor_set_immediate(descriptor_set);
+        }
+        it = deferred_deletions_.erase(it);
     }
-    record.samplers.fill(VK_NULL_HANDLE);
-    if (record.descriptor_set != VK_NULL_HANDLE && material_descriptor_pool_ != VK_NULL_HANDLE) {
-        vkFreeDescriptorSets(device_, material_descriptor_pool_, 1, &record.descriptor_set);
-        record.descriptor_set = VK_NULL_HANDLE;
+}
+
+void VulkanGraphicsDevice::destroy_mesh_record(MeshRecord& record) noexcept {
+    for (MeshPrimitiveRecord& primitive : record.primitives) {
+        enqueue_buffer_deletion(primitive.vertex_buffer, primitive.vertex_memory);
+        primitive.vertex_buffer_size = 0;
+        enqueue_buffer_deletion(primitive.index_buffer, primitive.index_memory);
+        primitive.index_buffer_size = 0;
+        primitive.vertex_count = 0;
+        primitive.index_count = 0;
     }
+    record.primitives.clear();
+}
+
+void VulkanGraphicsDevice::destroy_texture_record(TextureRecord& record) noexcept {
+    enqueue_texture_deletion(record);
+}
+
+void VulkanGraphicsDevice::destroy_material_record(MaterialRecord& record) noexcept {
+    enqueue_material_deletion(record);
 }
 } // namespace stellar::graphics::vulkan

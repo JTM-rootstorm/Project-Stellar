@@ -44,10 +44,51 @@ std::uint32_t uv_bit(const std::optional<MaterialTextureBinding>& binding,
 
 } // namespace
 
+void VulkanGraphicsDevice::mark_swapchain_rebuild_pending() noexcept {
+    swapchain_needs_rebuild_ = true;
+}
+
+void VulkanGraphicsDevice::reset_frame_state_after_failed_recording() noexcept {
+    frame_in_progress_ = false;
+    current_swapchain_image_index_ = 0;
+}
+
+VkExtent2D VulkanGraphicsDevice::current_window_extent_or_pending_rebuild(int width,
+                                                                          int height) noexcept {
+    (void)width;
+    (void)height;
+    int window_width = 0;
+    int window_height = 0;
+    if (window_ != nullptr) {
+        SDL_GetWindowSize(window_, &window_width, &window_height);
+    }
+    if (window_width <= 0 || window_height <= 0) {
+        mark_swapchain_rebuild_pending();
+        return VkExtent2D{0, 0};
+    }
+    return VkExtent2D{sanitize_dimension(window_width, swapchain_extent_.width),
+                      sanitize_dimension(window_height, swapchain_extent_.height)};
+}
+
+bool VulkanGraphicsDevice::recreate_swapchain_from_window_extent() noexcept {
+    const VkExtent2D extent = current_window_extent_or_pending_rebuild(
+        static_cast<int>(swapchain_extent_.width), static_cast<int>(swapchain_extent_.height));
+    if (extent.width == 0 || extent.height == 0) {
+        return false;
+    }
+    if (auto result = recreate_swapchain_resources(extent.width, extent.height); !result) {
+        reset_frame_state_after_failed_recording();
+        mark_swapchain_rebuild_pending();
+        log_vulkan_message(result.error().message);
+        return false;
+    }
+    current_swapchain_image_index_ = 0;
+    return true;
+}
+
 void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
     if (!initialized_ || window_ == nullptr || device_ == VK_NULL_HANDLE ||
-        graphics_queue_ == VK_NULL_HANDLE || swapchain_ == VK_NULL_HANDLE ||
-        frames_.empty() || frame_in_progress_) {
+        graphics_queue_ == VK_NULL_HANDLE || frames_.empty() || frame_in_progress_) {
         return;
     }
 
@@ -59,21 +100,18 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
         return;
     }
 
-    int window_width = 0;
-    int window_height = 0;
-    SDL_GetWindowSize(window_, &window_width, &window_height);
-    const std::uint32_t preferred_width =
-        sanitize_dimension(window_width, sanitize_dimension(width, swapchain_extent_.width));
-    const std::uint32_t preferred_height =
-        sanitize_dimension(window_height, sanitize_dimension(height, swapchain_extent_.height));
-    if (preferred_width == 0 || preferred_height == 0) {
-        swapchain_needs_rebuild_ = true;
+    const VkExtent2D preferred_extent = current_window_extent_or_pending_rebuild(width, height);
+    if (preferred_extent.width == 0 || preferred_extent.height == 0) {
         return;
     }
 
-    if (swapchain_needs_rebuild_ || swapchain_extent_.width != preferred_width ||
-        swapchain_extent_.height != preferred_height) {
-        if (auto result = recreate_swapchain_resources(preferred_width, preferred_height); !result) {
+    if (swapchain_ == VK_NULL_HANDLE || swapchain_needs_rebuild_ ||
+        swapchain_extent_.width != preferred_extent.width ||
+        swapchain_extent_.height != preferred_extent.height) {
+        if (auto result = recreate_swapchain_resources(preferred_extent.width,
+                                                       preferred_extent.height); !result) {
+            reset_frame_state_after_failed_recording();
+            mark_swapchain_rebuild_pending();
             log_vulkan_message(result.error().message);
             return;
         }
@@ -87,29 +125,35 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
         log_vulkan_message(vulkan_error("vkWaitForFences", result).message);
         return;
     }
+    if (frame.submitted_serial > completed_frame_serial_) {
+        completed_frame_serial_ = frame.submitted_serial;
+        frame.submitted_serial = 0;
+    }
+    drain_deferred_deletions(false);
 
     result = vkAcquireNextImageKHR(device_, swapchain_, std::numeric_limits<std::uint64_t>::max(),
                                    frame.image_available_semaphore, VK_NULL_HANDLE,
                                    &current_swapchain_image_index_);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        swapchain_needs_rebuild_ = true;
-        if (auto recreate = recreate_swapchain_resources(preferred_width, preferred_height);
-            !recreate) {
-            log_vulkan_message(recreate.error().message);
-        }
+        reset_frame_state_after_failed_recording();
+        mark_swapchain_rebuild_pending();
+        (void)recreate_swapchain_from_window_extent();
         return;
     }
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        reset_frame_state_after_failed_recording();
         log_vulkan_message(vulkan_error("vkAcquireNextImageKHR", result).message);
         return;
     }
     if (result == VK_SUBOPTIMAL_KHR) {
-        swapchain_needs_rebuild_ = true;
+        mark_swapchain_rebuild_pending();
     }
 
-    if (current_swapchain_image_index_ >= swapchain_image_fences_.size()) {
+    if (current_swapchain_image_index_ >= swapchain_image_fences_.size() ||
+        current_swapchain_image_index_ >= swapchain_framebuffers_.size()) {
         initialized_ = false;
         log_vulkan_message("Acquired Vulkan swapchain image index is out of bounds");
+        reset_frame_state_after_failed_recording();
         return;
     }
     VkFence& image_fence = swapchain_image_fences_[current_swapchain_image_index_];
@@ -119,6 +163,7 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
         if (result != VK_SUCCESS) {
             initialized_ = false;
             log_vulkan_message(vulkan_error("vkWaitForFences", result).message);
+            reset_frame_state_after_failed_recording();
             return;
         }
     }
@@ -128,6 +173,7 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
     if (result != VK_SUCCESS) {
         initialized_ = false;
         log_vulkan_message(vulkan_error("vkResetCommandPool", result).message);
+        reset_frame_state_after_failed_recording();
         return;
     }
     frame.skin_draw_upload_cursor = 0;
@@ -140,6 +186,7 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
     if (result != VK_SUCCESS) {
         initialized_ = false;
         log_vulkan_message(vulkan_error("vkBeginCommandBuffer", result).message);
+        reset_frame_state_after_failed_recording();
         return;
     }
 
@@ -314,6 +361,9 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     vkCmdEndRenderPass(frame.command_buffer);
     VkResult result = vkEndCommandBuffer(frame.command_buffer);
     if (result != VK_SUCCESS) {
+        if (current_swapchain_image_index_ < swapchain_image_fences_.size()) {
+            swapchain_image_fences_[current_swapchain_image_index_] = VK_NULL_HANDLE;
+        }
         frame_in_progress_ = false;
         initialized_ = false;
         log_vulkan_message(vulkan_error("vkEndCommandBuffer", result).message);
@@ -322,6 +372,9 @@ void VulkanGraphicsDevice::end_frame() noexcept {
 
     result = vkResetFences(device_, 1, &frame.in_flight_fence);
     if (result != VK_SUCCESS) {
+        if (current_swapchain_image_index_ < swapchain_image_fences_.size()) {
+            swapchain_image_fences_[current_swapchain_image_index_] = VK_NULL_HANDLE;
+        }
         frame_in_progress_ = false;
         initialized_ = false;
         log_vulkan_message(vulkan_error("vkResetFences", result).message);
@@ -341,11 +394,15 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     };
     result = vkQueueSubmit(graphics_queue_, 1, &submit_info, frame.in_flight_fence);
     if (result != VK_SUCCESS) {
+        if (current_swapchain_image_index_ < swapchain_image_fences_.size()) {
+            swapchain_image_fences_[current_swapchain_image_index_] = VK_NULL_HANDLE;
+        }
         frame_in_progress_ = false;
         initialized_ = false;
         log_vulkan_message(vulkan_error("vkQueueSubmit", result).message);
         return;
     }
+    frame.submitted_serial = ++submitted_frame_serial_;
 
     const VkPresentInfoKHR present_info{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -358,7 +415,8 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     result = vkQueuePresentKHR(graphics_queue_, &present_info);
     frame_in_progress_ = false;
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        swapchain_needs_rebuild_ = true;
+        log_vulkan_message(vulkan_error("vkQueuePresentKHR", result).message);
+        mark_swapchain_rebuild_pending();
         current_frame_index_ = (current_frame_index_ + 1) % frames_.size();
         return;
     }

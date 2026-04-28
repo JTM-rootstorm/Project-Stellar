@@ -149,9 +149,11 @@ int main() {
     std::vector<std::array<float, 16>> over_limit_skin_palette(97, identity4);
     const stellar::graphics::MeshPrimitiveDrawCommand commands[] = {
         stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 0, .material = *material},
+        stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 0,
+                                                   .material = *textured_material},
         stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 1},
         stellar::graphics::MeshPrimitiveDrawCommand{.primitive_index = 2,
-                                                   .material = *material,
+                                                    .material = *material,
                                                    .skin_joint_matrices = skin_palette},
         stellar::graphics::MeshPrimitiveDrawCommand{
             .primitive_index = 2,
@@ -166,11 +168,26 @@ int main() {
         device.end_frame();
     }
 
+    // Hidden SDL Vulkan windows do not always exercise the compositor's real resize/out-of-date
+    // present path, but changing the SDL window size still drives the renderer's normal
+    // SDL-size-based recreate path when the platform reports the new hidden-window extent.
+    SDL_SetWindowSize(window.native_handle(), 32, 32);
+    device.begin_frame(32, 32);
+    device.draw_mesh(*mesh, commands, transforms);
+    device.end_frame();
+
+    device.destroy_texture(*white_texture);
+    device.begin_frame(32, 32);
+    device.draw_mesh(*mesh, commands, transforms);
+    device.end_frame();
+
     device.destroy_material(*material);
     device.destroy_material(*textured_material);
     device.destroy_texture(*normal_texture);
-    device.destroy_texture(*white_texture);
     device.destroy_mesh(*mesh);
+
+    device.begin_frame(32, 32);
+    device.end_frame();
 
     return 0;
 }

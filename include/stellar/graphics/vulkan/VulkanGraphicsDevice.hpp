@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include <vulkan/vulkan.h>
@@ -137,6 +138,15 @@ private:
         VkDeviceMemory skin_draw_uniform_memory = VK_NULL_HANDLE;
         std::vector<VkDescriptorSet> skin_draw_descriptor_sets;
         std::size_t skin_draw_upload_cursor = 0;
+        std::uint64_t submitted_serial = 0;
+    };
+
+    struct DeferredDeletion {
+        std::uint64_t retire_serial = 0;
+        std::vector<std::pair<VkBuffer, VkDeviceMemory>> buffers;
+        std::vector<TextureRecord> textures;
+        std::vector<VkSampler> samplers;
+        std::vector<VkDescriptorSet> material_descriptor_sets;
     };
 
     [[nodiscard]] std::expected<void, stellar::platform::Error>
@@ -204,6 +214,7 @@ private:
     create_sampler(const stellar::assets::SamplerAsset& sampler, std::uint32_t mip_levels);
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     allocate_material_descriptor_set(MaterialRecord& record);
+    void rewrite_material_descriptors_replacing_texture(TextureHandle texture) noexcept;
     [[nodiscard]] std::expected<VkDescriptorSet, stellar::platform::Error>
     upload_skin_draw_uniform(FrameResources& frame,
                              const MeshDrawTransforms& transforms,
@@ -213,6 +224,15 @@ private:
     find_memory_type(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] std::expected<VkFormat, stellar::platform::Error> find_depth_format() const;
     void destroy_buffer(VkBuffer& buffer, VkDeviceMemory& memory) noexcept;
+    void destroy_buffer_immediate(VkBuffer& buffer, VkDeviceMemory& memory) noexcept;
+    void destroy_texture_record_immediate(TextureRecord& record) noexcept;
+    void destroy_sampler_immediate(VkSampler& sampler) noexcept;
+    void destroy_material_descriptor_set_immediate(VkDescriptorSet& descriptor_set) noexcept;
+    void enqueue_buffer_deletion(VkBuffer& buffer, VkDeviceMemory& memory) noexcept;
+    void enqueue_texture_deletion(TextureRecord& record) noexcept;
+    void enqueue_material_deletion(MaterialRecord& record) noexcept;
+    void drain_deferred_deletions(bool force) noexcept;
+    [[nodiscard]] std::uint64_t next_deferred_retire_serial() const noexcept;
     void destroy_mesh_record(MeshRecord& record) noexcept;
     void destroy_texture_record(TextureRecord& record) noexcept;
     void destroy_material_record(MaterialRecord& record) noexcept;
@@ -220,6 +240,11 @@ private:
     void destroy_command_resources() noexcept;
     void destroy_sync_objects() noexcept;
     void destroy_vulkan_objects() noexcept;
+    void mark_swapchain_rebuild_pending() noexcept;
+    void reset_frame_state_after_failed_recording() noexcept;
+    [[nodiscard]] VkExtent2D current_window_extent_or_pending_rebuild(int width,
+                                                                      int height) noexcept;
+    [[nodiscard]] bool recreate_swapchain_from_window_extent() noexcept;
     [[nodiscard]] std::uint64_t allocate_handle() noexcept;
 
     SDL_Window* window_ = nullptr;
@@ -252,6 +277,8 @@ private:
     bool initialized_ = false;
     bool frame_in_progress_ = false;
     bool swapchain_needs_rebuild_ = false;
+    std::uint64_t submitted_frame_serial_ = 0;
+    std::uint64_t completed_frame_serial_ = 0;
     std::uint64_t next_handle_ = 1;
     TextureHandle default_white_texture_{};
     TextureHandle default_normal_texture_{};
@@ -263,6 +290,7 @@ private:
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;
     std::map<std::uint64_t, MaterialRecord> materials_;
+    std::vector<DeferredDeletion> deferred_deletions_;
 };
 
 } // namespace stellar::graphics::vulkan
