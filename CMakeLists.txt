@@ -45,6 +45,16 @@ if(STELLAR_ENABLE_GLTF)
     add_library(stellar_import_gltf
         src/import/gltf/Importer.cpp
         src/import/gltf/Loader.cpp
+        src/import/gltf/CgltfUtils.cpp
+        src/import/gltf/DataUri.cpp
+        src/import/gltf/ImageImport.cpp
+        src/import/gltf/MaterialImport.cpp
+        src/import/gltf/TextureImport.cpp
+        src/import/gltf/MeshImport.cpp
+        src/import/gltf/SkinImport.cpp
+        src/import/gltf/AnimationImport.cpp
+        src/import/gltf/NodeImport.cpp
+        src/import/gltf/SceneImport.cpp
     )
 
     target_include_directories(stellar_import_gltf PUBLIC

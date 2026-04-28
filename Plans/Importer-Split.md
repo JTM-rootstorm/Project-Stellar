@@ -585,3 +585,27 @@ Completion notes (YYYY-MM-DD):
   - behavior changes to tangent generation
   - behavior changes to color-space reuse handling
   - importer performance rewrites
+
+---
+
+Completion notes (2026-04-27):
+
+- Split `src/import/gltf/Importer.cpp` into focused private implementation files for cgltf utilities, data URI decoding, image import, material/texture/sampler import, mesh import, skin import, animation import, node import, and scene assembly.
+- Kept the public `Importer`, `create_importer()`, and `load_scene()` APIs unchanged.
+- Added private declarations in `src/import/gltf/ImporterPrivate.hpp` and reduced `Importer.cpp` to the public adapter/entrypoint that delegates to `load_scene_from_file()`.
+- Moved `CGLTF_IMPLEMENTATION` into `CgltfUtils.cpp` and `STB_IMAGE_IMPLEMENTATION` into `ImageImport.cpp`; each macro now appears in exactly one `.cpp`.
+- Preserved current importer behavior and error handling; no asset structs, renderer-facing data, public importer API, cgltf/stb usage, or build default were changed.
+- Updated `CMakeLists.txt` so the `stellar_import_gltf` target builds the new implementation files only when `STELLAR_ENABLE_GLTF` is enabled.
+- Validated with:
+  - `cmake -S . -B build -DSTELLAR_ENABLE_GLTF=ON`: passed.
+  - `cmake --build build -j$(nproc)`: passed after resolving split/linkage compile issues.
+  - Checkpoint 1 `gltf_importer_regression`: passed.
+  - Moved responsibility groups regression validation: `gltf_importer_regression` passed after the split was complete.
+  - `ctest --test-dir build --output-on-failure`: passed, 7/7 tests.
+  - Explicit final tests passed: `gltf_importer_regression`, `client_asset_validation_smoke`, `client_cli_asset_validation`, and `render_scene_inspection`.
+  - Optional default non-glTF check passed: `cmake -S . -B build-default && cmake --build build-default -j$(nproc) && ctest --test-dir build-default --output-on-failure`, 6/6 tests.
+- Deferred non-structural importer improvements:
+  - broader glTF extension support
+  - behavior changes to tangent generation
+  - behavior changes to color-space reuse handling
+  - importer performance rewrites
