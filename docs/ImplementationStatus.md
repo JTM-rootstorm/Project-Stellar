@@ -30,7 +30,7 @@ Unsupported or intentionally deferred:
 
 - Full metallic-roughness PBR. The current shading model is intentionally lightweight.
 - Morph target deformation and animation `weights` channels.
-- glTF-authored cameras and lights.
+- glTF-authored cameras and lights. The Phase 5F decision-gate work has treated these as deferred rather than implemented; the current asset model has no camera or light asset storage.
 - Broad glTF extension coverage beyond the supported material extensions listed above.
 - Deterministic GPU readback validation for rendered pixel output.
 
@@ -39,14 +39,18 @@ Unsupported or intentionally deferred:
 - Supported required extensions are accepted only after importer and both render backends can represent and render them consistently.
 - Unknown or unsupported `extensionsRequired` entries should fail clearly with the extension name in the error.
 - Optional unsupported data should degrade predictably without creating partial runtime state that implies support.
+- The current required-extension allowlist is limited to `KHR_texture_transform` and `KHR_materials_unlit`.
 
 ## Recommended next status-aligned work
 
-The next glTF implementation step should be a small decision-gate slice for authored cameras and lights, preferably starting with cameras:
+The previous recommended next step, the authored cameras/lights decision gate, has already been completed as a deferral in the Phase 5F archive. There is no longer a single pre-approved next glTF implementation slice in the current docs.
 
-1. Decide whether the runtime should represent glTF-authored cameras or continue using engine/viewer cameras only.
-2. If supported, add a backend-neutral camera asset representation, import perspective/orthographic cameras, attach cameras to nodes, and add viewer/client camera selection.
-3. Keep `KHR_lights_punctual` deferred unless the renderer direction explicitly expands beyond the current lightweight lighting model.
+If continuing glTF implementation, pick the next slice from an actual asset or product requirement rather than reopening a completed decision gate. Practical candidates are:
+
+1. **Authored cameras**, if imported scenes should drive the viewer camera. This would require a backend-neutral camera asset model, camera import, node camera references, and client/viewer selection.
+2. **Morph targets**, if assets need facial animation or animated morph weights. This would require mesh morph target storage, animation `weights` channel support, render submission changes, and OpenGL/Vulkan shader parity.
+3. **`KHR_lights_punctual` or fuller PBR**, only if the renderer direction expands beyond the current lightweight material model.
+4. **Asset compatibility pass**, using representative external Blender/glTF assets to identify the next real blocker before expanding the runtime model.
 
 ## Notes for documentation readers
 
