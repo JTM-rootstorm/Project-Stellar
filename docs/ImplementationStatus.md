@@ -2,7 +2,22 @@
 
 _Last updated: 2026-04-28_
 
-This document is the current, branch-facing status reference for implemented engine behavior. Historical roadmap files under `Plans/` and `.kilo/plans/` are archival and may contain stale intermediate phase descriptions.
+This document is the current, branch-facing status reference for implemented engine behavior. Historical roadmap files under `Plans/` and `.kilo/plans/` are archival and may contain stale intermediate phase descriptions. The Phase 6 plan files under `Plans/` are current implementation handoff plans for the collision/world-authoring direction unless their completion notes say otherwise.
+
+## Branch focus
+
+Current branch: `collision-movement`.
+
+Primary near-term goal: move from "glTF renders as a scene" toward "glTF can define playable static world geometry" for a 3D world with 2D billboard entities.
+
+The active planned slice is `Plans/Phase6A-LevelCollisionExtraction.md`:
+
+- Add backend-neutral static level collision data.
+- Extract collision triangles from selected glTF nodes/meshes.
+- Use simple node-name conventions such as `COL_*`, `Collision_*`, and a parent node named `Collision`.
+- Transform collision triangles into scene/world space.
+- Keep collision data independent of OpenGL/Vulkan.
+- Keep default tests display-free.
 
 ## Rendering backend status
 
@@ -26,13 +41,21 @@ Implemented on this branch:
 - Shared OpenGL/Vulkan skin palette behavior with a conservative runtime cap of 256 joints per draw.
 - Vulkan material, alpha/culling, texture, skinning, resize/recreate, and resource lifetime hardening sufficient for the current lightweight parity target.
 
+Planned for the collision/world-authoring direction:
+
+- **Phase 6A:** Static level collision extraction from glTF. This is the active next implementation slice.
+- **Phase 6B:** Collision queries and minimal movement resolution against Phase 6A static collision data.
+- **Phase 6C:** Billboard sprite rendering for 2D entities/objects in 3D world space.
+- **Phase 6D:** World metadata extraction from glTF node conventions for spawns, triggers, sprite markers, and similar gameplay markers.
+
 Unsupported or intentionally deferred:
 
 - Full metallic-roughness PBR. The current shading model is intentionally lightweight.
 - Morph target deformation and animation `weights` channels.
-- glTF-authored cameras and lights. The Phase 5F decision-gate work has treated these as deferred rather than implemented; the current asset model has no camera or light asset storage.
+- glTF-authored cameras and lights. The Phase 5F decision-gate work treated these as deferred rather than implemented; the current asset model has no camera or light asset storage.
 - Broad glTF extension coverage beyond the supported material extensions listed above.
 - Deterministic GPU readback validation for rendered pixel output.
+- Full physics engine integration, dynamic rigid bodies, navigation mesh/pathfinding, runtime trigger behavior, and ECS/server spawning from glTF metadata. These are future work beyond Phase 6A unless specifically added by later plans.
 
 ## Extension policy
 
@@ -40,18 +63,26 @@ Unsupported or intentionally deferred:
 - Unknown or unsupported `extensionsRequired` entries should fail clearly with the extension name in the error.
 - Optional unsupported data should degrade predictably without creating partial runtime state that implies support.
 - The current required-extension allowlist is limited to `KHR_texture_transform` and `KHR_materials_unlit`.
+- Static level collision is intentionally planned as an engine node-convention/import policy, not a glTF extension.
 
 ## Recommended next status-aligned work
 
-The previous recommended next step, the authored cameras/lights decision gate, has already been completed as a deferral in the Phase 5F archive. There is no longer a single pre-approved next glTF implementation slice in the current docs.
+Implement Phase 6A first.
 
-If continuing glTF implementation, pick the next slice from an actual asset or product requirement rather than reopening a completed decision gate. Practical candidates are:
+Recommended execution order:
 
-1. **Authored cameras**, if imported scenes should drive the viewer camera. This would require a backend-neutral camera asset model, camera import, node camera references, and client/viewer selection.
-2. **Morph targets**, if assets need facial animation or animated morph weights. This would require mesh morph target storage, animation `weights` channel support, render submission changes, and OpenGL/Vulkan shader parity.
-3. **`KHR_lights_punctual` or fuller PBR**, only if the renderer direction expands beyond the current lightweight material model.
-4. **Asset compatibility pass**, using representative external Blender/glTF assets to identify the next real blocker before expanding the runtime model.
+1. `Plans/Phase6A-LevelCollisionExtraction.md`
+   - Build the collision asset model and glTF extraction path.
+   - Add display-free importer tests for collision node naming, transforms, ordinary render-node exclusion, normals, and bounds.
+2. `Plans/Phase6B-CollisionQueriesAndMovement.md`
+   - Add ray/segment queries, ground probe, and minimal sweep/slide movement over static collision.
+3. `Plans/Phase6C-BillboardSpriteRendering.md`
+   - Add 2D billboard sprite rendering in 3D world space with OpenGL/Vulkan parity.
+4. `Plans/Phase6D-WorldMetadataFromGltf.md`
+   - Add glTF node-convention metadata for player/entity spawns, triggers, sprite markers, and optional portal markers.
+
+Do not spend the next implementation slice on full PBR, morph targets, glTF cameras, or glTF lights unless a concrete asset requirement appears. For the current engine goal, playable level collision and sprite/world metadata are higher-value than deeper glTF visual fidelity.
 
 ## Notes for documentation readers
 
-`docs/Design.md` remains the broad architecture/design document. When it conflicts with this file on current implementation status, prefer this file for the `glTF-vulkan` branch status.
+`docs/Design.md` remains the broad architecture/design document. When it conflicts with this file on current implementation status, prefer this file for the `collision-movement` branch status.
