@@ -1,13 +1,24 @@
 #include "stellar/graphics/RenderScene.hpp"
 
 #include <cmath>
+#include <algorithm>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "stellar/scene/AnimationRuntime.hpp"
+
 namespace stellar::graphics {
+
+struct QueuedMeshDraw {
+    MeshHandle mesh;
+    MeshPrimitiveDrawCommand command;
+    MeshDrawTransforms transforms;
+    std::vector<std::array<float, 16>> skin_joint_matrices;
+    float depth = 0.0f;
+};
 
 namespace {
 
@@ -22,6 +33,85 @@ std::array<float, 16> to_array(const glm::mat4& matrix) {
         result[index] = data[index];
     }
     return result;
+}
+
+std::array<float, 9> to_array(const glm::mat3& matrix) {
+    std::array<float, 9> result{};
+    const float* data = &matrix[0][0];
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        result[index] = data[index];
+    }
+    return result;
+}
+
+std::array<float, 9> normal_matrix_for(const glm::mat4& world) {
+    const glm::mat3 linear(world);
+    if (std::abs(glm::determinant(linear)) < 0.000001f) {
+        return to_array(glm::mat3(1.0f));
+    }
+
+    return to_array(glm::transpose(glm::inverse(linear)));
+}
+
+std::vector<std::array<float, 16>> skin_matrices_for_draw(
+    const stellar::scene::ScenePose* pose,
+    const stellar::scene::Node& node,
+    const glm::mat4& world,
+    const stellar::assets::MeshPrimitive& primitive) {
+    if (pose == nullptr || !primitive.has_skinning || !node.skin_index.has_value() ||
+        *node.skin_index >= pose->skin_poses.size()) {
+        return {};
+    }
+
+    const auto& skin_pose = pose->skin_poses[*node.skin_index];
+    if (skin_pose.joint_matrices.empty()) {
+        return {};
+    }
+
+    const glm::mat4 inverse_world = glm::inverse(world);
+    std::vector<std::array<float, 16>> result;
+    result.reserve(skin_pose.joint_matrices.size());
+    for (const auto& joint_matrix : skin_pose.joint_matrices) {
+        result.push_back(to_array(inverse_world * to_glm_mat4(joint_matrix)));
+    }
+    return result;
+}
+
+std::optional<MaterialTextureBinding>
+resolve_material_texture_binding(const stellar::assets::MaterialTextureSlot& slot,
+                                 const stellar::assets::SceneAsset& scene,
+                                 const std::vector<TextureHandle>& texture_handles) {
+    if (slot.texture_index >= texture_handles.size() || !texture_handles[slot.texture_index]) {
+        return std::nullopt;
+    }
+
+    stellar::assets::SamplerAsset sampler;
+    const auto& texture = scene.textures[slot.texture_index];
+    if (texture.sampler_index.has_value() && *texture.sampler_index < scene.samplers.size()) {
+        sampler = scene.samplers[*texture.sampler_index];
+    }
+
+    const std::uint32_t texcoord_set = slot.transform.texcoord_set.value_or(slot.texcoord_set);
+    return MaterialTextureBinding{
+        .texture = texture_handles[slot.texture_index],
+        .sampler = sampler,
+        .texcoord_set = texcoord_set,
+        .transform = slot.transform,
+    };
+}
+
+std::array<float, 3> primitive_center(const stellar::assets::MeshPrimitive& primitive) noexcept {
+    return {(primitive.bounds_min[0] + primitive.bounds_max[0]) * 0.5f,
+            (primitive.bounds_min[1] + primitive.bounds_max[1]) * 0.5f,
+            (primitive.bounds_min[2] + primitive.bounds_max[2]) * 0.5f};
+}
+
+float view_space_depth(const glm::mat4& view,
+                       const glm::mat4& world,
+                       const stellar::assets::MeshPrimitive& primitive) noexcept {
+    const auto center = primitive_center(primitive);
+    const glm::vec4 view_position = view * world * glm::vec4(center[0], center[1], center[2], 1.0f);
+    return view_position.z;
 }
 
 } // namespace
@@ -58,19 +148,51 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
         mesh_handles_.push_back(*handle);
     }
 
-    texture_handles_.reserve(scene_.images.size());
-    for (const auto& image : scene_.images) {
-        auto handle = device_->create_texture(image);
+    texture_handles_.resize(scene_.textures.size());
+    owned_texture_handles_.reserve(scene_.textures.size());
+    for (std::size_t texture_index = 0; texture_index < scene_.textures.size(); ++texture_index) {
+        const auto& texture = scene_.textures[texture_index];
+        if (!texture.image_index.has_value() || *texture.image_index >= scene_.images.size()) {
+            continue;
+        }
+
+        const auto& image = scene_.images[*texture.image_index];
+        auto handle = device_->create_texture(TextureUpload{.image = image,
+                                                            .color_space = texture.color_space});
         if (!handle) {
             destroy();
             return std::unexpected(handle.error());
         }
-        texture_handles_.push_back(*handle);
+        texture_handles_[texture_index] = *handle;
+        owned_texture_handles_.push_back(*handle);
     }
 
     material_handles_.reserve(scene_.materials.size());
     for (const auto& material : scene_.materials) {
-        auto handle = device_->create_material(material);
+        MaterialUpload upload;
+        upload.material = material;
+        if (material.base_color_texture.has_value()) {
+            upload.base_color_texture = resolve_material_texture_binding(
+                *material.base_color_texture, scene_, texture_handles_);
+        }
+        if (material.normal_texture.has_value()) {
+            upload.normal_texture = resolve_material_texture_binding(
+                *material.normal_texture, scene_, texture_handles_);
+        }
+        if (material.metallic_roughness_texture.has_value()) {
+            upload.metallic_roughness_texture = resolve_material_texture_binding(
+                *material.metallic_roughness_texture, scene_, texture_handles_);
+        }
+        if (material.occlusion_texture.has_value()) {
+            upload.occlusion_texture = resolve_material_texture_binding(
+                *material.occlusion_texture, scene_, texture_handles_);
+        }
+        if (material.emissive_texture.has_value()) {
+            upload.emissive_texture = resolve_material_texture_binding(
+                *material.emissive_texture, scene_, texture_handles_);
+        }
+
+        auto handle = device_->create_material(upload);
         if (!handle) {
             destroy();
             return std::unexpected(handle.error());
@@ -91,7 +213,24 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
 
 void RenderScene::render(int width,
                          int height,
-                         const std::array<float, 16>& view_projection) noexcept {
+                         const std::array<float, 16>& view_projection,
+                         const std::array<float, 16>& view) noexcept {
+    render(width, height, view_projection, view, nullptr);
+}
+
+void RenderScene::render(int width,
+                         int height,
+                         const std::array<float, 16>& view_projection,
+                         const std::array<float, 16>& view,
+                         const stellar::scene::ScenePose& pose) noexcept {
+    render(width, height, view_projection, view, &pose);
+}
+
+void RenderScene::render(int width,
+                         int height,
+                         const std::array<float, 16>& view_projection,
+                         const std::array<float, 16>& view,
+                         const stellar::scene::ScenePose* pose) noexcept {
     if (!device_ || !active_scene_index_.has_value()) {
         return;
     }
@@ -105,43 +244,68 @@ void RenderScene::render(int width,
 
     const glm::mat4 identity = glm::mat4(1.0f);
     const std::array<float, 16> identity_array = to_array(identity);
+    const glm::mat4 vp = to_glm_mat4(view_projection);
+    const glm::mat4 view_matrix = to_glm_mat4(view);
+    std::vector<QueuedMeshDraw> opaque_draws;
+    std::vector<QueuedMeshDraw> blend_draws;
     const auto& scene = scene_.scenes[scene_index];
     for (std::size_t root_node : scene.root_nodes) {
-        render_node(root_node, identity_array, view_projection);
+        collect_node_draws(root_node, identity_array, vp, view_matrix, pose, opaque_draws,
+                           blend_draws);
+    }
+
+    std::sort(blend_draws.begin(), blend_draws.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.depth < rhs.depth;
+    });
+    // Alpha BLEND primitives are sorted by primitive bounds center in view space. This keeps the
+    // static path display-free and backend-neutral, but intersecting or concave transparent
+    // geometry can still require asset-side splitting or later order-independent transparency.
+
+    for (const QueuedMeshDraw& draw : opaque_draws) {
+        MeshPrimitiveDrawCommand command = draw.command;
+        command.skin_joint_matrices = std::span<const std::array<float, 16>>(
+            draw.skin_joint_matrices.data(), draw.skin_joint_matrices.size());
+        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&command, 1),
+                           draw.transforms);
+    }
+    for (const QueuedMeshDraw& draw : blend_draws) {
+        MeshPrimitiveDrawCommand command = draw.command;
+        command.skin_joint_matrices = std::span<const std::array<float, 16>>(
+            draw.skin_joint_matrices.data(), draw.skin_joint_matrices.size());
+        device_->draw_mesh(draw.mesh, std::span<const MeshPrimitiveDrawCommand>(&command, 1),
+                           draw.transforms);
     }
 
     device_->end_frame();
+}
+
+void RenderScene::render(int width,
+                         int height,
+                         const std::array<float, 16>& view_projection) noexcept {
+    render(width, height, view_projection, view_projection);
 }
 
 stellar::scene::Transform& RenderScene::node_transform(std::size_t node_index) noexcept {
     return scene_.nodes[node_index].local_transform;
 }
 
-const stellar::scene::Transform& RenderScene::node_transform(std::size_t node_index) const noexcept {
+const stellar::scene::Transform&
+RenderScene::node_transform(std::size_t node_index) const noexcept {
     return scene_.nodes[node_index].local_transform;
 }
 
 std::array<float, 16>
 RenderScene::compose_transform(const stellar::scene::Transform& transform) noexcept {
-    if (transform.matrix.has_value()) {
-        return *transform.matrix;
-    }
-
-    glm::mat4 translation = glm::translate(
-        glm::mat4(1.0f),
-        glm::vec3(transform.translation[0], transform.translation[1], transform.translation[2]));
-    glm::quat rotation(transform.rotation[3], transform.rotation[0], transform.rotation[1],
-                       transform.rotation[2]);
-    glm::mat4 rotation_matrix = glm::mat4_cast(rotation);
-    glm::mat4 scale = glm::scale(
-        glm::mat4(1.0f), glm::vec3(transform.scale[0], transform.scale[1], transform.scale[2]));
-
-    return to_array(translation * rotation_matrix * scale);
+    return stellar::scene::compose_transform(transform);
 }
 
-void RenderScene::render_node(std::size_t node_index,
-                              const std::array<float, 16>& parent_world,
-                              const std::array<float, 16>& view_projection) noexcept {
+void RenderScene::collect_node_draws(std::size_t node_index,
+                                       const std::array<float, 16>& parent_world,
+                                       const glm::mat4& view_projection,
+                                       const glm::mat4& view,
+                                       const stellar::scene::ScenePose* pose,
+                                       std::vector<QueuedMeshDraw>& opaque_draws,
+                                       std::vector<QueuedMeshDraw>& blend_draws) noexcept {
     if (node_index >= scene_.nodes.size()) {
         return;
     }
@@ -149,41 +313,55 @@ void RenderScene::render_node(std::size_t node_index,
     const auto& node = scene_.nodes[node_index];
     const glm::mat4 parent = to_glm_mat4(parent_world);
     const glm::mat4 local = to_glm_mat4(compose_transform(node.local_transform));
-    const glm::mat4 world = parent * local;
-    const glm::mat4 vp = to_glm_mat4(view_projection);
-    const std::array<float, 16> mvp = to_array(vp * world);
+    glm::mat4 world = parent * local;
+    if (pose != nullptr && node_index < pose->world_transforms.size()) {
+        world = to_glm_mat4(pose->world_transforms[node_index]);
+    }
+    const std::array<float, 16> mvp = to_array(view_projection * world);
 
     for (const auto& mesh_instance : node.mesh_instances) {
         if (mesh_instance.mesh_index < mesh_handles_.size()) {
-            std::vector<MaterialHandle> materials;
             const auto& mesh_asset = scene_.meshes[mesh_instance.mesh_index];
-            materials.reserve(mesh_asset.primitives.size());
-            for (const auto& primitive : mesh_asset.primitives) {
+            const MeshDrawTransforms transforms{
+                .mvp = mvp,
+                .world = to_array(world),
+                .normal = normal_matrix_for(world),
+            };
+            for (std::size_t primitive_index = 0; primitive_index < mesh_asset.primitives.size();
+                 ++primitive_index) {
+                const auto& primitive = mesh_asset.primitives[primitive_index];
+                MaterialHandle material_handle{};
                 if (primitive.material_index.has_value() &&
                     *primitive.material_index < material_handles_.size()) {
-                    materials.push_back(material_handles_[*primitive.material_index]);
+                    material_handle = material_handles_[*primitive.material_index];
+                }
+
+                const bool is_blend = primitive.material_index.has_value() &&
+                    *primitive.material_index < scene_.materials.size() &&
+                    scene_.materials[*primitive.material_index].alpha_mode ==
+                        stellar::assets::AlphaMode::kBlend;
+                QueuedMeshDraw draw{
+                    .mesh = mesh_handles_[mesh_instance.mesh_index],
+                    .command = MeshPrimitiveDrawCommand{.primitive_index = primitive_index,
+                                                        .material = material_handle},
+                    .transforms = transforms,
+                    .skin_joint_matrices = skin_matrices_for_draw(pose, node, world, primitive),
+                    .depth = view_space_depth(view, world, primitive),
+                };
+                if (is_blend) {
+                    blend_draws.push_back(draw);
                 } else {
-                    materials.push_back(MaterialHandle{});
+                    opaque_draws.push_back(draw);
                 }
             }
-
-            device_->draw_mesh(mesh_handles_[mesh_instance.mesh_index], materials, mvp);
         }
     }
 
     const std::array<float, 16> world_array = to_array(world);
     for (std::size_t child_index : node.children) {
-        render_node(child_index, world_array, view_projection);
+        collect_node_draws(child_index, world_array, view_projection, view, pose, opaque_draws,
+                           blend_draws);
     }
-}
-
-std::span<const MaterialHandle>
-RenderScene::material_span(std::optional<std::size_t> material_index) noexcept {
-    if (!material_index.has_value() || *material_index >= material_handles_.size()) {
-        return {};
-    }
-
-    return std::span<const MaterialHandle>(&material_handles_[*material_index], 1);
 }
 
 void RenderScene::destroy() noexcept {
@@ -191,7 +369,7 @@ void RenderScene::destroy() noexcept {
         for (auto handle : material_handles_) {
             device_->destroy_material(handle);
         }
-        for (auto handle : texture_handles_) {
+        for (auto handle : owned_texture_handles_) {
             device_->destroy_texture(handle);
         }
         for (auto handle : mesh_handles_) {
@@ -201,6 +379,7 @@ void RenderScene::destroy() noexcept {
 
     material_handles_.clear();
     texture_handles_.clear();
+    owned_texture_handles_.clear();
     mesh_handles_.clear();
     scene_ = {};
     active_scene_index_.reset();

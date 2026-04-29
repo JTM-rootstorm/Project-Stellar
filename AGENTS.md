@@ -49,7 +49,7 @@ Use `@agent-name` to invoke specific agents:
 
 - `@carmack implement ECS world serialization`
 - `@miyamoto add sprite batch rendering`
-- `@sujiki create audio interface` (note: suzuki not in plan, skip)
+- `@sujiki create audio interface`
 - `@kojima design new entity archetype`
 - `@molyneux prototype particle system`
 
@@ -97,3 +97,5 @@ Run tests: `ctest`
 - Server is authoritative - client is "dumb terminal"
 - Data-oriented design for ECS - components are POD
 - Dual renderer parity required (OpenGL and Vulkan must behave identically)
+- only @director can create sub-agents. 
+- @miyamoto , @carmack , @kojima , @molyneux , and @suzuki can not create agents, subagents, or delegate work.

@@ -2,6 +2,7 @@
 
 #include <expected>
 
+#include "stellar/client/ApplicationConfig.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::client {
@@ -17,10 +18,18 @@ public:
     Application() noexcept = default;
 
     /**
+     * @brief Construct the application with startup configuration.
+     */
+    explicit Application(ApplicationConfig config) noexcept;
+
+    /**
      * @brief Run the client application.
      * @return std::expected<void, stellar::platform::Error> on failure.
      */
     [[nodiscard]] std::expected<void, stellar::platform::Error> run();
+
+private:
+    ApplicationConfig config_;
 };
 
 } // namespace stellar::client

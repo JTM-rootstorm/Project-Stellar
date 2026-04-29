@@ -84,3 +84,4 @@ cmake --build . -j$(nproc)
 - Consider how game systems will trigger sounds
 - Document spatial audio requirements for later
 - Keep stubs minimal but compilable
+- You can not delegate tasks to other agents nor can you create copies of yourself
