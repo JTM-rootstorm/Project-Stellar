@@ -276,6 +276,20 @@ int main() {
         return 1;
     }
 
+    stellar::graphics::MaterialUpload unlit_upload;
+    unlit_upload.material.name = "unlit_textured";
+    unlit_upload.material.base_color_factor = {0.6F, 0.7F, 1.0F, 0.8F};
+    unlit_upload.material.unlit = true;
+    unlit_upload.material.alpha_mode = stellar::assets::AlphaMode::kMask;
+    unlit_upload.material.alpha_cutoff = 0.25F;
+    unlit_upload.material.double_sided = true;
+    unlit_upload.material.base_color_texture = stellar::assets::MaterialTextureSlot{0, 0};
+    unlit_upload.base_color_texture = make_binding(*base_color_texture, nearest_repeat, 0);
+    auto unlit_material = device.create_material(unlit_upload);
+    if (!require_expected(unlit_material, "create unlit material")) {
+        return 1;
+    }
+
     const std::array<float, 16> skin_matrix{1.0F, 0.0F, 0.0F, 0.0F,
                                             0.0F, 1.0F, 0.0F, 0.0F,
                                             0.0F, 0.0F, 1.0F, 0.0F,
@@ -299,6 +313,7 @@ int main() {
         {.primitive_index = 0, .material = *alpha_blend_material},
         {.primitive_index = 0, .material = *double_sided_material},
         {.primitive_index = 0, .material = *double_sided_blend_material},
+        {.primitive_index = 1, .material = *unlit_material},
         {.primitive_index = 3, .material = *fallback_material},
         {.primitive_index = 3, .material = *fallback_material, .skin_joint_matrices = one_joint_span},
         {.primitive_index = 4, .material = *fallback_material, .skin_joint_matrices = full_skin_span},
@@ -325,6 +340,7 @@ int main() {
     device.destroy_material(*alpha_blend_material);
     device.destroy_material(*double_sided_material);
     device.destroy_material(*double_sided_blend_material);
+    device.destroy_material(*unlit_material);
     device.destroy_texture(*normal_texture);
     device.destroy_texture(*metallic_roughness_texture);
     device.destroy_texture(*occlusion_texture);

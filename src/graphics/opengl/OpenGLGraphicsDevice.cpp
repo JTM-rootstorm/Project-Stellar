@@ -86,6 +86,7 @@ uniform float u_occlusion_strength;
 uniform vec3 u_emissive_factor;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
+uniform bool u_unlit;
 
 in vec2 v_uv0;
 in vec2 v_uv1;
@@ -146,23 +147,27 @@ void main() {
         normal = normalize(tbn * sampled_normal);
     }
 
-    vec3 light_dir = normalize(vec3(0.35, 0.8, 0.45));
-    float diffuse = max(dot(normal, light_dir), 0.0);
-    float perceptual_roughness = clamp(roughness, 0.04, 1.0);
-    float metal_attenuation = mix(1.0, 0.45, clamp(metallic, 0.0, 1.0));
-    float lit = 0.18 + diffuse * metal_attenuation *
-        mix(1.0, 0.65, perceptual_roughness);
-    float occlusion = 1.0;
-    if (u_has_occlusion_texture) {
-        occlusion = mix(1.0, texture(u_occlusion_texture,
-            transformed_uv_for_slot(u_occlusion_texcoord_set, 3)).r, u_occlusion_strength);
-    }
     vec3 emissive = u_emissive_factor;
     if (u_has_emissive_texture) {
         emissive *= texture(u_emissive_texture,
             transformed_uv_for_slot(u_emissive_texcoord_set, 4)).rgb;
     }
-    frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
+    if (u_unlit) {
+        frag_color = vec4(color.rgb + emissive, color.a);
+    } else {
+        vec3 light_dir = normalize(vec3(0.35, 0.8, 0.45));
+        float diffuse = max(dot(normal, light_dir), 0.0);
+        float perceptual_roughness = clamp(roughness, 0.04, 1.0);
+        float metal_attenuation = mix(1.0, 0.45, clamp(metallic, 0.0, 1.0));
+        float lit = 0.18 + diffuse * metal_attenuation *
+            mix(1.0, 0.65, perceptual_roughness);
+        float occlusion = 1.0;
+        if (u_has_occlusion_texture) {
+            occlusion = mix(1.0, texture(u_occlusion_texture,
+                transformed_uv_for_slot(u_occlusion_texcoord_set, 3)).r, u_occlusion_strength);
+        }
+        frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
+    }
 }
 )";
 
@@ -737,6 +742,7 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
                                                                "u_emissive_factor");
         const GLint alpha_mode_loc = glGetUniformLocation(shader_program_, "u_alpha_mode");
         const GLint alpha_cutoff_loc = glGetUniformLocation(shader_program_, "u_alpha_cutoff");
+        const GLint unlit_loc = glGetUniformLocation(shader_program_, "u_unlit");
         const GLint texture_transform0_loc = glGetUniformLocation(shader_program_,
                                                                   "u_texture_transform0[0]");
         const GLint texture_transform1_loc = glGetUniformLocation(shader_program_,
@@ -792,6 +798,8 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         glUniform1i(alpha_mode_loc, to_alpha_mode(alpha_mode));
         glUniform1f(alpha_cutoff_loc,
                     material != nullptr ? material->upload.material.alpha_cutoff : 0.5f);
+        glUniform1i(unlit_loc,
+                    material != nullptr && material->upload.material.unlit ? 1 : 0);
         const std::array<std::array<float, 4>, 5> transform0{
             material != nullptr ? transform0_for(material->upload.base_color_texture)
                                 : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},

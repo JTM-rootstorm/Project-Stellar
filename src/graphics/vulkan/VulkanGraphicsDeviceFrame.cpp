@@ -18,6 +18,7 @@ constexpr std::uint32_t kHasOcclusionTexture = 1U << 3U;
 constexpr std::uint32_t kHasEmissiveTexture = 1U << 4U;
 constexpr std::uint32_t kHasVertexColor = 1U << 5U;
 constexpr std::uint32_t kHasTangents = 1U << 6U;
+constexpr std::uint32_t kUnlitMaterial = 1U << 7U;
 
 std::uint32_t alpha_mode_value(stellar::assets::AlphaMode mode) noexcept {
     switch (mode) {
@@ -285,6 +286,8 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         texture_flags |= has_emissive_texture ? kHasEmissiveTexture : 0U;
         texture_flags |= primitive.has_colors ? kHasVertexColor : 0U;
         texture_flags |= primitive.has_tangents ? kHasTangents : 0U;
+        texture_flags |= material != nullptr && material->upload.material.unlit ? kUnlitMaterial
+                                                                                : 0U;
 
         std::uint32_t uv_flags = 0;
         if (material != nullptr) {

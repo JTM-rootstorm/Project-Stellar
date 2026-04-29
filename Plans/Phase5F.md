@@ -343,6 +343,48 @@ Acceptance criteria:
 - Required `KHR_materials_unlit` is accepted only when fully supported.
 - Lighting-dependent material behavior remains unchanged for non-unlit materials.
 
+### Completion Notes (2026-04-28)
+
+- Implemented: `Phase 5F.2` `KHR_materials_unlit` only. Materials now carry a
+  backend-neutral unlit flag from glTF import through material upload and OpenGL/Vulkan rendering.
+- Backend-neutral asset changes: added `MaterialAsset::unlit` while preserving existing alpha mode,
+  alpha cutoff, double-sided, base color, texture transform, vertex color, and texture slot state.
+- Importer behavior: `MaterialImport` parses `KHR_materials_unlit`; `extensionsRequired` now accepts
+  `KHR_materials_unlit` and `KHR_texture_transform`, while unknown required extensions still fail
+  with the extension name in the error.
+- OpenGL behavior: the material shader bypasses directional lighting, normal-map lighting,
+  metallic/roughness attenuation, and occlusion darkening for unlit materials, while retaining base
+  color factor/texture, vertex color, texture transforms, emissive contribution, alpha mask/blend,
+  and double-sided culling behavior.
+- Vulkan behavior: material push flags now include the unlit state, and the embedded fragment SPIR-V
+  was regenerated to match OpenGL's unlit branch while preserving existing descriptor, transform,
+  alpha, culling, and skinning paths.
+- Tests added/updated: importer regression coverage for optional and required
+  `KHR_materials_unlit`, render upload/inspection checks for the unlit material flag, and opt-in
+  Vulkan smoke coverage for an unlit textured alpha-mask/double-sided material.
+- Default validation:
+  - `cmake --build build --target stellar_import_gltf_regression stellar_render_scene_inspection_test stellar_render_scene_upload_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(gltf_importer_regression|render_scene_inspection|render_scene_upload)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; focused suite passed 3/3 tests and full default suite passed 7/7 tests.
+- Optional backend validation:
+  - `cmake -S . -B build-vulkan-tests -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_VULKAN_CONTEXT_TESTS=ON`
+  - `cmake --build build-vulkan-tests --target stellar_vulkan_context_smoke_test -j$(nproc)`
+  - `ctest --test-dir build-vulkan-tests -R '^vulkan_context_smoke$' --output-on-failure`
+  - `cmake -S . -B build-opengl-context -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_OPENGL_CONTEXT_TESTS=ON`
+  - `cmake --build build-opengl-context --target stellar_opengl_context_smoke_test -j$(nproc)`
+  - `ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure`
+  - `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1 ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure`
+  - Result: Vulkan smoke passed 1/1 tests; OpenGL skip path was validated, then explicit OpenGL
+    context smoke passed 1/1 tests with the runtime environment gate enabled.
+- Manual validation:
+  - Not run; no representative authored glTF visual comparison asset was exercised in this pass.
+- Deferred follow-up:
+  - No deterministic GPU readback fixture was added for unlit visible color. Larger skin palettes,
+    full PBR, morph targets, cameras, and lights remain deferred to later Phase 5F slices/decision
+    gates.
+
 ### Phase 5F.3: Larger Skin Palettes
 
 Goal: remove or raise the current 96-joint rendering cap using a shared backend-neutral model that OpenGL and Vulkan can both implement.

@@ -174,6 +174,32 @@ void verify_texture_transform_uv1_routing(stellar::platform::Window& window) {
     assert(device->uploaded_materials[0].normal_texture->texcoord_set == 1);
 }
 
+void verify_unlit_material_records(stellar::platform::Window& window) {
+    stellar::assets::SceneAsset scene;
+    stellar::assets::MaterialAsset material;
+    material.unlit = true;
+    material.alpha_mode = stellar::assets::AlphaMode::kMask;
+    material.alpha_cutoff = 0.33F;
+    material.double_sided = true;
+    material.base_color_factor = {0.25F, 0.5F, 0.75F, 0.8F};
+    scene.materials.push_back(material);
+    scene.meshes.push_back(stellar::assets::MeshAsset{.name = "unlit",
+                                                       .primitives = {make_primitive(0, 0.0F)}});
+    finish_single_node_scene(scene);
+
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, std::move(scene));
+    render_scene.render(64, 64, kIdentity, kIdentity);
+
+    assert(device->uploaded_materials.size() == 1);
+    assert(device->uploaded_materials[0].material.unlit);
+    assert(device->uploaded_materials[0].material.alpha_mode ==
+           stellar::assets::AlphaMode::kMask);
+    assert(device->uploaded_materials[0].material.alpha_cutoff == 0.33F);
+    assert(device->uploaded_materials[0].material.double_sided);
+    assert(device->primitive_draw(0).material == device->material_handles[0]);
+}
+
 void verify_mixed_static_and_skinned_spans(stellar::platform::Window& window) {
     stellar::assets::SceneAsset scene;
     scene.meshes.push_back(stellar::assets::MeshAsset{
@@ -380,6 +406,7 @@ int main() {
     verify_material_identity_and_invalid_indices(window);
     verify_texture_transform_material_records(window);
     verify_texture_transform_uv1_routing(window);
+    verify_unlit_material_records(window);
     verify_mixed_static_and_skinned_spans(window);
     verify_large_static_scene_count(window);
     verify_scene_bounds_and_camera_fit();

@@ -814,20 +814,62 @@ bool run_required_extension_failures_fixture(const std::filesystem::path& root) 
         "  \"scenes\": [{ \"nodes\": [] }],\n"
         "  \"scene\": 0\n"
         "}\n";
-    const std::string unlit_required =
-        "{\n"
-        "  \"asset\": { \"version\": \"2.0\" },\n"
-        "  \"extensionsUsed\": [\"KHR_materials_unlit\"],\n"
-        "  \"extensionsRequired\": [\"KHR_materials_unlit\"],\n"
-        "  \"materials\": [{ \"extensions\": { \"KHR_materials_unlit\": {} } }]\n"
-        "}\n";
-
     return expect_load_failure_containing(work_dir / "required_draco.gltf", draco_required,
                                           "required KHR_draco_mesh_compression",
-                                          "KHR_draco_mesh_compression") &&
-           expect_load_failure_containing(work_dir / "required_unlit.gltf", unlit_required,
-                                          "required KHR_materials_unlit",
-                                          "KHR_materials_unlit");
+                                          "KHR_draco_mesh_compression");
+}
+
+bool run_unlit_material_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "unlit_material";
+    std::filesystem::create_directories(work_dir);
+
+    const auto optional_path = work_dir / "optional_unlit.gltf";
+    write_text_file(optional_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"extensionsUsed\": [\"KHR_materials_unlit\"],\n"
+                    "  \"materials\": [{ \"name\": \"unlit\", \"extensions\": { "
+                    "\"KHR_materials_unlit\": {} }, \"alphaMode\": \"BLEND\", "
+                    "\"doubleSided\": true, \"pbrMetallicRoughness\": { "
+                    "\"baseColorFactor\": [0.2, 0.4, 0.6, 0.5] } }]\n"
+                    "}\n");
+    auto optional_scene = stellar::import::gltf::load_scene(optional_path.string());
+    if (!check(optional_scene.has_value(), "expected optional KHR_materials_unlit import")) {
+        if (!optional_scene) {
+            std::cerr << optional_scene.error().message << '\n';
+        }
+        return false;
+    }
+    if (!check(optional_scene->materials.size() == 1 && optional_scene->materials[0].unlit,
+               "expected optional unlit material flag")) {
+        return false;
+    }
+    if (!check(optional_scene->materials[0].alpha_mode == stellar::assets::AlphaMode::kBlend,
+               "expected unlit material to preserve alpha blend")) {
+        return false;
+    }
+    if (!check(optional_scene->materials[0].double_sided,
+               "expected unlit material to preserve double-sided flag")) {
+        return false;
+    }
+
+    const auto required_path = work_dir / "required_unlit.gltf";
+    write_text_file(required_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"extensionsUsed\": [\"KHR_materials_unlit\"],\n"
+                    "  \"extensionsRequired\": [\"KHR_materials_unlit\"],\n"
+                    "  \"materials\": [{ \"extensions\": { \"KHR_materials_unlit\": {} } }]\n"
+                    "}\n");
+    auto required_scene = stellar::import::gltf::load_scene(required_path.string());
+    if (!check(required_scene.has_value(), "expected required KHR_materials_unlit import")) {
+        if (!required_scene) {
+            std::cerr << required_scene.error().message << '\n';
+        }
+        return false;
+    }
+    return check(required_scene->materials.size() == 1 && required_scene->materials[0].unlit,
+                 "expected required unlit material flag");
 }
 
 bool run_attribute_validation_failures_fixture(const std::filesystem::path& root) {
@@ -1823,8 +1865,10 @@ bool run_optional_unsupported_data_fixture(const std::filesystem::path& root) {
            check(scene->nodes[0].mesh_instances.size() == 1,
                  "expected node mesh import to remain intact") &&
            check(!scene->nodes[0].skin_index.has_value(), "expected no light/camera skin side effect") &&
-           check(scene->materials[0].alpha_mode == stellar::assets::AlphaMode::kOpaque,
-                 "expected optional material extensions not to alter alpha mode") &&
+            check(scene->materials[0].unlit,
+                  "expected optional KHR_materials_unlit to set runtime flag") &&
+            check(scene->materials[0].alpha_mode == stellar::assets::AlphaMode::kOpaque,
+                  "expected optional material extensions not to alter alpha mode") &&
            check_near(scene->materials[0].metallic_factor, 1.0f,
                       "expected optional material extensions not to alter metallic factor");
 }
@@ -1874,6 +1918,9 @@ int main() {
         return 1;
     }
     if (!run_required_extension_failures_fixture(root)) {
+        return 1;
+    }
+    if (!run_unlit_material_fixture(root)) {
         return 1;
     }
     if (!run_uv1_vertex_color_fixture(root)) {

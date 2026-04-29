@@ -167,6 +167,7 @@ stellar::assets::SceneAsset make_scene() {
         .alpha_mode = stellar::assets::AlphaMode::kMask,
         .alpha_cutoff = 0.25F,
         .double_sided = true,
+        .unlit = true,
     });
     scene.materials.push_back(stellar::assets::MaterialAsset{
         .name = "blend",
@@ -272,6 +273,7 @@ int main() {
     assert(mock_ptr->material_uploads[0].material.metallic_factor > 0.74F);
     assert(mock_ptr->material_uploads[0].material.roughness_factor < 0.36F);
     assert(mock_ptr->material_uploads[0].material.double_sided);
+    assert(mock_ptr->material_uploads[0].material.unlit);
     assert(mock_ptr->material_uploads[1].material.alpha_mode ==
            stellar::assets::AlphaMode::kBlend);
     assert(mock_ptr->material_uploads[1].material.base_color_factor[3] < 0.41F);

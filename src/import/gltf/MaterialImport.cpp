@@ -18,6 +18,7 @@ load_material(const cgltf_data* data, const cgltf_material* material) {
     result.roughness_factor = material->pbr_metallic_roughness.roughness_factor;
     result.alpha_cutoff = material->alpha_cutoff;
     result.double_sided = material->double_sided;
+    result.unlit = material->unlit;
 
     switch (material->alpha_mode) {
         case cgltf_alpha_mode_mask:
