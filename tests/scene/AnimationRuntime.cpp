@@ -133,6 +133,37 @@ void test_skeleton_pose() {
     assert(near(joint_matrix[13], 2.0f));
 }
 
+void test_large_skin_palette_runtime_pose() {
+    constexpr std::size_t kJointCount = 128;
+    stellar::assets::SceneAsset scene;
+    stellar::scene::Node root;
+    std::vector<std::size_t> root_nodes{0};
+    scene.nodes.push_back(root);
+    stellar::assets::SkinAsset skin;
+    skin.joints.reserve(kJointCount);
+    skin.inverse_bind_matrices.reserve(kJointCount);
+    for (std::size_t joint = 0; joint < kJointCount; ++joint) {
+        stellar::scene::Node joint_node;
+        joint_node.local_transform.translation = {static_cast<float>(joint), 0.0f, 0.0f};
+        scene.nodes.push_back(joint_node);
+        root_nodes.push_back(joint + 1);
+        skin.joints.push_back(joint + 1);
+        skin.inverse_bind_matrices.push_back(
+            std::array<float, 16>{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                                  0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f});
+    }
+    scene.skins.push_back(std::move(skin));
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = root_nodes});
+    scene.default_scene_index = 0;
+
+    stellar::scene::AnimationPlayer player;
+    player.bind(scene);
+    assert(player.pose().skin_poses.size() == 1);
+    assert(player.pose().skin_poses[0].joint_matrices.size() == kJointCount);
+    assert(near(player.pose().skin_poses[0].joint_matrices[97][12], 97.0f));
+    assert(near(player.pose().skin_poses[0].joint_matrices[127][12], 127.0f));
+}
+
 void test_static_no_animation_behavior() {
     stellar::assets::SceneAsset scene;
     stellar::scene::Node node;
@@ -153,6 +184,7 @@ int main() {
     test_interpolation_and_node_updates();
     test_cubic_spline_translation();
     test_skeleton_pose();
+    test_large_skin_palette_runtime_pose();
     test_static_no_animation_behavior();
     return 0;
 }

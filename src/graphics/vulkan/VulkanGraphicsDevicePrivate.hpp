@@ -9,7 +9,7 @@
 
 namespace stellar::graphics::vulkan {
 
-constexpr std::size_t kMaxSkinJoints = 96;
+constexpr std::size_t kMaxSkinJoints = kMaxSkinPaletteJoints;
 constexpr std::size_t kSkinDrawUniformSlotsPerFrame = 256;
 
 struct VulkanSkinDrawUniform {

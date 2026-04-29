@@ -9,6 +9,7 @@
 #include "stellar/assets/TextureAsset.hpp"
 #include "stellar/graphics/GraphicsHandles.hpp"
 #include "stellar/graphics/MaterialUpload.hpp"
+#include "stellar/graphics/SkinPalettePolicy.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::graphics {

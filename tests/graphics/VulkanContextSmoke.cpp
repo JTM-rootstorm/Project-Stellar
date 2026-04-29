@@ -66,7 +66,7 @@ stellar::assets::MeshAsset make_parity_matrix_mesh() {
     stellar::assets::MeshPrimitive high_joint_skinned = make_triangle(-0.4F);
     high_joint_skinned.has_skinning = true;
     for (stellar::assets::StaticVertex& vertex : high_joint_skinned.vertices) {
-        vertex.joints0 = {95, 0, 0, 0};
+        vertex.joints0 = {127, 0, 0, 0};
         vertex.weights0 = {1.0F, 0.0F, 0.0F, 0.0F};
     }
 
@@ -295,9 +295,10 @@ int main() {
                                             0.0F, 0.0F, 1.0F, 0.0F,
                                             0.1F, 0.0F, 0.0F, 1.0F};
     const std::array<std::array<float, 16>, 1> one_joint_palette{skin_matrix};
-    std::vector<std::array<float, 16>> full_skin_palette(96, kIdentity4);
-    full_skin_palette[95] = skin_matrix;
-    std::vector<std::array<float, 16>> over_limit_skin_palette(97, kIdentity4);
+    std::vector<std::array<float, 16>> full_skin_palette(128, kIdentity4);
+    full_skin_palette[127] = skin_matrix;
+    std::vector<std::array<float, 16>> over_limit_skin_palette(
+        stellar::graphics::kMaxSkinPaletteJoints + 1, kIdentity4);
     const std::span<const std::array<float, 16>> one_joint_span{one_joint_palette.data(),
                                                                one_joint_palette.size()};
     const std::span<const std::array<float, 16>> full_skin_span{full_skin_palette.data(),

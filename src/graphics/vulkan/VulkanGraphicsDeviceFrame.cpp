@@ -239,8 +239,9 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         }
 
         const bool use_skinning = primitive.has_skinning && !command.skin_joint_matrices.empty();
-        if (command.skin_joint_matrices.size() > kMaxSkinJoints) {
-            log_vulkan_message("Vulkan skin joint count exceeds 96; skipping skinned primitive");
+        if (command.skin_joint_matrices.size() > kMaxSkinPaletteJoints) {
+            log_vulkan_message(
+                "Vulkan skin joint count exceeds 256-joint runtime cap; skipping skinned primitive");
             continue;
         }
         if (use_skinning && command.skin_joint_matrices.size() <= primitive.max_joint_index) {

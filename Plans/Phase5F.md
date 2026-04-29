@@ -449,6 +449,45 @@ Acceptance criteria:
 - OpenGL and Vulkan use the same effective skin palette limit.
 - No regression in static or unskinned draw paths.
 
+### Completion Notes (2026-04-28)
+
+- Implemented: `Phase 5F.3` larger skin palettes. The old 96-joint rendering cap was replaced by a
+  backend-neutral runtime cap of 256 joints per draw.
+- Capacity policy: `stellar::graphics::kMaxSkinPaletteJoints` documents the shared limit and error
+  behavior. CPU import/runtime assets may hold larger skins, but OpenGL/Vulkan mesh upload rejects
+  primitives whose referenced joint index is at or above 256; draw calls with palettes larger than
+  256 or undersized for the primitive's referenced joint index are skipped clearly by the backend.
+- RenderScene behavior: skinned draw preparation now forwards full pose palettes without truncation;
+  display-free inspection validates a 128-joint palette with indices above the old limit.
+- OpenGL behavior: skinning now uses a GLSL 4.30 shader storage buffer bound per draw instead of a
+  96-entry uniform array, while static/no-skin primitives keep the existing path.
+- Vulkan behavior: per-draw transform and skin data now use a storage-buffer descriptor path with the
+  same 256-joint effective limit, preserving the per-frame descriptor-slot lifetime model.
+- Tests added/updated: animation runtime coverage for a 128-joint skin pose; render inspection
+  forwarding for a >96-joint palette; render upload checks for old-limit success, >96 success,
+  over-cap upload failure, and undersized-palette draw skip. Optional Vulkan smoke now exercises a
+  128-joint palette and an over-cap skip path.
+- Default validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_animation_runtime_test stellar_render_scene_inspection_test stellar_render_scene_upload_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(animation_runtime|render_scene_inspection|render_scene_upload)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; focused suite passed 3/3 tests and full default suite passed 7/7 tests.
+- Optional backend validation:
+  - `cmake --build build-vulkan-tests --target stellar_vulkan_context_smoke_test -j$(nproc)`
+  - `ctest --test-dir build-vulkan-tests -R '^vulkan_context_smoke$' --output-on-failure`
+  - `cmake --build build-opengl-context --target stellar_opengl_context_smoke_test -j$(nproc)`
+  - `ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure`
+  - `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1 ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure`
+  - Result: Vulkan smoke passed 1/1 tests; OpenGL skip path was validated, then explicit OpenGL
+    context smoke passed 1/1 tests with the runtime environment gate enabled.
+- Manual validation:
+  - Not run; no representative authored >96-joint glTF character was available in this pass.
+- Deferred follow-up:
+  - The conservative 256-joint cap can be revisited later if real assets require larger palettes;
+    full PBR, morph targets, cameras, and lights remain deferred to later Phase 5F decision gates.
+
 ### Phase 5F.4: Full Metallic-Roughness PBR Decision Gate
 
 Goal: decide whether to implement fuller glTF PBR or explicitly defer it.

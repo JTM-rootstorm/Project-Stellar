@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <span>
 #include <vector>
@@ -55,6 +56,7 @@ private:
         bool has_tangents = false;
         bool has_colors = false;
         bool has_skinning = false;
+        std::uint16_t max_joint_index = 0;
     };
 
     struct MeshRecord {
@@ -83,11 +85,12 @@ private:
     SDL_Window* window_ = nullptr;
     SDL_GLContext context_ = nullptr;
     unsigned int shader_program_ = 0;
+    unsigned int skin_palette_buffer_ = 0;
     int mvp_loc_ = -1;
     int model_loc_ = -1;
     int normal_matrix_loc_ = -1;
     int has_skinning_loc_ = -1;
-    int joint_matrices_loc_ = -1;
+    int joint_count_loc_ = -1;
     std::uint64_t next_handle_ = 1;
     std::map<std::uint64_t, MeshRecord> meshes_;
     std::map<std::uint64_t, TextureRecord> textures_;

@@ -233,6 +233,46 @@ void verify_mixed_static_and_skinned_spans(stellar::platform::Window& window) {
     assert(device->primitive_draw(1).skin_joint_matrices[0][12] == 5.0F);
 }
 
+void verify_large_skin_palette_forwarding(stellar::platform::Window& window) {
+    constexpr std::size_t kJointCount = 128;
+    stellar::assets::SceneAsset scene;
+    auto primitive = make_primitive(std::nullopt, 0.0F, true);
+    primitive.vertices[0].joints0 = {0, 95, 96, 127};
+    primitive.vertices[0].weights0 = {0.25F, 0.25F, 0.25F, 0.25F};
+    scene.meshes.push_back(stellar::assets::MeshAsset{.name = "large_skin",
+                                                       .primitives = {primitive}});
+    stellar::assets::SkinAsset skin;
+    for (std::size_t joint = 0; joint < kJointCount; ++joint) {
+        skin.joints.push_back(joint + 1);
+    }
+    scene.skins.push_back(std::move(skin));
+    stellar::scene::Node root;
+    root.mesh_instances = {stellar::scene::MeshInstance{0}};
+    root.skin_index = 0;
+    scene.nodes.push_back(root);
+    for (std::size_t joint = 0; joint < kJointCount; ++joint) {
+        scene.nodes.push_back(stellar::scene::Node{});
+    }
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0}});
+    scene.default_scene_index = 0;
+
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, std::move(scene));
+
+    stellar::scene::ScenePose pose;
+    pose.world_transforms.assign(kJointCount + 1, kIdentity);
+    pose.skin_poses.resize(1);
+    pose.skin_poses[0].joint_matrices.assign(kJointCount, kIdentity);
+    pose.skin_poses[0].joint_matrices[96][12] = 96.0F;
+    pose.skin_poses[0].joint_matrices[127][12] = 127.0F;
+    render_scene.render(64, 64, kIdentity, kIdentity, pose);
+
+    assert(device->draw_calls.size() == 1);
+    assert(device->primitive_draw(0).skin_joint_matrices.size() == kJointCount);
+    assert(device->primitive_draw(0).skin_joint_matrices[96][12] == 96.0F);
+    assert(device->primitive_draw(0).skin_joint_matrices[127][12] == 127.0F);
+}
+
 void verify_large_static_scene_count(stellar::platform::Window& window) {
     constexpr std::size_t kNodeCount = 1024;
     stellar::assets::SceneAsset scene;
@@ -408,6 +448,7 @@ int main() {
     verify_texture_transform_uv1_routing(window);
     verify_unlit_material_records(window);
     verify_mixed_static_and_skinned_spans(window);
+    verify_large_skin_palette_forwarding(window);
     verify_large_static_scene_count(window);
     verify_scene_bounds_and_camera_fit();
     verify_debug_cube_winding_matches_normals();

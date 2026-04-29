@@ -202,10 +202,10 @@ VulkanGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
         if (primitive.has_skinning) {
             for (const stellar::assets::StaticVertex& vertex : primitive.vertices) {
                 for (std::uint16_t joint : vertex.joints0) {
-                    if (joint >= kMaxSkinJoints) {
+                    if (joint >= kMaxSkinPaletteJoints) {
                         destroy_mesh_record(record);
                         return std::unexpected(stellar::platform::Error(
-                            "Mesh primitive skin joint index exceeds Vulkan/OpenGL 96-joint cap"));
+                            "Mesh primitive skin joint index exceeds 256-joint runtime cap"));
                     }
                     max_joint_index = std::max(max_joint_index, joint);
                 }
@@ -404,7 +404,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
     }
     bindings[kMaterialTextureSlotCount] = VkDescriptorSetLayoutBinding{
         .binding = kMaterialTextureSlotCount,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
     };
@@ -468,7 +468,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
         return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
     }
     const VkDescriptorPoolSize skin_draw_pool_size{
-        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = kSkinDrawDescriptorSetCapacity,
     };
     const VkDescriptorPoolCreateInfo skin_draw_pool_info{
@@ -504,7 +504,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_skin_
     const VkDeviceSize slot_size = static_cast<VkDeviceSize>(sizeof(VulkanSkinDrawUniform));
     const VkDeviceSize buffer_size = slot_size * kSkinDrawUniformSlotsPerFrame;
     for (FrameResources& frame : frames_) {
-        if (auto result = create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        if (auto result = create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                         frame.skin_draw_uniform_buffer,
@@ -553,7 +553,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_skin_
                 .dstSet = frame.skin_draw_descriptor_sets[slot],
                 .dstBinding = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .pBufferInfo = &buffer_infos[slot],
             };
         }
@@ -578,9 +578,9 @@ VulkanGraphicsDevice::upload_skin_draw_uniform(
         return std::unexpected(stellar::platform::Error(
             "Vulkan skin draw uniform capacity exceeded for this frame"));
     }
-    if (skin_joint_matrices.size() > kMaxSkinJoints) {
+    if (skin_joint_matrices.size() > kMaxSkinPaletteJoints) {
         return std::unexpected(stellar::platform::Error(
-            "Vulkan skin joint count exceeds 96; skipping skinned primitive"));
+            "Vulkan skin joint count exceeds 256-joint runtime cap; skipping skinned primitive"));
     }
 
     VulkanSkinDrawUniform uniform{};
