@@ -576,6 +576,31 @@ Acceptance criteria if deferred:
 - Existing unsupported-feature behavior remains clear and tested.
 - No partial morph runtime path silently produces incorrect animation.
 
+### Completion Notes (2026-04-28)
+
+- Decision: deferred morph targets. There is no immediate asset/runtime requirement for morph target
+  deformation or animated morph weights, so this decision gate preserved the current lightweight
+  runtime scene model and avoided broad mesh, animation, renderer, and shader churn.
+- Importer behavior: animation target path `weights` is still rejected with
+  `Morph target weight animations are unsupported`, preventing assets from silently claiming working
+  morph-weight animation before morph target runtime support exists. Optional mesh morph target data
+  remains ignored/degraded by policy alongside other optional unsupported data without creating
+  runtime morph state.
+- Runtime/renderer behavior: no backend-neutral morph target asset schema, draw-time morph weights,
+  OpenGL morph buffers/shader path, or Vulkan morph buffers/shader path were added. No partial runtime
+  path now claims morph target support.
+- Tests added/updated: none. Existing importer regression coverage already includes unsupported
+  `weights` animation rejection and optional unsupported morph target data degradation.
+- Validation:
+  - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+  - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+  - Result: pass; focused importer regression passed 1/1 tests after this decision-gate update.
+- Deferred follow-up:
+  - Add backend-neutral morph target deltas, animation runtime weight channels, render submission
+    weights, OpenGL/Vulkan buffer and shader parity, explicit morph target count caps, and importer,
+    animation runtime, render inspection, and optional backend tests only when morph targets are
+    selected as a runtime requirement.
+
 ### Phase 5F.6: Cameras And Lights Decision Gate
 
 Goal: decide whether authored glTF cameras/lights should affect runtime scene selection and rendering.
@@ -613,6 +638,31 @@ Acceptance criteria if deferred:
 
 - Current auto-fit camera and lightweight lighting behavior remain stable.
 - No claim of scene-authored camera/light support.
+
+### Completion Notes (2026-04-28)
+
+- Decision: deferred authored cameras and lights. The current client continues to use engine-driven
+  auto-fit camera selection and lightweight renderer lighting rather than broadening into glTF viewer
+  camera/light scene control.
+- Importer behavior: optional glTF cameras and optional `KHR_lights_punctual` data remain
+  ignored/degraded according to current unsupported optional-data policy. Required camera/light
+  extensions remain rejected by the required-extension gate unless and until they are fully
+  represented; currently only `KHR_texture_transform` and `KHR_materials_unlit` are accepted as
+  supported required extensions.
+- Runtime/renderer behavior: `SceneRenderer` still computes a stable camera with
+  `fit_camera_to_bounds` each frame, and no scene-authored camera selection, CLI/config camera
+  selection, imported light asset model, light upload API, or shader light uniform model was added.
+  OpenGL and Vulkan retain the existing lightweight material/lighting policy.
+- Tests added/updated: none. Existing importer regression coverage already includes optional camera
+  and punctual-light data degrading without adding runtime nodes or side effects.
+- Validation:
+  - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+  - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+  - Result: pass; focused importer regression passed 1/1 tests after this decision-gate update.
+- Deferred follow-up:
+  - Define scene-authored camera selection, CLI/config camera selection, punctual lights/extension
+    import, shader/light uniform model, and OpenGL/Vulkan parity tests before accepting authored
+    cameras or lights as runtime-visible glTF features.
 
 ## Implementation Guidance
 
