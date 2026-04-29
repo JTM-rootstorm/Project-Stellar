@@ -2,9 +2,11 @@
 
 #include <cassert>
 #include <expected>
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "stellar/assets/SkinAsset.hpp"
@@ -23,6 +25,24 @@ public:
     create_mesh(const stellar::assets::MeshAsset& mesh) override {
         uploaded_primitive_count = mesh.primitives.size();
         uploaded_first_primitive_has_colors = !mesh.primitives.empty() && mesh.primitives[0].has_colors;
+        std::vector<std::uint16_t> mesh_max_joint_indices;
+        mesh_max_joint_indices.reserve(mesh.primitives.size());
+        for (const auto& primitive : mesh.primitives) {
+            std::uint16_t max_joint_index = 0;
+            if (primitive.has_skinning) {
+                for (const auto& vertex : primitive.vertices) {
+                    for (std::uint16_t joint : vertex.joints0) {
+                        if (joint >= stellar::graphics::kMaxSkinPaletteJoints) {
+                            return std::unexpected(stellar::platform::Error(
+                                "Mesh primitive skin joint index exceeds 256-joint runtime cap"));
+                        }
+                        max_joint_index = std::max(max_joint_index, joint);
+                    }
+                }
+            }
+            mesh_max_joint_indices.push_back(max_joint_index);
+        }
+        max_joint_indices.push_back(std::move(mesh_max_joint_indices));
         return stellar::graphics::MeshHandle{next_handle++};
     }
 
@@ -47,6 +67,17 @@ public:
     void draw_mesh(stellar::graphics::MeshHandle mesh,
                    std::span<const stellar::graphics::MeshPrimitiveDrawCommand> commands,
                    const stellar::graphics::MeshDrawTransforms& transforms) noexcept override {
+        const auto mesh_slot = static_cast<std::size_t>(mesh.value - 1);
+        const auto max_joint_index = mesh_slot < max_joint_indices.size() &&
+                commands[0].primitive_index < max_joint_indices[mesh_slot].size()
+            ? max_joint_indices[mesh_slot][commands[0].primitive_index]
+            : 0;
+        if (commands[0].skin_joint_matrices.size() > stellar::graphics::kMaxSkinPaletteJoints ||
+            (!commands[0].skin_joint_matrices.empty() &&
+             commands[0].skin_joint_matrices.size() <= max_joint_index)) {
+            ++skipped_skin_draws;
+            return;
+        }
         drew_mesh = static_cast<bool>(mesh) && commands.size() == 1 &&
                     static_cast<bool>(commands[0].material) && transforms.mvp[0] == 2.0F &&
                     transforms.world[5] == 3.0F && transforms.normal[8] == 0.25F;
@@ -85,6 +116,8 @@ public:
     std::vector<std::size_t> draw_order;
     std::vector<std::size_t> skin_joint_counts;
     std::array<float, 16> first_skin_joint_matrix{};
+    std::vector<std::vector<std::uint16_t>> max_joint_indices;
+    int skipped_skin_draws = 0;
     int destroyed_meshes = 0;
     int destroyed_textures = 0;
     int destroyed_materials = 0;
@@ -142,7 +175,14 @@ stellar::assets::SceneAsset make_scene() {
         .name = "textured",
         .base_color_factor = {0.5F, 0.5F, 0.5F, 1.0F},
         .base_color_texture = stellar::assets::MaterialTextureSlot{.texture_index = 0,
-                                                                    .texcoord_set = 1},
+                                                                    .texcoord_set = 1,
+                                                                    .scale = 1.0F,
+                                                                    .transform = {
+                                                                        .offset = {0.25F, 0.5F},
+                                                                        .rotation = 0.125F,
+                                                                        .scale = {2.0F, 0.5F},
+                                                                        .texcoord_set = 0U,
+                                                                        .enabled = true}},
         .normal_texture = stellar::assets::MaterialTextureSlot{.texture_index = 1,
                                                                 .texcoord_set = 0,
                                                                .scale = 0.5F},
@@ -160,6 +200,7 @@ stellar::assets::SceneAsset make_scene() {
         .alpha_mode = stellar::assets::AlphaMode::kMask,
         .alpha_cutoff = 0.25F,
         .double_sided = true,
+        .unlit = true,
     });
     scene.materials.push_back(stellar::assets::MaterialAsset{
         .name = "blend",
@@ -214,6 +255,44 @@ stellar::assets::SceneAsset make_scene() {
     return scene;
 }
 
+stellar::assets::SceneAsset make_single_skinned_scene(std::uint16_t max_joint_index) {
+    stellar::assets::SceneAsset scene;
+    stellar::assets::MeshPrimitive primitive;
+    primitive.vertices.resize(3);
+    primitive.vertices[0].joints0 = {0, 1, max_joint_index, max_joint_index};
+    primitive.vertices[0].weights0 = {0.25F, 0.25F, 0.25F, 0.25F};
+    primitive.indices = {0, 1, 2};
+    primitive.has_skinning = true;
+    scene.meshes.push_back(stellar::assets::MeshAsset{.name = "skinned",
+                                                       .primitives = {primitive}});
+    stellar::assets::SkinAsset skin;
+    for (std::size_t joint = 0; joint <= max_joint_index; ++joint) {
+        skin.joints.push_back(joint + 1);
+    }
+    scene.skins.push_back(std::move(skin));
+    stellar::scene::Node root;
+    root.name = "skinned_root";
+    root.mesh_instances = {stellar::scene::MeshInstance{0}};
+    root.skin_index = 0;
+    scene.nodes.push_back(root);
+    for (std::size_t joint = 0; joint <= max_joint_index; ++joint) {
+        scene.nodes.push_back(stellar::scene::Node{});
+    }
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {0}});
+    scene.default_scene_index = 0;
+    return scene;
+}
+
+stellar::scene::ScenePose make_pose_with_joint_count(std::size_t joint_count) {
+    const std::array<float, 16> identity{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
+                                         0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F};
+    stellar::scene::ScenePose pose;
+    pose.world_transforms.assign(joint_count + 1, identity);
+    pose.skin_poses.resize(1);
+    pose.skin_poses[0].joint_matrices.assign(joint_count, identity);
+    return pose;
+}
+
 } // namespace
 
 int main() {
@@ -237,7 +316,13 @@ int main() {
     assert(mock_ptr->material_uploads.size() == 3);
     assert(mock_ptr->material_uploads[0].base_color_texture.has_value());
     assert(mock_ptr->material_uploads[0].base_color_texture->texture.value != 0);
-    assert(mock_ptr->material_uploads[0].base_color_texture->texcoord_set == 1);
+    assert(mock_ptr->material_uploads[0].base_color_texture->texcoord_set == 0);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.enabled);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.offset[0] == 0.25F);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.rotation == 0.125F);
+    assert(mock_ptr->material_uploads[0].base_color_texture->transform.scale[0] == 2.0F);
+    assert(mock_ptr->material_uploads[0].material.base_color_texture->texcoord_set == 1);
+    assert(mock_ptr->material_uploads[0].material.base_color_texture->transform.texcoord_set == 0U);
     assert(mock_ptr->material_uploads[0].base_color_texture->sampler.wrap_s ==
            stellar::assets::TextureWrapMode::kClampToEdge);
     assert(mock_ptr->material_uploads[0].normal_texture.has_value());
@@ -259,6 +344,7 @@ int main() {
     assert(mock_ptr->material_uploads[0].material.metallic_factor > 0.74F);
     assert(mock_ptr->material_uploads[0].material.roughness_factor < 0.36F);
     assert(mock_ptr->material_uploads[0].material.double_sided);
+    assert(mock_ptr->material_uploads[0].material.unlit);
     assert(mock_ptr->material_uploads[1].material.alpha_mode ==
            stellar::assets::AlphaMode::kBlend);
     assert(mock_ptr->material_uploads[1].material.base_color_factor[3] < 0.41F);
@@ -316,6 +402,48 @@ int main() {
     skinned_render_scene.render(64, 64, identity, identity, pose);
     assert((skinned_mock_ptr->skin_joint_counts == std::vector<std::size_t>{1}));
     assert(skinned_mock_ptr->first_skin_joint_matrix[12] == 5.0F);
+
+    auto old_limit_mock = std::make_unique<MockGraphicsDevice>();
+    MockGraphicsDevice* old_limit_mock_ptr = old_limit_mock.get();
+    stellar::graphics::RenderScene old_limit_render_scene;
+    auto old_limit_result = old_limit_render_scene.initialize(
+        std::move(old_limit_mock), window, make_single_skinned_scene(95));
+    assert(old_limit_result.has_value());
+    auto old_limit_pose = make_pose_with_joint_count(96);
+    old_limit_render_scene.render(64, 64, identity, identity, old_limit_pose);
+    assert((old_limit_mock_ptr->skin_joint_counts == std::vector<std::size_t>{96}));
+    assert(old_limit_mock_ptr->skipped_skin_draws == 0);
+
+    auto larger_mock = std::make_unique<MockGraphicsDevice>();
+    MockGraphicsDevice* larger_mock_ptr = larger_mock.get();
+    stellar::graphics::RenderScene larger_render_scene;
+    auto larger_result = larger_render_scene.initialize(
+        std::move(larger_mock), window, make_single_skinned_scene(127));
+    assert(larger_result.has_value());
+    auto larger_pose = make_pose_with_joint_count(128);
+    larger_render_scene.render(64, 64, identity, identity, larger_pose);
+    assert((larger_mock_ptr->skin_joint_counts == std::vector<std::size_t>{128}));
+    assert(larger_mock_ptr->skipped_skin_draws == 0);
+
+    auto undersized_mock = std::make_unique<MockGraphicsDevice>();
+    MockGraphicsDevice* undersized_mock_ptr = undersized_mock.get();
+    stellar::graphics::RenderScene undersized_render_scene;
+    auto undersized_result = undersized_render_scene.initialize(
+        std::move(undersized_mock), window, make_single_skinned_scene(127));
+    assert(undersized_result.has_value());
+    auto undersized_pose = make_pose_with_joint_count(96);
+    undersized_render_scene.render(64, 64, identity, identity, undersized_pose);
+    assert(undersized_mock_ptr->skin_joint_counts.empty());
+    assert(undersized_mock_ptr->skipped_skin_draws == 1);
+
+    auto over_cap_mock = std::make_unique<MockGraphicsDevice>();
+    stellar::graphics::RenderScene over_cap_render_scene;
+    auto over_cap_result = over_cap_render_scene.initialize(
+        std::move(over_cap_mock), window,
+        make_single_skinned_scene(static_cast<std::uint16_t>(
+            stellar::graphics::kMaxSkinPaletteJoints)));
+    assert(!over_cap_result.has_value());
+    assert(over_cap_result.error().message.find("256-joint runtime cap") != std::string::npos);
 
     return 0;
 }

@@ -1,6 +1,9 @@
 #include "stellar/graphics/opengl/OpenGLGraphicsDevice.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
+#include <cmath>
 #include <expected>
 #include <string>
 
@@ -11,10 +14,8 @@ namespace stellar::graphics::opengl {
 
 namespace {
 
-constexpr int kMaxSkinJoints = 96;
-
 constexpr const char* kVertexShader = R"(
-#version 330 core
+#version 430 core
 
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec3 a_normal;
@@ -29,7 +30,11 @@ uniform mat4 u_mvp;
 uniform mat4 u_model;
 uniform mat3 u_normal_matrix;
 uniform bool u_has_skinning;
-uniform mat4 u_joint_matrices[96];
+uniform uint u_joint_count;
+
+layout(std430, binding = 0) readonly buffer SkinPalette {
+    mat4 u_joint_matrices[];
+};
 
 out vec2 v_uv0;
 out vec2 v_uv1;
@@ -40,10 +45,10 @@ out vec4 v_color;
 void main() {
     mat4 skin = mat4(1.0);
     if (u_has_skinning) {
-        skin = a_weights0.x * u_joint_matrices[a_joints0.x] +
-            a_weights0.y * u_joint_matrices[a_joints0.y] +
-            a_weights0.z * u_joint_matrices[a_joints0.z] +
-            a_weights0.w * u_joint_matrices[a_joints0.w];
+        skin = a_weights0.x * u_joint_matrices[min(a_joints0.x, u_joint_count - 1u)] +
+            a_weights0.y * u_joint_matrices[min(a_joints0.y, u_joint_count - 1u)] +
+            a_weights0.z * u_joint_matrices[min(a_joints0.z, u_joint_count - 1u)] +
+            a_weights0.w * u_joint_matrices[min(a_joints0.w, u_joint_count - 1u)];
     }
     vec4 local_position = skin * vec4(a_position, 1.0);
     mat3 skinned_normal_matrix = mat3(skin);
@@ -76,6 +81,8 @@ uniform int u_normal_texcoord_set;
 uniform int u_metallic_roughness_texcoord_set;
 uniform int u_occlusion_texcoord_set;
 uniform int u_emissive_texcoord_set;
+uniform vec4 u_texture_transform0[5];
+uniform vec4 u_texture_transform1[5];
 uniform float u_metallic_factor;
 uniform float u_roughness_factor;
 uniform float u_normal_scale;
@@ -83,6 +90,7 @@ uniform float u_occlusion_strength;
 uniform vec3 u_emissive_factor;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
+uniform bool u_unlit;
 
 in vec2 v_uv0;
 in vec2 v_uv1;
@@ -96,13 +104,28 @@ vec2 uv_for_set(int texcoord_set) {
     return texcoord_set == 1 ? v_uv1 : v_uv0;
 }
 
+vec2 transformed_uv_for_slot(int texcoord_set, int slot) {
+    vec2 uv = uv_for_set(texcoord_set);
+    if (u_texture_transform0[slot].w == 0.0) {
+        return uv;
+    }
+
+    vec2 scaled = uv * u_texture_transform1[slot].xy;
+    float c = cos(u_texture_transform0[slot].z);
+    float s = sin(u_texture_transform0[slot].z);
+    return u_texture_transform0[slot].xy + vec2(
+        c * scaled.x - s * scaled.y,
+        s * scaled.x + c * scaled.y);
+}
+
 void main() {
     vec4 color = u_base_color;
     if (u_has_vertex_color) {
         color *= v_color;
     }
     if (u_has_base_color_texture) {
-        color *= texture(u_base_color_texture, uv_for_set(u_base_color_texcoord_set));
+        color *= texture(u_base_color_texture,
+            transformed_uv_for_slot(u_base_color_texcoord_set, 0));
     }
     if (u_alpha_mode == 1 && color.a < u_alpha_cutoff) {
         discard;
@@ -112,7 +135,7 @@ void main() {
     float roughness = u_roughness_factor;
     if (u_has_metallic_roughness_texture) {
         vec4 metallic_roughness = texture(u_metallic_roughness_texture,
-            uv_for_set(u_metallic_roughness_texcoord_set));
+            transformed_uv_for_slot(u_metallic_roughness_texcoord_set, 2));
         roughness *= metallic_roughness.g;
         metallic *= metallic_roughness.b;
     }
@@ -122,28 +145,33 @@ void main() {
         vec3 tangent = normalize(v_tangent.xyz - normal * dot(v_tangent.xyz, normal));
         vec3 bitangent = normalize(cross(normal, tangent) * v_tangent.w);
         mat3 tbn = mat3(tangent, bitangent, normal);
-        vec3 sampled_normal = texture(u_normal_texture, uv_for_set(u_normal_texcoord_set)).xyz *
-            2.0 - 1.0;
+        vec3 sampled_normal = texture(u_normal_texture,
+            transformed_uv_for_slot(u_normal_texcoord_set, 1)).xyz * 2.0 - 1.0;
         sampled_normal.xy *= u_normal_scale;
         normal = normalize(tbn * sampled_normal);
     }
 
-    vec3 light_dir = normalize(vec3(0.35, 0.8, 0.45));
-    float diffuse = max(dot(normal, light_dir), 0.0);
-    float perceptual_roughness = clamp(roughness, 0.04, 1.0);
-    float metal_attenuation = mix(1.0, 0.45, clamp(metallic, 0.0, 1.0));
-    float lit = 0.18 + diffuse * metal_attenuation *
-        mix(1.0, 0.65, perceptual_roughness);
-    float occlusion = 1.0;
-    if (u_has_occlusion_texture) {
-        occlusion = mix(1.0, texture(u_occlusion_texture, uv_for_set(u_occlusion_texcoord_set)).r,
-            u_occlusion_strength);
-    }
     vec3 emissive = u_emissive_factor;
     if (u_has_emissive_texture) {
-        emissive *= texture(u_emissive_texture, uv_for_set(u_emissive_texcoord_set)).rgb;
+        emissive *= texture(u_emissive_texture,
+            transformed_uv_for_slot(u_emissive_texcoord_set, 4)).rgb;
     }
-    frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
+    if (u_unlit) {
+        frag_color = vec4(color.rgb + emissive, color.a);
+    } else {
+        vec3 light_dir = normalize(vec3(0.35, 0.8, 0.45));
+        float diffuse = max(dot(normal, light_dir), 0.0);
+        float perceptual_roughness = clamp(roughness, 0.04, 1.0);
+        float metal_attenuation = mix(1.0, 0.45, clamp(metallic, 0.0, 1.0));
+        float lit = 0.18 + diffuse * metal_attenuation *
+            mix(1.0, 0.65, perceptual_roughness);
+        float occlusion = 1.0;
+        if (u_has_occlusion_texture) {
+            occlusion = mix(1.0, texture(u_occlusion_texture,
+                transformed_uv_for_slot(u_occlusion_texcoord_set, 3)).r, u_occlusion_strength);
+        }
+        frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
+    }
 }
 )";
 
@@ -301,6 +329,25 @@ int to_alpha_mode(stellar::assets::AlphaMode mode) noexcept {
     }
 }
 
+std::array<float, 4> transform0_for(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {0.0F, 0.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.offset[0], binding->transform.offset[1],
+            binding->transform.rotation, 1.0F};
+}
+
+std::array<float, 4> transform1_for(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {1.0F, 1.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.scale[0], binding->transform.scale[1], 0.0F, 0.0F};
+}
+
 void apply_sampler_state(const stellar::assets::SamplerAsset& sampler) noexcept {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
                     to_gl_filter(sampler.min_filter, GL_LINEAR_MIPMAP_LINEAR));
@@ -320,7 +367,12 @@ OpenGLGraphicsDevice::~OpenGLGraphicsDevice() noexcept {
         model_loc_ = -1;
         normal_matrix_loc_ = -1;
         has_skinning_loc_ = -1;
-        joint_matrices_loc_ = -1;
+        joint_count_loc_ = -1;
+    }
+
+    if (skin_palette_buffer_ != 0) {
+        glDeleteBuffers(1, &skin_palette_buffer_);
+        skin_palette_buffer_ = 0;
     }
 
     for (auto& [handle, record] : meshes_) {
@@ -352,8 +404,8 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window& window) {
         return std::unexpected(stellar::platform::Error("Window is not initialized"));
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
@@ -382,7 +434,8 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window& window) {
     model_loc_ = glGetUniformLocation(shader_program_, "u_model");
     normal_matrix_loc_ = glGetUniformLocation(shader_program_, "u_normal_matrix");
     has_skinning_loc_ = glGetUniformLocation(shader_program_, "u_has_skinning");
-    joint_matrices_loc_ = glGetUniformLocation(shader_program_, "u_joint_matrices[0]");
+    joint_count_loc_ = glGetUniformLocation(shader_program_, "u_joint_count");
+    glGenBuffers(1, &skin_palette_buffer_);
     glUseProgram(0);
 
     glEnable(GL_DEPTH_TEST);
@@ -411,6 +464,27 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
 
         if (primitive.vertices.empty() || primitive.indices.empty()) {
             return std::unexpected(stellar::platform::Error("Mesh primitive is empty"));
+        }
+
+        std::uint16_t max_joint_index = 0;
+        if (primitive.has_skinning) {
+            for (const stellar::assets::StaticVertex& vertex : primitive.vertices) {
+                for (std::uint16_t joint : vertex.joints0) {
+                    if (joint >= kMaxSkinPaletteJoints) {
+                        destroy_mesh_record(record);
+                        return std::unexpected(stellar::platform::Error(
+                            "Mesh primitive skin joint index exceeds 256-joint runtime cap"));
+                    }
+                    max_joint_index = std::max(max_joint_index, joint);
+                }
+                for (float weight : vertex.weights0) {
+                    if (!std::isfinite(weight)) {
+                        destroy_mesh_record(record);
+                        return std::unexpected(stellar::platform::Error(
+                            "Mesh primitive skin weight is not finite"));
+                    }
+                }
+            }
         }
 
         MeshPrimitiveGpu gpu_primitive;
@@ -486,6 +560,7 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
         gpu_primitive.has_tangents = primitive.has_tangents;
         gpu_primitive.has_colors = primitive.has_colors;
         gpu_primitive.has_skinning = primitive.has_skinning;
+        gpu_primitive.max_joint_index = max_joint_index;
         record.primitives.push_back(gpu_primitive);
     }
 
@@ -598,13 +673,24 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         const MaterialHandle material_handle = command.material;
         const std::size_t joint_count = command.skin_joint_matrices.size();
         const bool use_skinning = primitive.has_skinning && !command.skin_joint_matrices.empty() &&
-            joint_count <= static_cast<std::size_t>(kMaxSkinJoints);
+            joint_count <= kMaxSkinPaletteJoints && joint_count > primitive.max_joint_index;
+        if (primitive.has_skinning && !command.skin_joint_matrices.empty() &&
+            (joint_count > kMaxSkinPaletteJoints || joint_count <= primitive.max_joint_index)) {
+            continue;
+        }
         if (has_skinning_loc_ >= 0) {
             glUniform1i(has_skinning_loc_, use_skinning ? 1 : 0);
         }
-        if (use_skinning && joint_matrices_loc_ >= 0 && joint_count > 0) {
-            glUniformMatrix4fv(joint_matrices_loc_, static_cast<GLsizei>(joint_count), GL_FALSE,
-                               command.skin_joint_matrices.data()->data());
+        if (joint_count_loc_ >= 0) {
+            glUniform1ui(joint_count_loc_, static_cast<GLuint>(joint_count));
+        }
+        if (use_skinning && skin_palette_buffer_ != 0) {
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, skin_palette_buffer_);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,
+                         static_cast<GLsizeiptr>(joint_count * sizeof(std::array<float, 16>)),
+                         command.skin_joint_matrices.data(), GL_STREAM_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, skin_palette_buffer_);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         }
 
         const auto material_it = materials_.find(material_handle.value);
@@ -699,6 +785,11 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
                                                                "u_emissive_factor");
         const GLint alpha_mode_loc = glGetUniformLocation(shader_program_, "u_alpha_mode");
         const GLint alpha_cutoff_loc = glGetUniformLocation(shader_program_, "u_alpha_cutoff");
+        const GLint unlit_loc = glGetUniformLocation(shader_program_, "u_unlit");
+        const GLint texture_transform0_loc = glGetUniformLocation(shader_program_,
+                                                                  "u_texture_transform0[0]");
+        const GLint texture_transform1_loc = glGetUniformLocation(shader_program_,
+                                                                  "u_texture_transform1[0]");
         glUniform4fv(base_color_loc, 1, base_color.data());
         glUniform1i(texture_loc, 0);
         glUniform1i(normal_texture_loc, 1);
@@ -750,6 +841,36 @@ void OpenGLGraphicsDevice::draw_mesh(MeshHandle mesh,
         glUniform1i(alpha_mode_loc, to_alpha_mode(alpha_mode));
         glUniform1f(alpha_cutoff_loc,
                     material != nullptr ? material->upload.material.alpha_cutoff : 0.5f);
+        glUniform1i(unlit_loc,
+                    material != nullptr && material->upload.material.unlit ? 1 : 0);
+        const std::array<std::array<float, 4>, 5> transform0{
+            material != nullptr ? transform0_for(material->upload.base_color_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.normal_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.metallic_roughness_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.occlusion_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+            material != nullptr ? transform0_for(material->upload.emissive_texture)
+                                : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+        };
+        const std::array<std::array<float, 4>, 5> transform1{
+            material != nullptr ? transform1_for(material->upload.base_color_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.normal_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.metallic_roughness_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.occlusion_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+            material != nullptr ? transform1_for(material->upload.emissive_texture)
+                                : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        };
+        glUniform4fv(texture_transform0_loc, static_cast<GLsizei>(transform0.size()),
+                     transform0[0].data());
+        glUniform4fv(texture_transform1_loc, static_cast<GLsizei>(transform1.size()),
+                     transform1[0].data());
         glBindVertexArray(primitive.vao);
         glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT, nullptr);
         glActiveTexture(GL_TEXTURE4);

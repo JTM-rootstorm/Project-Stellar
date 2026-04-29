@@ -6,6 +6,7 @@
 #include "stellar/assets/SceneAsset.hpp"
 #include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/graphics/Renderer.hpp"
+#include "stellar/graphics/SceneRenderer.hpp"
 
 namespace stellar::graphics {
 
@@ -24,6 +25,7 @@ create_renderer(std::optional<stellar::assets::SceneAsset> scene = std::nullopt)
  */
 [[nodiscard]] std::unique_ptr<Renderer>
 create_renderer(GraphicsBackend backend,
-                std::optional<stellar::assets::SceneAsset> scene = std::nullopt);
+                std::optional<stellar::assets::SceneAsset> scene = std::nullopt,
+                SceneRendererAnimationOptions animation_options = {});
 
 } // namespace stellar::graphics

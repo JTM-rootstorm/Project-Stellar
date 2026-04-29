@@ -15,8 +15,6 @@ constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 720;
 constexpr int kTargetFps = 60;
 constexpr int kFrameDelayMs = 1000 / kTargetFps;
-constexpr float kRotationSpeed = 45.0f;
-
 } // namespace
 
 Application::Application(ApplicationConfig config) noexcept : config_(std::move(config)) {}
@@ -42,13 +40,17 @@ std::expected<void, stellar::platform::Error> Application::run() {
         return result;
     }
 
-    auto renderer = stellar::graphics::create_renderer(config_.graphics_backend,
-                                                       std::move(validation->scene));
+    auto renderer = stellar::graphics::create_renderer(
+        config_.graphics_backend, std::move(validation->scene),
+        stellar::graphics::SceneRendererAnimationOptions{.animation_index = config_.animation_index,
+                                                         .animation_name = config_.animation_name,
+                                                         .loop = config_.animation_loop});
     if (auto result = renderer->initialize(window); !result) {
         return result;
     }
 
     stellar::platform::Input input;
+    Uint32 previous_frame_start = SDL_GetTicks();
 
     while (!window.should_close()) {
         const Uint32 frame_start = SDL_GetTicks();
@@ -56,9 +58,11 @@ std::expected<void, stellar::platform::Error> Application::run() {
         window.process_input(input);
 
         const float elapsed_seconds = static_cast<float>(frame_start) / 1000.0f;
-        const float rotation_angle = elapsed_seconds * kRotationSpeed;
+        const float delta_seconds =
+            static_cast<float>(frame_start - previous_frame_start) / 1000.0f;
+        previous_frame_start = frame_start;
 
-        renderer->render(rotation_angle, kWindowWidth, kWindowHeight);
+        renderer->render(elapsed_seconds, delta_seconds, kWindowWidth, kWindowHeight);
 
         input.reset_frame_state();
 

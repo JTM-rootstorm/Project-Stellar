@@ -3,7 +3,9 @@
 ## Status
 
 Static glTF work has been split into implementation and validation milestones. The current
-branch contains uncommitted work through Phase 3B.
+branch contains completed work through Phase 4A and partial Phase 4B renderer validation
+infrastructure. Phase 4B remains in progress; optional context/headless render tests and
+representative render fixtures are still follow-up work.
 
 Completed so far:
 - Phase 1A: backend-neutral texture/sampler asset model, material texture slots, importer
@@ -35,6 +37,12 @@ Completed so far:
 - Phase 3C: OpenGL GPU skinning render path, including backend-neutral skinned draw data,
   ScenePose-driven render submission, JOINTS_0/WEIGHTS_0 vertex upload, shader joint matrix
   blending, and display-free draw-command validation.
+- Phase 4A: runtime renderer backend selection and initial Vulkan backend skeleton, including
+  Vulkan instance/device/surface setup and backend-neutral upload/draw metadata recording while
+  Vulkan frame draw/present remain no-ops.
+- Phase 4B progress: display-free `RecordingGraphicsDevice` infrastructure and deterministic
+  `RenderScene` inspection tests for draw ordering, material handles, skin spans, and large-scene
+  traversal/count sanity. Remaining Phase 4B tasks are not yet complete.
 
 Known remaining limitations:
 - Normal maps are only active for primitives with `MeshPrimitive::has_tangents = true`; importer
@@ -457,7 +465,7 @@ backend-neutral `GraphicsDevice`, `RenderScene`, and `MaterialUpload` model.
 
 The project status matches documented renderer promises instead of leaving parity ambiguous.
 
-## Phase 4B: Renderer Quality and Test Infrastructure
+## Phase 4B: Renderer Quality and Test Infrastructure - In Progress
 
 Goal: make graphics validation stronger and less dependent on manual visual inspection.
 

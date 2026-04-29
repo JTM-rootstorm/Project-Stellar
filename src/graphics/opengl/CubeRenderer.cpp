@@ -6,31 +6,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "stellar/graphics/DebugCubeMesh.hpp"
 #include "stellar/graphics/GraphicsDeviceFactory.hpp"
 
 namespace stellar::graphics::opengl {
 
 namespace {
-
-using Vec3 = std::array<float, 3>;
-
-stellar::assets::MeshPrimitive make_face_primitive(const std::array<Vec3, 4>& positions,
-                                                   const Vec3& normal,
-                                                   std::size_t material_index) {
-    stellar::assets::MeshPrimitive primitive;
-    primitive.topology = stellar::assets::PrimitiveTopology::kTriangles;
-    primitive.vertices = {
-        {positions[0], normal, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}},
-        {positions[1], normal, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}},
-        {positions[2], normal, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}},
-        {positions[3], normal, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}},
-    };
-    primitive.indices = {0, 1, 2, 0, 2, 3};
-    primitive.bounds_min = {-0.5f, -0.5f, -0.5f};
-    primitive.bounds_max = {0.5f, 0.5f, 0.5f};
-    primitive.material_index = material_index;
-    return primitive;
-}
 
 std::array<float, 16> to_array(const glm::mat4& matrix) {
     std::array<float, 16> result{};
@@ -45,35 +26,7 @@ std::array<float, 16> to_array(const glm::mat4& matrix) {
 
 std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
 CubeRenderer::create_cube_mesh() {
-    stellar::assets::MeshAsset mesh;
-    mesh.name = "debug_cube";
-
-    mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f,  0.5f}, { 0.5f, -0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f},
-          {-0.5f,  0.5f,  0.5f}}},
-        {0.0f, 0.0f, 1.0f}, 0));
-    mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f, -0.5f}, {-0.5f,  0.5f, -0.5f}, { 0.5f,  0.5f, -0.5f},
-          { 0.5f, -0.5f, -0.5f}}},
-        {0.0f, 0.0f, -1.0f}, 0));
-    mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f,  0.5f}, {-0.5f,  0.5f,  0.5f},
-          {-0.5f,  0.5f, -0.5f}}},
-        {-1.0f, 0.0f, 0.0f}, 1));
-    mesh.primitives.push_back(make_face_primitive(
-        {{{ 0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f},
-          { 0.5f,  0.5f, -0.5f}}},
-        {1.0f, 0.0f, 0.0f}, 1));
-    mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f,  0.5f, -0.5f}, { 0.5f,  0.5f, -0.5f}, { 0.5f,  0.5f,  0.5f},
-          {-0.5f,  0.5f,  0.5f}}},
-        {0.0f, 1.0f, 0.0f}, 2));
-    mesh.primitives.push_back(make_face_primitive(
-        {{{-0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f,  0.5f},
-          {-0.5f, -0.5f,  0.5f}}},
-        {0.0f, -1.0f, 0.0f}, 2));
-
-    return mesh;
+    return stellar::graphics::create_debug_cube_mesh();
 }
 
 stellar::assets::SceneAsset CubeRenderer::create_cube_scene() {
@@ -118,7 +71,11 @@ CubeRenderer::initialize(stellar::platform::Window& window) {
     return scene_.initialize(std::move(device), window, std::move(scene));
 }
 
-void CubeRenderer::render(float rotation_degrees, int width, int height) noexcept {
+void CubeRenderer::render(float elapsed_seconds,
+                          float /*delta_seconds*/,
+                          int width,
+                          int height) noexcept {
+    const float rotation_degrees = elapsed_seconds * 45.0F;
     if (scene_.node_transform(0).matrix.has_value()) {
         scene_.node_transform(0).matrix = std::nullopt;
     }

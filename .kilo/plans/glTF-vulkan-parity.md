@@ -2,14 +2,14 @@
 
 ## Summary
 
-Further implementation is needed. The current branch has substantial glTF support: static mesh import, materials/textures, UV1, vertex colors, generated/authored tangents, skins, animation assets, runtime animation evaluation, OpenGL GPU skinning, backend selection, Vulkan upload-record skeleton, and display-free render inspection tests.
+Further implementation is needed. The current branch has substantial glTF support: static mesh import, materials/textures, UV1, vertex colors, generated/authored tangents, skins, animation assets, runtime animation evaluation, OpenGL GPU skinning, backend selection, Vulkan upload-record skeleton, display-free render inspection tests, runtime viewer animation playback for imported scenes, and auto-fit viewer camera placement.
 
 The work is not complete because several paths are still explicitly unsupported or not wired into runtime use:
 
 - Vulkan rendering is still a no-op after initialization/upload recording.
-- Client/runtime rendering does not drive `AnimationPlayer`, so imported animations are not played by the viewer.
-- The viewer camera is fixed and does not frame arbitrary glTF scenes.
-- Importer validation does not yet reject unsupported `extensionsRequired` or some invalid animation/accessor/cross-reference cases.
+- Phase 5C now drives `AnimationPlayer` for imported scenes and auto-fits the viewer camera to scene bounds.
+- Deferred viewer controls remain play/pause defaults, manual camera distance/FOV, and scene index selection.
+- Phase 5A preflight and Phase 5B accessor, animation, and skin joint palette validation are complete.
 - Phase 4B test infrastructure is partially complete, but optional headless render tests and representative render fixtures remain.
 - Morph targets, cameras, lights, UV2+, JOINTS_1/WEIGHTS_1, full glTF PBR, and most material extensions remain unsupported.
 
@@ -18,14 +18,24 @@ The work is not complete because several paths are still explicitly unsupported 
 - `.kilo/plans/glTF-implementation-plan.md` lists Phase 4B as in progress and still has Phase 4B tasks for optional headless/context tests and representative assets.
 - `.kilo/plans/glTF-implementation-plan.md` known limitations still include Vulkan no-op rendering, lightweight metallic-roughness shading, skinned Vulkan non-rendering, and unsupported morph targets/cameras/lights/extensions.
 - `src/graphics/vulkan/VulkanGraphicsDevice.cpp` keeps `begin_frame`, `draw_mesh`, and `end_frame` as explicit Phase 4A no-ops.
-- `src/graphics/SceneRenderer.cpp` renders with a fixed camera and always calls `RenderScene::render(..., view)` without an evaluated `ScenePose`.
-- `src/client/main.cpp` and `include/stellar/client/ApplicationConfig.hpp` expose no animation, camera, or selected-scene controls.
-- `src/import/gltf/Importer.cpp` documents unsupported UV2+, morph targets, cameras, lights, and extensions, but does not yet appear to perform an upfront unsupported `extensionsRequired` policy gate.
-- `src/scene/AnimationRuntime.cpp` preserves `weights` animation channels but intentionally no-ops them because morph targets are not represented.
+- `src/graphics/SceneRenderer.cpp` now auto-fits camera placement from aggregate scene bounds and drives imported scene animation through `AnimationPlayer` when animations exist.
+- `src/client/main.cpp` and `include/stellar/client/ApplicationConfig.hpp` expose animation selection/loop controls; play/pause defaults, manual camera distance/FOV, and selected-scene controls remain deferred.
+- `src/import/gltf/Importer.cpp` now performs the Phase 5A unsupported `extensionsRequired` policy gate after `cgltf_validate`; Phase 5B accessor, animation, and skin joint palette validation is complete.
+- `src/import/gltf/Importer.cpp` now rejects `weights` animation channels clearly because morph targets are not represented by the runtime asset model.
 
-## Phase 0: Plan And Status Hygiene
+## Phase 0: Plan And Status Hygiene - Completed
 
 Goal: make the roadmap match the code before adding more behavior.
+
+### Completion Notes
+
+Phase 0 has been completed as documentation/status hygiene only. The phased roadmap is
+preserved, current OpenGL/Vulkan implementation status is called out explicitly, and remaining
+Phase 4B test-infrastructure work stays visible rather than being treated as complete.
+
+Further implementation remains. Phase 5A and Phase 5B are the recommended next implementation
+slices because they are display-free, tighten importer correctness, and prevent silent acceptance
+of unsupported or malformed glTF data before additional runtime rendering features are added.
 
 Tasks:
 
@@ -37,9 +47,22 @@ Validation:
 
 - Documentation/status review only.
 
-## Phase 5A: Importer Conformance Gate
+## Phase 5A: Importer Conformance Gate - Completed
 
 Goal: fail clearly for unsupported required glTF features and document optional degradation behavior.
+
+### Completion Notes
+
+Phase 5A has been completed with a conservative `extensionsRequired` preflight that rejects all
+required extensions after `cgltf_validate`, because no glTF extension is fully represented by the
+runtime asset model. Regression coverage now verifies unsupported required extension names appear in
+errors, and optional unsupported cameras, lights, morph targets, UV2+, JOINTS_1/WEIGHTS_1, and
+material extensions import without creating unsupported runtime state.
+
+Validation completed:
+
+- `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+- `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
 
 Tasks:
 
@@ -54,9 +77,24 @@ Validation:
 - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
 - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
 
-## Phase 5B: Accessor And Cross-Reference Validation
+## Phase 5B: Accessor And Cross-Reference Validation - Completed
 
 Goal: tighten correctness for valid glTF data and catch bad data earlier.
+
+### Completion Notes
+
+Phase 5B has been completed with backend-neutral importer validation. `TEXCOORD_0`,
+`TEXCOORD_1`, and `COLOR_0` now accept float data or normalized unsigned byte/short data and
+reject non-normalized integer encodings. Animation input times are required to be strictly
+increasing, channel output semantics are validated by target path, and weight animation channels now
+fail clearly because morph targets are not represented by the runtime asset model. Skinned mesh nodes
+now validate enabled `JOINTS_0` data against the node's bound skin joint palette.
+
+Validation completed:
+
+- `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+- `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+- `ctest --test-dir build -R '^animation_runtime$' --output-on-failure`
 
 Tasks:
 
@@ -75,9 +113,24 @@ Validation:
 - Animation runtime tests for any changed sampler assumptions.
 - glTF enabled and disabled builds to preserve feature-gate behavior.
 
-## Phase 5C: Runtime Viewer Usability
+## Phase 5C: Runtime Viewer Usability - Completed
 
 Goal: make imported glTF scenes viewable and animated in the client, not just importable/renderable through lower-level APIs.
+
+### Completion Notes
+
+Phase 5C has been completed with backend-neutral aggregate scene bounds, stable empty-scene
+fallback bounds, auto-fit viewer camera placement, and runtime animation playback for imported
+scenes. `SceneRenderer` now binds `AnimationPlayer` when animations exist, selects animation 0 by
+default, supports CLI selection by `--animation-index` or `--animation-name`, honors
+`--animation-loop`, advances by frame delta time, and renders animated scenes through the pose-aware
+`RenderScene::render` path. Deferred controls: play/pause defaults, manual camera distance/FOV, and
+scene index selection remain future viewer usability work rather than part of this minimal slice.
+
+Validation completed:
+
+- `cmake --build build --target stellar_render_scene_inspection_test stellar_render_scene_upload_test stellar_animation_runtime_test stellar_client_asset_validation_smoke stellar-client -j$(nproc)`
+- `ctest --test-dir build -R '^(render_scene_inspection|render_scene_upload|animation_runtime|client_asset_validation_smoke|client_cli_asset_validation)$' --output-on-failure`
 
 Tasks:
 
@@ -97,9 +150,27 @@ Validation:
 - client validation smoke tests
 - Manual OpenGL run with a small static and animated glTF asset when a display is available.
 
-## Phase 5D: Complete Phase 4B Test Infrastructure
+## Phase 5D: Complete Phase 4B Test Infrastructure - Completed
 
 Goal: reduce reliance on manual visual testing while keeping CI stable.
+
+### Completion Notes
+
+Generated representative render fixtures now cover textured, alpha mask/blend, UV1,
+vertex color, normal map, and skinned scenes using display-free
+`RecordingGraphicsDevice` inspection. Optional OpenGL context/readback smoke coverage is
+behind `STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` and
+`STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, with skip return code 77 when not enabled. Vulkan
+render tests remain disabled/deferred until Vulkan presents frames. Default performance
+sanity remains count-based, not timing-threshold based.
+
+Validation completed:
+
+- `cmake --build build --target stellar_render_scene_inspection_test -j$(nproc)`
+- `ctest --test-dir build --output-on-failure`
+- `cmake -S . -B build-opengl-context -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_OPENGL_CONTEXT_TESTS=ON`
+- `cmake --build build-opengl-context --target stellar_opengl_context_smoke_test -j$(nproc)`
+- `ctest --test-dir build-opengl-context -R '^opengl_context_smoke$' --output-on-failure` (skip path validated unless `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1` is set)
 
 Tasks:
 
@@ -157,4 +228,4 @@ Validation:
 
 ## Recommended Next Implementation Slice
 
-Start with Phase 5A and Phase 5B before adding more rendering features. They are smaller, display-free, and prevent silent acceptance of unsupported or invalid glTF files. After that, Phase 5C gives the biggest user-visible improvement because imported animated assets will actually animate in the client and arbitrary-sized scenes will be framed correctly.
+Continue with Phase 5E Vulkan Render Parity next so `--renderer vulkan` moves from upload-only behavior toward presented glTF frames. Actual GPU/context Vulkan render tests should remain opt-in to keep default CI display-free and deterministic.

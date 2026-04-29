@@ -263,10 +263,15 @@ class VulkanDevice : public GraphicsDevice { /* ... */ };
 
 ### 4.6 OpenGL vs Vulkan
 
-- Both must be implemented behind common interface
-- Runtime selection via configuration or command-line flag
-- Shared resource formats (textures, shaders compiled to SPIR-V for Vulkan, GLSL for OpenGL)
-- Feature parity required
+- Both must be implemented behind the common `GraphicsDevice` interface
+- Runtime selection is available via configuration or command-line flag
+- OpenGL is currently the render-capable path for static and skinned glTF scene rendering
+- Vulkan is runtime-selectable and initializes/stores backend-neutral upload and draw metadata,
+  but swapchain drawing and presentation are pending
+- Shared resource formats remain the goal, with shaders compiled to SPIR-V for Vulkan and GLSL
+  for OpenGL where applicable
+- Feature parity remains required; the current Vulkan path is an implementation-in-progress toward
+  that goal rather than a complete render-equivalent backend
 
 ---
 

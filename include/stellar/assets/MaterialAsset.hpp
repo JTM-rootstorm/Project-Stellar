@@ -36,6 +36,8 @@ struct MaterialAsset {
     AlphaMode alpha_mode = AlphaMode::kOpaque;
     float alpha_cutoff = 0.5f;
     bool double_sided = false;
+    /** @brief True when KHR_materials_unlit disables lighting for this material. */
+    bool unlit = false;
 };
 
 } // namespace stellar::assets

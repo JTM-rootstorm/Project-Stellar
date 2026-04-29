@@ -91,10 +91,12 @@ resolve_material_texture_binding(const stellar::assets::MaterialTextureSlot& slo
         sampler = scene.samplers[*texture.sampler_index];
     }
 
+    const std::uint32_t texcoord_set = slot.transform.texcoord_set.value_or(slot.texcoord_set);
     return MaterialTextureBinding{
         .texture = texture_handles[slot.texture_index],
         .sampler = sampler,
-        .texcoord_set = slot.texcoord_set,
+        .texcoord_set = texcoord_set,
+        .transform = slot.transform,
     };
 }
 
