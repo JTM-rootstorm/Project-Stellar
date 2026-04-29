@@ -521,6 +521,33 @@ Acceptance criteria if deferred:
 - Clear documentation in this plan that full PBR remains future work.
 - No false claim of full glTF PBR compliance.
 
+### Completion Notes (2026-04-28)
+
+- Decision: deferred full metallic-roughness PBR. The current lightweight metallic-roughness
+  approximation remains intentional for Stellar Engine's stylized, presentation-focused renderer;
+  this phase did not broaden the project into a full glTF viewer/editor or claim full glTF PBR
+  compliance.
+- Importer/material audit: core metallic-roughness fields already represented remain accepted and
+  backend-neutral: `baseColorFactor`, `baseColorTexture`, `metallicFactor`, `roughnessFactor`, and
+  `metallicRoughnessTexture`, alongside existing normal, occlusion, emissive, alpha, double-sided,
+  texture transform, and unlit state. No asset or upload schema changes were made.
+- Renderer audit: OpenGL and Vulkan continue to route the represented material factors/textures
+  through matching lightweight material paths. The current shaders use fixed lightweight lighting,
+  metallic attenuation, roughness attenuation, occlusion darkening, normal mapping when available,
+  and emissive contribution; they do not implement an energy-conserving glTF metallic-roughness BRDF.
+- Tests/code changes: none. This was a decision-gate documentation update only.
+- Validation:
+  - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+  - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+  - Result: pass; focused importer regression passed 1/1 tests, confirming the represented core
+    metallic-roughness import path still accepts the audited fields.
+- Deferred follow-up for any future full PBR implementation:
+  - Define renderer-owned image-based lighting and environment map inputs.
+  - Add tone mapping and color-management policy suitable for both OpenGL and Vulkan.
+  - Specify and test physically based BRDF parity across backends.
+  - Define normal, occlusion, and emissive interactions under the selected lighting model.
+  - Maintain OpenGL/Vulkan shader parity with deterministic fixtures or opt-in backend validation.
+
 ### Phase 5F.5: Morph Targets Decision Gate
 
 Goal: decide whether to represent morph targets and make animation `weights` channels functional.
