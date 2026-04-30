@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "stellar/assets/CollisionAsset.hpp"
 #include "stellar/assets/ImageAsset.hpp"
 #include "stellar/assets/AnimationAsset.hpp"
 #include "stellar/assets/MaterialAsset.hpp"
@@ -30,6 +31,7 @@ struct SceneAsset {
     std::vector<stellar::scene::Node> nodes;
     std::vector<stellar::scene::Scene> scenes;
     std::optional<std::size_t> default_scene_index;
+    std::optional<LevelCollisionAsset> level_collision;
 };
 
 } // namespace stellar::assets

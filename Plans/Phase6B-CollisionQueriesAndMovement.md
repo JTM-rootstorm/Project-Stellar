@@ -214,3 +214,28 @@ Append after implementation:
   - More robust capsule/stair/step handling remains future work.
   - Broadphase acceleration remains future work unless already added.
 ```
+
+## Completion Notes (2026-04-29)
+
+- Implemented: Phase 6B collision queries and minimal movement resolution.
+- Query API: added `stellar::physics::CollisionWorld` with finite-segment `raycast`,
+  negative-Y `probe_ground`, and static `move_sphere` sweep/slide helpers over
+  `stellar::assets::LevelCollisionAsset` triangles.
+- Movement behavior: deterministic fixed-iteration sweep/slide. Sphere radius is handled by
+  offsetting triangle planes and accepting contacts whose projected point lies within the source
+  triangle. This intentionally does not expand triangle edges/vertices into capsules and is not a
+  full rigid-body or capsule controller.
+- Tests added/updated: `tests/physics/CollisionWorld.cpp` and CTest `collision_world`, covering
+  empty ray misses, floor hits, nearest hit selection, triangle-bound misses, wall stop, wall slide,
+  ground probe, and empty-world pass-through movement.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_world_test -j$(nproc)`
+  - `ctest --test-dir build -R '^collision_world$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; full CTest suite reported 8/8 tests passed.
+- Deferred follow-up:
+  - ECS/server integration remains future work.
+  - More robust capsule/stair/step handling remains future work.
+  - Broadphase acceleration remains future work.

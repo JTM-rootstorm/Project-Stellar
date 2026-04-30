@@ -41,6 +41,18 @@ target_include_directories(stellar_assets INTERFACE
 )
 target_link_libraries(stellar_assets INTERFACE stellar_scene)
 
+add_library(stellar_physics
+    src/physics/CollisionWorld.cpp
+)
+
+target_include_directories(stellar_physics PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_physics PUBLIC
+    stellar_assets
+)
+
 if(STELLAR_ENABLE_GLTF)
     add_library(stellar_import_gltf
         src/import/gltf/Importer.cpp
@@ -54,6 +66,7 @@ if(STELLAR_ENABLE_GLTF)
         src/import/gltf/SkinImport.cpp
         src/import/gltf/AnimationImport.cpp
         src/import/gltf/NodeImport.cpp
+        src/import/gltf/CollisionImport.cpp
         src/import/gltf/SceneImport.cpp
     )
 
@@ -227,6 +240,20 @@ target_link_libraries(stellar_animation_runtime_test PRIVATE
 )
 
 add_test(NAME animation_runtime COMMAND stellar_animation_runtime_test)
+
+add_executable(stellar_collision_world_test
+    tests/physics/CollisionWorld.cpp
+)
+
+target_include_directories(stellar_collision_world_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_collision_world_test PRIVATE
+    stellar_physics
+)
+
+add_test(NAME collision_world COMMAND stellar_collision_world_test)
 
 add_executable(stellar_client_asset_validation_smoke
     tests/client/AssetValidationSmoke.cpp

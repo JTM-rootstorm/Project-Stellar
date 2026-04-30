@@ -771,7 +771,151 @@ bool run_tangent_and_bounds_fixture(const std::filesystem::path& root) {
            check_vec3(primitive.bounds_min, {-2.0f, -5.0f, -1.0f},
                       "expected non-default bounds minimum") &&
            check_vec3(primitive.bounds_max, {3.0f, 4.0f, 2.0f},
-                      "expected non-default bounds maximum");
+                       "expected non-default bounds maximum");
+}
+
+const stellar::assets::CollisionMesh* find_collision_mesh(
+    const stellar::assets::LevelCollisionAsset& collision,
+    std::string_view name) {
+    for (const auto& mesh : collision.meshes) {
+        if (mesh.name == name) {
+            return &mesh;
+        }
+    }
+    return nullptr;
+}
+
+bool run_empty_collision_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "empty_collision";
+    std::filesystem::create_directories(work_dir);
+
+    const auto gltf_path = work_dir / "empty_collision.gltf";
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"scenes\": [{ \"nodes\": [] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    return check(!scene->level_collision.has_value(),
+                 "expected empty scene to have no collision asset");
+}
+
+bool run_collision_extraction_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "collision_extraction";
+    std::filesystem::create_directories(work_dir);
+
+    std::vector<std::uint8_t> bytes;
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 1.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 1.0f, 0.0f);
+    const std::size_t indices_offset = bytes.size();
+    append_u16_le(bytes, 0);
+    append_u16_le(bytes, 1);
+    append_u16_le(bytes, 2);
+
+    const auto gltf_path = work_dir / "collision_extraction.gltf";
+    const std::string buffer_uri = data_uri("application/octet-stream", bytes);
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"buffers\": [{ \"byteLength\": " +
+                        std::to_string(bytes.size()) + ", \"uri\": \"" + buffer_uri +
+                        "\" }],\n"
+                    "  \"bufferViews\": [\n"
+                    "    { \"buffer\": 0, \"byteOffset\": 0, \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(indices_offset) + ", \"byteLength\": 6 }\n"
+                    "  ],\n"
+                    "  \"accessors\": [\n"
+                    "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\", \"min\": [0, 0, 0], \"max\": [1, 1, 0] },\n"
+                    "    { \"bufferView\": 1, \"componentType\": 5123, \"count\": 3, "
+                    "\"type\": \"SCALAR\" }\n"
+                    "  ],\n"
+                    "  \"meshes\": [{ \"name\": \"triangle\", \"primitives\": [{ "
+                    "\"attributes\": { \"POSITION\": 0 }, \"indices\": 1, "
+                    "\"mode\": 4 }] }],\n"
+                    "  \"nodes\": [\n"
+                    "    { \"name\": \"ordinary_render\", \"mesh\": 0, "
+                    "\"translation\": [100, 0, 0] },\n"
+                    "    { \"name\": \"COL_floor\", \"mesh\": 0, "
+                    "\"translation\": [1, 2, 3] },\n"
+                    "    { \"name\": \"Collision_wall\", \"mesh\": 0, "
+                    "\"translation\": [0, 0, 1] },\n"
+                    "    { \"name\": \"Collision\", \"children\": [4], "
+                    "\"translation\": [10, 0, 0] },\n"
+                    "    { \"name\": \"wall_child\", \"mesh\": 0, "
+                    "\"translation\": [0, 5, 0] },\n"
+                    "    { \"name\": \"COL_empty_marker\" }\n"
+                    "  ],\n"
+                    "  \"scenes\": [{ \"nodes\": [0, 1, 2, 3, 5] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+    if (!check(scene->level_collision.has_value(), "expected collision asset")) {
+        return false;
+    }
+
+    const auto& collision = *scene->level_collision;
+    if (!check(collision.meshes.size() == 3, "expected three extracted collision meshes")) {
+        return false;
+    }
+    if (!check(find_collision_mesh(collision, "ordinary_render") == nullptr,
+               "expected ordinary render mesh exclusion")) {
+        return false;
+    }
+    const auto* floor = find_collision_mesh(collision, "COL_floor");
+    const auto* wall = find_collision_mesh(collision, "Collision_wall");
+    const auto* child = find_collision_mesh(collision, "wall_child");
+    if (!check(floor != nullptr, "expected COL_floor collision mesh") ||
+        !check(wall != nullptr, "expected Collision_wall collision mesh") ||
+        !check(child != nullptr, "expected child of Collision collision mesh")) {
+        return false;
+    }
+    if (!check(floor->triangles.size() == 1, "expected COL_floor one triangle") ||
+        !check(wall->triangles.size() == 1, "expected Collision_wall one triangle") ||
+        !check(child->triangles.size() == 1, "expected child collision one triangle")) {
+        return false;
+    }
+
+    const auto& floor_triangle = floor->triangles[0];
+    const auto& child_triangle = child->triangles[0];
+    return check_vec3(floor_triangle.a, {1.0f, 2.0f, 3.0f},
+                      "expected floor transformed vertex a") &&
+           check_vec3(floor_triangle.b, {2.0f, 2.0f, 3.0f},
+                      "expected floor transformed vertex b") &&
+           check_vec3(floor_triangle.c, {1.0f, 3.0f, 3.0f},
+                      "expected floor transformed vertex c") &&
+           check_vec3(child_triangle.a, {10.0f, 5.0f, 0.0f},
+                      "expected parent+child transformed vertex a") &&
+           check_vec3(child_triangle.b, {11.0f, 5.0f, 0.0f},
+                      "expected parent+child transformed vertex b") &&
+           check_vec3(child_triangle.normal, {0.0f, 0.0f, 1.0f},
+                      "expected finite winding-derived normal") &&
+           check_vec3(floor->bounds_min, {1.0f, 2.0f, 3.0f},
+                      "expected floor bounds minimum") &&
+           check_vec3(floor->bounds_max, {2.0f, 3.0f, 3.0f},
+                      "expected floor bounds maximum") &&
+           check_vec3(collision.bounds_min, {0.0f, 0.0f, 0.0f},
+                      "expected aggregate collision bounds minimum") &&
+           check_vec3(collision.bounds_max, {11.0f, 6.0f, 3.0f},
+                      "expected aggregate collision bounds maximum") &&
+           check(std::isfinite(floor_triangle.normal[0]) &&
+                     std::isfinite(floor_triangle.normal[1]) &&
+                     std::isfinite(floor_triangle.normal[2]),
+                 "expected finite collision normal");
 }
 
 bool expect_load_failure(const std::filesystem::path& path, std::string_view json,
@@ -1912,6 +2056,12 @@ int main() {
         return 1;
     }
     if (!run_tangent_and_bounds_fixture(root)) {
+        return 1;
+    }
+    if (!run_empty_collision_fixture(root)) {
+        return 1;
+    }
+    if (!run_collision_extraction_fixture(root)) {
         return 1;
     }
     if (!run_attribute_validation_failures_fixture(root)) {

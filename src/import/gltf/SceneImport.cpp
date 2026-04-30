@@ -221,11 +221,19 @@ load_scene_from_file(std::string_view path) {
 
     if (data->scene) {
         auto default_scene_index = checked_index(cgltf_scene_index(data.get(), data->scene),
-                                                 "Failed to resolve default scene index");
+                                                  "Failed to resolve default scene index");
         if (!default_scene_index) {
             return std::unexpected(default_scene_index.error());
         }
         scene.default_scene_index = *default_scene_index;
+    }
+
+    auto collision = extract_level_collision(scene);
+    if (!collision) {
+        return std::unexpected(collision.error());
+    }
+    if (!collision->meshes.empty()) {
+        scene.level_collision = std::move(*collision);
     }
 
     return scene;

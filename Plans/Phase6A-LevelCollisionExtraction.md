@@ -221,3 +221,31 @@ Append after implementation:
   - Player movement/controller remains Phase 6B or later.
   - Gameplay metadata/spawns/triggers remain Phase 6D.
 ```
+## Completion Notes (2026-04-29)
+
+- Implemented: Phase 6A static level collision extraction from glTF.
+- Data model: Added `include/stellar/assets/CollisionAsset.hpp` with
+  `CollisionTriangle`, `CollisionMesh`, and `LevelCollisionAsset`; `SceneAsset` now carries
+  optional `level_collision` data when imported scenes contain collision-marked geometry.
+- Node conventions: Implemented extraction for node names starting `COL_`, node names starting
+  `Collision_`, and mesh descendants of a node named exactly `Collision`. Collision-marked
+  non-mesh nodes are skipped without error.
+- Transform behavior: Collision extraction walks the imported scene hierarchy from the default
+  scene roots, composes parent and child transforms, and writes triangle vertices, normals, and
+  bounds in world space.
+- Tests added/updated: Extended `tests/import/gltf/ImporterRegression.cpp` with display-free
+  coverage for empty scenes, `COL_floor`, `Collision_wall`, `Collision` parent inheritance,
+  ordinary render mesh exclusion, parent+child transforms, bounds, and finite winding normals.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+  - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; full CTest passed 7/7.
+- Deferred follow-up:
+  - Runtime collision queries remain Phase 6B.
+  - Player movement/controller remains Phase 6B or later.
+  - Gameplay metadata/spawns/triggers remain Phase 6D.
+  - Collision-only render-node filtering is deferred; renderer behavior was intentionally left
+    unchanged in this phase.

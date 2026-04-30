@@ -91,5 +91,7 @@ load_node(const cgltf_data* data, const cgltf_node& node);
 
 [[nodiscard]] std::expected<void, stellar::platform::Error>
 validate_skinned_mesh_joint_indices(const stellar::assets::SceneAsset& scene);
+[[nodiscard]] std::expected<stellar::assets::LevelCollisionAsset, stellar::platform::Error>
+extract_level_collision(const stellar::assets::SceneAsset& scene);
 
 } // namespace stellar::import::gltf
