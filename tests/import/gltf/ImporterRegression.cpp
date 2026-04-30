@@ -915,7 +915,119 @@ bool run_collision_extraction_fixture(const std::filesystem::path& root) {
            check(std::isfinite(floor_triangle.normal[0]) &&
                      std::isfinite(floor_triangle.normal[1]) &&
                      std::isfinite(floor_triangle.normal[2]),
-                 "expected finite collision normal");
+                  "expected finite collision normal");
+}
+
+const stellar::assets::WorldMarker* find_marker(
+    const stellar::assets::WorldMetadataAsset& metadata,
+    stellar::assets::WorldMarkerType type,
+    std::string_view name) {
+    for (const auto& marker : metadata.markers) {
+        if (marker.type == type && marker.name == name) {
+            return &marker;
+        }
+    }
+    return nullptr;
+}
+
+bool run_empty_world_metadata_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "empty_world_metadata";
+    std::filesystem::create_directories(work_dir);
+
+    const auto gltf_path = work_dir / "empty_world_metadata.gltf";
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"scenes\": [{ \"nodes\": [] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    return check(scene->world_metadata.markers.empty(),
+                 "expected empty scene to have no world metadata markers");
+}
+
+bool run_world_metadata_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "world_metadata";
+    std::filesystem::create_directories(work_dir);
+
+    const auto gltf_path = work_dir / "world_metadata.gltf";
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"nodes\": [\n"
+                    "    { \"name\": \"Root\", \"translation\": [5, 0, 0], "
+                    "\"children\": [1, 2, 3, 4, 5, 6, 7] },\n"
+                    "    { \"name\": \"SPAWN_Player\", \"translation\": [1, 2, 3] },\n"
+                    "    { \"name\": \"SPAWN_Imp\", \"translation\": [2, 0, 0], "
+                    "\"rotation\": [0, 0, 0.70710678, 0.70710678] },\n"
+                    "    { \"name\": \"TRIGGER_DoorOpen\", \"translation\": [0, 4, 0], "
+                    "\"scale\": [-2, 3, 4], \"extras\": { \"once\": true } },\n"
+                    "    { \"name\": \"SPRITE_Torch\", \"translation\": [0, 0, 6], "
+                    "\"extras\": { \"texture\": \"torch.png\" } },\n"
+                    "    { \"name\": \"PORTAL_North\", \"translation\": [0, 0, 8] },\n"
+                    "    { \"name\": \"ordinary_render\", \"translation\": [100, 0, 0] },\n"
+                    "    { \"name\": \"COL_floor\", \"translation\": [0, 100, 0] }\n"
+                    "  ],\n"
+                    "  \"scenes\": [{ \"nodes\": [0] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+
+    const auto& metadata = scene->world_metadata;
+    if (!check(metadata.markers.size() == 5, "expected five world metadata markers")) {
+        return false;
+    }
+
+    const auto* player = find_marker(metadata, stellar::assets::WorldMarkerType::kPlayerSpawn,
+                                     "Player");
+    const auto* imp = find_marker(metadata, stellar::assets::WorldMarkerType::kEntitySpawn,
+                                  "Imp");
+    const auto* trigger = find_marker(metadata, stellar::assets::WorldMarkerType::kTrigger,
+                                      "DoorOpen");
+    const auto* sprite = find_marker(metadata, stellar::assets::WorldMarkerType::kSprite,
+                                     "Torch");
+    const auto* portal = find_marker(metadata, stellar::assets::WorldMarkerType::kPortal,
+                                     "North");
+    if (!check(player != nullptr, "expected player spawn marker") ||
+        !check(imp != nullptr, "expected entity spawn marker") ||
+        !check(trigger != nullptr, "expected trigger marker") ||
+        !check(sprite != nullptr, "expected sprite marker") ||
+        !check(portal != nullptr, "expected portal marker")) {
+        return false;
+    }
+
+    return check_vec3(player->position, {6.0f, 2.0f, 3.0f},
+                      "expected parent+child player marker position") &&
+           check_vec4(player->rotation, {0.0f, 0.0f, 0.0f, 1.0f},
+                      "expected default player marker rotation") &&
+           check(imp->archetype == "Imp", "expected entity spawn archetype") &&
+           check_vec3(imp->position, {7.0f, 0.0f, 0.0f},
+                      "expected entity marker position") &&
+           check_vec4(imp->rotation, {0.0f, 0.0f, 0.7071f, 0.7071f},
+                      "expected entity marker world rotation") &&
+           check_vec3(trigger->position, {5.0f, 4.0f, 0.0f},
+                      "expected trigger marker position") &&
+           check_vec3(trigger->scale, {2.0f, 3.0f, 4.0f},
+                      "expected absolute trigger marker scale") &&
+           check(trigger->extras_json.find("once") != std::string::npos,
+                 "expected raw trigger extras preservation") &&
+           check_vec3(sprite->position, {5.0f, 0.0f, 6.0f},
+                      "expected sprite marker position") &&
+           check(sprite->extras_json.find("torch.png") != std::string::npos,
+                 "expected raw sprite extras preservation") &&
+           check_vec3(portal->position, {5.0f, 0.0f, 8.0f},
+                      "expected portal marker position");
 }
 
 bool expect_load_failure(const std::filesystem::path& path, std::string_view json,
@@ -2062,6 +2174,12 @@ int main() {
         return 1;
     }
     if (!run_collision_extraction_fixture(root)) {
+        return 1;
+    }
+    if (!run_empty_world_metadata_fixture(root)) {
+        return 1;
+    }
+    if (!run_world_metadata_fixture(root)) {
         return 1;
     }
     if (!run_attribute_validation_failures_fixture(root)) {

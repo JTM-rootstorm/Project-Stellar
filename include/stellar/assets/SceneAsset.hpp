@@ -12,6 +12,7 @@
 #include "stellar/assets/MeshAsset.hpp"
 #include "stellar/assets/SkinAsset.hpp"
 #include "stellar/assets/TextureAsset.hpp"
+#include "stellar/assets/WorldMetadataAsset.hpp"
 #include "stellar/scene/SceneGraph.hpp"
 
 namespace stellar::assets {
@@ -32,6 +33,7 @@ struct SceneAsset {
     std::vector<stellar::scene::Scene> scenes;
     std::optional<std::size_t> default_scene_index;
     std::optional<LevelCollisionAsset> level_collision;
+    WorldMetadataAsset world_metadata;
 };
 
 } // namespace stellar::assets

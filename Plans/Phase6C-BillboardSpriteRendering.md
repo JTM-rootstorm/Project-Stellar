@@ -222,3 +222,34 @@ Append after implementation:
   - ECS/entity integration remains future work.
   - glTF-authored sprite spawn metadata remains Phase 6D.
 ```
+## Completion Notes (2026-04-29)
+
+- Implemented: Phase 6C billboard sprite rendering through backend-neutral sprite data,
+  deterministic quad expansion, and transient submission through the existing mesh/material path.
+- Public API/data model: added `BillboardSprite`, `BillboardView`, `BillboardQuad`,
+  `build_billboard_quads`, and a `RenderScene::render` overload that accepts billboard sprites.
+- OpenGL behavior: billboard quads reuse the existing OpenGL mesh/material renderer, including
+  texture binding, sampler state, vertex color modulation, alpha mask, alpha blend, depth testing,
+  and double-sided unlit rendering.
+- Vulkan behavior: billboard quads reuse the existing Vulkan mesh/material renderer and descriptor
+  path, preserving the same texture/sampler/material behavior as OpenGL with existing pipeline
+  alpha parity.
+- Sorting/alpha behavior: alpha-mask sprites are classified with the non-blend group; alpha-blend
+  sprites are sorted back-to-front by view-space Z with submission index as the deterministic
+  tie-breaker.
+- Tests added/updated: `RenderSceneInspection.cpp` now covers billboard quad generation, field
+  preservation, alpha mask/blend classification, blend sorting, and recording-device mesh/material
+  submission order.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_render_scene_inspection_test stellar_render_scene_upload_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(render_scene_inspection|render_scene_upload)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Sprite atlas/sheet animation remains future work.
+  - ECS/entity integration remains future work.
+  - glTF-authored sprite spawn metadata remains Phase 6D.
+  - A dedicated persistent billboard batch path can replace transient mesh/material submission when
+    sprite counts become performance-critical.

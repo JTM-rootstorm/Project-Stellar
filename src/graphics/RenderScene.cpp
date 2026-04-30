@@ -114,6 +114,55 @@ float view_space_depth(const glm::mat4& view,
     return view_position.z;
 }
 
+stellar::assets::MeshAsset mesh_for_billboard_quad(const BillboardQuad& quad) {
+    stellar::assets::MeshPrimitive primitive;
+    primitive.vertices.resize(4);
+    for (std::size_t index = 0; index < quad.positions.size(); ++index) {
+        primitive.vertices[index].position = quad.positions[index];
+        primitive.vertices[index].normal = {0.0F, 0.0F, 1.0F};
+        primitive.vertices[index].uv0 = quad.texcoords[index];
+        primitive.vertices[index].color = quad.color;
+    }
+    primitive.indices = {0, 1, 2, 0, 2, 3};
+    primitive.has_colors = true;
+    primitive.material_index = 0;
+    primitive.bounds_min = quad.positions[0];
+    primitive.bounds_max = quad.positions[0];
+    for (const auto& position : quad.positions) {
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+            primitive.bounds_min[axis] = std::min(primitive.bounds_min[axis], position[axis]);
+            primitive.bounds_max[axis] = std::max(primitive.bounds_max[axis], position[axis]);
+        }
+    }
+
+    return stellar::assets::MeshAsset{.name = "billboard_sprite", .primitives = {primitive}};
+}
+
+MaterialUpload material_for_billboard_quad(const BillboardQuad& quad) {
+    stellar::assets::MaterialAsset material;
+    material.name = "billboard_sprite";
+    material.base_color_factor = quad.color;
+    material.double_sided = true;
+    material.unlit = true;
+    material.alpha_cutoff = quad.alpha_cutoff;
+    if (quad.alpha_mask) {
+        material.alpha_mode = stellar::assets::AlphaMode::kMask;
+    } else if (quad.alpha_blend) {
+        material.alpha_mode = stellar::assets::AlphaMode::kBlend;
+    } else {
+        material.alpha_mode = stellar::assets::AlphaMode::kOpaque;
+    }
+
+    MaterialUpload upload;
+    upload.material = material;
+    if (quad.texture) {
+        upload.base_color_texture = MaterialTextureBinding{.texture = quad.texture,
+                                                           .sampler = quad.sampler,
+                                                           .texcoord_set = 0};
+    }
+    return upload;
+}
+
 } // namespace
 
 RenderScene::~RenderScene() noexcept {
@@ -212,25 +261,36 @@ RenderScene::initialize(std::unique_ptr<GraphicsDevice> device,
 }
 
 void RenderScene::render(int width,
+                          int height,
+                          const std::array<float, 16>& view_projection,
+                          const std::array<float, 16>& view) noexcept {
+    render(width, height, view_projection, view, nullptr, nullptr, {});
+}
+
+void RenderScene::render(int width,
                          int height,
                          const std::array<float, 16>& view_projection,
-                         const std::array<float, 16>& view) noexcept {
-    render(width, height, view_projection, view, nullptr);
+                          const std::array<float, 16>& view,
+                          const stellar::scene::ScenePose& pose) noexcept {
+    render(width, height, view_projection, view, &pose, nullptr, {});
 }
 
 void RenderScene::render(int width,
                          int height,
                          const std::array<float, 16>& view_projection,
                          const std::array<float, 16>& view,
-                         const stellar::scene::ScenePose& pose) noexcept {
-    render(width, height, view_projection, view, &pose);
+                         const BillboardView& billboard_view,
+                         std::span<const BillboardSprite> sprites) noexcept {
+    render(width, height, view_projection, view, nullptr, &billboard_view, sprites);
 }
 
 void RenderScene::render(int width,
-                         int height,
-                         const std::array<float, 16>& view_projection,
-                         const std::array<float, 16>& view,
-                         const stellar::scene::ScenePose* pose) noexcept {
+                          int height,
+                          const std::array<float, 16>& view_projection,
+                          const std::array<float, 16>& view,
+                          const stellar::scene::ScenePose* pose,
+                          const BillboardView* billboard_view,
+                          std::span<const BillboardSprite> sprites) noexcept {
     if (!device_ || !active_scene_index_.has_value()) {
         return;
     }
@@ -276,13 +336,46 @@ void RenderScene::render(int width,
                            draw.transforms);
     }
 
+    if (billboard_view != nullptr && !sprites.empty()) {
+        auto quads = build_billboard_quads(sprites, *billboard_view);
+        draw_billboard_quads(quads, vp);
+    }
+
     device_->end_frame();
 }
 
 void RenderScene::render(int width,
-                         int height,
-                         const std::array<float, 16>& view_projection) noexcept {
+                          int height,
+                          const std::array<float, 16>& view_projection) noexcept {
     render(width, height, view_projection, view_projection);
+}
+
+void RenderScene::draw_billboard_quads(std::span<const BillboardQuad> quads,
+                                       const glm::mat4& view_projection) noexcept {
+    if (!device_) {
+        return;
+    }
+
+    const MeshDrawTransforms transforms{.mvp = to_array(view_projection),
+                                        .world = to_array(glm::mat4(1.0F)),
+                                        .normal = to_array(glm::mat3(1.0F))};
+    for (const BillboardQuad& quad : quads) {
+        auto mesh = device_->create_mesh(mesh_for_billboard_quad(quad));
+        if (!mesh) {
+            continue;
+        }
+        auto material = device_->create_material(material_for_billboard_quad(quad));
+        if (!material) {
+            device_->destroy_mesh(*mesh);
+            continue;
+        }
+
+        const MeshPrimitiveDrawCommand command{.primitive_index = 0, .material = *material};
+        device_->draw_mesh(*mesh, std::span<const MeshPrimitiveDrawCommand>(&command, 1),
+                           transforms);
+        device_->destroy_material(*material);
+        device_->destroy_mesh(*mesh);
+    }
 }
 
 stellar::scene::Transform& RenderScene::node_transform(std::size_t node_index) noexcept {

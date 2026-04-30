@@ -236,6 +236,12 @@ load_scene_from_file(std::string_view path) {
         scene.level_collision = std::move(*collision);
     }
 
+    auto world_metadata = extract_world_metadata(scene, data.get());
+    if (!world_metadata) {
+        return std::unexpected(world_metadata.error());
+    }
+    scene.world_metadata = std::move(*world_metadata);
+
     return scene;
 }
 

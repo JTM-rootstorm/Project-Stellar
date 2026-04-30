@@ -230,3 +230,35 @@ Append after implementation:
   - Trigger overlap/runtime behavior remains future work.
   - Sprite marker rendering remains future work unless Phase 6C integration was also added.
 ```
+
+## Completion Notes (2026-04-29)
+
+- Implemented: Phase 6D world metadata extraction from glTF node conventions.
+- Data model: Added `include/stellar/assets/WorldMetadataAsset.hpp` with `WorldMarkerType`,
+  `WorldMarker`, and `WorldMetadataAsset`; `SceneAsset` now carries a backend-neutral
+  `world_metadata` member that is always present and empty when no markers are authored.
+- Node conventions: Implemented `SPAWN_Player`, `SPAWN_<Archetype>`, `TRIGGER_<Name>`,
+  `SPRITE_<Name>`, and optional `PORTAL_<Name>` parsing. Unknown prefixes, ordinary render
+  node names, and Phase 6A collision names do not create metadata markers.
+- Transform behavior: Metadata extraction walks the imported default scene hierarchy, composes
+  parent/child transforms deterministically, stores world translation as marker position,
+  decomposes world rotation into a quaternion, and stores absolute world scale for marker scale
+  and trigger extents.
+- Extras behavior: Preserves cgltf-provided raw node `extras` JSON text on matching markers when
+  present; no JSON parser or schema validation was added.
+- Tests added/updated: Extended `tests/import/gltf/ImporterRegression.cpp` with display-free
+  coverage for empty metadata, player spawn, generic entity spawn/archetype, trigger marker,
+  sprite marker, optional portal marker, parent/child transforms, absolute trigger scale, raw
+  extras preservation, and ordinary render/collision node exclusion.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_import_gltf_regression -j$(nproc)`
+  - `ctest --test-dir build -R '^gltf_importer_regression$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; full CTest passed 8/8.
+- Deferred follow-up:
+  - Runtime spawning remains future work.
+  - Trigger overlap/runtime behavior remains future work.
+  - Sprite marker rendering remains future work; Phase 6D stores sprite metadata only.
+  - Portal runtime behavior, sector traversal, and rendering/culling remain future work.

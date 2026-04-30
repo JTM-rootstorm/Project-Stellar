@@ -87,6 +87,105 @@ void verify_alpha_grouping_and_blend_sort(stellar::platform::Window& window) {
     assert(device->primitive_draw(3).primitive_index == 0);
 }
 
+stellar::assets::SceneAsset make_empty_renderable_scene() {
+    stellar::assets::SceneAsset scene;
+    scene.scenes.push_back(stellar::scene::Scene{.name = "default", .root_nodes = {}});
+    scene.default_scene_index = 0;
+    return scene;
+}
+
+void verify_billboard_quad_generation_sorting_and_fields() {
+    stellar::graphics::BillboardView view;
+    view.view = kIdentity;
+    view.view_projection = kIdentity;
+    view.camera_right = {1.0F, 0.0F, 0.0F};
+    view.camera_up = {0.0F, 2.0F, 0.0F};
+
+    stellar::graphics::BillboardSprite masked;
+    masked.position = {0.0F, 0.0F, -2.0F};
+    masked.size = {2.0F, 3.0F};
+    masked.color = {0.25F, 0.5F, 0.75F, 0.9F};
+    masked.texture = stellar::graphics::TextureHandle{44};
+    masked.alpha_mask = true;
+    masked.alpha_blend = true;
+    masked.alpha_cutoff = 0.375F;
+
+    stellar::graphics::BillboardSprite near_blend;
+    near_blend.position = {0.0F, 0.0F, -1.0F};
+    near_blend.texture = stellar::graphics::TextureHandle{55};
+
+    stellar::graphics::BillboardSprite far_blend = near_blend;
+    far_blend.position = {0.0F, 0.0F, -5.0F};
+    far_blend.texture = stellar::graphics::TextureHandle{66};
+
+    const std::array sprites{masked, near_blend, far_blend};
+    const auto quads = stellar::graphics::build_billboard_quads(sprites, view);
+    assert(quads.size() == 3);
+    assert(quads[0].alpha_mask);
+    assert(!quads[0].alpha_blend);
+    assert(quads[0].texture == stellar::graphics::TextureHandle{44});
+    assert(quads[0].color[2] == 0.75F);
+    assert(quads[0].size[1] == 3.0F);
+    assert(quads[0].alpha_cutoff == 0.375F);
+    assert(quads[0].positions[0][0] == -1.0F);
+    assert(quads[0].positions[2][1] == 3.0F);
+    assert(quads[1].texture == stellar::graphics::TextureHandle{66});
+    assert(quads[2].texture == stellar::graphics::TextureHandle{55});
+}
+
+void verify_billboard_render_records_mesh_material_and_order(stellar::platform::Window& window) {
+    stellar::graphics::RenderScene render_scene;
+    auto [_, device] = initialize_scene(render_scene, window, make_empty_renderable_scene());
+
+    stellar::graphics::BillboardView view;
+    view.view = kIdentity;
+    view.view_projection = kIdentity;
+    view.camera_right = {1.0F, 0.0F, 0.0F};
+    view.camera_up = {0.0F, 1.0F, 0.0F};
+
+    stellar::graphics::BillboardSprite masked;
+    masked.position = {0.0F, 0.0F, -2.0F};
+    masked.size = {2.0F, 4.0F};
+    masked.color = {0.1F, 0.2F, 0.3F, 0.4F};
+    masked.texture = stellar::graphics::TextureHandle{777};
+    masked.sampler.wrap_s = stellar::assets::TextureWrapMode::kClampToEdge;
+    masked.alpha_mask = true;
+    masked.alpha_blend = true;
+    masked.alpha_cutoff = 0.2F;
+
+    stellar::graphics::BillboardSprite near_blend;
+    near_blend.position = {0.0F, 0.0F, -1.0F};
+    near_blend.texture = stellar::graphics::TextureHandle{111};
+
+    stellar::graphics::BillboardSprite far_blend = near_blend;
+    far_blend.position = {0.0F, 0.0F, -5.0F};
+    far_blend.texture = stellar::graphics::TextureHandle{222};
+
+    const std::array sprites{masked, near_blend, far_blend};
+    render_scene.render(64, 64, kIdentity, kIdentity, view, sprites);
+
+    assert(device->draw_calls.size() == 3);
+    assert(device->uploaded_meshes.size() == 3);
+    assert(device->uploaded_materials.size() == 3);
+    assert(device->uploaded_meshes[0].primitives[0].vertices[0].position[0] == -1.0F);
+    assert(device->uploaded_meshes[0].primitives[0].vertices[2].position[1] == 2.0F);
+    assert(device->uploaded_meshes[0].primitives[0].vertices[1].uv0[0] == 1.0F);
+    assert(device->uploaded_meshes[0].primitives[0].vertices[0].color[3] == 0.4F);
+    assert(device->uploaded_materials[0].material.alpha_mode ==
+           stellar::assets::AlphaMode::kMask);
+    assert(device->uploaded_materials[0].material.alpha_cutoff == 0.2F);
+    assert(device->uploaded_materials[0].base_color_texture->texture ==
+           stellar::graphics::TextureHandle{777});
+    assert(device->uploaded_materials[0].base_color_texture->sampler.wrap_s ==
+           stellar::assets::TextureWrapMode::kClampToEdge);
+    assert(device->uploaded_materials[1].base_color_texture->texture ==
+           stellar::graphics::TextureHandle{222});
+    assert(device->uploaded_materials[2].base_color_texture->texture ==
+           stellar::graphics::TextureHandle{111});
+    assert(device->destroyed_meshes.size() == 3);
+    assert(device->destroyed_materials.size() == 3);
+}
+
 void verify_material_identity_and_invalid_indices(stellar::platform::Window& window) {
     stellar::assets::SceneAsset scene;
     scene.materials = {make_material(stellar::assets::AlphaMode::kOpaque),
@@ -443,6 +542,8 @@ void verify_generated_representative_fixtures(stellar::platform::Window& window)
 int main() {
     stellar::platform::Window window;
     verify_alpha_grouping_and_blend_sort(window);
+    verify_billboard_quad_generation_sorting_and_fields();
+    verify_billboard_render_records_mesh_material_and_order(window);
     verify_material_identity_and_invalid_indices(window);
     verify_texture_transform_material_records(window);
     verify_texture_transform_uv1_routing(window);

@@ -67,6 +67,7 @@ if(STELLAR_ENABLE_GLTF)
         src/import/gltf/AnimationImport.cpp
         src/import/gltf/NodeImport.cpp
         src/import/gltf/CollisionImport.cpp
+        src/import/gltf/WorldMetadataImport.cpp
         src/import/gltf/SceneImport.cpp
     )
 
@@ -103,6 +104,7 @@ add_library(stellar_graphics
     src/graphics/GraphicsBackend.cpp
     src/graphics/RendererFactory.cpp
     src/graphics/GraphicsDeviceFactory.cpp
+    src/graphics/BillboardSprite.cpp
     src/graphics/DebugCubeMesh.cpp
     src/graphics/RenderScene.cpp
     src/graphics/SceneRenderer.cpp

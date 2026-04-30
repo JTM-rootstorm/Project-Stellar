@@ -5,11 +5,13 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include <glm/mat4x4.hpp>
 
 #include "stellar/assets/SceneAsset.hpp"
+#include "stellar/graphics/BillboardSprite.hpp"
 #include "stellar/graphics/GraphicsDevice.hpp"
 #include "stellar/scene/AnimationRuntime.hpp"
 
@@ -67,6 +69,22 @@ public:
                 const stellar::scene::ScenePose& pose) noexcept;
 
     /**
+     * @brief Render the active scene plus backend-neutral 3D billboard sprites.
+     * @param width Viewport width in pixels.
+     * @param height Viewport height in pixels.
+     * @param view_projection Column-major view-projection matrix.
+     * @param view Column-major view matrix used for transparent primitive sorting.
+     * @param billboard_view Camera basis and matrices used to generate sprite quads.
+     * @param sprites Sprite draw data to submit after static opaque/mask geometry.
+     */
+    void render(int width,
+                int height,
+                const std::array<float, 16>& view_projection,
+                const std::array<float, 16>& view,
+                const BillboardView& billboard_view,
+                std::span<const BillboardSprite> sprites) noexcept;
+
+    /**
      * @brief Render the active scene using view-projection depth as a compatibility fallback.
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
@@ -105,7 +123,11 @@ private:
                 int height,
                 const std::array<float, 16>& view_projection,
                 const std::array<float, 16>& view,
-                const stellar::scene::ScenePose* pose) noexcept;
+                const stellar::scene::ScenePose* pose,
+                const BillboardView* billboard_view = nullptr,
+                std::span<const BillboardSprite> sprites = {}) noexcept;
+    void draw_billboard_quads(std::span<const BillboardQuad> quads,
+                              const glm::mat4& view_projection) noexcept;
     void destroy() noexcept;
 
     std::unique_ptr<GraphicsDevice> device_;
