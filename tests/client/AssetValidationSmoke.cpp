@@ -5,6 +5,17 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <string>
+
+namespace {
+
+void write_text_file(const std::filesystem::path &path, const std::string &source) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream file(path, std::ios::binary);
+  file.write(source.data(), static_cast<std::streamsize>(source.size()));
+}
+
+} // namespace
 
 int main() {
   const auto root =
@@ -12,7 +23,7 @@ int main() {
   std::filesystem::create_directories(root);
 
   const auto bsp_path = root / "valid_map.bsp";
-  stellar::tests::fixtures::write_bsp_fixture(bsp_path);
+  stellar::tests::fixtures::write_bsp_fixture(bsp_path, "gameplay_room");
 
   stellar::client::ApplicationConfig config;
   config.map_path = bsp_path.string();
@@ -26,10 +37,12 @@ int main() {
   assert(!result->map_validation_report->has_errors);
   assert(result->runtime_world_diagnostics.has_value());
   assert(result->runtime_world_diagnostics->has_collision);
-  assert(result->runtime_world_diagnostics->marker_count == 5);
+  assert(result->runtime_world_diagnostics->marker_count == 4);
   assert(result->runtime_world_diagnostics->sprite_marker_count == 1);
   assert(result->runtime_world_diagnostics->object_collider_marker_count == 1);
   assert(result->runtime_world_diagnostics->has_player_spawn);
+  assert(!result->scripted_runtime_enabled);
+  assert(result->loaded_script_ids.empty());
 
   const auto runtime = stellar::client::prepare_application_runtime(config);
   assert(runtime.has_value());
@@ -38,11 +51,52 @@ int main() {
   assert(runtime->runtime_world != nullptr);
   assert(runtime->runtime_world->level_asset == &*runtime->validation->level);
   assert(runtime->runtime_world->diagnostics.has_collision);
-  assert(runtime->runtime_world->diagnostics.marker_count == 5);
+  assert(runtime->runtime_world->diagnostics.marker_count == 4);
   assert(runtime->local_loopback_runtime != nullptr);
+  assert(!runtime->validation->scripted_runtime_enabled);
   assert(runtime->local_loopback_runtime->latest_snapshot().players.size() == 1);
   assert(runtime->local_loopback_runtime->latest_snapshot().players[0].player_id ==
          1);
+
+  const auto scripted_bsp_path = root / "scripted_map.bsp";
+  stellar::tests::fixtures::write_bsp_fixture(scripted_bsp_path);
+  write_text_file(root / "scripts" / "door.lua",
+                  "Door = {}\n"
+                  "function Door.on_trigger_enter(event)\n"
+                  "  stellar.emit_event('collision.set_mesh_enabled', "
+                  "{mesh = 'DoorBlocker', enabled = false})\n"
+                  "end\n");
+  write_text_file(root / "scripts" / "pickup.lua",
+                  "PickupGem = {}\n"
+                  "function PickupGem.on_object_collider_enter(event)\n"
+                  "  stellar.emit_event('gameplay.pickup_collected', "
+                  "{name = event.collider_name})\n"
+                  "end\n");
+  config.map_path = scripted_bsp_path.string();
+  const auto scripted_runtime =
+      stellar::client::prepare_application_runtime(config);
+  assert(scripted_runtime.has_value());
+  assert(scripted_runtime->local_loopback_runtime != nullptr);
+  assert(scripted_runtime->validation->scripted_runtime_enabled);
+  assert(scripted_runtime->validation->loaded_script_ids.size() == 2);
+  assert(scripted_runtime->validation->loaded_script_ids[0] == "scripts/door.lua");
+  assert(scripted_runtime->validation->loaded_script_ids[1] == "scripts/pickup.lua");
+
+  const auto isolated_root = root / "isolated_scripts";
+  config.script_root = isolated_root.string();
+  const auto missing_script_runtime =
+      stellar::client::prepare_application_runtime(config);
+  assert(!missing_script_runtime.has_value());
+  assert(missing_script_runtime.error().message.find("Missing script source") !=
+         std::string::npos);
+
+  config.script_root = (root / "scripts").string();
+  const auto escaped_root_runtime =
+      stellar::client::prepare_application_runtime(config);
+  assert(!escaped_root_runtime.has_value());
+  assert(escaped_root_runtime.error().message.find("Missing script source") !=
+         std::string::npos);
+  config.script_root.reset();
 
   stellar::client::ApplicationConfig no_map_config;
   const auto no_map_runtime =

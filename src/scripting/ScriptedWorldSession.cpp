@@ -102,4 +102,43 @@ const stellar::server::WorldSnapshot& ScriptedWorldSession::latest_snapshot() co
     return latest_snapshot_;
 }
 
+stellar::server::WorldSnapshot ScriptedWorldSession::snapshot() const {
+    return session_.snapshot();
+}
+
+void ScriptedWorldSession::set_object_colliders(
+    std::span<const stellar::world::ObjectCollider> colliders) {
+    session_.set_object_colliders(colliders);
+    latest_snapshot_ = session_.snapshot();
+}
+
+std::vector<stellar::server::ObjectColliderEvent>
+ScriptedWorldSession::replace_object_colliders_preserving_overlaps(
+    std::span<const stellar::world::ObjectCollider> colliders) noexcept {
+    const auto events = session_.replace_object_colliders_preserving_overlaps(colliders);
+    latest_snapshot_ = session_.snapshot();
+    return events;
+}
+
+stellar::server::ObjectColliderMutationResult ScriptedWorldSession::set_object_collider_enabled(
+    std::uint32_t collider_id, bool enabled) noexcept {
+    auto result = session_.set_object_collider_enabled(collider_id, enabled);
+    latest_snapshot_ = session_.snapshot();
+    return result;
+}
+
+stellar::server::ObjectColliderMutationResult ScriptedWorldSession::upsert_object_collider(
+    const stellar::world::ObjectCollider& collider) noexcept {
+    auto result = session_.upsert_object_collider(collider);
+    latest_snapshot_ = session_.snapshot();
+    return result;
+}
+
+stellar::server::ObjectColliderMutationResult ScriptedWorldSession::remove_object_collider(
+    std::uint32_t collider_id) noexcept {
+    auto result = session_.remove_object_collider(collider_id);
+    latest_snapshot_ = session_.snapshot();
+    return result;
+}
+
 } // namespace stellar::scripting

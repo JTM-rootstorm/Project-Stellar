@@ -173,6 +173,7 @@ add_library(stellar_client_runtime
     src/client/MovementInputMapper.cpp
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
+    src/client/ScriptRegistryLoader.cpp
 )
 
 target_include_directories(stellar_client_runtime PUBLIC
@@ -182,6 +183,7 @@ target_include_directories(stellar_client_runtime PUBLIC
 target_link_libraries(stellar_client_runtime PUBLIC
     stellar_platform
     stellar_server_core
+    stellar_scripting
 )
 
 add_library(stellar_graphics

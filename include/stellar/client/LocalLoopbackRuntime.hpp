@@ -2,11 +2,13 @@
 
 #include <cstdint>
 #include <span>
+#include <variant>
 #include <vector>
 
 #include "stellar/client/MovementInputMapper.hpp"
 #include "stellar/platform/Input.hpp"
 #include "stellar/server/WorldSession.hpp"
+#include "stellar/scripting/ScriptedWorldSession.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::client {
@@ -33,6 +35,18 @@ struct LocalLoopbackFrameResult {
 
     /** @brief True when accumulated time was dropped after hitting max_ticks_per_frame. */
     bool dropped_excess_time = false;
+
+    /** @brief Events emitted by server-authoritative scripts during this client frame. */
+    std::vector<stellar::scripting::ScriptOutputEvent> script_events;
+
+    /** @brief Script errors produced during this client frame. */
+    std::vector<stellar::scripting::ScriptError> script_errors;
+
+    /** @brief Native authoritative command results for script output events. */
+    std::vector<stellar::scripting::ScriptCommandResult> command_results;
+
+    /** @brief True when this frame was advanced through a scripted authoritative session. */
+    bool scripted = false;
 };
 
 /** @brief In-process local authoritative runtime used by single-player/client presentation. */
@@ -40,6 +54,10 @@ class LocalLoopbackRuntime {
 public:
     /** @brief Construct a runtime over caller-owned backend-neutral runtime world data. */
     explicit LocalLoopbackRuntime(const stellar::world::RuntimeWorld& world,
+                                  LocalLoopbackRuntimeConfig config = {});
+
+    /** @brief Construct a runtime over a preloaded server-authoritative scripted session. */
+    explicit LocalLoopbackRuntime(stellar::scripting::ScriptedWorldSession scripted_session,
                                   LocalLoopbackRuntimeConfig config = {});
 
     /** @brief Return the latest authoritative state snapshot without replaying frame events. */
@@ -71,7 +89,7 @@ public:
 
 private:
     LocalLoopbackRuntimeConfig config_{};
-    stellar::server::WorldSession session_;
+    std::variant<stellar::server::WorldSession, stellar::scripting::ScriptedWorldSession> session_;
     stellar::server::WorldSnapshot latest_snapshot_{};
     float accumulated_seconds_ = 0.0F;
 };

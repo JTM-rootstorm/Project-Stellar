@@ -15,7 +15,7 @@ plan.
 Active phases:
 
 - Phase PN-0 — Plan archival and follow-up handoff: complete as of 2026-05-01.
-- Phase PN-1 — Live scripted authoritative runtime integration: pending.
+- Phase PN-1 — Live scripted authoritative runtime integration: complete as of 2026-05-01.
 - Phase PN-2 — Authoritative gameplay snapshot presentation: pending.
 - Phase PN-3 — Snapshot/delta/event transport contracts: pending.
 - Phase PN-4 — Local/remote transport bridge: pending.
@@ -45,6 +45,35 @@ Result: documentation-only Phase PN-0 completed on 2026-05-01. The active grep i
 only historical/archive references in `docs/ImplementationStatus.md`, `Plans/NEXT.md`, and active PN
 plan text; the old gameplay-loop files are no longer root-level active handoffs. Validation was limited
 to repository inspection because no code changed.
+
+Phase PN-1 completion notes:
+
+- `prepare_application_runtime()` now detects trigger/object-collider script bindings in the loaded BSP
+  `RuntimeWorld` and constructs a sandboxed server-authoritative `ScriptedWorldSession` for those maps;
+  maps without script bindings still construct the plain `WorldSession` loopback runtime.
+- Added a narrow script registry loader for live runtime preparation. Script ids resolve relative to
+  `ApplicationConfig::script_root` when provided, otherwise the map directory; absolute ids, drive
+  paths, parent escapes, missing source files, and root escapes fail preparation deterministically.
+- `LocalLoopbackRuntime` keeps its public `latest_snapshot()`/`update(input, delta_seconds)` shape while
+  internally supporting either plain or scripted sessions. Frame results now preserve `script_events`,
+  `script_errors`, native script `command_results`, and whether the frame used scripted mode.
+- Scripted session forwarding preserves existing object-collider mutation APIs needed by runtime tests.
+- Display-free tests cover no-script plain preparation, scripted preparation diagnostics, missing script
+  source failure, import-time script path escape rejection, scripted frame events/errors, and scripted
+  BSP pickup/door state through authoritative snapshots.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client -j$(nproc)
+cmake --build build --target stellar_client_local_loopback_runtime_test stellar_client_map_validation_smoke stellar_scripted_world_session_test stellar_script_command_processor_test stellar_bsp_playable_world_smoke_test -j$(nproc)
+ctest --test-dir build -R '^(client_local_loopback_runtime|client_map_validation_smoke|client_cli_map_validation|scripted_world_session|script_command_processor|bsp_playable_world_smoke|bsp_scripted_playable_world_smoke|bsp_scripted_collision_smoke|bsp_scripted_object_collider_smoke)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, `stellar-client` built, focused PN-1 targets built, focused PN-1 CTest
+passed 10/10, and full default CTest passed 41/41 on 2026-05-01.
 
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 

@@ -1,6 +1,8 @@
 #include "stellar/client/Application.hpp"
 
+#include "stellar/client/ScriptRegistryLoader.hpp"
 #include "stellar/import/bsp/Validation.hpp"
+#include "stellar/scripting/ScriptedWorldSession.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 #include <algorithm>
@@ -85,8 +87,39 @@ prepare_application_runtime(const ApplicationConfig &config) {
         stellar::world::build_runtime_world(*prepared.validation->level));
     prepared.validation->runtime_world_diagnostics =
         prepared.runtime_world->diagnostics;
-    prepared.local_loopback_runtime =
-        std::make_unique<LocalLoopbackRuntime>(*prepared.runtime_world);
+
+    if (runtime_world_has_script_bindings(*prepared.runtime_world)) {
+      ScriptRegistryLoadConfig load_config;
+      if (config.map_path.has_value()) {
+        load_config.map_path = *config.map_path;
+      }
+      if (config.script_root.has_value()) {
+        load_config.script_root = *config.script_root;
+      }
+
+      auto registry = load_script_registry_for_world(*prepared.runtime_world, load_config);
+      if (!registry) {
+        return std::unexpected(registry.error());
+      }
+      prepared.validation->loaded_script_ids = registry->loaded_script_ids;
+      prepared.validation->script_errors = registry->script_errors;
+
+      auto scripted_session = stellar::scripting::ScriptedWorldSession::create(
+          *prepared.runtime_world, stellar::server::WorldSessionConfig{},
+          std::move(registry->registry));
+      if (!scripted_session) {
+        prepared.validation->script_errors.push_back(scripted_session.error());
+        return std::unexpected(stellar::platform::Error(
+            "Failed to prepare scripted authoritative runtime for --map: " +
+            scripted_session.error().message));
+      }
+      prepared.validation->scripted_runtime_enabled = true;
+      prepared.local_loopback_runtime = std::make_unique<LocalLoopbackRuntime>(
+          std::move(*scripted_session));
+    } else {
+      prepared.local_loopback_runtime =
+          std::make_unique<LocalLoopbackRuntime>(*prepared.runtime_world);
+    }
   }
 
   return prepared;
