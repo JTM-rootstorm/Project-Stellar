@@ -42,9 +42,8 @@ std::expected<void, stellar::platform::Error> Application::run() {
     return result;
   }
 
-  auto renderer = stellar::graphics::create_renderer(
-      config_.graphics_backend, std::nullopt,
-      stellar::graphics::SceneRendererAnimationOptions{});
+  auto renderer = stellar::graphics::create_renderer(config_.graphics_backend,
+                                                     std::nullopt);
   if (auto result = renderer->initialize(window); !result) {
     return result;
   }

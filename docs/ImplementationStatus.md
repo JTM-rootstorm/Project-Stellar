@@ -96,6 +96,34 @@ CLI map validation, and BSP-backed playable/scripted smoke aliases. A corrected 
 `bsp_importer` and `bsp_playable_world_smoke` for 11/11 targeted passes. Full default CTest passed
 33/33.
 
+Phase BSP-4 is complete as of 2026-05-01:
+
+- Refactored active graphics presentation to consume BSP/`LevelAsset` static geometry through
+  `RenderLevel`/`LevelRenderer` instead of glTF-shaped scene data.
+- Preserved OpenGL/Vulkan backend parity through the shared `GraphicsDevice` abstraction; no
+  BSP-specific raw backend API was added.
+- Preserved billboard sprite rendering after static level geometry and updated display-free
+  upload/submission tests for BSP geometry, default material fallback, surface material indices,
+  and billboard ordering.
+- Removed active renderer assumptions around glTF scene graph pose, skinning, animation, and
+  PBR-style materials; retained temporary compatibility aliases for old `RenderScene`/
+  `SceneRenderer` names while active APIs are LevelAsset-focused.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(render_level|render_scene|billboard|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build -R '^(render_level_.*|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. The phase-plan targeted regex matched and passed
+`graphics_backend_selection`; the corrected graphics regex ran `render_level_upload`,
+`render_level_inspection`, and `graphics_backend_selection` for 3/3 passes. Full default CTest passed
+33/33.
+
 ## Historical collision-movement status
 
 Branch target: `collision-movement`

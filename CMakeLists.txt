@@ -248,8 +248,8 @@ add_library(stellar_graphics
     src/graphics/GraphicsDeviceFactory.cpp
     src/graphics/BillboardSprite.cpp
     src/graphics/DebugCubeMesh.cpp
-    src/graphics/RenderScene.cpp
-    src/graphics/SceneRenderer.cpp
+    src/graphics/RenderLevel.cpp
+    src/graphics/LevelRenderer.cpp
     src/graphics/opengl/CubeRenderer.cpp
     src/graphics/opengl/OpenGLGraphicsDevice.cpp
     src/graphics/vulkan/VulkanGraphicsDevice.cpp
@@ -329,24 +329,24 @@ stellar_add_server_test(stellar_server_world_session_test server_world_session
     tests/server/WorldSession.cpp
 )
 
-stellar_add_graphics_test(stellar_render_scene_upload_test render_scene_upload
+stellar_add_graphics_test(stellar_render_level_upload_test render_level_upload
     tests/graphics/RenderSceneUpload.cpp
 )
 
-add_executable(stellar_render_scene_inspection_test
+add_executable(stellar_render_level_inspection_test
     tests/graphics/RenderSceneInspection.cpp
 )
 
-target_include_directories(stellar_render_scene_inspection_test PRIVATE
+target_include_directories(stellar_render_level_inspection_test PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/tests/graphics
 )
 
-target_link_libraries(stellar_render_scene_inspection_test PRIVATE
+target_link_libraries(stellar_render_level_inspection_test PRIVATE
     stellar_graphics
 )
 
-add_test(NAME render_scene_inspection COMMAND stellar_render_scene_inspection_test)
+add_test(NAME render_level_inspection COMMAND stellar_render_level_inspection_test)
 
 stellar_add_graphics_test(stellar_graphics_backend_selection_test graphics_backend_selection
     tests/graphics/BackendSelection.cpp
