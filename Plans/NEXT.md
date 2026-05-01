@@ -1,10 +1,16 @@
 # Stellar Engine - Current Branch Handoff
 
-Branch target: `bsp-integration`
+Branch target: `bsp-gameplay-loop`
 
 ## Current entry point
 
 Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
+
+Branch start policy:
+
+- Create this branch from updated `main` after `collision-movement` has merged.
+- Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, or BSP
+  hardening work.
 
 Active next scope:
 
@@ -12,6 +18,8 @@ Active next scope:
 
 Archived completed plans:
 
+- Collision, movement, trigger, object-collider, Lua scripting, and removable-complexity work:
+  `Plans/Archived/`
 - BSP hardening: `Plans/Archived/project_stellar_bsp_hardening_plan/`
 - BSP canonical migration: `Plans/Archived/project_stellar_bsp_canonical_plan/`
 

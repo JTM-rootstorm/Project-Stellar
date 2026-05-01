@@ -1,6 +1,29 @@
-# Project Stellar: Next Implementation Plans
+# Project Stellar: Implementation Status
 
-Branch target: `bsp-integration`
+Branch target: `bsp-gameplay-loop`
+
+## Active Scope — Gameplay Loop Expansion over BSP Maps
+
+This branch begins after `collision-movement` merges to `main`. Treat collision, movement,
+trigger, object-collider, Lua scripting, BSP canonical migration, BSP rendering, and BSP hardening as
+completed foundations, not as active work to restart.
+
+The next implementation scope is gameplay loop expansion over BSP maps while preserving server
+authority and display-free default validation.
+
+Initial focus areas:
+
+- ECS/entity spawn from BSP metadata.
+- Player presentation from authoritative snapshots.
+- Sprite, animation, and interaction loop.
+- Item pickup and scripted doors/gates using the existing Lua command path.
+
+Near-term implementation should continue to use `Plans/NEXT.md` as the short branch handoff and this
+file as the source of truth for completion notes. Archived phase plans under `Plans/Archived/` are
+historical context unless this file explicitly names one as active.
+
+Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
+renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

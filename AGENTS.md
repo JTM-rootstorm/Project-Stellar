@@ -17,7 +17,7 @@ Stellar Engine is a modular, cross-platform game framework for creating 2D sprit
 
 Agents must check the relevant project documents before making architecture or implementation assumptions.
 
-Precedence for the `bsp-integration` branch:
+Precedence for the `bsp-gameplay-loop` branch:
 
 1. `docs/ImplementationStatus.md` - current branch-facing implementation status and near-term priorities.
 2. Active implementation plans under `Plans/` - current handoff plans when referenced by `ImplementationStatus.md`.
@@ -28,17 +28,21 @@ When `docs/ImplementationStatus.md` conflicts with `docs/Design.md`, prefer `doc
 
 ## Current Branch Focus
 
-Current branch: `bsp-integration`.
+Current branch: `bsp-gameplay-loop`.
 
 `docs/ImplementationStatus.md` is the single current-work entry point for branch-facing status and
 near-term priorities. Consult it before starting implementation work. Active handoff notes may point
 to a current plan such as `Plans/NEXT.md`; older phase plans are historical unless explicitly named
 there.
 
-The current active scope is migration to BSP maps as the canonical playable level format and removal
-of retired pre-BSP importer functionality from active code, active build configuration, active tests,
-and active docs. Older pre-BSP importer/collision phase plans are historical only and must not be
-restarted as active work.
+The current active scope is gameplay loop expansion over BSP maps. Work should build on completed
+collision, movement, trigger, object-collider, Lua scripting, BSP canonical migration, BSP rendering,
+and BSP hardening foundations. Focus on ECS/entity spawn from BSP metadata, player presentation from
+authoritative snapshots, sprite/animation/interaction loop, and item pickup plus scripted doors/gates
+through the existing sandboxed Lua command path.
+
+Older pre-BSP importer, collision foundation, BSP migration, and BSP hardening phase plans are
+historical only and must not be restarted as active work.
 
 Lua scripting is core server-authoritative infrastructure for this branch. Do not add or preserve a
 normal build mode where gameplay scripting is absent, and keep Lua sandboxing mandatory.

@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.1 (BSP hardening alignment)  
+**Version:** 0.2.1 (BSP gameplay-loop planning alignment)  
 **Last Updated:** 2026-05-01
 
 ---
@@ -84,7 +84,7 @@ suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`bsp-integration` branch, it is not the highest authority on current implementation status.
+`bsp-gameplay-loop` branch, it is not the highest authority on current implementation status.
 
 Precedence for resolving conflicts:
 
@@ -104,9 +104,13 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `bsp-integration`.
+Current branch: `bsp-gameplay-loop`.
 
 Primary near-term goal: expand the gameplay loop over BSP maps while preserving server authority.
+This branch starts from updated `main` after `collision-movement` merges. Completed collision,
+movement, Lua scripting, object-collider, BSP canonical migration, and BSP hardening work should be
+treated as foundational historical context, not restarted.
+
 Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
 deterministic headless validation.
