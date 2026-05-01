@@ -60,6 +60,23 @@ Malformed vectors and booleans produce import diagnostics. Import does not run L
 
 ## Examples
 
+### Inch-scale gameplay room fixture
+
+The generated `gameplay_room` test fixture is the current Phase 6 smoke-map reference. It preserves
+the tiny fixtures used by existing importer and scripting tests, but gives runtime/client integration
+a room at gameplay scale:
+
+- 192x192 inch footprint, with `x/z` spanning roughly `-96..96`.
+- Floor at `y = 0`, ceiling at `y = 96`, and static triangle collision for floor, walls, and ceiling.
+- `info_player_start` at `origin = "0 36 0"` for the default 72 inch capsule.
+- Floor/ceiling/walls use Phase 2 procedural developer material aliases such as `dev/grid_32`,
+  `dev/grid_64`, and `dev/wall_96`.
+- Includes one sprite marker, one object-collider marker reserved for pickup work, and one trigger
+  marker reserved for door/gate work.
+
+Display-free validation imports this room, builds `RuntimeWorld`, advances `LocalLoopbackRuntime`
+with authoritative movement input, verifies room-wall containment, and checks deterministic snapshots.
+
 ### Player spawn
 
 ```text

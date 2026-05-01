@@ -462,7 +462,7 @@ set(STELLAR_CLI_BAD_BSP_FIXTURE
 )
 
 add_test(NAME bsp_fixture_writer
-    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE}
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE} gameplay_room
 )
 set_tests_properties(bsp_fixture_writer PROPERTIES FIXTURES_SETUP bsp_cli_fixture)
 
@@ -500,6 +500,7 @@ target_include_directories(stellar_bsp_playable_world_smoke_test PRIVATE
 
 target_link_libraries(stellar_bsp_playable_world_smoke_test PRIVATE
     stellar_import_bsp
+    stellar_client_runtime
     stellar_scripting
 )
 

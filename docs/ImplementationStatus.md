@@ -42,7 +42,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 - Phase 3 — Load the configured BSP map into the live client path: complete as of 2026-05-01.
 - Phase 4 — Authoritative player camera drives level rendering: complete as of 2026-05-01.
 - Phase 5 — Minimal ECS/entity spawn from BSP metadata: complete as of 2026-05-01.
-- Phase 6 — Single-room controllable player loop: not started.
+- Phase 6 — Single-room controllable player loop: complete as of 2026-05-01.
 - Phase 7 — First interaction loop, pickup and scripted door/gate: not started.
 - Phase 8 — Final branch hardening and documentation: not started.
 
@@ -169,6 +169,31 @@ ctest --test-dir build -R '^(server_gameplay_world|server_world_session|runtime_
 ```
 
 Result: focused Phase 5 build targets and CTest regex passed on 2026-05-01.
+
+Phase 6 completion notes:
+
+- Added the `gameplay_room` generated BSP fixture as an inch-scale single-room map while preserving
+  the existing tiny playable fixtures for focused importer/script tests.
+- The fixture is a 192x192 inch room from roughly `x/z = -96..96`, with floor `y = 0`, ceiling
+  `y = 96`, a center `info_player_start` at `0 36 0`, static collision floor/walls/ceiling, one
+  sprite marker, one future pickup object-collider marker, and one future door/gate trigger marker.
+- Display-free smoke coverage now imports the room BSP, builds `RuntimeWorld`, advances a
+  `LocalLoopbackRuntime` with forward/right authoritative input, verifies movement direction and room
+  wall containment, and checks identical input produces deterministic authoritative snapshots.
+- The live client no-map fallback remains unchanged; CLI map validation now exercises the generated
+  inch-scale gameplay room fixture.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_bsp_fixture_writer stellar_bsp_playable_world_smoke_test stellar_client_local_loopback_runtime_test stellar-client -j$(nproc)
+ctest --test-dir build -R '^(bsp_fixture_writer|bsp_playable_world_smoke|client_local_loopback_runtime|client_cli_validate_map|client_cli_map_validation)$' --output-on-failure
+```
+
+Result: focused Phase 6 build targets and CTest regex passed on 2026-05-01. Manual renderer/display
+validation was skipped because the requested validation scope is display-free and no GPU/display
+manual check was run.
 
 ## BSP Authoring and Presentation Hardening — Complete
 
