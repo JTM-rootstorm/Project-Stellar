@@ -51,7 +51,7 @@ std::string string_field(const stellar::scripting::ScriptOutputEvent& event, con
 
 void object_collider_enter_invokes_bound_script() {
     stellar::world::RuntimeWorld world{};
-    world.world_metadata.markers.push_back(collider_marker("Gem", "pickup", "gem", "Gem"));
+    world.world_metadata.markers.push_back(collider_marker("Gem", "sensor", "gem", "Gem"));
     stellar::scripting::ObjectColliderScriptSystem system{world};
     stellar::scripting::LuaRuntime runtime{};
     auto loaded = runtime.load_script(
@@ -68,7 +68,7 @@ void object_collider_enter_invokes_bound_script() {
         snapshot_with_event({.player_id = 7,
                              .collider_id = 1,
                              .name = "Gem",
-                             .archetype = "pickup",
+                             .archetype = "sensor",
                              .entered = true}));
 
     assert(result.errors.empty());
@@ -78,7 +78,33 @@ void object_collider_enter_invokes_bound_script() {
     assert(number_field(result.output_events[0], "player") == 7.0);
     assert(number_field(result.output_events[0], "id") == 1.0);
     assert(string_field(result.output_events[0], "name") == "Gem");
-    assert(string_field(result.output_events[0], "archetype") == "pickup");
+    assert(string_field(result.output_events[0], "archetype") == "sensor");
+}
+
+void pickup_enter_emits_native_collect_command_without_lua_binding() {
+    stellar::world::RuntimeWorld world{};
+    stellar::assets::WorldMarker marker{};
+    marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
+    marker.name = "Gem";
+    marker.archetype = "pickup";
+    world.world_metadata.markers.push_back(std::move(marker));
+    stellar::scripting::ObjectColliderScriptSystem system{world};
+    stellar::scripting::LuaRuntime runtime{};
+
+    auto result = system.process_object_collider_events(
+        runtime,
+        snapshot_with_event({.player_id = 7,
+                             .collider_id = 1,
+                             .name = "Gem",
+                             .archetype = "pickup",
+                             .entered = true}));
+
+    assert(result.errors.empty());
+    assert(result.output_events.size() == 1);
+    assert(result.output_events[0].name == "gameplay.collect_pickup");
+    assert(number_field(result.output_events[0], "id") == 1.0);
+    assert(number_field(result.output_events[0], "player_id") == 7.0);
+    assert(string_field(result.output_events[0], "name") == "Gem");
 }
 
 void object_collider_stay_and_exit_invoke_hooks() {
@@ -184,6 +210,7 @@ void event_order_is_deterministic() {
 
 int main() {
     object_collider_enter_invokes_bound_script();
+    pickup_enter_emits_native_collect_command_without_lua_binding();
     object_collider_stay_and_exit_invoke_hooks();
     unbound_object_collider_event_is_ignored();
     script_errors_are_reported_without_crash();

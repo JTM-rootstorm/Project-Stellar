@@ -2,28 +2,499 @@
 
 Branch target: `bsp-gameplay-loop`
 
-## Active Scope — Gameplay Loop Expansion over BSP Maps
+## Completed Follow-up Scope — BSP Presentation and Networking Polish
+
+Status: complete as of 2026-05-01.
+
+This run builds on the completed BSP gameplay-loop branch. The completed gameplay-loop plan package
+was archived under `Plans/Archived/bsp_gameplay_loop/`. The completed presentation/networking polish
+plan package is archived under `Plans/Archived/bsp_presentation_networking_polish/`.
+
+Completed phases:
+
+- Phase PN-0 — Plan archival and follow-up handoff: complete as of 2026-05-01.
+- Phase PN-1 — Live scripted authoritative runtime integration: complete as of 2026-05-01.
+- Phase PN-2 — Authoritative gameplay snapshot presentation: complete as of 2026-05-01.
+- Phase PN-3 — Snapshot/delta/event transport contracts: complete as of 2026-05-01.
+- Phase PN-4 — Local transport bridge and remote-ready contracts: complete as of 2026-05-01.
+- Phase PN-5 — HUD/audio/toolchain polish: complete as of 2026-05-01.
+- Phase PN-6 — Final docs, validation, and handoff: complete as of 2026-05-01.
+
+Phase PN-0 completion notes:
+
+- Moved the completed BSP gameplay-loop handoff plans from root `Plans/` into
+  `Plans/Archived/bsp_gameplay_loop/` without content changes.
+- Added new follow-up handoff files for BSP presentation and networking polish.
+- Updated `Plans/NEXT.md`, `docs/Design.md`, and `docs/BspAuthoring.md` so the then-current PN scope
+  was scripted live-runtime integration, authoritative gameplay snapshot presentation, remote-ready
+  snapshot/delta/event contracts, local bridge work, and presentation polish over completed BSP
+  gameplay-loop foundations.
+- No source or build behavior changes were introduced.
+
+Validation run:
+
+```bash
+git status --short
+git diff -- Plans docs
+git grep -n 'BspGameplayLoop-AgentPlan\|ProjectStellar-BSP-GameplayLoop-AgentPlan' -- Plans docs ':!Plans/Archived/**'
+```
+
+Result: documentation-only Phase PN-0 completed on 2026-05-01. The active grep was expected to return
+only historical/archive references in `docs/ImplementationStatus.md`, `Plans/NEXT.md`, and PN plan
+text; the old gameplay-loop files are no longer root-level active handoffs. Validation was limited to
+repository inspection because no code changed.
+
+Phase PN-1 completion notes:
+
+- `prepare_application_runtime()` now detects trigger/object-collider script bindings in the loaded BSP
+  `RuntimeWorld` and constructs a sandboxed server-authoritative `ScriptedWorldSession` for those maps;
+  maps without script bindings still construct the plain `WorldSession` loopback runtime.
+- Added a narrow script registry loader for live runtime preparation. Script ids resolve relative to
+  `ApplicationConfig::script_root` when provided, otherwise the map directory; absolute ids, drive
+  paths, parent escapes, missing source files, and root escapes fail preparation deterministically.
+- `LocalLoopbackRuntime` keeps its public `latest_snapshot()`/`update(input, delta_seconds)` shape while
+  internally supporting either plain or scripted sessions. Frame results now preserve `script_events`,
+  `script_errors`, native script `command_results`, and whether the frame used scripted mode.
+- Scripted session forwarding preserves existing object-collider mutation APIs needed by runtime tests.
+- Display-free tests cover no-script plain preparation, scripted preparation diagnostics, missing script
+  source failure, import-time script path escape rejection, scripted frame events/errors, and scripted
+  BSP pickup/door state through authoritative snapshots.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client -j$(nproc)
+cmake --build build --target stellar_client_local_loopback_runtime_test stellar_client_map_validation_smoke stellar_scripted_world_session_test stellar_script_command_processor_test stellar_bsp_playable_world_smoke_test -j$(nproc)
+ctest --test-dir build -R '^(client_local_loopback_runtime|client_map_validation_smoke|client_cli_map_validation|scripted_world_session|script_command_processor|bsp_playable_world_smoke|bsp_scripted_playable_world_smoke|bsp_scripted_collision_smoke|bsp_scripted_object_collider_smoke)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, `stellar-client` built, focused PN-1 targets built, focused PN-1 CTest
+passed 10/10, and full default CTest passed 41/41 on 2026-05-01.
+
+Phase PN-2 completion notes:
+
+- Added a client-side presentation adapter that converts server-owned `WorldSnapshot` /
+  `GameplayWorldSnapshot` data into backend-neutral `graphics::BillboardSprite` draw data without GPU
+  handles or gameplay ownership in authoritative snapshots.
+- Active sprite entities and active pickup entities now present as color-only billboards; inactive or
+  collected pickups are filtered, trigger/object-collider/player entities remain hidden by default, and
+  deterministic door/gate debug markers are available only through an explicit presentation flag.
+- `LevelRenderer` now retains backend-neutral `LevelPresentationState`, derives `BillboardView` from
+  the active `LevelRenderState`, and submits gameplay billboards after static level geometry through
+  the existing `RenderLevel` abstraction for OpenGL/Vulkan parity.
+- The live client frame loop feeds presentation state after authoritative loopback runtime updates and
+  clears presentation state for no-runtime/no-map fallback frames.
+- Display-free tests cover snapshot conversion behavior, inactive filtering, debug marker gating,
+  finite defaults, billboard view derivation, retained-state clearing, and static-then-billboard draw
+  ordering.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_player_presentation_test stellar_render_level_inspection_test stellar_graphics_backend_selection_test stellar_gameplay_presentation_test stellar-client -j$(nproc)
+ctest --test-dir build -R '^(player_presentation|render_level_inspection|graphics_backend_selection|gameplay_presentation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused PN-2 targets built, focused PN-2 CTest passed 4/4, and full
+default CTest passed 42/42 on 2026-05-01.
+
+Phase PN-3 completion notes:
+
+- Added `stellar_network` remote-ready transport contracts for client input commands, deterministic
+  authoritative `NetworkWorldSnapshot` state, gameplay entities, server-approved `GameplayEvent`
+  records, and structural `SnapshotDelta` baselines/targets.
+- Server `WorldSnapshot` conversion preserves players and server-owned gameplay entities with stable
+  id ordering; script command/error conversion emits pickup, door-state, script-command, and
+  script-error presentation approvals without adding client authority.
+- Implemented a narrow deterministic binary codec with explicit little-endian integers, bounded
+  strings/vectors, finite-float validation, clean `std::expected` decode failures, and no socket,
+  prediction, or reconciliation behavior.
+- Display-free tests cover snapshot/event round trips, sprite/pickup/door entity data, delta
+  round-trip/apply, invalid/truncated data, oversized strings/vectors, non-finite float rejection, and
+  deterministic byte output.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_snapshot_codec_test stellar_snapshot_delta_test stellar_server_world_session_test stellar_scripted_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(snapshot_codec|snapshot_delta|server_world_session|scripted_world_session)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused PN-3 targets built, focused PN-3 CTest passed 4/4, and full
+default CTest passed 44/44 on 2026-05-01.
+
+Phase PN-4 completion notes:
+
+- Added a transport-neutral `ClientTransport`/`ServerTransport` seam with in-memory local loopback
+  endpoints that preserve reliable FIFO packet order and carry opaque encoded message payloads.
+- Added a local authoritative server bridge that decodes client movement command requests, keeps the
+  configured local server player slot authoritative, ticks plain or scripted sessions, and emits encoded
+  full snapshots, structural deltas, and server-approved gameplay events over the same local transport.
+- Added a client world receiver that accepts full snapshots, applies deltas to its current baseline,
+  exposes the latest authoritative snapshot, queues gameplay events for presentation, and rejects
+  malformed packets without prediction or reconciliation.
+- Remote sockets remain deferred; the implemented bridge is in-memory/local and transport-neutral.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_loopback_transport_test stellar_client_world_receiver_test stellar_snapshot_codec_test stellar_snapshot_delta_test -j$(nproc)
+ctest --test-dir build -R '^(loopback_transport|client_world_receiver|snapshot_codec|snapshot_delta)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused PN-4 targets built, focused PN-4 CTest passed 4/4, and full
+default CTest passed 46/46 on 2026-05-01.
+
+Phase PN-5 completion notes:
+
+- Added a client HUD presentation cache driven only by server-approved gameplay events, including
+  pickup messages, door-state messages, script diagnostics, bounded history, and deterministic reset
+  behavior.
+- Added an audio event router with an abstract request sink, production `NoOpAudioRequestSink`, and
+  test-only fake sink over server-approved gameplay events so pickup/door plus optional script-error
+  diagnostics/audio can be observed without making audio a gameplay authority.
+- Added BSP FGD/toolchain helper coverage and updated `docs/BspAuthoring.md` authoring guidance for
+  the PN-5 pickup/door presentation path, including the requirement that dotted Stellar keys reach BSP
+  as dotted keys or importer-supported aliases.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(hud_presentation|audio_event_router|client_world_receiver|gameplay_presentation|bsp_authoring_smoke)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, full debug build succeeded, focused PN-5 CTest passed 5/5, and full
+default CTest passed 48/48 on 2026-05-01.
+
+Phase PN-6 completion notes:
+
+- Marked BSP presentation/networking polish complete and archived the completed PN plan package under
+  `Plans/Archived/bsp_presentation_networking_polish/`.
+- Updated `Plans/NEXT.md` to point at post-PN options instead of presenting PN first slices as active
+  work.
+- Updated `docs/Design.md` to describe current live scripted authoritative local runtime behavior,
+  non-authoritative gameplay snapshot presentation, deterministic snapshot/delta/event contracts, and
+  the local in-memory transport bridge without claiming remote sockets or real multiplayer lifecycle.
+- Tightened HUD/audio documentation so HUD and audio remain presentation caches/routes only. Production
+  audio feedback currently has an abstract sink plus `NoOpAudioRequestSink`; fake sinks are test-only,
+  miniaudio playback/assets/spatial audio remain deferred, and missing sound diagnostics belong to the
+  sink contract/test fake rather than a production local asset implementation.
+- Clarified BSP authoring/tooling guidance so dotted Stellar keys such as `stellar.script` must reach
+  BSP entity text unchanged or through importer-supported aliases; underscore FGD field names are
+  editor-facing placeholders unless the editor/toolchain remaps them before export.
+
+Final PN-6 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|render_level|runtime_world|client_|player_presentation|gameplay_presentation|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|snapshot_|loopback_transport|client_world_receiver|world_metadata_validation|collision_validation|character_controller|hud_presentation|audio_event_router)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'client-side gameplay scripting\|client gameplay script\|renderer-owned gameplay\|audio-owned gameplay' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+git grep -n 'BspGameplayLoop-AgentPlan\|ProjectStellar-BSP-GameplayLoop-AgentPlan' -- Plans docs ':!Plans/Archived/**'
+```
+
+Result: final validation passed on 2026-05-01. Configure succeeded, full debug build completed with
+`ninja: no work to do`, full default CTest passed 48/48, and focused PN/BSP/runtime/render/client/
+snapshot/HUD/audio CTest passed 38/38.
+
+Audit interpretation:
+
+- Retired importer search returned only documentation/audit-command references in
+  `Plans/kilo_bsp_gameplay_followup_plans/07-Phase-PN6-Final-Docs-Validation.md` and
+  `docs/ImplementationStatus.md`; no active source, build, or runtime implementation references were
+  found.
+- Authority-violation wording search returned only explicit prohibitions/deferrals in
+  `docs/BspAuthoring.md`, `docs/Design.md`, and `docs/ImplementationStatus.md`, plus the documented
+  audit command; no active implementation or authority violation was found.
+- Old BSP gameplay-loop plan filename search returned historical PN source-plan references,
+  documented audit commands, and archived-plan references in `docs/ImplementationStatus.md`; no
+  root-level active handoff to the completed gameplay-loop plan remains.
+
+Known deferred post-PN items:
+
+- Remote socket transport and real multiplayer connection/session lifecycle.
+- Client prediction, reconciliation, and interpolation.
+- Richer HUD rendering, UI, inventory presentation, and VFX.
+- miniaudio playback integration, local audio assets, and spatial audio/listener updates.
+- Sprite atlas packing and sprite sheet animation.
+- BSP editor/export remapping automation for dotted Stellar keys and FGD placeholder fields.
+- Moving brushes, dynamic bodies, Source/VBSP, full PBR, model/animation systems, and client-side
+  gameplay scripting remain out of scope unless explicitly requested.
+
+## Branch Scope — Gameplay Loop Expansion over BSP Maps
 
 This branch begins after `collision-movement` merges to `main`. Treat collision, movement,
 trigger, object-collider, Lua scripting, BSP canonical migration, BSP rendering, and BSP hardening as
 completed foundations, not as active work to restart.
 
-The next implementation scope is gameplay loop expansion over BSP maps while preserving server
-authority and display-free default validation.
+The selected branch scope is gameplay loop expansion over BSP maps while preserving server authority
+and display-free default validation.
 
-Initial focus areas:
+Completed focus areas:
 
 - ECS/entity spawn from BSP metadata.
 - Player presentation from authoritative snapshots.
 - Sprite, animation, and interaction loop.
 - Item pickup and scripted doors/gates using the existing Lua command path.
 
-Near-term implementation should continue to use `Plans/NEXT.md` as the short branch handoff and this
-file as the source of truth for completion notes. Archived phase plans under `Plans/Archived/` are
-historical context unless this file explicitly names one as active.
+Completed implementation plan:
+
+- `Plans/Archived/bsp_gameplay_loop/BspGameplayLoop-AgentPlan.md` — concise historical handoff.
+- `Plans/Archived/bsp_gameplay_loop/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed
+  historical master plan.
+
+Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is up, BSP authored
+coordinates import without scale conversion, and player capsule center spawns should be half the
+capsule height above the floor.
+
+Follow-up implementation should use `Plans/NEXT.md` for the next recommended post-PN options and this
+file as the source of truth for branch completion notes. Archived phase plans under `Plans/Archived/`
+are historical context unless this file explicitly names one as active.
 
 Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
 renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.
+
+## BSP Gameplay Loop — Completed Phase Status
+
+- Phase 0 — Active gameplay-loop handoff lock-in: complete as of 2026-05-01.
+- Phase 1 — Inch-based world scale and gameplay tuning: complete as of 2026-05-01.
+- Phase 2 — Procedural developer textures for inch-scale BSP authoring: complete as of 2026-05-01.
+- Phase 3 — Load the configured BSP map into the live client path: complete as of 2026-05-01.
+- Phase 4 — Authoritative player camera drives level rendering: complete as of 2026-05-01.
+- Phase 5 — Minimal ECS/entity spawn from BSP metadata: complete as of 2026-05-01.
+- Phase 6 — Single-room controllable player loop: complete as of 2026-05-01.
+- Phase 7 — First interaction loop, pickup and scripted door/gate: complete as of 2026-05-01.
+- Phase 8 — Final branch hardening and documentation: complete as of 2026-05-01.
+
+Phase 8 completion notes:
+
+- Finalized the branch-facing handoff docs after Phases 0-7 and recorded the BSP gameplay-loop branch
+  as complete.
+- Confirmed active design documentation covers the inch-scale unit policy, live BSP client loop,
+  metadata-driven server entity spawn direction, and pickup plus scripted door/gate interaction loop.
+- Confirmed BSP authoring documentation covers inch-scale gameplay-room examples and all procedural
+  developer texture names and aliases.
+- Updated `Plans/NEXT.md` to point at the next recommended post-branch scope instead of presenting the
+  completed gameplay-loop phases as active work.
+- Active retired-importer references are limited to documented audit commands and historical notes in
+  this status file; archived plans and build outputs remain excluded from active audits.
+
+Final Phase 8 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|render_level|runtime_world|client_|player_presentation|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|world_metadata_validation|collision_validation|character_controller)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'meter\|metre\|1\.8F\|0\.35F\|0\.8F\|6\.0F' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+```
+
+Result: final validation passed on 2026-05-01. Configure/build succeeded, full default CTest passed
+41/41, and focused BSP/runtime/render/client/player/server/script/collision validation passed 31/31.
+The active retired-importer audit returned only documented audit command references outside archived
+plans and ignored build outputs. The unit audit found no active prose reverting gameplay defaults to an
+old scale policy; remaining matches are the documented audit command plus numeric literals used for
+inch-scale constants, OpenGL texture enum names, aspect ratios, generated BSP room coordinates, and
+synthetic test geometry that intentionally overrides local values.
+
+Known deferred post-branch items:
+
+- Remote networking and snapshot/delta expansion.
+- Client prediction and reconciliation.
+- Client presentation polish for sprites, animation, UI/HUD, inventory, VFX, and audio events.
+- BSP toolchain/editor workflow polish beyond deterministic procedural developer texture fallback.
+- Rich animation/model systems, moving brush simulation, Source/VBSP, dynamic rigid bodies, full PBR,
+  and client-side gameplay scripting remain out of scope unless explicitly requested.
+
+Phase 0 completion notes:
+
+- Added the original root-level gameplay-loop handoff files, now archived under
+  `Plans/Archived/bsp_gameplay_loop/`, as the concise handoff derived from the detailed master plan.
+- Updated `Plans/NEXT.md`, `docs/ImplementationStatus.md`, `docs/Design.md`, and
+  `docs/BspAuthoring.md` to point agents at the gameplay-loop plan and record the inch-scale unit
+  policy.
+- No source behavior changes were introduced.
+
+Phase 1 completion notes:
+
+- Added `include/stellar/core/WorldUnits.hpp` as the code source for inch-scale gameplay constants
+  and trivial inch/foot conversion helpers.
+- Updated default authoritative player capsule, movement simulation, and player camera presentation
+  tuning to inch-scale values: 72 inch height, 16 inch radius, 160 inches/second walk speed, and a
+  4096 unit debug far plane.
+- Tiny synthetic movement and controller tests continue to override their local geometry and tuning
+  explicitly, while default-value assertions now cover inch-scale controller, movement, and camera
+  settings.
+- No BSP importer scale conversion was introduced; authored BSP coordinates remain imported 1:1.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_character_controller_test stellar_server_movement_simulation_test stellar_player_presentation_test -j$(nproc)
+ctest --test-dir build -R '^(character_controller|server_movement_simulation|player_presentation)$' --output-on-failure
+```
+
+Result: configure/build and focused CTest passed on 2026-05-01.
+
+Phase 2 completion notes:
+
+- Added deterministic procedural BSP developer texture fallback for `stellar_dev_grid_12`,
+  `stellar_dev_grid_16`, `stellar_dev_grid_32`, `stellar_dev_grid_64`,
+  `stellar_dev_player_72`, `stellar_dev_wall_96`, and safe `dev/...` slash aliases.
+- Known developer textures now generate source-neutral `ImageAsset`, `TextureAsset`, sampler, and
+  material bindings without WAD files, using nearest filtering and repeat wrapping for crisp inch-scale
+  authoring marks.
+- BSP base texture coordinates are normalized by resolved texture dimensions when image data is
+  available, so standard BSP texture axes treat one texel as one authored world inch unless authors
+  change texture scaling.
+- Unknown missing or external textures continue to use existing deterministic fallback material
+  behavior and missing-texture diagnostics.
+
+Validation run:
+
+```bash
+cmake --build build --target stellar_bsp_materials_test stellar_render_level_upload_test stellar_render_level_inspection_test -j$(nproc)
+ctest --test-dir build -R '^(bsp_materials|render_level_upload|render_level_inspection)$' --output-on-failure
+```
+
+Result: focused Phase 2 build and CTest passed on 2026-05-01.
+
+Phase 3 completion notes:
+
+- Added display-free client runtime preparation that keeps the `LevelAsset` loaded during startup
+  validation alive for the prepared `RuntimeWorld`, `WorldSession`, and `LocalLoopbackRuntime` chain.
+- The live client path now reuses the validated BSP level instead of re-importing it, passes that
+  loaded level into renderer creation, and preserves no-map debug cube fallback behavior.
+- Configured BSP maps now instantiate an in-process authoritative `LocalLoopbackRuntime` using the
+  default inch-scale movement/session tuning; no networking, prediction, or client scripting was
+  added.
+- Extended the client map validation smoke test to assert prepared runtime diagnostics, stable
+  `RuntimeWorld` backing level lifetime, optional loopback state, and no-map fallback preparation.
+- Linked `stellar-client` and client startup validation support with `stellar_client_runtime` so the
+  live client bootstrap can own local loopback runtime state.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client stellar_client_map_validation_smoke stellar_client_local_loopback_runtime_test stellar_render_level_upload_test -j$(nproc)
+ctest --test-dir build -R '^(client_map_validation_smoke|client_cli_map_validation|client_cli_validate_map|client_local_loopback_runtime|render_level_upload)$' --output-on-failure
+```
+
+Result: configure/build and focused Phase 3 CTest passed on 2026-05-01.
+
+Phase 4 completion notes:
+
+- Added a backend-neutral graphics-facing `LevelRenderView`/`LevelRenderState` path so the client can
+  drive BSP rendering from authoritative player presentation without making `stellar_graphics` depend
+  on `stellar_client`.
+- `LevelRenderer` now supports a focused `set_render_view`/`clear_render_view` API; live client frames
+  process input, advance `LocalLoopbackRuntime`, extract the local authoritative player snapshot,
+  build a `PlayerCameraFrame`, and convert it into level render state before drawing.
+- Player-camera frames pass the camera world position through to `RenderLevel` for optional BSP/PVS
+  visibility culling. The automatic bounds-fit camera remains the fallback for no-map or missing
+  player-presentation state and does not force visibility culling.
+- Display-free render inspection coverage now exercises camera override state, fallback culling
+  disablement, and existing camera-position visibility culling behavior.
+
+Validation run:
+
+```bash
+cmake --build build --target stellar_player_presentation_test stellar_render_level_inspection_test stellar_graphics_backend_selection_test stellar-client -j$(nproc)
+ctest --test-dir build -R '^(player_presentation|render_level_inspection|graphics_backend_selection)$' --output-on-failure
+```
+
+Result: focused Phase 4 build targets and CTest regex passed on 2026-05-01.
+
+Phase 5 completion notes:
+
+- Added a minimal `server::GameplayWorld` entity model without a full ECS rewrite: deterministic
+  `EntityId` allocation, `EntityKind`, transform data, inert metadata, player/entity bindings, and
+  display-free snapshot/query APIs.
+- `WorldSession` now owns the spawned gameplay world, binds the configured local `PlayerId` to the
+  first player spawn marker when available, and preserves existing movement/player snapshot behavior.
+- Gameplay entity spawn covers player spawn markers, sprite markers with copied sprite/alpha/size
+  metadata, pickup candidates from object-collider or `info_stellar_spawn`-style entity markers with
+  pickup/item archetypes, trigger/object-collider markers, and door/gate metadata from trigger/entity
+  markers or named collision meshes.
+- Spawn/import remains server-owned and inert: no renderer handles, audio handles, or script execution
+  are introduced during metadata import or gameplay-world assembly.
+
+Validation run:
+
+```bash
+cmake --build build --target stellar_server_gameplay_world_test stellar_server_world_session_test stellar_runtime_world_test stellar_world_metadata_validation_test -j$(nproc)
+ctest --test-dir build -R '^(server_gameplay_world|server_world_session|runtime_world|world_metadata_validation)$' --output-on-failure
+```
+
+Result: focused Phase 5 build targets and CTest regex passed on 2026-05-01.
+
+Phase 6 completion notes:
+
+- Added the `gameplay_room` generated BSP fixture as an inch-scale single-room map while preserving
+  the existing tiny playable fixtures for focused importer/script tests.
+- The fixture is a 192x192 inch room from roughly `x/z = -96..96`, with floor `y = 0`, ceiling
+  `y = 96`, a center `info_player_start` at `0 36 0`, static collision floor/walls/ceiling, one
+  sprite marker, one future pickup object-collider marker, and one future door/gate trigger marker.
+- Display-free smoke coverage now imports the room BSP, builds `RuntimeWorld`, advances a
+  `LocalLoopbackRuntime` with forward/right authoritative input, verifies movement direction and room
+  wall containment, and checks identical input produces deterministic authoritative snapshots.
+- The live client no-map fallback remains unchanged; CLI map validation now exercises the generated
+  inch-scale gameplay room fixture.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_bsp_fixture_writer stellar_bsp_playable_world_smoke_test stellar_client_local_loopback_runtime_test stellar-client -j$(nproc)
+ctest --test-dir build -R '^(bsp_fixture_writer|bsp_playable_world_smoke|client_local_loopback_runtime|client_cli_validate_map|client_cli_map_validation)$' --output-on-failure
+```
+
+Result: focused Phase 6 build targets and CTest regex passed on 2026-05-01. Manual renderer/display
+validation was skipped because the requested validation scope is display-free and no GPU/display
+manual check was run.
+
+Phase 7 completion notes:
+
+- Added minimal server-owned interaction state to `GameplayWorld`: pickup entities can become
+  inactive after collection, and door/gate entities mirror named collision mesh open/closed state for
+  presentation snapshots without renderer ownership.
+- Object-collider pickup enter events now emit native `gameplay.collect_pickup` commands through the
+  existing script-command processing path; native code validates active pickup state, disables the
+  collider, and prevents repeated collection on later enters/stays.
+- Scripted trigger enter/stay/exit behavior continues to use the sandboxed Lua hook path; scripts can
+  emit `collision.set_mesh_enabled` for named gate meshes, and accepted native commands update both
+  authoritative collision state and gameplay door/gate metadata.
+- Added display-free coverage for collect-once pickup behavior, collider disablement preventing
+  repeated enters, gate collision toggling through Lua command output, deterministic invalid command
+  failure, and gameplay snapshot state updates.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_scripted_world_session_test stellar_trigger_script_system_test stellar_object_collider_script_system_test stellar_script_command_processor_test stellar_bsp_playable_world_smoke_test -j$(nproc)
+ctest --test-dir build -R '^(scripted_world_session|trigger_script|object_collider_script|script_command_processor|bsp_playable_world_smoke|bsp_scripted_playable_world_smoke|bsp_scripted_collision_smoke|bsp_scripted_object_collider_smoke)$' --output-on-failure
+cmake --build build --target stellar_server_gameplay_world_test stellar_server_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(server_gameplay_world|server_world_session)$' --output-on-failure
+```
+
+Result: focused Phase 7 validation passed on 2026-05-01.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

@@ -1,4 +1,6 @@
 #include "stellar/client/LocalLoopbackRuntime.hpp"
+#include "stellar/scripting/ScriptRegistry.hpp"
+#include "stellar/scripting/ScriptedWorldSession.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -53,6 +55,13 @@ stellar::assets::WorldMarker trigger_marker(std::string name, Vec3 position, Vec
     marker.name = std::move(name);
     marker.position = position;
     marker.scale = scale;
+    return marker;
+}
+
+stellar::assets::WorldMarker scripted_trigger_marker(std::string name, Vec3 position, Vec3 scale) {
+    stellar::assets::WorldMarker marker = trigger_marker(std::move(name), position, scale);
+    marker.script = stellar::assets::WorldScriptBinding{.script_id = "scripts/gate.lua",
+                                                        .table_name = "Gate"};
     return marker;
 }
 
@@ -342,6 +351,62 @@ void same_input_sequence_same_snapshots() {
     assert_same_snapshot(first.latest_snapshot(), second.latest_snapshot());
 }
 
+void scripted_loopback_preserves_script_frame_results() {
+    const auto scene = scene_with_markers({player_spawn({-2.0F, 0.0F, 0.0F}),
+                                           scripted_trigger_marker("Gate", {0.0F, 0.0F, 0.0F},
+                                                                  {0.25F, 0.25F, 0.25F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::scripting::ScriptRegistry registry;
+    registry.set_script("scripts/gate.lua",
+                        "Gate = {}\n"
+                        "function Gate.on_trigger_enter(event)\n"
+                        "  stellar.emit_event('test.gate_entered', {name = event.trigger_name})\n"
+                        "end\n");
+    auto scripted_session = stellar::scripting::ScriptedWorldSession::create(
+        world, test_runtime_config().session, std::move(registry));
+    assert(scripted_session.has_value());
+    stellar::client::LocalLoopbackRuntime runtime(std::move(*scripted_session),
+                                                  test_runtime_config());
+
+    const auto result = runtime.update(input_with_key(SDL_SCANCODE_D), 0.2F);
+
+    assert(result.scripted);
+    assert(result.ticks_run == 2);
+    assert(result.snapshot.trigger_events.size() == 1);
+    assert(result.script_errors.empty());
+    assert(result.script_events.size() == 1);
+    assert(result.script_events[0].name == "test.gate_entered");
+    assert(runtime.latest_snapshot().trigger_events.empty());
+}
+
+void scripted_loopback_captures_runtime_script_errors() {
+    const auto scene = scene_with_markers({player_spawn({-2.0F, 0.0F, 0.0F}),
+                                           scripted_trigger_marker("Gate", {0.0F, 0.0F, 0.0F},
+                                                                  {0.25F, 0.25F, 0.25F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::scripting::ScriptRegistry registry;
+    registry.set_script("scripts/gate.lua",
+                        "Gate = {}\n"
+                        "function Gate.on_trigger_enter(event)\n"
+                        "  error('intentional scripted loopback failure')\n"
+                        "end\n");
+    auto scripted_session = stellar::scripting::ScriptedWorldSession::create(
+        world, test_runtime_config().session, std::move(registry));
+    assert(scripted_session.has_value());
+    stellar::client::LocalLoopbackRuntime runtime(std::move(*scripted_session),
+                                                  test_runtime_config());
+
+    const auto result = runtime.update(input_with_key(SDL_SCANCODE_D), 0.2F);
+
+    assert(result.scripted);
+    assert(result.ticks_run == 2);
+    assert(result.script_events.empty());
+    assert(result.script_errors.size() == 1);
+    assert(result.script_errors[0].message.find("intentional scripted loopback failure") !=
+           std::string::npos);
+    assert(result.snapshot.tick == 2);
+}
+
 } // namespace
 
 int main() {
@@ -357,5 +422,7 @@ int main() {
     latest_snapshot_updates_after_ticks();
     missing_collision_world_still_ticks_deterministically();
     same_input_sequence_same_snapshots();
+    scripted_loopback_preserves_script_frame_results();
+    scripted_loopback_captures_runtime_script_errors();
     return 0;
 }

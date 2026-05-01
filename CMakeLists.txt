@@ -99,6 +99,7 @@ target_link_libraries(stellar_world PUBLIC
 )
 
 add_library(stellar_server_core
+    src/server/GameplayWorld.cpp
     src/server/MovementSimulation.cpp
     src/server/MovementTriggerIntegration.cpp
     src/server/WorldSession.cpp
@@ -137,11 +138,40 @@ target_link_libraries(stellar_scripting PRIVATE
     stellar_lua
 )
 
+add_library(stellar_network
+    src/network/LoopbackTransport.cpp
+    src/network/Messages.cpp
+    src/network/SnapshotCodec.cpp
+    src/network/SnapshotDelta.cpp
+)
+
+target_include_directories(stellar_network PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_network PUBLIC
+    stellar_server_core
+    stellar_scripting
+)
+
+add_library(stellar_audio
+    src/audio/AudioEventRouter.cpp
+)
+
+target_include_directories(stellar_audio PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_audio PUBLIC
+    stellar_network
+)
+
 add_library(stellar_import_bsp
     src/import/bsp/Loader.cpp
     src/import/bsp/Validation.cpp
     src/import/bsp/BspParser.cpp
     src/import/bsp/BspEntities.cpp
+    src/import/bsp/DeveloperTextures.cpp
     src/import/bsp/BspLevelBuilder.cpp
 )
 
@@ -168,9 +198,14 @@ target_link_libraries(stellar_platform PUBLIC
 )
 
 add_library(stellar_client_runtime
+    src/client/ClientWorldReceiver.cpp
+    src/client/HudPresentation.cpp
+    src/client/LocalServerBridge.cpp
     src/client/MovementInputMapper.cpp
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
+    src/client/GameplayPresentation.cpp
+    src/client/ScriptRegistryLoader.cpp
 )
 
 target_include_directories(stellar_client_runtime PUBLIC
@@ -180,6 +215,9 @@ target_include_directories(stellar_client_runtime PUBLIC
 target_link_libraries(stellar_client_runtime PUBLIC
     stellar_platform
     stellar_server_core
+    stellar_scripting
+    stellar_network
+    stellar_graphics
 )
 
 add_library(stellar_graphics
@@ -229,6 +267,7 @@ target_include_directories(stellar_client_config PUBLIC
 
 target_link_libraries(stellar_client_config PUBLIC
     stellar_assets
+    stellar_client_runtime
     stellar_import_bsp
     stellar_world
 )
@@ -267,6 +306,10 @@ stellar_add_server_test(stellar_movement_trigger_integration_test movement_trigg
 
 stellar_add_server_test(stellar_server_world_session_test server_world_session
     tests/server/WorldSession.cpp
+)
+
+stellar_add_server_test(stellar_server_gameplay_world_test server_gameplay_world
+    tests/server/GameplayWorld.cpp
 )
 
 stellar_add_graphics_test(stellar_render_level_upload_test render_level_upload
@@ -397,9 +440,26 @@ stellar_add_client_runtime_test(stellar_player_presentation_test player_presenta
     tests/client/PlayerPresentation.cpp
 )
 
+stellar_add_client_runtime_test(stellar_gameplay_presentation_test gameplay_presentation
+    tests/client/GameplayPresentation.cpp
+)
+
 stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test client_local_loopback_runtime
     tests/client/LocalLoopbackRuntime.cpp
 )
+
+stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_receiver
+    tests/client/ClientWorldReceiver.cpp
+)
+
+stellar_add_client_runtime_test(stellar_hud_presentation_test hud_presentation
+    tests/client/HudPresentation.cpp
+)
+
+stellar_add_test_executable(stellar_audio_event_router_test audio_event_router
+    tests/audio/AudioEventRouter.cpp
+)
+target_link_libraries(stellar_audio_event_router_test PRIVATE stellar_audio)
 
 stellar_add_scripting_test(stellar_lua_runtime_test lua_runtime
     tests/scripting/LuaRuntime.cpp
@@ -421,6 +481,21 @@ stellar_add_scripting_test(stellar_scripted_world_session_test scripted_world_se
     tests/scripting/ScriptedWorldSession.cpp
 )
 
+stellar_add_test_executable(stellar_snapshot_codec_test snapshot_codec
+    tests/network/SnapshotCodec.cpp
+)
+target_link_libraries(stellar_snapshot_codec_test PRIVATE stellar_network)
+
+stellar_add_test_executable(stellar_loopback_transport_test loopback_transport
+    tests/network/LoopbackTransport.cpp
+)
+target_link_libraries(stellar_loopback_transport_test PRIVATE stellar_network)
+
+stellar_add_test_executable(stellar_snapshot_delta_test snapshot_delta
+    tests/network/SnapshotDelta.cpp
+)
+target_link_libraries(stellar_snapshot_delta_test PRIVATE stellar_network)
+
 add_executable(stellar-client
     src/client/main.cpp
     src/client/Application.cpp
@@ -432,6 +507,7 @@ target_include_directories(stellar-client PRIVATE
 
 target_link_libraries(stellar-client PRIVATE
     stellar_client_config
+    stellar_client_runtime
     stellar_graphics
     stellar_assets
     miniaudio
@@ -454,7 +530,7 @@ set(STELLAR_CLI_BAD_BSP_FIXTURE
 )
 
 add_test(NAME bsp_fixture_writer
-    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE}
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE} gameplay_room
 )
 set_tests_properties(bsp_fixture_writer PROPERTIES FIXTURES_SETUP bsp_cli_fixture)
 
@@ -492,6 +568,7 @@ target_include_directories(stellar_bsp_playable_world_smoke_test PRIVATE
 
 target_link_libraries(stellar_bsp_playable_world_smoke_test PRIVATE
     stellar_import_bsp
+    stellar_client_runtime
     stellar_scripting
 )
 

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <expected>
 #include <optional>
+#include <vector>
 
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
@@ -47,6 +48,54 @@ struct LevelCameraFit {
   float far_plane = 100.0F;
 };
 
+/**
+ * @brief Backend-neutral world-space camera used by level presentation.
+ */
+struct LevelRenderView {
+  /** @brief Camera eye position in level world space. */
+  std::array<float, 3> eye{0.0F, 0.0F, 3.0F};
+
+  /** @brief Camera look-at target in level world space. */
+  std::array<float, 3> target{0.0F, 0.0F, 0.0F};
+
+  /** @brief Camera up direction in level world space. */
+  std::array<float, 3> up{0.0F, 1.0F, 0.0F};
+
+  /** @brief Vertical perspective field of view in degrees. */
+  float vertical_fov_degrees = 45.0F;
+
+  /** @brief Near clip plane. */
+  float near_plane = 0.1F;
+
+  /** @brief Far clip plane. */
+  float far_plane = 100.0F;
+
+  /** @brief Whether the eye position should drive optional visibility culling. */
+  bool visibility_culling = true;
+};
+
+/**
+ * @brief Resolved per-frame render state for a level view.
+ */
+struct LevelRenderState {
+  /** @brief Column-major view-projection matrix. */
+  std::array<float, 16> view_projection{};
+
+  /** @brief Column-major view matrix. */
+  std::array<float, 16> view{};
+
+  /** @brief Optional camera position used for presentation-only visibility culling. */
+  std::optional<std::array<float, 3>> camera_world_position;
+};
+
+/**
+ * @brief Backend-neutral presentation data submitted after static level geometry.
+ */
+struct LevelPresentationState {
+  /** @brief Gameplay and presentation billboards for the current rendered frame. */
+  std::vector<BillboardSprite> sprites;
+};
+
 /** @brief Compute aggregate world-space bounds for static level geometry. */
 [[nodiscard]] LevelBounds
 compute_level_bounds(const stellar::assets::LevelAsset &level) noexcept;
@@ -55,6 +104,14 @@ compute_level_bounds(const stellar::assets::LevelAsset &level) noexcept;
 [[nodiscard]] LevelCameraFit fit_camera_to_bounds(const LevelBounds &bounds,
                                                   float vertical_fov_degrees,
                                                   float aspect_ratio) noexcept;
+
+/** @brief Compute backend-neutral render state from a world-space level view. */
+[[nodiscard]] LevelRenderState compute_level_render_state(
+    const LevelRenderView &view, GraphicsBackend backend, float aspect_ratio) noexcept;
+
+/** @brief Compute billboard camera data from an already-resolved level render state. */
+[[nodiscard]] BillboardView
+compute_billboard_view(const LevelRenderState &state) noexcept;
 
 /**
  * @brief Generic static level renderer with a debug cube fallback.
@@ -95,6 +152,21 @@ public:
   void render(float elapsed_seconds, float delta_seconds, int width,
               int height) noexcept override;
 
+  /** @brief Override the fallback bounds-fit camera with a provided view. */
+  void set_render_view(LevelRenderView view) noexcept;
+
+  /** @brief Return to the automatic bounds-fit fallback camera. */
+  void clear_render_view() noexcept;
+
+  /** @brief Replace the retained presentation state used by subsequent render calls. */
+  void set_presentation_state(LevelPresentationState state) noexcept;
+
+  /** @brief Clear retained presentation data for no-map or missing-runtime fallback frames. */
+  void clear_presentation_state() noexcept;
+
+  /** @brief Inspect retained presentation data without mutating renderer state. */
+  [[nodiscard]] const LevelPresentationState &presentation_state() const noexcept;
+
 private:
   [[nodiscard]] static std::expected<stellar::assets::MeshAsset,
                                      stellar::platform::Error>
@@ -104,6 +176,8 @@ private:
 
   GraphicsBackend backend_ = GraphicsBackend::kOpenGL;
   std::optional<stellar::assets::LevelAsset> source_level_;
+  std::optional<LevelRenderView> render_view_;
+  LevelPresentationState presentation_state_;
   LevelBounds level_bounds_;
   RenderLevel level_;
 };

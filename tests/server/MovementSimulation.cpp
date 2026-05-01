@@ -107,6 +107,20 @@ stellar::server::MovementSimulationConfig test_config() {
     return config;
 }
 
+void default_movement_config_uses_inch_scale_tuning() {
+    const stellar::server::MovementSimulationConfig config;
+    const auto sanitized = stellar::server::sanitize_movement_simulation_config(config);
+
+    assert(!sanitized.sanitized);
+    assert(nearly_equal(config.max_speed, 160.0F, 0.0F));
+    assert(nearly_equal(config.acceleration, 1200.0F, 0.0F));
+    assert(nearly_equal(config.gravity, 800.0F, 0.0F));
+    assert(nearly_equal(config.terminal_fall_speed, 2400.0F, 0.0F));
+    assert(nearly_equal(config.fixed_dt, 1.0F / 60.0F, 0.0F));
+    assert(nearly_equal(config.character.radius, 16.0F, 0.0F));
+    assert(nearly_equal(config.character.height, 72.0F, 0.0F));
+}
+
 void spawn_state_uses_player_spawn_marker() {
     const auto scene = scene_with_metadata({player_spawn({2.0F, 3.0F, 4.0F})});
     const auto world = stellar::world::build_runtime_world(scene);
@@ -280,6 +294,7 @@ void collision_state_filter_affects_authoritative_movement() {
 } // namespace
 
 int main() {
+    default_movement_config_uses_inch_scale_tuning();
     spawn_state_uses_player_spawn_marker();
     spawn_state_defaults_to_origin_without_player_spawn();
     empty_world_moves_without_collision();

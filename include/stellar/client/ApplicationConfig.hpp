@@ -3,11 +3,13 @@
 #include <expected>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/import/bsp/Diagnostics.hpp"
 #include "stellar/platform/Error.hpp"
+#include "stellar/scripting/ScriptError.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::client {
@@ -28,6 +30,9 @@ struct ApplicationConfig {
   /** @brief Validate startup inputs and return before creating a window or
    * graphics context. */
   bool validate_only = false;
+
+  /** @brief Optional root used to resolve asset-relative authoritative script ids. */
+  std::optional<std::string> script_root;
 };
 
 /**
@@ -45,6 +50,15 @@ struct ApplicationValidation {
 
   /** @brief Optional display-free BSP validation diagnostics for configured map. */
   std::optional<stellar::import::bsp::ImportReport> map_validation_report;
+
+  /** @brief Script ids loaded for authoritative runtime execution. */
+  std::vector<std::string> loaded_script_ids;
+
+  /** @brief Script load/runtime diagnostics surfaced during preparation. */
+  std::vector<stellar::scripting::ScriptError> script_errors;
+
+  /** @brief True when the prepared local runtime uses server-authoritative scripting. */
+  bool scripted_runtime_enabled = false;
 };
 
 /**

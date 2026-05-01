@@ -40,6 +40,15 @@ parse_application_config(int argc, char *argv[]) {
       continue;
     }
 
+    if (std::strcmp(argv[i], "--script-root") == 0) {
+      if (i + 1 >= argc) {
+        return std::unexpected(
+            stellar::platform::Error("--script-root requires a path"));
+      }
+      config.script_root = std::string(argv[++i]);
+      continue;
+    }
+
     if (std::strcmp(argv[i], "--renderer") == 0 ||
         std::strcmp(argv[i], "--graphics-backend") == 0) {
       if (i + 1 >= argc) {

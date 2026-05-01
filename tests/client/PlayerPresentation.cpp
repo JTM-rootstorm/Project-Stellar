@@ -72,6 +72,14 @@ void camera_frame_uses_follow_and_look_offsets() {
     assert_near(frame.far_plane, 300.0F);
 }
 
+void default_camera_config_uses_inch_scale_debug_offsets() {
+    const stellar::client::PlayerCameraConfig config;
+
+    assert_vec3(config.follow_offset, {0.0F, 72.0F, 144.0F});
+    assert_vec3(config.look_at_offset, {0.0F, 60.0F, 0.0F});
+    assert_near(config.far_plane, 4096.0F);
+}
+
 void camera_frame_sanitizes_non_finite_input() {
     const float infinity = std::numeric_limits<float>::infinity();
     const float nan = std::numeric_limits<float>::quiet_NaN();
@@ -88,7 +96,7 @@ void camera_frame_sanitizes_non_finite_input() {
     assert_vec3(frame.eye, {1.0F, 2.0F, 3.0F});
     assert_vec3(frame.target, {0.0F, 6.0F, 0.0F});
     assert_near(frame.near_plane, 0.1F);
-    assert_near(frame.far_plane, 250.0F);
+    assert_near(frame.far_plane, 4096.0F);
     for (float value : frame.eye) {
         assert(std::isfinite(value));
     }
@@ -140,6 +148,7 @@ int main() {
     missing_player_snapshot_returns_nullopt();
     player_snapshot_extracts_position_rotation_grounded();
     camera_frame_uses_follow_and_look_offsets();
+    default_camera_config_uses_inch_scale_debug_offsets();
     camera_frame_sanitizes_non_finite_input();
     camera_near_far_are_clamped_or_preserved_by_documented_policy();
     snapshot_presentation_does_not_mutate_authoritative_snapshot();

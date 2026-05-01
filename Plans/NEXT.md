@@ -1,48 +1,47 @@
-# Stellar Engine - Current Branch Handoff
+# Stellar Engine - Next Scope Handoff
 
 Branch target: `bsp-gameplay-loop`
 
 ## Current entry point
 
-Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
+`docs/ImplementationStatus.md` is the source of truth for completed branch status. The BSP
+presentation/networking polish plan package is complete and archived at
+`Plans/Archived/bsp_presentation_networking_polish/`.
 
-Branch start policy:
+## Completed historical scope
 
-- Create this branch from updated `main` after `collision-movement` has merged.
-- Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, or BSP
-  hardening work.
+Completed plan packages:
 
-Active next scope:
+- BSP gameplay loop: `Plans/Archived/bsp_gameplay_loop/`.
+- BSP presentation/networking polish: `Plans/Archived/bsp_presentation_networking_polish/`.
 
-- Gameplay loop expansion over BSP maps.
+Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, BSP
+hardening, BSP gameplay-loop foundation work, or BSP presentation/networking polish work.
 
-Archived completed plans:
+## Recommended Next Options
 
-- Collision, movement, trigger, object-collider, Lua scripting, and removable-complexity work:
-  `Plans/Archived/`
-- BSP hardening: `Plans/Archived/project_stellar_bsp_hardening_plan/`
-- BSP canonical migration: `Plans/Archived/project_stellar_bsp_canonical_plan/`
+BSP presentation/networking polish is complete and archived. Select one next scope explicitly before
+implementation starts:
 
-## Active scope
-
-BSP maps are the canonical playable level format. The next implementation scope is gameplay loop
-expansion over BSP maps, building on the existing BSP metadata, server-authoritative runtime world,
-client presentation, and sandboxed Lua command path.
-
-Focus areas:
-
-- ECS/entity spawn from BSP metadata.
-- Player presentation from authoritative snapshots.
-- Sprite, animation, and interaction loop.
-- Item pickup and scripted doors/gates using the existing Lua command path.
+- Remote socket transport and real multiplayer connection/session lifecycle over the existing
+  remote-ready contracts.
+- Client interpolation, prediction, and reconciliation against authoritative snapshots.
+- Sprite atlas packing and sprite sheet animation for richer billboard presentation.
+- Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
+- miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
+- BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
+  Stellar BSP keys.
 
 ## Invariants
 
 - BSP remains the canonical playable level format.
 - Server authority remains mandatory.
-- Lua scripting remains mandatory and sandboxed.
+- Lua scripting remains mandatory, sandboxed, and server-authoritative.
+- Import never executes scripts.
 - Runtime collision, movement, triggers, object colliders, and scripting remain backend-neutral.
 - Default tests remain display-free.
 - OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
-- Do not add Source/VBSP, dynamic rigid bodies, full PBR, client-side gameplay scripting, or retired
-  importer functionality unless explicitly requested.
+- Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
+- Do not add Source/VBSP, dynamic rigid bodies, moving brush simulation, full PBR, client-side
+  gameplay scripting, model/animation systems, or retired importer functionality unless explicitly
+  requested.

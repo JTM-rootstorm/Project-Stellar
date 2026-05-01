@@ -3,8 +3,13 @@
 #include "stellar/assets/WorldMetadataAsset.hpp"
 #include "stellar/scripting/ScriptHookDispatcher.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace stellar::scripting {
@@ -65,6 +70,29 @@ namespace {
     return context;
 }
 
+[[nodiscard]] std::string lowercase(std::string_view value) {
+    std::string result(value);
+    std::ranges::transform(result, result.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return result;
+}
+
+[[nodiscard]] bool is_pickup_archetype(std::string_view archetype) {
+    const std::string lowered = lowercase(archetype);
+    return lowered == "pickup" || lowered == "item" || lowered.starts_with("pickup_") ||
+           lowered.starts_with("item_") || lowered.find("pickup") != std::string::npos ||
+           lowered.find("item") != std::string::npos;
+}
+
+[[nodiscard]] ScriptOutputEvent collect_pickup_event(
+    const stellar::server::ObjectColliderEvent& event) {
+    return ScriptOutputEvent{.name = "gameplay.collect_pickup",
+                             .fields = {number_field("id", event.collider_id),
+                                        number_field("player_id", event.player_id),
+                                        string_field("name", event.name)}};
+}
+
 } // namespace
 
 ObjectColliderScriptSystem::ObjectColliderScriptSystem(const stellar::world::RuntimeWorld& world) {
@@ -87,8 +115,12 @@ ObjectColliderScriptResult ObjectColliderScriptSystem::process_object_collider_e
     LuaRuntime& runtime,
     const stellar::server::WorldSnapshot& snapshot) noexcept {
     std::vector<ScriptHookCall> calls;
+    std::vector<ScriptOutputEvent> native_output_events;
 
     for (const stellar::server::ObjectColliderEvent& event : snapshot.object_collider_events) {
+        if (event.entered && is_pickup_archetype(event.archetype)) {
+            native_output_events.push_back(collect_pickup_event(event));
+        }
         for (const Binding& binding : bindings_) {
             if (binding.collider_id != event.collider_id) {
                 continue;
@@ -113,7 +145,10 @@ ObjectColliderScriptResult ObjectColliderScriptSystem::process_object_collider_e
     }
 
     ScriptHookDispatchResult dispatch_result = dispatch_script_hooks(runtime, calls);
-    return ObjectColliderScriptResult{.output_events = std::move(dispatch_result.output_events),
+    native_output_events.insert(native_output_events.end(),
+                                std::make_move_iterator(dispatch_result.output_events.begin()),
+                                std::make_move_iterator(dispatch_result.output_events.end()));
+    return ObjectColliderScriptResult{.output_events = std::move(native_output_events),
                                       .errors = std::move(dispatch_result.errors)};
 }
 
