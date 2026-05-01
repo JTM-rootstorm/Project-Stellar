@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.7 (client socket connect mode complete)
+**Version:** 0.2.8 (socket transport scope complete)
 **Last Updated:** 2026-05-01
 
 ---
@@ -85,7 +85,7 @@ suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`bsp-gameplay-loop` branch, it is not the highest authority on current implementation status.
+`socket-transport` branch, it is not the highest authority on current implementation status.
 
 Precedence for resolving conflicts:
 
@@ -108,9 +108,9 @@ deferred.
 Current branch: `socket-transport`.
 
 Primary near-term status: socket transport and networked session lifecycle over the completed BSP
-gameplay loop and presentation/networking polish foundations. The dedicated server entry point and
-client remote-connect mode are complete; final socket-transport hardening/documentation is the next
-deferred slice.
+gameplay loop and presentation/networking polish foundations are complete. The completed scope
+includes a Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the
+headless `stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode.
 Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
 and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
 
@@ -203,7 +203,8 @@ simulation, or model/animation systems unless a concrete requirement appears.
 - Initialize platform windowing, graphics, audio, input, and asset presentation paths.
 - Select OpenGL or Vulkan at runtime through the graphics abstraction.
 - Receive world snapshots or render commands from the server.
-- Interpolate presentation state when appropriate.
+- Present received authoritative state without treating presentation smoothing as authority;
+  interpolation remains deferred until explicitly scoped.
 - Render static BSP level geometry, billboard sprites, and UI.
 - Capture input and forward it to the server.
 - Play local presentation audio based on server-approved events or presentation state.
@@ -243,7 +244,7 @@ platform infrastructure, and static collision/query infrastructure.
 #### Client Application
 
 - Initialize platform, window, graphics backend, audio, input, and client asset paths.
-- Connect to a local authoritative runtime or future remote server transport.
+- Connect to a local authoritative runtime or the implemented TCP-first remote server transport.
 - Receive and present server-owned state.
 - Submit graphics work through the shared abstraction.
 - Keep presentation behavior separate from server authority.
@@ -1215,15 +1216,21 @@ regression tests before broader benchmark infrastructure is introduced.
 
 ### 17.1 Recommended Next Options
 
-The BSP presentation/networking polish roadmap is complete and archived. Recommended next scopes are:
+The socket transport roadmap is complete and archived. Recommended next scopes are:
 
-1. Remote socket transport and real multiplayer connection/session lifecycle over the existing
-   remote-ready contracts.
-2. Client interpolation, prediction, and reconciliation against authoritative snapshots.
-3. Sprite atlas packing and sprite sheet animation for richer billboard presentation.
-4. Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
-5. miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
-6. BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
+1. Client interpolation/presentation smoothing over authoritative snapshots, explicitly scoped as
+   presentation only.
+2. Client prediction/reconciliation, explicitly scoped against server authority.
+3. True multiplayer simulation beyond the current single accepted TCP client and one active
+   authoritative player slot.
+4. UDP/unreliable transport, transport selection, reconnect/resume, authentication, encryption,
+   matchmaking, or public Internet deployment.
+5. Map distribution/caching or a remote presentation-map workflow; current remote mode renders
+   dynamic network state/fallback only.
+6. Sprite atlas packing and sprite sheet animation for richer billboard presentation.
+7. Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
+8. miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
+9. BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
    Stellar BSP keys.
 
 ### 17.2 Completed Recent Direction
@@ -1253,6 +1260,9 @@ Recent completed work includes:
   script-bound BSP maps, non-authoritative gameplay snapshot presentation, deterministic
   snapshot/delta/event contracts, local in-memory transport bridge, HUD/audio presentation routes, and
   BSP authoring/toolchain documentation polish.
+- Socket transport ST-2 through ST-7: local mapped play over transport/receiver contracts,
+  deterministic session lifecycle, Linux/POSIX TCP socket transport, headless `stellar-server`,
+  `stellar-client --connect HOST:PORT`, final hardening/audit, and archived ST plans.
 
 ### 17.3 Deferred Rendering Work
 
@@ -1306,6 +1316,7 @@ Deferred unless scoped:
 | 2026-05-01 | 0.2.0 | Kilo | Lock active design direction to BSP maps as the canonical playable level format and begin migration from scene-shaped assets to `LevelAsset` |
 | 2026-05-01 | 0.2.1 | Kilo | Adopt inch-scale gameplay defaults for world units, player capsule, movement simulation, and debug camera presentation |
 | 2026-05-01 | 0.2.4 | Kilo | Mark BSP presentation/networking polish complete; document local transport bridge, remote deferrals, presentation-only HUD/audio routes, and FGD remapping constraints |
+| 2026-05-01 | 0.2.8 | Kilo | Mark socket transport scope complete; document TCP-first transport, `stellar-server`, `stellar-client --connect`, single-client/single-active-player limits, and post-ST deferrals |
 
 ---
 

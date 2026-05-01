@@ -2,26 +2,28 @@
 
 Branch target: `socket-transport`
 
-## Active Scope — Socket Transport and Networked Session Lifecycle
+## Completed Scope — Socket Transport and Networked Session Lifecycle
 
-Active handoff docs:
+Status: complete as of 2026-05-01.
 
-- `Plans/SocketTransport-AgentPlan.md`
-- `Plans/ProjectStellar-SocketTransport-AgentPlan.md`
-- Source plan package: `Plans/project_stellar_socket_transport_plans/`
+Archived handoff docs:
 
-The branch target is now socket transport. Completed BSP gameplay-loop and BSP
-presentation/networking polish scopes remain archived and must not be restarted.
+- `Plans/Archived/socket_transport/SocketTransport-AgentPlan.md`
+- `Plans/Archived/socket_transport/ProjectStellar-SocketTransport-AgentPlan.md`
+- Source plan package archive: `Plans/Archived/socket_transport/kilo_socket_transport_plans/`
+
+The branch completed TCP-first socket transport and networked session lifecycle on top of the
+completed BSP gameplay-loop and BSP presentation/networking polish scopes. Those earlier scopes
+remain archived and must not be restarted.
 
 Current phase status:
 
-- Phase ST-2 — Live client over local networked transport path: active/completed as of
-  2026-05-01.
-- Phase ST-3 — Connection and session lifecycle: active/completed as of 2026-05-01.
-- Phase ST-4 — Remote socket transport: active/completed as of 2026-05-01.
-- Phase ST-5 — Dedicated server entry point: active/completed as of 2026-05-01.
-- Phase ST-6 — Client connect mode: active/completed as of 2026-05-01.
-- Phase ST-7 — Hardening, documentation, validation, and archival: next/deferred.
+- Phase ST-2 — Live client over local networked transport path: complete as of 2026-05-01.
+- Phase ST-3 — Connection and session lifecycle: complete as of 2026-05-01.
+- Phase ST-4 — Remote socket transport: complete as of 2026-05-01.
+- Phase ST-5 — Dedicated server entry point: complete as of 2026-05-01.
+- Phase ST-6 — Client connect mode: complete as of 2026-05-01.
+- Phase ST-7 — Hardening, documentation, validation, and archival: complete as of 2026-05-01.
 
 Phase ST-2 completion notes:
 
@@ -166,6 +168,63 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused ST-6 targets built, focused ST-6 CTest passed 8/8, full debug
 build succeeded, and full default CTest passed 55/55 on 2026-05-01.
+
+Phase ST-7 completion notes:
+
+- Completed protocol and authority audit for remote client mode, dedicated server session lifecycle,
+  local bridge compatibility, and active docs/tests. No active source path was found where a remote
+  client creates or mutates authoritative gameplay state, loads gameplay scripts, trusts renderer/audio
+  state as authority, sends input before accepted welcome, or assigns its own authoritative player id.
+- Completed network robustness audit for the TCP envelope, codec/session handling, client receiver,
+  dedicated server, and socket tests. Existing coverage verifies malformed packet rejection, oversized
+  payload rejection before allocation, partial envelope handling, bounded nonblocking socket loops,
+  disconnect handling, server-side player id overwrite, full snapshot baseline reset, delta baseline
+  requirements, one-shot gameplay event draining, RAII socket closure, and bounded localhost tests.
+- Finalized branch docs for the implemented Linux/POSIX TCP-first transport, `stellar-server`,
+  `stellar-client --connect HOST:PORT`, single-client/single-active-player limitation, and remote
+  dynamic/fallback rendering policy. No prediction, reconciliation, interpolation, map transfer,
+  authentication, encryption, UDP, or true simultaneous multiplayer implementation is claimed.
+- Archived active socket transport plans under `Plans/Archived/socket_transport/`; root `Plans/` now
+  keeps `NEXT.md` as the current handoff and refers to archived ST material for history.
+
+ST-7 final validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(networked_client_runtime|network_session|socket_transport|dedicated_server|client_connect|client_world_receiver|loopback_transport|snapshot_|bsp_|runtime_world|server_world_session|scripted_world_session|script_command_processor|gameplay_presentation|player_presentation|hud_presentation|audio_event_router)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'client-side gameplay scripting\|client gameplay script\|renderer-owned gameplay\|audio-owned gameplay' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'TODO.*prediction\|TODO.*reconciliation\|predict' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'LocalLoopbackRuntime' -- src/client include/stellar/client tests/client ':!build*/**'
+git grep -n 'SocketTransport-AgentPlan\|ProjectStellar-SocketTransport-AgentPlan' -- Plans docs ':!Plans/Archived/**'
+```
+
+Result: configure succeeded, full debug build succeeded, full default CTest passed 55/55, and the
+focused ST/BSP/runtime/client/server CTest regex passed 30/30 on 2026-05-01. Retired importer audit
+hits were absent from active source and limited to documentation/history references. Authority and
+prediction audit hits were documentation/test prohibitions or explicit deferred-work statements, not
+active client authority. `LocalLoopbackRuntime` hits were limited to local mapped fallback/tests and
+not used by remote `--connect` mode. After archival, socket plan filename hits outside archives were
+limited to this status file and `Plans/NEXT.md` archive references.
+
+Known post-ST deferred work:
+
+- Client interpolation, prediction/reconciliation, and any presentation smoothing that is explicitly
+  scoped and reconciled against server authority.
+- True simultaneous multiplayer simulation beyond the current single accepted TCP client and one
+  active authoritative player slot.
+- UDP/unreliable transport, transport selection, public Internet deployment, authentication,
+  encryption, matchmaking, and reconnect/resume semantics.
+- Map distribution/caching or a presentation-map workflow for remote clients; remote mode currently
+  renders received dynamic network state/fallback only.
+- Richer HUD/UI/VFX, miniaudio-backed playback integration, sprite atlas/sheet animation, and manual
+  LAN/cross-platform socket validation.
+
+Manual validation and platform limitations: validation was display-free and localhost-only on the
+Linux/POSIX TCP backend. No GPU/display run, public LAN/Internet run, non-POSIX socket backend,
+multi-client soak, authentication/encryption review, or long-duration dedicated-server soak was run.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 
