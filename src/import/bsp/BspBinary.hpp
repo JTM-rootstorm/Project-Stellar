@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stellar/assets/LevelAsset.hpp"
+#include "stellar/import/bsp/Diagnostics.hpp"
 #include "stellar/import/bsp/Loader.hpp"
 #include "stellar/platform/Error.hpp"
 
@@ -68,6 +69,23 @@ struct Face {
   std::array<std::uint8_t, 4> styles{};
   std::int32_t light_offset = 0;
 };
+struct Node {
+  std::int32_t plane = 0;
+  std::array<std::int16_t, 2> children{};
+  std::array<std::int16_t, 3> mins{};
+  std::array<std::int16_t, 3> maxs{};
+  std::uint16_t first_face = 0;
+  std::uint16_t face_count = 0;
+};
+struct Leaf {
+  std::int32_t contents = 0;
+  std::int32_t visibility_offset = -1;
+  std::array<std::int16_t, 3> mins{};
+  std::array<std::int16_t, 3> maxs{};
+  std::uint16_t first_marksurface = 0;
+  std::uint16_t marksurface_count = 0;
+  std::array<std::uint8_t, 4> ambient_levels{};
+};
 struct Model {
   std::array<float, 3> mins{};
   std::array<float, 3> maxs{};
@@ -99,9 +117,14 @@ struct BspMap {
   std::vector<std::int32_t> surfedges;
   std::vector<Texinfo> texinfos;
   std::vector<Face> faces;
+  std::vector<Node> nodes;
+  std::vector<Leaf> leaves;
+  std::vector<std::uint16_t> marksurfaces;
   std::vector<Model> models;
   std::vector<Clipnode> clipnodes;
   std::vector<std::string> texture_names;
+  std::vector<std::byte> visibility_bytes;
+  std::vector<std::byte> lighting_bytes;
   std::string entity_text;
   bool has_visibility = false;
   bool has_lighting = false;
@@ -118,5 +141,11 @@ parse_entities(std::string_view text, std::string_view source_uri);
                             stellar::platform::Error>
 build_level_asset(BspMap map, std::vector<Entity> entities,
                   std::string source_uri, const LoadOptions &options);
+
+[[nodiscard]] std::expected<stellar::assets::LevelAsset,
+                            stellar::platform::Error>
+build_level_asset(BspMap map, std::vector<Entity> entities,
+                  std::string source_uri, const LoadOptions &options,
+                  ImportReport *report);
 
 } // namespace stellar::import::bsp::detail

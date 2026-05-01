@@ -33,6 +33,23 @@ struct LevelSurfaceMaterial {
 };
 
 /**
+ * @brief Source-neutral imported lightmap metadata for static level surfaces.
+ */
+struct LevelLightmap {
+    /** @brief Index into LevelGeometryAsset lightmap image/storage collections. */
+    std::size_t image_index = 0;
+
+    /** @brief Lightmap dimensions in texels when known. */
+    std::array<std::uint32_t, 2> size{};
+
+    /** @brief Classic BSP light style index. */
+    std::uint8_t style = 0;
+
+    /** @brief Source lightmap or lump name preserved for diagnostics. */
+    std::string source_name;
+};
+
+/**
  * @brief Source-neutral static level surface mapped to imported mesh geometry.
  */
 struct LevelSurface {
@@ -79,14 +96,49 @@ struct LevelGeometryAsset {
 
     /** @brief Texture sampler descriptors used by level textures. */
     std::vector<SamplerAsset> samplers;
+
+    /** @brief Imported lightmap records referenced by LevelSurfaceMaterial::lightmap_index. */
+    std::vector<LevelLightmap> lightmaps;
+
+    /** @brief Raw source lighting bytes retained for later lightmap import phases. */
+    std::vector<std::byte> raw_lighting;
 };
 
 /**
- * @brief Optional visibility/lightmap metadata placeholder for static level imports.
+ * @brief Source-neutral classic BSP leaf metadata for visibility consumers.
+ */
+struct LevelLeaf {
+    /** @brief Source contents value for this leaf. */
+    std::int32_t contents = 0;
+
+    /** @brief World-space leaf bounds minimum. */
+    std::array<float, 3> bounds_min{};
+
+    /** @brief World-space leaf bounds maximum. */
+    std::array<float, 3> bounds_max{};
+
+    /** @brief Surface indices referenced by this leaf. */
+    std::vector<std::size_t> surface_indices;
+
+    /** @brief Optional offset into LevelVisibilityAsset::compressed_pvs. */
+    std::optional<std::size_t> compressed_pvs_offset;
+};
+
+/**
+ * @brief Optional visibility metadata placeholder for static level imports.
  */
 struct LevelVisibilityAsset {
     /** @brief True when source visibility data was imported. */
     bool available = false;
+
+    /** @brief Classic BSP leaf records with surface references. */
+    std::vector<LevelLeaf> leaves;
+
+    /** @brief Raw classic BSP compressed PVS bytes. */
+    std::vector<std::byte> compressed_pvs;
+
+    /** @brief Number of visibility clusters represented by the imported data. */
+    std::size_t cluster_count = 0;
 };
 
 /**

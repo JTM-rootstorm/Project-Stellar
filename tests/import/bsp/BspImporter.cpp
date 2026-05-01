@@ -88,6 +88,25 @@ void append_model(std::vector<std::byte> &bytes, std::array<float, 3> mins,
   append<std::int32_t>(bytes, face_count);
 }
 
+void append_leaf(std::vector<std::byte> &bytes, std::int32_t visibility_offset,
+                 std::uint16_t first_marksurface,
+                 std::uint16_t marksurface_count) {
+  append<std::int32_t>(bytes, 0);
+  append<std::int32_t>(bytes, visibility_offset);
+  append<std::int16_t>(bytes, 0);
+  append<std::int16_t>(bytes, 0);
+  append<std::int16_t>(bytes, 0);
+  append<std::int16_t>(bytes, 64);
+  append<std::int16_t>(bytes, 64);
+  append<std::int16_t>(bytes, 64);
+  append<std::uint16_t>(bytes, first_marksurface);
+  append<std::uint16_t>(bytes, marksurface_count);
+  append<std::uint8_t>(bytes, 0);
+  append<std::uint8_t>(bytes, 0);
+  append<std::uint8_t>(bytes, 0);
+  append<std::uint8_t>(bytes, 0);
+}
+
 std::vector<std::byte> minimal_bsp(std::int32_t version = 29,
                                    bool rich_entities = false) {
   std::vector<std::byte> bytes(4 + 15 * 8);
@@ -270,6 +289,75 @@ void bsp_loader_is_display_free() {
   assert(result);
 }
 
+void bsp_import_report_collects_missing_player_spawn_warning() {
+  auto bytes = minimal_bsp();
+  auto result = stellar::import::bsp::load_level_from_memory_with_report(
+      bytes, "missing_spawn.bsp");
+  assert(result);
+  bool found = false;
+  for (const auto &diagnostic : result->report.diagnostics) {
+    found = found ||
+            diagnostic.code ==
+                stellar::import::bsp::DiagnosticCode::kMissingPlayerSpawn;
+  }
+  assert(found);
+  assert(!result->report.has_errors);
+}
+
+void bsp_import_report_keeps_fatal_errors_unexpected() {
+  std::vector<std::byte> bytes(8);
+  auto result = stellar::import::bsp::load_level_from_memory_with_report(
+      bytes, "fatal_tiny.bsp");
+  assert(!result);
+  assert(result.error().message.find("header") != std::string::npos);
+}
+
+void bsp_visibility_placeholder_survives_no_vis_fixture() {
+  auto bytes = minimal_bsp();
+  auto result =
+      stellar::import::bsp::load_level_from_memory(bytes, "no_vis.bsp");
+  assert(result);
+  assert(!result->visibility.available);
+  assert(result->visibility.compressed_pvs.empty());
+  assert(result->visibility.leaves.empty());
+  assert(result->visibility.cluster_count == 0);
+}
+
+void bsp_raw_lighting_and_visibility_lumps_import_without_renderer() {
+  auto bytes = minimal_bsp();
+
+  const std::size_t visibility_offset = bytes.size();
+  append<std::uint8_t>(bytes, 0x01U);
+  append<std::uint8_t>(bytes, 0x00U);
+  set_lump(bytes, LumpIndex::kVisibility, visibility_offset, 2);
+
+  const std::size_t marksurface_offset = bytes.size();
+  append<std::uint16_t>(bytes, 0);
+  set_lump(bytes, LumpIndex::kMarksurfaces, marksurface_offset, 2);
+
+  const std::size_t leaf_offset = bytes.size();
+  append_leaf(bytes, 0, 0, 1);
+  set_lump(bytes, LumpIndex::kLeaves, leaf_offset, 28);
+
+  const std::size_t lighting_offset = bytes.size();
+  append<std::uint8_t>(bytes, 11U);
+  append<std::uint8_t>(bytes, 22U);
+  append<std::uint8_t>(bytes, 33U);
+  set_lump(bytes, LumpIndex::kLighting, lighting_offset, 3);
+
+  auto result = stellar::import::bsp::load_level_from_memory_with_report(
+      bytes, "raw_lumps.bsp");
+  assert(result);
+  assert(result->asset.visibility.available);
+  assert(result->asset.visibility.compressed_pvs.size() == 2);
+  assert(result->asset.visibility.leaves.size() == 1);
+  assert(result->asset.visibility.leaves[0].compressed_pvs_offset == 0);
+  assert(result->asset.visibility.leaves[0].surface_indices.size() == 1);
+  assert(result->asset.visibility.leaves[0].surface_indices[0] == 0);
+  assert(result->asset.geometry.raw_lighting.size() == 3);
+  assert(result->asset.geometry.lightmaps.size() == 1);
+}
+
 } // namespace
 
 int main() {
@@ -283,5 +371,9 @@ int main() {
   bsp_entities_build_player_spawn_trigger_sprite_object_collider_markers();
   bsp_script_bindings_import_to_world_metadata();
   bsp_loader_is_display_free();
+  bsp_import_report_collects_missing_player_spawn_warning();
+  bsp_import_report_keeps_fatal_errors_unexpected();
+  bsp_visibility_placeholder_survives_no_vis_fixture();
+  bsp_raw_lighting_and_visibility_lumps_import_without_renderer();
   return 0;
 }

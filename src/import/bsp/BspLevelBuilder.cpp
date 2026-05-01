@@ -210,9 +210,50 @@ void copy_properties(stellar::assets::WorldMarker &marker,
 std::expected<stellar::assets::LevelAsset, stellar::platform::Error>
 build_level_asset(BspMap map, std::vector<Entity> entities,
                   std::string source_uri, const LoadOptions &options) {
+  return build_level_asset(std::move(map), std::move(entities),
+                           std::move(source_uri), options, nullptr);
+}
+
+std::expected<stellar::assets::LevelAsset, stellar::platform::Error>
+build_level_asset(BspMap map, std::vector<Entity> entities,
+                  std::string source_uri, const LoadOptions &options,
+                  ImportReport *report) {
   stellar::assets::LevelAsset level{};
   level.source_uri = std::move(source_uri);
   level.visibility.available = map.has_visibility;
+  level.visibility.compressed_pvs = std::move(map.visibility_bytes);
+  level.visibility.cluster_count = map.leaves.size();
+  level.geometry.raw_lighting = std::move(map.lighting_bytes);
+  if (map.has_lighting) {
+    level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+        .image_index = 0,
+        .size = {0U, 0U},
+        .style = 0,
+        .source_name = "lighting"});
+  }
+  for (const Leaf &leaf : map.leaves) {
+    stellar::assets::LevelLeaf output_leaf{};
+    output_leaf.contents = leaf.contents;
+    for (std::size_t i = 0; i < 3; ++i) {
+      output_leaf.bounds_min[i] = static_cast<float>(leaf.mins[i]);
+      output_leaf.bounds_max[i] = static_cast<float>(leaf.maxs[i]);
+    }
+    if (leaf.visibility_offset >= 0 &&
+        static_cast<std::size_t>(leaf.visibility_offset) <
+            level.visibility.compressed_pvs.size()) {
+      output_leaf.compressed_pvs_offset =
+          static_cast<std::size_t>(leaf.visibility_offset);
+    }
+    for (std::uint16_t i = 0; i < leaf.marksurface_count; ++i) {
+      const std::size_t marksurface_index =
+          static_cast<std::size_t>(leaf.first_marksurface) + i;
+      if (marksurface_index < map.marksurfaces.size()) {
+        output_leaf.surface_indices.push_back(
+            map.marksurfaces[marksurface_index]);
+      }
+    }
+    level.visibility.leaves.push_back(std::move(output_leaf));
+  }
 
   stellar::assets::MeshAsset mesh{};
   mesh.name = "worldspawn";
@@ -341,14 +382,18 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     level.level_collision = std::move(collision);
   }
 
+  bool has_player_spawn = false;
+  bool has_worldspawn = false;
   for (const Entity &entity : entities) {
     const std::string classname = string_or(entity, "classname", "entity");
     stellar::assets::WorldMarker marker{};
     bool emit = true;
     if (classname == "worldspawn") {
+      has_worldspawn = true;
       emit = false;
     } else if (classname == "info_player_start" ||
                classname == "info_player_deathmatch") {
+      has_player_spawn = true;
       marker.type = stellar::assets::WorldMarkerType::kPlayerSpawn;
       marker.name = string_or(entity, "targetname", "Player");
     } else if (classname == "info_stellar_spawn") {
@@ -407,6 +452,21 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       copy_properties(marker, entity);
     }
     level.world_metadata.markers.push_back(std::move(marker));
+  }
+
+  if (report != nullptr && !has_worldspawn) {
+    report->diagnostics.push_back(Diagnostic{
+        .severity = DiagnosticSeverity::kWarning,
+        .code = DiagnosticCode::kMissingWorldspawn,
+        .message = level.source_uri + ": BSP entities do not include worldspawn",
+        .source_uri = level.source_uri});
+  }
+  if (report != nullptr && !has_player_spawn) {
+    report->diagnostics.push_back(Diagnostic{
+        .severity = DiagnosticSeverity::kWarning,
+        .code = DiagnosticCode::kMissingPlayerSpawn,
+        .message = level.source_uri + ": BSP entities do not include a player spawn",
+        .source_uri = level.source_uri});
   }
 
   return level;

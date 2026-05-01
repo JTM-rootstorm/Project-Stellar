@@ -16,12 +16,35 @@ sandboxing, display-free default tests, or OpenGL/Vulkan abstraction parity.
 Planned phase status:
 
 - Phase 0 — Active handoff and `NEXT.md` lock-in: complete as of 2026-05-01.
-- Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: not started.
+- Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: complete as of 2026-05-01.
 - Phase 2 — BSP PVS, leaf visibility, and render culling: not started.
 - Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: not started.
 - Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: not started.
 - Phase 5 — BSP validation tooling and regression fixtures: not started.
 - Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: not started.
+
+Phase 1 completion notes:
+
+- Added structured BSP import diagnostics and additive load-with-report APIs while preserving the
+  existing `std::expected<LevelAsset, Error>` load path for fatal parse errors.
+- Expanded source-neutral `LevelAsset` visibility/lightmap contracts with classic BSP leaf records,
+  compressed PVS bytes, raw lighting bytes, and minimal lightmap metadata placeholders.
+- Parser internals now retain nodes, leaves, marksurfaces, visibility bytes, and lighting bytes for
+  later PVS/lightmap hardening without adding renderer handles or gameplay authority.
+- Added display-free importer coverage for non-fatal missing player spawn warnings, fatal unexpected
+  errors, no-vis placeholders, and raw visibility/lighting lumps.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_importer|runtime_world|collision_world|world_metadata_validation|collision_validation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded. Targeted BSP/runtime/collision tests passed 5/5, and full
+default CTest passed 31/31.
 
 Phase 0 completion notes:
 

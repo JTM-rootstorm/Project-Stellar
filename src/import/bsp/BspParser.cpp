@@ -87,7 +87,7 @@ void parse_texinfos_into(BspMap &map, std::span<const std::byte> bytes,
 }
 
 void parse_faces_into(BspMap &map, std::span<const std::byte> bytes,
-                      std::size_t off) {
+                       std::size_t off) {
   Face face{};
   face.plane = read_le<std::uint16_t>(bytes, off + 0);
   face.side = read_le<std::uint16_t>(bytes, off + 2);
@@ -99,6 +99,38 @@ void parse_faces_into(BspMap &map, std::span<const std::byte> bytes,
   }
   face.light_offset = read_le<std::int32_t>(bytes, off + 16);
   map.faces.push_back(face);
+}
+
+void parse_nodes_into(BspMap &map, std::span<const std::byte> bytes,
+                      std::size_t off) {
+  Node node{};
+  node.plane = read_le<std::int32_t>(bytes, off + 0);
+  node.children = {read_le<std::int16_t>(bytes, off + 4),
+                   read_le<std::int16_t>(bytes, off + 6)};
+  for (std::size_t i = 0; i < 3; ++i) {
+    node.mins[i] = read_le<std::int16_t>(bytes, off + 8 + i * 2);
+    node.maxs[i] = read_le<std::int16_t>(bytes, off + 14 + i * 2);
+  }
+  node.first_face = read_le<std::uint16_t>(bytes, off + 20);
+  node.face_count = read_le<std::uint16_t>(bytes, off + 22);
+  map.nodes.push_back(node);
+}
+
+void parse_leaves_into(BspMap &map, std::span<const std::byte> bytes,
+                       std::size_t off) {
+  Leaf leaf{};
+  leaf.contents = read_le<std::int32_t>(bytes, off + 0);
+  leaf.visibility_offset = read_le<std::int32_t>(bytes, off + 4);
+  for (std::size_t i = 0; i < 3; ++i) {
+    leaf.mins[i] = read_le<std::int16_t>(bytes, off + 8 + i * 2);
+    leaf.maxs[i] = read_le<std::int16_t>(bytes, off + 14 + i * 2);
+  }
+  leaf.first_marksurface = read_le<std::uint16_t>(bytes, off + 20);
+  leaf.marksurface_count = read_le<std::uint16_t>(bytes, off + 22);
+  for (std::size_t i = 0; i < 4; ++i) {
+    leaf.ambient_levels[i] = read_le<std::uint8_t>(bytes, off + 24 + i);
+  }
+  map.leaves.push_back(leaf);
 }
 
 void parse_models_into(BspMap &map, std::span<const std::byte> bytes,
@@ -208,8 +240,22 @@ parse_bsp(std::span<const std::byte> bytes, std::string_view source_uri,
   }
   map.entity_text.assign(reinterpret_cast<const char *>(entities->data()),
                          entities->size());
-  map.has_visibility = options.parse_visibility && map.lumps[4].size > 0;
-  map.has_lighting = options.parse_lightmaps && map.lumps[8].size > 0;
+  if (options.parse_visibility) {
+    auto visibility = lump_bytes(bytes, map.lumps[4], source_uri, "visibility");
+    if (!visibility) {
+      return std::unexpected(visibility.error());
+    }
+    map.visibility_bytes.assign(visibility->begin(), visibility->end());
+  }
+  if (options.parse_lightmaps) {
+    auto lighting = lump_bytes(bytes, map.lumps[8], source_uri, "lighting");
+    if (!lighting) {
+      return std::unexpected(lighting.error());
+    }
+    map.lighting_bytes.assign(lighting->begin(), lighting->end());
+  }
+  map.has_visibility = options.parse_visibility && !map.visibility_bytes.empty();
+  map.has_lighting = options.parse_lightmaps && !map.lighting_bytes.empty();
 
   auto planes = parse_records(
       bytes, map.lumps[1], 20, source_uri, "planes",
@@ -242,17 +288,24 @@ parse_bsp(std::span<const std::byte> bytes, std::string_view source_uri,
     return std::unexpected(clipnodes.error());
   }
   auto nodes = parse_records(bytes, map.lumps[5], 24, source_uri, "nodes",
-                             [&](auto, auto) {});
+                             [&](auto data, auto off) {
+                               parse_nodes_into(map, data, off);
+                             });
   if (!nodes) {
     return std::unexpected(nodes.error());
   }
   auto leaves = parse_records(bytes, map.lumps[10], 28, source_uri, "leaves",
-                              [&](auto, auto) {});
+                               [&](auto data, auto off) {
+                                 parse_leaves_into(map, data, off);
+                               });
   if (!leaves) {
     return std::unexpected(leaves.error());
   }
   auto marksurfaces = parse_records(bytes, map.lumps[11], 2, source_uri,
-                                    "marksurfaces", [&](auto, auto) {});
+                                    "marksurfaces", [&](auto data, auto off) {
+                                      map.marksurfaces.push_back(
+                                          read_le<std::uint16_t>(data, off));
+                                    });
   if (!marksurfaces) {
     return std::unexpected(marksurfaces.error());
   }
