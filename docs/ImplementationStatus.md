@@ -2,6 +2,50 @@
 
 Branch target: `bsp-gameplay-loop`
 
+## Active Follow-up Scope — BSP Presentation and Networking Polish
+
+Status: active / in progress.
+
+This run builds on the completed BSP gameplay-loop branch. The completed gameplay-loop plan package
+was archived under `Plans/Archived/bsp_gameplay_loop/`. Use
+`Plans/BspPresentationNetworkingPolish-AgentPlan.md` as the concise active handoff and
+`Plans/ProjectStellar-BSP-PresentationNetworkingPolish-AgentPlan.md` as the detailed implementation
+plan.
+
+Active phases:
+
+- Phase PN-0 — Plan archival and follow-up handoff: complete as of 2026-05-01.
+- Phase PN-1 — Live scripted authoritative runtime integration: pending.
+- Phase PN-2 — Authoritative gameplay snapshot presentation: pending.
+- Phase PN-3 — Snapshot/delta/event transport contracts: pending.
+- Phase PN-4 — Local/remote transport bridge: pending.
+- Phase PN-5 — HUD/audio/toolchain polish: pending.
+- Phase PN-6 — Final docs, validation, and handoff: pending.
+
+Phase PN-0 completion notes:
+
+- Moved the completed BSP gameplay-loop handoff plans from root `Plans/` into
+  `Plans/Archived/bsp_gameplay_loop/` without content changes.
+- Added new active follow-up handoff files for BSP presentation and networking polish.
+- Updated `Plans/NEXT.md`, `docs/Design.md`, and `docs/BspAuthoring.md` so the current active scope is
+  scripted live-runtime integration, authoritative gameplay snapshot presentation, transport-ready
+  snapshot/delta/event contracts, local bridge work, and presentation polish over completed BSP
+  gameplay-loop foundations.
+- No source or build behavior changes were introduced.
+
+Validation run:
+
+```bash
+git status --short
+git diff -- Plans docs
+git grep -n 'BspGameplayLoop-AgentPlan\|ProjectStellar-BSP-GameplayLoop-AgentPlan' -- Plans docs ':!Plans/Archived/**'
+```
+
+Result: documentation-only Phase PN-0 completed on 2026-05-01. The active grep is expected to return
+only historical/archive references in `docs/ImplementationStatus.md`, `Plans/NEXT.md`, and active PN
+plan text; the old gameplay-loop files are no longer root-level active handoffs. Validation was limited
+to repository inspection because no code changed.
+
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 
 This branch begins after `collision-movement` merges to `main`. Treat collision, movement,
@@ -20,21 +64,22 @@ Completed focus areas:
 
 Completed implementation plan:
 
-- `Plans/BspGameplayLoop-AgentPlan.md` — concise active agent handoff.
-- `Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed master plan.
+- `Plans/Archived/bsp_gameplay_loop/BspGameplayLoop-AgentPlan.md` — concise historical handoff.
+- `Plans/Archived/bsp_gameplay_loop/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed
+  historical master plan.
 
 Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is up, BSP authored
 coordinates import without scale conversion, and player capsule center spawns should be half the
 capsule height above the floor.
 
-Follow-up implementation should use `Plans/NEXT.md` for the next recommended scope after this branch
-and this file as the source of truth for branch completion notes. Archived phase plans under
+Follow-up implementation should use `Plans/NEXT.md` for the active presentation/networking polish
+scope and this file as the source of truth for branch completion notes. Archived phase plans under
 `Plans/Archived/` are historical context unless this file explicitly names one as active.
 
 Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
 renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.
 
-## BSP Gameplay Loop — Active Phase Status
+## BSP Gameplay Loop — Completed Phase Status
 
 - Phase 0 — Active gameplay-loop handoff lock-in: complete as of 2026-05-01.
 - Phase 1 — Inch-based world scale and gameplay tuning: complete as of 2026-05-01.
@@ -89,8 +134,8 @@ Known deferred post-branch items:
 
 Phase 0 completion notes:
 
-- Added `Plans/BspGameplayLoop-AgentPlan.md` as the concise active handoff derived from the detailed
-  master plan.
+- Added the original root-level gameplay-loop handoff files, now archived under
+  `Plans/Archived/bsp_gameplay_loop/`, as the concise handoff derived from the detailed master plan.
 - Updated `Plans/NEXT.md`, `docs/ImplementationStatus.md`, `docs/Design.md`, and
   `docs/BspAuthoring.md` to point agents at the gameplay-loop plan and record the inch-scale unit
   policy.

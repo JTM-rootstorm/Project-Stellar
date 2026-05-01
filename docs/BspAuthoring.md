@@ -63,6 +63,23 @@ Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when r
 
 Malformed vectors and booleans produce import diagnostics. Import does not run Lua.
 
+## Runtime script and presentation notes
+
+Authored trigger and object-collider `stellar.script` ids are loaded by the authoritative runtime when a
+live client/session starts a script-bound BSP map. Script ids remain asset-relative; absolute paths,
+drive-letter paths, and `..` parent escapes remain invalid. The default script source root for live
+runtime preparation is the map directory unless an explicit configured script root is provided by the
+client/runtime configuration.
+
+Missing script source for a referenced trigger or object-collider script is a runtime preparation
+error for script-bound maps. Import still only records metadata and never executes scripts.
+
+Pickup and door/gate presentation is driven by server-owned snapshots and server-approved events.
+Collected pickups become inactive in authoritative gameplay state before the client hides them;
+scripted doors/gates mirror validated collision-command results into server gameplay metadata before
+presentation observes open/closed state. Client scripts, renderer state, audio state, and HUD state do
+not own gameplay truth.
+
 ## Examples
 
 ### Inch-scale gameplay room fixture
