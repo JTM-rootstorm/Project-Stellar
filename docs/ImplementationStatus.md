@@ -18,8 +18,8 @@ Current phase status:
 - Phase ST-2 — Live client over local networked transport path: active/completed as of
   2026-05-01.
 - Phase ST-3 — Connection and session lifecycle: active/completed as of 2026-05-01.
-- Phase ST-4 — Remote socket transport: next/deferred until ST-3 review.
-- Phase ST-5 — Dedicated server entry point: deferred.
+- Phase ST-4 — Remote socket transport: active/completed as of 2026-05-01.
+- Phase ST-5 — Dedicated server entry point: next.
 - Phase ST-6 — Client connect mode: deferred.
 - Phase ST-7 — Hardening, documentation, validation, and archival: deferred.
 
@@ -78,6 +78,34 @@ ctest --test-dir build --output-on-failure
 
 Result: focused ST-3 targets built, focused ST-3 CTest passed 5/5, full debug build succeeded, and
 full default CTest passed 50/50 on 2026-05-01.
+
+Phase ST-4 completion notes:
+
+- Added Linux/POSIX TCP socket transport behind the existing transport-neutral
+  `ClientTransport`/`ServerTransport` seam without changing gameplay/message contracts.
+- Added deterministic `host:port` endpoint parsing/formatting and ephemeral bind reporting for
+  localhost tests and future dedicated server startup.
+- Added a compact TCP packet envelope with `STCP` magic, version byte, channel byte, little-endian
+  `uint32` payload length, configurable max payload bound, complete-packet FIFO draining, and bounded
+  partial read/write handling.
+- Implemented a socket client transport plus a single-client socket server transport. Multi-client
+  simulation, UDP, prediction, reconciliation, authentication, encryption, and public Internet
+  discovery remain deferred.
+- Display-free localhost loopback coverage now exercises endpoint parsing, client/server connection,
+  FIFO ordering, packet boundaries, oversized payload rejection, disconnect send diagnostics,
+  hello/welcome round trip, and snapshot delivery into `ClientWorldReceiver`.
+
+ST-4 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_socket_transport_test stellar_network_session_test stellar_snapshot_codec_test -j$(nproc)
+ctest --test-dir build -R '^(socket_transport|network_session|snapshot_codec|loopback_transport)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-4 targets built, focused ST-4 CTest passed 4/4, full debug
+build succeeded, and full default CTest passed 51/51 on 2026-05-01.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 

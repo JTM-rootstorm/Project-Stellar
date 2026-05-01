@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.4 (BSP presentation/networking polish complete)  
+**Version:** 0.2.5 (TCP socket transport foundation complete)  
 **Last Updated:** 2026-05-01
 
 ---
@@ -77,8 +77,8 @@ suitable for game content.
 - **Audio:** miniaudio-backed audio when audio implementation is in scope, with explicit
   no-op fallback behavior where needed.
 - **Scripting:** mandatory vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
-- **Networking:** local loopback and an in-memory transport bridge for single-player/local testing,
-  with remote socket transport deferred.
+- **Networking:** local loopback plus Linux/POSIX TCP socket transport behind transport-neutral
+  client/server packet seams.
 
 ---
 
@@ -105,11 +105,11 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `bsp-gameplay-loop`.
+Current branch: `socket-transport`.
 
-Primary near-term status: BSP presentation/networking polish over the completed BSP gameplay loop is
-complete while preserving server authority. This branch starts from updated `main` after
-`collision-movement` merges.
+Primary near-term status: socket transport and networked session lifecycle over the completed BSP
+gameplay loop and presentation/networking polish foundations. The next active slice after the TCP
+transport foundation is the dedicated server entry point.
 Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
 and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
 
@@ -152,9 +152,10 @@ server gameplay metadata (`open`/`active`) for presentation snapshots.
 Authoritative gameplay snapshots are converted into client-side billboards, HUD data, or audio
 requests, but those systems remain disposable presentation caches/routes and never mutate server
 gameplay truth. Snapshot, delta, and event contracts are deterministic, serializable, and
-server-authored. The implemented bridge is local/in-memory and exercises remote-ready contracts;
-remote socket transport, real multiplayer lifecycle, interpolation, prediction, and reconciliation
-remain deferred until explicitly scoped.
+server-authored. The implemented transport layer includes local/in-memory endpoints and a TCP-first,
+Linux/POSIX socket backend using a length-prefixed packet envelope. Dedicated server startup, client
+remote-connect mode, true simultaneous multiplayer simulation, interpolation, prediction, and
+reconciliation remain deferred until explicitly scoped.
 
 Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
 and retired importer removal are complete historical implementation steps. Their completion notes
@@ -729,11 +730,13 @@ Potential protocol split:
 Exact protocol choices remain implementation details until a networking plan scopes them.
 The completed BSP presentation/networking polish work added remote-ready snapshot, delta, and event
 contracts before real remote sockets. The local in-memory transport bridge exercises the same
-client-input/server-snapshot message contract planned for future remote play. The socket transport
+client-input/server-snapshot message contract used by the TCP socket backend. The socket transport
 branch now includes deterministic `ClientHello` / `ServerWelcome` session setup, protocol/map
-compatibility rejection, and server-assigned player authority before the first snapshot is accepted.
-Remote socket transport, true simultaneous multiplayer simulation, prediction, interpolation, and
-reconciliation remain deferred until explicitly scoped.
+compatibility rejection, server-assigned player authority before the first snapshot is accepted, and a
+Linux/POSIX TCP-first transport with `host:port` endpoint parsing plus a compact length-prefixed packet
+envelope (`STCP` magic, version byte, channel byte, and little-endian `uint32` payload length). True
+simultaneous multiplayer simulation, prediction, interpolation, and reconciliation remain deferred
+until explicitly scoped.
 
 ### 10.2 Message Categories
 
@@ -781,8 +784,12 @@ Current contract behavior for this branch:
   reconciliation.
 - The local bridge adds in-memory/local `ClientTransport` and `ServerTransport` endpoints plus a local
   authoritative server adapter and client receiver over those contracts. Client commands remain
-  requests; the bridge overwrites authority with the configured server player slot, emits snapshots,
-  deltas, and server-approved events, and keeps real remote sockets deferred.
+  requests; the bridge overwrites authority with the configured server player slot and emits snapshots,
+  deltas, and server-approved events.
+- The TCP socket backend preserves the same opaque packet contract and reliable FIFO semantics for one
+  accepted client. It rejects oversized payloads before allocation, handles partial read/write paths
+  with bounded nonblocking loops, and keeps UDP, multi-client simulation, prediction, and
+  reconciliation out of scope.
 
 ---
 

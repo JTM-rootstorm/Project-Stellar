@@ -142,6 +142,7 @@ add_library(stellar_network
     src/network/LoopbackTransport.cpp
     src/network/Messages.cpp
     src/network/Session.cpp
+    src/network/SocketTransport.cpp
     src/network/SnapshotCodec.cpp
     src/network/SnapshotDelta.cpp
 )
@@ -501,6 +502,11 @@ stellar_add_test_executable(stellar_loopback_transport_test loopback_transport
     tests/network/LoopbackTransport.cpp
 )
 target_link_libraries(stellar_loopback_transport_test PRIVATE stellar_network)
+
+stellar_add_test_executable(stellar_socket_transport_test socket_transport
+    tests/network/SocketTransport.cpp
+)
+target_link_libraries(stellar_socket_transport_test PRIVATE stellar_network stellar_client_runtime)
 
 stellar_add_test_executable(stellar_snapshot_delta_test snapshot_delta
     tests/network/SnapshotDelta.cpp
