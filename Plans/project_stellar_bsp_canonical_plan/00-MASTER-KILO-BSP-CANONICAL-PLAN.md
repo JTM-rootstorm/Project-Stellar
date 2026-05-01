@@ -3,22 +3,22 @@
 Prepared: 2026-05-01  
 Branch target: `bsp-integration`  
 Audience: Kilo Code agents / Codex-style implementation agents  
-Primary objective: make classic Half-Life/Quake-style BSP maps the canonical level format and remove glTF functionality from the engine.
+Primary objective: make classic Half-Life/Quake-style BSP maps the canonical level format and remove retired model importer functionality from the engine.
 
 ---
 
 ## 0. Executive decision
 
-The user has selected BSP maps as the canonical level format. Implement this as a hard direction change, not as an optional importer next to glTF.
+The user has selected BSP maps as the canonical level format. Implement this as a hard direction change, not as an optional importer next to retired model importer.
 
 Required outcome:
 
 - BSP is the default and canonical playable level source.
-- glTF import, glTF startup validation, glTF CMake options, glTF test fixtures, cgltf dependency, glTF-specific docs, and glTF-specific runtime assumptions are removed from active code and active docs.
+- retired model importer import, retired model importer startup validation, retired model importer CMake options, retired model importer test fixtures, retired parser dependency dependency, retired model importer-specific docs, and retired model importer-specific runtime assumptions are removed from active code and active docs.
 - Existing server-authoritative movement, collision, Lua scripting, trigger, object-collider, billboard sprite, and display-free validation boundaries are preserved.
 - `Plans/NEXT.md` is updated at the beginning of the work to point to this migration and is rewritten after completion to point at the next post-BSP scope.
 
-Do not treat this as “add BSP support while keeping glTF.” Treat it as a migration to BSP-first level assets.
+Do not treat this as “add BSP support while keeping retired model importer.” Treat it as a migration to BSP-first level assets.
 
 ---
 
@@ -57,11 +57,11 @@ Existing branch facts to preserve:
 - Introduce source-neutral level asset structures centered on BSP maps.
 - Implement a BSP importer for the classic Quake/GoldSrc BSP family.
 - Make BSP import feed static level geometry, collision, metadata/entities, triggers, object-collider sensors, script bindings, and sprite markers.
-- Refactor runtime world assembly to consume `LevelAsset` rather than glTF-shaped `SceneAsset`.
-- Refactor client startup validation from `--asset` glTF loading to BSP map loading.
+- Refactor runtime world assembly to consume `LevelAsset` rather than retired model importer-shaped `retired scene asset`.
+- Refactor client startup validation from `--asset` retired model importer loading to BSP map loading.
 - Render BSP level geometry through the existing OpenGL/Vulkan graphics abstraction.
 - Keep billboard sprites as the entity/object presentation path.
-- Remove glTF importer code, cgltf dependency, glTF CMake option, glTF tests, glTF fixtures, and active glTF documentation.
+- Remove retired model importer importer code, retired parser dependency dependency, retired model importer CMake option, retired model importer tests, retired model importer fixtures, and active retired model importer documentation.
 - Update `docs/Design.md`, `docs/ImplementationStatus.md`, `AGENTS.md`, and `Plans/NEXT.md` to reflect the BSP canonical direction.
 
 ### Out of scope
@@ -115,7 +115,7 @@ Do not skip these gates:
 3. **Gate 2 — BSP parser output:** importer parses minimal BSP fixtures into `LevelAsset` with geometry, collision, and entity metadata.
 4. **Gate 3 — Runtime/server/client integration:** `RuntimeWorld`, `WorldSession`, movement, triggers, object-collider sensors, scripts, and client validation operate from BSP-backed `LevelAsset`.
 5. **Gate 4 — BSP rendering:** OpenGL/Vulkan render BSP static geometry plus billboards through shared abstractions.
-6. **Gate 5 — glTF deletion:** active code/build/tests/docs have no functional glTF/cgltf dependency.
+6. **Gate 5 — retired model importer deletion:** active code/build/tests/docs have no functional retired model importer/retired parser dependency dependency.
 7. **Gate 6 — final docs/NEXT:** `ImplementationStatus.md` has completion notes, the plan is archived, and `NEXT.md` points at the next post-BSP scope.
 
 ### Parallelizable work after Gate 1
@@ -124,7 +124,7 @@ These can run in parallel after the LevelAsset contract is committed or otherwis
 
 - `@carmack`: BSP binary parser, lump validation, fixture builder, and geometry/collision conversion.
 - `@kojima`: entity lump key/value parser and metadata mapping tests using parser-independent strings.
-- `@miyamoto`: render-scene refactor from scene graph/glTF pose assumptions to static level geometry/billboard draw input, initially with synthetic `LevelAsset` data.
+- `@miyamoto`: render-scene refactor from scene graph/retired model importer pose assumptions to static level geometry/billboard draw input, initially with synthetic `LevelAsset` data.
 - `@director`: documentation and removal inventory, without deleting active code until replacements compile.
 
 ### Do not parallelize these writes
@@ -133,7 +133,7 @@ Only one agent should own each of these at a time:
 
 - `CMakeLists.txt`
 - `include/stellar/assets/LevelAsset.hpp`
-- `include/stellar/assets/SceneAsset.hpp` deletion/replacement
+- `include/stellar/assets/retired scene asset.hpp` deletion/replacement
 - `include/stellar/world/RuntimeWorld.hpp`
 - `docs/Design.md`
 - `docs/ImplementationStatus.md`
@@ -151,7 +151,7 @@ This package contains the following implementation plans:
 3. `03-Phase2-BSPImporter-Entities-Collision.md`
 4. `04-Phase3-Runtime-Server-Client-Integration.md`
 5. `05-Phase4-BSP-Rendering-Billboards.md`
-6. `06-Phase5-Remove-glTF-Cleanup.md`
+6. `06-Phase5-Remove-retired model importer-Cleanup.md`
 7. `07-Phase6-Final-Hardening-NEXT-Completion.md`
 
 The recommended implementation branch path is one phase per PR/branch slice. If the implementation environment supports safe parallel worktrees, use the parallelization rules above after Phase 1.
@@ -160,7 +160,7 @@ The recommended implementation branch path is one phase per PR/branch slice. If 
 
 ## 6. Final validation target
 
-At the end of the migration, these commands should pass without any glTF option:
+At the end of the migration, these commands should pass without any retired model importer option:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -171,12 +171,12 @@ ctest --test-dir build --output-on-failure
 Additional active-source search target:
 
 ```bash
-rg -n -i "gltf|cgltf|STELLAR_ENABLE_GLTF" \
+rg -n -i "retired model importer|retired parser dependency|retired importer feature gate" \
   --glob '!Plans/Archived/**' \
   --glob '!build*/**'
 ```
 
-Expected result: no active code, active tests, active CMake, active docs, or active agent-routing references to glTF/cgltf. Historical archived plans may retain old references if clearly archived and not referenced as current work.
+Expected result: no active code, active tests, active CMake, active docs, or active agent-routing references to retired model importer/retired parser dependency. Historical archived plans may retain old references if clearly archived and not referenced as current work.
 
 ---
 
@@ -198,8 +198,8 @@ Stop and report to `@director` if any of these occur:
 
 - BSP format requirements are unclear enough to change file format support scope.
 - The LevelAsset contract would collapse server authority or require renderer-owned gameplay state.
-- The renderer requires glTF scene graph/skinning/animation to remain in active code for BSP rendering.
-- Removing glTF breaks unrelated mandatory systems in a way that cannot be repaired in two focused attempts.
+- The renderer requires retired model importer scene graph/skinning/animation to remain in active code for BSP rendering.
+- Removing retired model importer breaks unrelated mandatory systems in a way that cannot be repaired in two focused attempts.
 - Any test requires a GPU/display by default.
 - A specialist reaches a cross-domain decision boundary.
 

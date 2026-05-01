@@ -10,13 +10,13 @@ Parallelizable: yes after LevelAsset contract is stable. Rendering work can proc
 
 ## Goal
 
-Render BSP static level geometry and existing billboard sprites through the shared OpenGL/Vulkan graphics abstraction without glTF scene graph, skinning, animation, or glTF material assumptions.
+Render BSP static level geometry and existing billboard sprites through the shared OpenGL/Vulkan graphics abstraction without retired model importer scene graph, skinning, animation, or retired model importer material assumptions.
 
 ---
 
 ## Required direction
 
-Replace `RenderScene` as a glTF-style scene presenter with a BSP/level presenter.
+Replace `RenderScene` as a retired model importer-style scene presenter with a BSP/level presenter.
 
 Recommended options:
 
@@ -47,7 +47,7 @@ public:
 };
 ```
 
-Remove glTF pose/skinning-specific render overloads.
+Remove retired model importer pose/skinning-specific render overloads.
 
 ---
 
@@ -78,7 +78,7 @@ Initial BSP material target is lightweight:
 - External WAD/material library lookup may be deferred, but missing textures must produce deterministic diagnostics or fallback materials.
 - Lightmaps may be parsed and stored before being rendered. If not rendered initially, preserve data and document deferred presentation.
 
-No PBR. No glTF metallic-roughness language.
+No PBR. No retired model importer metallic-roughness language.
 
 ---
 
@@ -150,7 +150,7 @@ Do not modify server/runtime gameplay code except through `@director` coordinati
 ## Acceptance criteria
 
 - BSP/LevelAsset geometry can be uploaded and submitted to both graphics backends through shared abstractions.
-- glTF scene graph, animation pose, skinning, and material assumptions are no longer part of active renderer APIs.
+- retired model importer scene graph, animation pose, skinning, and material assumptions are no longer part of active renderer APIs.
 - Billboard rendering remains intact.
 - Default graphics tests are display-free.
 - OpenGL/Vulkan context tests remain opt-in.
@@ -166,7 +166,7 @@ ctest --test-dir build -R '^(render_level|render_scene|billboard|graphics_backen
 ctest --test-dir build --output-on-failure
 ```
 
-If old `render_scene_*` names are retained temporarily, document that they now refer to level rendering, not glTF scenes.
+If old `render_scene_*` names are retained temporarily, document that they now refer to level rendering, not retired model importer scenes.
 
 ---
 
@@ -177,10 +177,10 @@ Add to `docs/ImplementationStatus.md`:
 ```markdown
 Phase BSP-4 is complete as of YYYY-MM-DD:
 
-- Refactored rendering to consume BSP/`LevelAsset` static geometry instead of glTF scene data.
+- Refactored rendering to consume BSP/`LevelAsset` static geometry instead of retired model importer scene data.
 - Preserved OpenGL/Vulkan backend parity through the shared graphics abstraction.
 - Preserved billboard sprite rendering and display-free billboard/render submission tests.
-- Removed active renderer assumptions around glTF scene graph pose, skinning, animation, and PBR-style materials.
+- Removed active renderer assumptions around retired model importer scene graph pose, skinning, animation, and PBR-style materials.
 
 Validation run:
 

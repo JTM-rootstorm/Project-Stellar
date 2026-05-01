@@ -102,8 +102,6 @@ private:
         std::size_t index_count = 0;
         bool has_tangents = false;
         bool has_colors = false;
-        bool has_skinning = false;
-        std::uint16_t max_joint_index = 0;
     };
 
     struct MeshRecord {
@@ -136,10 +134,6 @@ private:
         VkSemaphore image_available_semaphore = VK_NULL_HANDLE;
         VkSemaphore render_finished_semaphore = VK_NULL_HANDLE;
         VkFence in_flight_fence = VK_NULL_HANDLE;
-        VkBuffer skin_draw_uniform_buffer = VK_NULL_HANDLE;
-        VkDeviceMemory skin_draw_uniform_memory = VK_NULL_HANDLE;
-        std::vector<VkDescriptorSet> skin_draw_descriptor_sets;
-        std::size_t skin_draw_upload_cursor = 0;
         std::uint64_t submitted_serial = 0;
     };
 
@@ -168,7 +162,6 @@ private:
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_swapchain_image_views();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_render_pass();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_descriptor_resources();
-    [[nodiscard]] std::expected<void, stellar::platform::Error> create_skin_draw_resources();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_default_material_textures();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_pipeline_layout();
     [[nodiscard]] std::expected<void, stellar::platform::Error> create_graphics_pipeline();
@@ -219,11 +212,6 @@ private:
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     create_material_uniform_buffer(MaterialRecord& record);
     void rewrite_material_descriptors_replacing_texture(TextureHandle texture) noexcept;
-    [[nodiscard]] std::expected<VkDescriptorSet, stellar::platform::Error>
-    upload_skin_draw_uniform(FrameResources& frame,
-                             const MeshDrawTransforms& transforms,
-                             std::span<const std::array<float, 16>> skin_joint_matrices,
-                             bool has_skinning);
     [[nodiscard]] std::expected<std::uint32_t, stellar::platform::Error>
     find_memory_type(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] std::expected<VkFormat, stellar::platform::Error> find_depth_format() const;
@@ -262,8 +250,6 @@ private:
     VkDescriptorSetLayout material_descriptor_set_layout_ = VK_NULL_HANDLE;
     VkDescriptorPool material_descriptor_pool_ = VK_NULL_HANDLE;
     VkDescriptorSet default_material_descriptor_set_ = VK_NULL_HANDLE;
-    VkDescriptorSetLayout skin_draw_descriptor_set_layout_ = VK_NULL_HANDLE;
-    VkDescriptorPool skin_draw_descriptor_pool_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_double_sided_ = VK_NULL_HANDLE;

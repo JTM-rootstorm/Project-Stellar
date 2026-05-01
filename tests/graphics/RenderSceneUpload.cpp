@@ -50,7 +50,6 @@ public:
                 transforms.normal[8] == 1.0F;
     draw_order.push_back(commands[0].primitive_index);
     draw_materials.push_back(commands[0].material);
-    skin_joint_counts.push_back(commands[0].skin_joint_matrices.size());
   }
 
   void end_frame() noexcept override { ended_frame = true; }
@@ -78,7 +77,6 @@ public:
   std::vector<stellar::graphics::MaterialUpload> material_uploads;
   std::vector<std::size_t> draw_order;
   std::vector<stellar::graphics::MaterialHandle> draw_materials;
-  std::vector<std::size_t> skin_joint_counts;
   int destroyed_meshes = 0;
   int destroyed_textures = 0;
   int destroyed_materials = 0;
@@ -212,7 +210,6 @@ int main() {
   assert(mock_ptr->draw_materials[0] == stellar::graphics::MaterialHandle{4});
   assert(mock_ptr->draw_materials[1] == stellar::graphics::MaterialHandle{5});
   assert(mock_ptr->draw_materials[2] == stellar::graphics::MaterialHandle{3});
-  assert((mock_ptr->skin_joint_counts == std::vector<std::size_t>{0, 0, 0}));
   assert(mock_ptr->ended_frame);
 
   return 0;

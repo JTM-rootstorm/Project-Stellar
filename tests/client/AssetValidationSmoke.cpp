@@ -28,7 +28,7 @@ int main() {
   assert(result->runtime_world_diagnostics->object_collider_marker_count == 1);
   assert(result->runtime_world_diagnostics->has_player_spawn);
 
-  config.map_path = (root / "unsupported.gltf").string();
+  config.map_path = (root / "unsupported.map").string();
   const auto unsupported = stellar::client::validate_application_config(config);
   assert(!unsupported.has_value());
   assert(unsupported.error().message.find("Unsupported map extension") !=

@@ -16,7 +16,6 @@ namespace {
 
 constexpr std::uint32_t kMaterialTextureSlotCount = 5;
 constexpr std::uint32_t kMaterialDescriptorSetCapacity = 1024;
-constexpr std::uint32_t kSkinDrawDescriptorSetCapacity = 512;
 
 bool valid_image_format(stellar::assets::ImageFormat format) noexcept {
     switch (format) {
@@ -156,19 +155,6 @@ stellar::graphics::TextureUpload make_default_texture_upload(const char* name,
     };
 }
 
-std::array<float, 16> normal_matrix4(const std::array<float, 9>& normal) noexcept {
-    return {normal[0], normal[1], normal[2], 0.0F,
-            normal[3], normal[4], normal[5], 0.0F,
-            normal[6], normal[7], normal[8], 0.0F,
-            0.0F, 0.0F, 0.0F, 1.0F};
-}
-
-std::array<float, 16> identity_matrix4() noexcept {
-    return {1.0F, 0.0F, 0.0F, 0.0F,
-            0.0F, 1.0F, 0.0F, 0.0F,
-            0.0F, 0.0F, 1.0F, 0.0F,
-            0.0F, 0.0F, 0.0F, 1.0F};
-}
 
 } // namespace
 
@@ -198,34 +184,12 @@ VulkanGraphicsDevice::create_mesh(const stellar::assets::MeshAsset& mesh) {
             return std::unexpected(stellar::platform::Error("Mesh primitive index is out of range"));
         }
 
-        std::uint16_t max_joint_index = 0;
-        if (primitive.has_skinning) {
-            for (const stellar::assets::StaticVertex& vertex : primitive.vertices) {
-                for (std::uint16_t joint : vertex.joints0) {
-                    if (joint >= kMaxSkinPaletteJoints) {
-                        destroy_mesh_record(record);
-                        return std::unexpected(stellar::platform::Error(
-                            "Mesh primitive skin joint index exceeds 256-joint runtime cap"));
-                    }
-                    max_joint_index = std::max(max_joint_index, joint);
-                }
-                for (float weight : vertex.weights0) {
-                    if (!std::isfinite(weight)) {
-                        destroy_mesh_record(record);
-                        return std::unexpected(stellar::platform::Error(
-                            "Mesh primitive skin weight is not finite"));
-                    }
-                }
-            }
-        }
 
         MeshPrimitiveRecord primitive_record{
             .vertex_count = primitive.vertices.size(),
             .index_count = primitive.indices.size(),
             .has_tangents = primitive.has_tangents,
             .has_colors = primitive.has_colors,
-            .has_skinning = primitive.has_skinning,
-            .max_joint_index = max_joint_index,
         };
 
         primitive_record.vertex_buffer_size = static_cast<VkDeviceSize>(
@@ -420,192 +384,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
         return std::unexpected(vulkan_error("vkCreateDescriptorSetLayout", result));
     }
 
-    const VkDescriptorSetLayoutBinding skin_draw_binding{
-        .binding = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-    };
-    const VkDescriptorSetLayoutCreateInfo skin_draw_layout_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &skin_draw_binding,
-    };
-    result = vkCreateDescriptorSetLayout(device_, &skin_draw_layout_info, nullptr,
-                                          &skin_draw_descriptor_set_layout_);
-    if (result != VK_SUCCESS) {
-        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
-            material_descriptor_set_layout_ = VK_NULL_HANDLE;
-        }
-        return std::unexpected(vulkan_error("vkCreateDescriptorSetLayout", result));
-    }
-
-    const VkDescriptorPoolSize pool_sizes[2]{
-        VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                             .descriptorCount = kMaterialDescriptorSetCapacity *
-                                 kMaterialTextureSlotCount},
-        VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                             .descriptorCount = kMaterialDescriptorSetCapacity},
-    };
-    const VkDescriptorPoolCreateInfo pool_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = kMaterialDescriptorSetCapacity,
-        .poolSizeCount = 2,
-        .pPoolSizes = pool_sizes,
-    };
-    result = vkCreateDescriptorPool(device_, &pool_info, nullptr, &material_descriptor_pool_);
-    if (result != VK_SUCCESS) {
-        if (skin_draw_descriptor_set_layout_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(device_, skin_draw_descriptor_set_layout_, nullptr);
-            skin_draw_descriptor_set_layout_ = VK_NULL_HANDLE;
-        }
-        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
-            material_descriptor_set_layout_ = VK_NULL_HANDLE;
-        }
-        return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
-    }
-    const VkDescriptorPoolSize skin_draw_pool_size{
-        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = kSkinDrawDescriptorSetCapacity,
-    };
-    const VkDescriptorPoolCreateInfo skin_draw_pool_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = kSkinDrawDescriptorSetCapacity,
-        .poolSizeCount = 1,
-        .pPoolSizes = &skin_draw_pool_size,
-    };
-    result = vkCreateDescriptorPool(device_, &skin_draw_pool_info, nullptr,
-                                    &skin_draw_descriptor_pool_);
-    if (result != VK_SUCCESS) {
-        if (material_descriptor_pool_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(device_, material_descriptor_pool_, nullptr);
-            material_descriptor_pool_ = VK_NULL_HANDLE;
-        }
-        if (skin_draw_descriptor_set_layout_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(device_, skin_draw_descriptor_set_layout_, nullptr);
-            skin_draw_descriptor_set_layout_ = VK_NULL_HANDLE;
-        }
-        if (material_descriptor_set_layout_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(device_, material_descriptor_set_layout_, nullptr);
-            material_descriptor_set_layout_ = VK_NULL_HANDLE;
-        }
-        return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
-    }
     return {};
-}
-
-std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_skin_draw_resources() {
-    if (frames_.empty()) {
-        return std::unexpected(stellar::platform::Error("Vulkan frame resources are missing"));
-    }
-    const VkDeviceSize slot_size = static_cast<VkDeviceSize>(sizeof(VulkanSkinDrawUniform));
-    const VkDeviceSize buffer_size = slot_size * kSkinDrawUniformSlotsPerFrame;
-    for (FrameResources& frame : frames_) {
-        if (auto result = create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                        frame.skin_draw_uniform_buffer,
-                                        frame.skin_draw_uniform_memory);
-            !result) {
-            for (FrameResources& cleanup_frame : frames_) {
-                destroy_buffer_immediate(cleanup_frame.skin_draw_uniform_buffer,
-                                         cleanup_frame.skin_draw_uniform_memory);
-                cleanup_frame.skin_draw_descriptor_sets.clear();
-                cleanup_frame.skin_draw_upload_cursor = 0;
-            }
-            return std::unexpected(result.error());
-        }
-
-        frame.skin_draw_descriptor_sets.resize(kSkinDrawUniformSlotsPerFrame);
-        std::vector<VkDescriptorSetLayout> layouts(kSkinDrawUniformSlotsPerFrame,
-                                                   skin_draw_descriptor_set_layout_);
-        const VkDescriptorSetAllocateInfo allocate_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = skin_draw_descriptor_pool_,
-            .descriptorSetCount = static_cast<std::uint32_t>(layouts.size()),
-            .pSetLayouts = layouts.data(),
-        };
-        VkResult result = vkAllocateDescriptorSets(device_, &allocate_info,
-                                                   frame.skin_draw_descriptor_sets.data());
-        if (result != VK_SUCCESS) {
-            for (FrameResources& cleanup_frame : frames_) {
-                destroy_buffer_immediate(cleanup_frame.skin_draw_uniform_buffer,
-                                         cleanup_frame.skin_draw_uniform_memory);
-                cleanup_frame.skin_draw_descriptor_sets.clear();
-                cleanup_frame.skin_draw_upload_cursor = 0;
-            }
-            return std::unexpected(vulkan_error("vkAllocateDescriptorSets", result));
-        }
-
-        std::vector<VkDescriptorBufferInfo> buffer_infos(kSkinDrawUniformSlotsPerFrame);
-        std::vector<VkWriteDescriptorSet> writes(kSkinDrawUniformSlotsPerFrame);
-        for (std::size_t slot = 0; slot < kSkinDrawUniformSlotsPerFrame; ++slot) {
-            buffer_infos[slot] = VkDescriptorBufferInfo{
-                .buffer = frame.skin_draw_uniform_buffer,
-                .offset = static_cast<VkDeviceSize>(slot) * slot_size,
-                .range = slot_size,
-            };
-            writes[slot] = VkWriteDescriptorSet{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame.skin_draw_descriptor_sets[slot],
-                .dstBinding = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &buffer_infos[slot],
-            };
-        }
-        vkUpdateDescriptorSets(device_, static_cast<std::uint32_t>(writes.size()), writes.data(),
-                               0, nullptr);
-    }
-    return {};
-}
-
-std::expected<VkDescriptorSet, stellar::platform::Error>
-VulkanGraphicsDevice::upload_skin_draw_uniform(
-    FrameResources& frame,
-    const MeshDrawTransforms& transforms,
-    std::span<const std::array<float, 16>> skin_joint_matrices,
-    bool has_skinning) {
-    if (frame.skin_draw_uniform_buffer == VK_NULL_HANDLE ||
-        frame.skin_draw_uniform_memory == VK_NULL_HANDLE ||
-        frame.skin_draw_descriptor_sets.empty()) {
-        return std::unexpected(stellar::platform::Error("Vulkan skin draw descriptors are missing"));
-    }
-    if (frame.skin_draw_upload_cursor >= frame.skin_draw_descriptor_sets.size()) {
-        return std::unexpected(stellar::platform::Error(
-            "Vulkan skin draw uniform capacity exceeded for this frame"));
-    }
-    if (skin_joint_matrices.size() > kMaxSkinPaletteJoints) {
-        return std::unexpected(stellar::platform::Error(
-            "Vulkan skin joint count exceeds 256-joint runtime cap; skipping skinned primitive"));
-    }
-
-    VulkanSkinDrawUniform uniform{};
-    uniform.mvp = transforms.mvp;
-    uniform.world = transforms.world;
-    uniform.normal = normal_matrix4(transforms.normal);
-    uniform.has_skinning = has_skinning ? 1U : 0U;
-    uniform.joint_count = static_cast<std::uint32_t>(skin_joint_matrices.size());
-    const auto identity = identity_matrix4();
-    uniform.joint_matrices.fill(identity);
-    for (std::size_t index = 0; index < skin_joint_matrices.size(); ++index) {
-        uniform.joint_matrices[index] = skin_joint_matrices[index];
-    }
-
-    const std::size_t slot = frame.skin_draw_upload_cursor++;
-    void* mapped = nullptr;
-    const VkDeviceSize offset = static_cast<VkDeviceSize>(slot * sizeof(VulkanSkinDrawUniform));
-    VkResult result = vkMapMemory(device_, frame.skin_draw_uniform_memory, offset,
-                                  sizeof(VulkanSkinDrawUniform), 0, &mapped);
-    if (result != VK_SUCCESS) {
-        return std::unexpected(vulkan_error("vkMapMemory", result));
-    }
-    std::memcpy(mapped, &uniform, sizeof(uniform));
-    vkUnmapMemory(device_, frame.skin_draw_uniform_memory);
-    return frame.skin_draw_descriptor_sets[slot];
 }
 
 std::expected<void, stellar::platform::Error>

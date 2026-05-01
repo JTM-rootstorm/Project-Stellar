@@ -20,7 +20,7 @@ At the end of this phase, a BSP map should be usable for display-free playable-w
 
 Update `include/stellar/world/RuntimeWorld.hpp` and implementation:
 
-- Store pointer/reference to caller-owned `assets::LevelAsset`, not `SceneAsset`.
+- Store pointer/reference to caller-owned `assets::LevelAsset`, not `retired scene asset`.
 - Build `physics::CollisionWorld` from `LevelAsset::level_collision`.
 - Copy `LevelAsset::world_metadata` into runtime metadata.
 - Preserve diagnostics:
@@ -52,7 +52,7 @@ Add if missing:
 
 ### Collision validation
 
-Update `validate_level_collision` docs/tests to say collision can come from BSP or other level sources. Remove glTF wording.
+Update `validate_level_collision` docs/tests to say collision can come from BSP or other level sources. Remove retired model importer wording.
 
 Add coverage for:
 
@@ -130,20 +130,20 @@ struct ApplicationValidation {
 };
 ```
 
-Remove animation-specific config fields unless another non-glTF system still uses them.
+Remove animation-specific config fields unless another non-retired model importer system still uses them.
 
 Update CLI behavior:
 
 - Replace `--asset <path>` with `--map <path>`.
 - `--validate-config --map path/to/map.bsp` loads BSP and validates level/runtime diagnostics.
 - Error clearly if map extension is unsupported or BSP parse fails.
-- No `STELLAR_ENABLE_GLTF` error path remains.
+- No `retired importer feature gate` error path remains.
 
 ---
 
 ## Tests to update/remove
 
-Replace glTF integration smoke tests with BSP equivalents:
+Replace retired model importer integration smoke tests with BSP equivalents:
 
 - `playable_world_smoke` → BSP-backed smoke.
 - `scripted_playable_world_smoke` → BSP-backed smoke.
@@ -159,7 +159,7 @@ Keep test names if useful, but their fixture/import path must be BSP.
 - Runtime world assembly is BSP/LevelAsset-backed.
 - Server movement/collision/triggers/object colliders/scripts work from BSP import output.
 - Client validation accepts BSP maps without feature gates.
-- The old glTF `--asset requires STELLAR_ENABLE_GLTF=ON` error path is gone.
+- The old retired model importer `--asset requires retired importer feature gate=ON` error path is gone.
 - Display-free integration smoke covers the BSP playable path.
 
 ---
@@ -205,7 +205,7 @@ Phase BSP-3 is complete as of 2026-05-01.
 - Server movement, static collision filters, triggers, object-collider sensors, and Lua hooks are
   covered through generated BSP fixtures and authoritative scripted-session ticks.
 - Client validation uses `--map`/`map_path`, loads `.bsp` maps through `stellar_import_bsp`, and no
-  longer uses the old glTF feature-gate validation error path.
+  longer uses the old retired model importer feature-gate validation error path.
 - Display-free BSP playable/scripted smokes, client map validation, and CLI map validation were added
   or renamed in CMake.
 

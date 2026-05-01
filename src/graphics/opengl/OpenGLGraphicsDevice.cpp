@@ -23,19 +23,10 @@ layout(location = 2) in vec2 a_uv0;
 layout(location = 3) in vec4 a_tangent;
 layout(location = 4) in vec2 a_uv1;
 layout(location = 5) in vec4 a_color;
-layout(location = 6) in uvec4 a_joints0;
-layout(location = 7) in vec4 a_weights0;
 
 uniform mat4 u_mvp;
 uniform mat4 u_model;
 uniform mat3 u_normal_matrix;
-uniform bool u_has_skinning;
-uniform uint u_joint_count;
-
-layout(std430, binding = 0) readonly buffer SkinPalette {
-    mat4 u_joint_matrices[];
-};
-
 out vec2 v_uv0;
 out vec2 v_uv1;
 out vec3 v_normal;
@@ -43,21 +34,13 @@ out vec4 v_tangent;
 out vec4 v_color;
 
 void main() {
-    mat4 skin = mat4(1.0);
-    if (u_has_skinning) {
-        skin = a_weights0.x * u_joint_matrices[min(a_joints0.x, u_joint_count - 1u)] +
-            a_weights0.y * u_joint_matrices[min(a_joints0.y, u_joint_count - 1u)] +
-            a_weights0.z * u_joint_matrices[min(a_joints0.z, u_joint_count - 1u)] +
-            a_weights0.w * u_joint_matrices[min(a_joints0.w, u_joint_count - 1u)];
-    }
-    vec4 local_position = skin * vec4(a_position, 1.0);
-    mat3 skinned_normal_matrix = mat3(skin);
+    vec4 world_position = u_model * vec4(a_position, 1.0);
     v_uv0 = a_uv0;
     v_uv1 = a_uv1;
-    v_normal = normalize(u_normal_matrix * skinned_normal_matrix * a_normal);
-    v_tangent = vec4(mat3(u_model) * skinned_normal_matrix * a_tangent.xyz, a_tangent.w);
+    v_normal = normalize(u_normal_matrix * a_normal);
+    v_tangent = vec4(mat3(u_model) * a_tangent.xyz, a_tangent.w);
     v_color = a_color;
-    gl_Position = u_mvp * local_position;
+    gl_Position = u_mvp * vec4(a_position, 1.0);
 }
 )";
 
@@ -370,14 +353,8 @@ OpenGLGraphicsDevice::~OpenGLGraphicsDevice() noexcept {
     mvp_loc_ = -1;
     model_loc_ = -1;
     normal_matrix_loc_ = -1;
-    has_skinning_loc_ = -1;
-    joint_count_loc_ = -1;
   }
 
-  if (skin_palette_buffer_ != 0) {
-    glDeleteBuffers(1, &skin_palette_buffer_);
-    skin_palette_buffer_ = 0;
-  }
 
   for (auto &[handle, record] : meshes_) {
     (void)handle;
@@ -441,9 +418,6 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   mvp_loc_ = glGetUniformLocation(shader_program_, "u_mvp");
   model_loc_ = glGetUniformLocation(shader_program_, "u_model");
   normal_matrix_loc_ = glGetUniformLocation(shader_program_, "u_normal_matrix");
-  has_skinning_loc_ = glGetUniformLocation(shader_program_, "u_has_skinning");
-  joint_count_loc_ = glGetUniformLocation(shader_program_, "u_joint_count");
-  glGenBuffers(1, &skin_palette_buffer_);
   glUseProgram(0);
 
   glEnable(GL_DEPTH_TEST);
@@ -477,27 +451,6 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset &mesh) {
           stellar::platform::Error("Mesh primitive is empty"));
     }
 
-    std::uint16_t max_joint_index = 0;
-    if (primitive.has_skinning) {
-      for (const stellar::assets::StaticVertex &vertex : primitive.vertices) {
-        for (std::uint16_t joint : vertex.joints0) {
-          if (joint >= kMaxSkinPaletteJoints) {
-            destroy_mesh_record(record);
-            return std::unexpected(
-                stellar::platform::Error("Mesh primitive skin joint index "
-                                         "exceeds 256-joint runtime cap"));
-          }
-          max_joint_index = std::max(max_joint_index, joint);
-        }
-        for (float weight : vertex.weights0) {
-          if (!std::isfinite(weight)) {
-            destroy_mesh_record(record);
-            return std::unexpected(stellar::platform::Error(
-                "Mesh primitive skin weight is not finite"));
-          }
-        }
-      }
-    }
 
     MeshPrimitiveGpu gpu_primitive;
     glGenVertexArrays(1, &gpu_primitive.vao);
@@ -552,25 +505,12 @@ OpenGLGraphicsDevice::create_mesh(const stellar::assets::MeshAsset &mesh) {
                               offsetof(stellar::assets::StaticVertex, color)));
     glEnableVertexAttribArray(5);
 
-    glVertexAttribIPointer(6, 4, GL_UNSIGNED_SHORT,
-                           sizeof(stellar::assets::StaticVertex),
-                           reinterpret_cast<void *>(offsetof(
-                               stellar::assets::StaticVertex, joints0)));
-    glEnableVertexAttribArray(6);
-
-    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE,
-                          sizeof(stellar::assets::StaticVertex),
-                          reinterpret_cast<void *>(offsetof(
-                              stellar::assets::StaticVertex, weights0)));
-    glEnableVertexAttribArray(7);
 
     glBindVertexArray(0);
 
     gpu_primitive.index_count = static_cast<int>(primitive.indices.size());
     gpu_primitive.has_tangents = primitive.has_tangents;
     gpu_primitive.has_colors = primitive.has_colors;
-    gpu_primitive.has_skinning = primitive.has_skinning;
-    gpu_primitive.max_joint_index = max_joint_index;
     record.primitives.push_back(gpu_primitive);
   }
 
@@ -687,31 +627,6 @@ void OpenGLGraphicsDevice::draw_mesh(
     }
     const auto &primitive = it->second.primitives[primitive_index];
     const MaterialHandle material_handle = command.material;
-    const std::size_t joint_count = command.skin_joint_matrices.size();
-    const bool use_skinning = primitive.has_skinning &&
-                              !command.skin_joint_matrices.empty() &&
-                              joint_count <= kMaxSkinPaletteJoints &&
-                              joint_count > primitive.max_joint_index;
-    if (primitive.has_skinning && !command.skin_joint_matrices.empty() &&
-        (joint_count > kMaxSkinPaletteJoints ||
-         joint_count <= primitive.max_joint_index)) {
-      continue;
-    }
-    if (has_skinning_loc_ >= 0) {
-      glUniform1i(has_skinning_loc_, use_skinning ? 1 : 0);
-    }
-    if (joint_count_loc_ >= 0) {
-      glUniform1ui(joint_count_loc_, static_cast<GLuint>(joint_count));
-    }
-    if (use_skinning && skin_palette_buffer_ != 0) {
-      glBindBuffer(GL_SHADER_STORAGE_BUFFER, skin_palette_buffer_);
-      glBufferData(
-          GL_SHADER_STORAGE_BUFFER,
-          static_cast<GLsizeiptr>(joint_count * sizeof(std::array<float, 16>)),
-          command.skin_joint_matrices.data(), GL_STREAM_DRAW);
-      glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, skin_palette_buffer_);
-      glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    }
 
     const auto material_it = materials_.find(material_handle.value);
     const MaterialRecord *material =

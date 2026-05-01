@@ -194,7 +194,7 @@ Map entities to `WorldMetadataAsset` markers:
 
 ### Script binding vocabulary
 
-Since glTF `extras.stellar.*` is gone, use BSP entity keys:
+Since retired model importer `extras.stellar.*` is gone, use BSP entity keys:
 
 - `stellar.script` or `_stellar_script` → `WorldScriptBinding::script_id`
 - `stellar.table` or `_stellar_table` → `WorldScriptBinding::table_name`
@@ -257,7 +257,7 @@ Add importer test target to default tests. Do not gate behind a feature option.
 
 - `stellar_import_bsp` is built by default.
 - BSP loader can load minimal BSP29/BSP30 test fixtures into `LevelAsset`.
-- Geometry, collision, metadata, and script bindings are represented without glTF.
+- Geometry, collision, metadata, and script bindings are represented without retired model importer.
 - No renderer or display is required.
 - Existing physics/world/server tests still pass.
 

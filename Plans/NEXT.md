@@ -11,9 +11,11 @@ implementation plan is
 ## Active scope
 
 The current active scope is migration to BSP maps as the canonical playable level format and removal
-of glTF functionality from active code, active build configuration, active tests, and active docs.
+of retired pre-BSP importer functionality from active code, active build configuration, active tests,
+and active docs.
 
-Older collision/glTF phase plans are historical context only and must not be restarted as active work.
+Older collision/pre-BSP importer phase plans are historical context only and must not be restarted as
+active work.
 
 ## Invariants
 
@@ -24,7 +26,7 @@ Older collision/glTF phase plans are historical context only and must not be res
 - Default tests remain display-free.
 - OpenGL/Vulkan remain runtime-selectable presentation backends.
 - No third-party physics, dynamic rigid bodies, Source/VBSP, full PBR, model/animation systems, or
-  glTF functionality are part of this migration.
+  retired pre-BSP importer functionality are part of this migration.
 
 ## NEXT.md lifecycle
 

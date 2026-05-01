@@ -9,7 +9,7 @@
 namespace stellar::assets {
 
 /**
- * @brief Texture minification or magnification filter imported from a glTF sampler.
+ * @brief Texture minification or magnification filter for imported sampler data.
  */
 enum class TextureFilter {
     kUnspecified,
@@ -22,7 +22,7 @@ enum class TextureFilter {
 };
 
 /**
- * @brief Texture coordinate wrapping mode imported from a glTF sampler.
+ * @brief Texture coordinate wrapping mode for imported sampler data.
  */
 enum class TextureWrapMode {
     kClampToEdge,
@@ -60,7 +60,7 @@ struct TextureAsset {
 };
 
 /**
- * @brief KHR_texture_transform state for a material texture slot.
+ * @brief Texture transform state for a material texture slot.
  */
 struct TextureTransform {
     /** @brief UV offset applied after rotation and scale. */
@@ -72,15 +72,15 @@ struct TextureTransform {
     /** @brief Non-uniform UV scale applied before rotation. */
     std::array<float, 2> scale{1.0f, 1.0f};
 
-    /** @brief Optional texture coordinate set override from the extension. */
+    /** @brief Optional texture coordinate set override. */
     std::optional<std::uint32_t> texcoord_set;
 
-    /** @brief True when KHR_texture_transform was present on the slot. */
+    /** @brief True when a texture transform is present on the slot. */
     bool enabled = false;
 };
 
 /**
- * @brief Material reference to an engine texture plus the glTF texture coordinate set.
+ * @brief Material reference to an engine texture plus the texture coordinate set.
  */
 struct MaterialTextureSlot {
     std::size_t texture_index = 0;

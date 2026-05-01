@@ -187,7 +187,6 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
         reset_frame_state_after_failed_recording();
         return;
     }
-    frame.skin_draw_upload_cursor = 0;
 
     const VkCommandBufferBeginInfo command_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -248,18 +247,6 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
             continue;
         }
 
-        const bool use_skinning = primitive.has_skinning && !command.skin_joint_matrices.empty();
-        if (command.skin_joint_matrices.size() > kMaxSkinPaletteJoints) {
-            log_vulkan_message(
-                "Vulkan skin joint count exceeds 256-joint runtime cap; skipping skinned primitive");
-            continue;
-        }
-        if (use_skinning && command.skin_joint_matrices.size() <= primitive.max_joint_index) {
-            log_vulkan_message(
-                "Vulkan skin joint palette is smaller than primitive joint indices; "
-                "skipping skinned primitive");
-            continue;
-        }
 
         const auto material_it = materials_.find(command.material.value);
         const MaterialRecord* material = material_it != materials_.end() ? &material_it->second
@@ -337,17 +324,6 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         if (descriptor_set == VK_NULL_HANDLE) {
             continue;
         }
-        auto skin_draw_descriptor_set = upload_skin_draw_uniform(
-            frames_[current_frame_index_], transforms, command.skin_joint_matrices, use_skinning);
-        if (!skin_draw_descriptor_set) {
-            log_vulkan_message(skin_draw_descriptor_set.error().message);
-            continue;
-        }
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-        const VkDescriptorSet vertex_descriptor_set = *skin_draw_descriptor_set;
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_layout_, 1, 1, &vertex_descriptor_set, 0, nullptr);
         vkCmdPushConstants(command_buffer, pipeline_layout_,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                            sizeof(VulkanDrawPushConstants), &push_constants);

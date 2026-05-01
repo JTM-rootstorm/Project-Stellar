@@ -10,7 +10,7 @@
 namespace stellar::assets {
 
 /**
- * @brief Alpha blending mode used by glTF-compatible materials.
+ * @brief Alpha blending mode used by backend-neutral materials.
  */
 enum class AlphaMode {
     kOpaque,
@@ -36,7 +36,7 @@ struct MaterialAsset {
     AlphaMode alpha_mode = AlphaMode::kOpaque;
     float alpha_cutoff = 0.5f;
     bool double_sided = false;
-    /** @brief True when KHR_materials_unlit disables lighting for this material. */
+    /** @brief True when lighting is disabled for this material. */
     bool unlit = false;
 };
 

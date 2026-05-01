@@ -41,8 +41,8 @@ The engine uses a client-server architecture: game logic and authoritative state
 server, while the client handles rendering, audio, input capture, and presentation.
 
 The current engine direction is not to become a full physically based renderer. BSP maps are
-the canonical playable level source, and the current implementation is migrating from the
-previous glTF-shaped `SceneAsset` path toward BSP-backed, source-neutral `LevelAsset` data.
+the canonical playable level source, and the current implementation is migrating from the previous
+scene-asset path toward BSP-backed, source-neutral `LevelAsset` data.
 The rendering target is lightweight OpenGL/Vulkan BSP surface/material and billboard parity
 suitable for game content.
 
@@ -127,7 +127,7 @@ Completed Phase 10 implementation order:
 4. **Phase 10D — Scripted Session Wrapper**
    - Add `ScriptedWorldSession` as the script-capable wrapper around native `WorldSession`.
 5. **Phase 10E — Documentation and Playable Integration Smoke**
-   - Validate the authored glTF -> runtime world -> scripted authoritative trigger path in a
+   - Validate the authored pre-BSP level -> runtime world -> scripted authoritative trigger path in a
      display-free integration smoke.
 
 Completed Phase 11 implementation order:
@@ -163,7 +163,7 @@ Completed Phase 12 implementation order:
    - Invoke `on_object_collider_enter/stay/exit` hooks and validate/apply
      `object_collider.set_enabled` script output events by collider id.
 5. **Phase 12E — Scripted Object Collider Smoke and Documentation**
-   - Validate the authored glTF -> runtime world -> authoritative movement -> Lua hook -> native
+   - Validate the authored pre-BSP level -> runtime world -> authoritative movement -> Lua hook -> native
      command path without requiring display, GPU, renderer, network, or third-party physics.
 
 Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
@@ -836,7 +836,7 @@ Project-Stellar/
 │   ├── Phase6A-LevelCollisionExtraction.md
 │   ├── Phase6B-CollisionQueriesAndMovement.md
 │   ├── Phase6C-BillboardSpriteRendering.md
-│   └── Phase6D-WorldMetadataFromGltf.md
+│   └── Phase6D-WorldMetadataFromPreBspImporter.md
 ├── docs/
 │   ├── Design.md
 │   └── ImplementationStatus.md
@@ -1210,7 +1210,7 @@ Deferred unless scoped:
 | 2026-04-23 | 0.1.1 | TBD | Replace SDL2 with SFML for windowing and input |
 | 2026-04-23 | 0.1.2 | TBD | Add miniaudio for 3D spatial audio, update build to support C and C++ |
 | 2026-04-24 | 0.1.3 | TBD | Replace SFML with SDL2 for windowing and input |
-| 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, current glTF support, and explicit deferred work |
+| 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, then-current importer support, and explicit deferred work |
 | 2026-04-30 | 0.1.5 | Kilo | Align design with `lua-scripting` branch status, Phase 10 server-authoritative Lua scripting, `stellar_scripting`, scripted session smoke coverage, dependency/build/test updates, and deferred client/entity scripting work |
 | 2026-04-30 | 0.1.6 | Kilo | Align design with Phase 11 scripted collision behavior: runtime collision state, filtered authoritative movement, native script collision commands, object collider registry foundation, and scripted collision smoke coverage |
 | 2026-05-01 | 0.2.0 | Kilo | Lock active design direction to BSP maps as the canonical playable level format and begin migration from scene-shaped assets to `LevelAsset` |

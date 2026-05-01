@@ -10,7 +10,7 @@ Parallelizable: no for shared headers; this phase creates the contract other age
 
 ## Goal
 
-Replace the glTF-shaped `SceneAsset` runtime contract with a source-neutral `LevelAsset` contract suitable for BSP maps.
+Replace the retired model importer-shaped `retired scene asset` runtime contract with a source-neutral `LevelAsset` contract suitable for BSP maps.
 
 This phase should compile and pass tests using synthetic in-memory `LevelAsset` data before a BSP binary parser exists.
 
@@ -31,7 +31,7 @@ Create a canonical level asset model that can represent:
 - surface/material names,
 - optional lightmap/visibility data placeholders.
 
-Do not keep the old glTF `SceneAsset` shape as the canonical runtime input.
+Do not keep the old retired model importer `retired scene asset` shape as the canonical runtime input.
 
 ---
 
@@ -90,12 +90,12 @@ Adjust names if needed, but keep the concepts above.
 
 ### Update `include/stellar/assets/WorldMetadataAsset.hpp`
 
-Keep the existing marker model but remove glTF-specific wording.
+Keep the existing marker model but remove retired model importer-specific wording.
 
 Required changes:
 
 - “authored world marker” stays.
-- Script binding docs no longer mention glTF `extras`.
+- Script binding docs no longer mention retired model importer `extras`.
 - Add `std::vector<std::pair<std::string, std::string>>` or equivalent key/value preservation only if needed for BSP entity metadata. Prefer a compact `std::vector<WorldEntityProperty>` if public API clarity matters.
 
 Recommended addition:
@@ -119,7 +119,7 @@ Keep current triangle collision data. Extend only if needed for BSP clip hulls.
 Required minimum:
 
 - Preserve `CollisionTriangle`, `CollisionMesh`, and `LevelCollisionAsset` so existing movement tests continue to pass.
-- Remove comments tying collision extraction to glTF.
+- Remove comments tying collision extraction to retired model importer.
 - Allow collision meshes to be sourced from BSP models/entities by name.
 
 Optional but recommended now:
@@ -141,28 +141,28 @@ struct CollisionHull {
 
 Do not force the character controller to use hulls in this phase. This phase defines asset capacity.
 
-### Replace `SceneAsset` usage at API boundaries
+### Replace `retired scene asset` usage at API boundaries
 
-Transition public runtime APIs from `SceneAsset` to `LevelAsset`:
+Transition public runtime APIs from `retired scene asset` to `LevelAsset`:
 
 - `RuntimeWorld::scene_asset` should become `RuntimeWorld::level_asset` or equivalent.
-- `build_runtime_world(const SceneAsset&)` should become `build_runtime_world(const LevelAsset&)`.
+- `build_runtime_world(const retired scene asset&)` should become `build_runtime_world(const LevelAsset&)`.
 - Client validation should prepare for `LevelAsset` output, but BSP loading can remain stubbed until Phase 2.
 
-Do not delete the glTF importer yet in this phase if deletion breaks unrelated code. Deletion is Phase 5.
+Do not delete the retired model importer importer yet in this phase if deletion breaks unrelated code. Deletion is Phase 5.
 
 ---
 
 ## Handling current MeshAsset / Scene / Animation types
 
-The current `MeshAsset` can remain as the static geometry upload payload, but remove glTF-specific comments when touched.
+The current `MeshAsset` can remain as the static geometry upload payload, but remove retired model importer-specific comments when touched.
 
 Recommended cleanup rules:
 
 - Keep `StaticVertex`, `MeshPrimitive`, and `MeshAsset` if they are still useful for BSP surface rendering.
-- Remove or defer `SkinAsset`, `AnimationAsset`, and `scene::SceneGraph` only after BSP rendering no longer depends on them.
+- Remove or defer `retired skin asset`, `retired animation asset`, and `scene::SceneGraph` only after BSP rendering no longer depends on them.
 - Do not add a new model/skinning path.
-- Do not retain glTF wording in public API comments.
+- Do not retain retired model importer wording in public API comments.
 
 ---
 
@@ -178,17 +178,17 @@ Add/adjust display-free tests:
   - trigger marker,
   - sprite marker,
   - object collider marker.
-- Existing collision, trigger, object-collider, scripting, and server tests should compile after replacing `SceneAsset` construction with `LevelAsset` construction.
+- Existing collision, trigger, object-collider, scripting, and server tests should compile after replacing `retired scene asset` construction with `LevelAsset` construction.
 
 ---
 
 ## Acceptance criteria
 
 - `LevelAsset` is the canonical runtime world input.
-- `RuntimeWorld` no longer needs a glTF-shaped `SceneAsset` to assemble collision and metadata.
+- `RuntimeWorld` no longer needs a retired model importer-shaped `retired scene asset` to assemble collision and metadata.
 - Existing display-free world/server/physics/scripting tests pass with synthetic `LevelAsset` data.
 - No BSP parser is required yet.
-- No glTF deletion is required yet, but new code must not add glTF assumptions.
+- No retired model importer deletion is required yet, but new code must not add retired model importer assumptions.
 
 ---
 
@@ -201,7 +201,7 @@ ctest --test-dir build -R '^(runtime_world|collision_world|character_controller|
 ctest --test-dir build --output-on-failure
 ```
 
-If glTF tests still exist during this phase, they may fail until later phases. Prefer updating CMake so default tests stay meaningful rather than allowing known failures.
+If retired model importer tests still exist during this phase, they may fail until later phases. Prefer updating CMake so default tests stay meaningful rather than allowing known failures.
 
 ---
 
@@ -213,7 +213,7 @@ Add to `docs/ImplementationStatus.md`:
 Phase BSP-1 is complete as of YYYY-MM-DD:
 
 - Added source-neutral `LevelAsset` as the canonical runtime level input.
-- Moved runtime world assembly off glTF-shaped `SceneAsset` assumptions.
+- Moved runtime world assembly off retired model importer-shaped `retired scene asset` assumptions.
 - Preserved existing backend-neutral collision, trigger, object-collider, scripting, and server-authority seams.
 - Updated synthetic display-free tests to construct runtime worlds from `LevelAsset`.
 

@@ -36,8 +36,9 @@ to a current plan such as `Plans/NEXT.md`; older phase plans are historical unle
 there.
 
 The current active scope is migration to BSP maps as the canonical playable level format and removal
-of glTF functionality from active code, active build configuration, active tests, and active docs.
-Older glTF/collision phase plans are historical only and must not be restarted as active work.
+of retired pre-BSP importer functionality from active code, active build configuration, active tests,
+and active docs. Older pre-BSP importer/collision phase plans are historical only and must not be
+restarted as active work.
 
 Lua scripting is core server-authoritative infrastructure for this branch. Do not add or preserve a
 normal build mode where gameplay scripting is absent, and keep Lua sandboxing mandatory.

@@ -10,7 +10,7 @@ Parallelizable: no for final docs; targeted fixes can be assigned by `@director`
 
 ## Goal
 
-Harden the BSP migration, verify active glTF removal, archive completed plan files, and rewrite `Plans/NEXT.md` so it points to the next active scope rather than completed BSP migration work.
+Harden the BSP migration, verify active retired model importer removal, archive completed plan files, and rewrite `Plans/NEXT.md` so it points to the next active scope rather than completed BSP migration work.
 
 ---
 
@@ -35,7 +35,7 @@ ctest --test-dir build -R '^(bsp_|runtime_world|collision_world|character_contro
 Run active-reference cleanup:
 
 ```bash
-rg -n -i "gltf|cgltf|STELLAR_ENABLE_GLTF" \
+rg -n -i "retired model importer|retired parser dependency|retired importer feature gate" \
   --glob '!Plans/Archived/**' \
   --glob '!build*/**'
 ```
@@ -47,13 +47,13 @@ Expected: no active hits.
 Verify:
 
 - BSP is built by default.
-- There is no glTF build option.
+- There is no retired model importer build option.
 - Client uses map/BSP terminology.
 - Runtime world consumes `LevelAsset`.
 - Server movement/collision/triggers/object colliders/scripts still operate display-free.
-- Renderer no longer depends on glTF scene graph/animation/skinning.
+- Renderer no longer depends on retired model importer scene graph/animation/skinning.
 - Billboard sprites still render through source-neutral draw data.
-- Docs do not call glTF a future or active requirement.
+- Docs do not call retired model importer a future or active requirement.
 
 ---
 
@@ -67,7 +67,7 @@ Ensure final design says:
 - Levels use 3D BSP geometry and 2D billboard entities/objects/props.
 - BSP import produces static geometry, collision, metadata, triggers, object-collider sensors, and script bindings.
 - Lua scripting is server-authoritative.
-- glTF has been removed from active engine scope.
+- retired model importer has been removed from active engine scope.
 - Source/VBSP, moving brush simulation, external WAD/tooling polish, PVS hardening, dynamic bodies, navmesh, and full PBR are deferred unless later requested.
 
 ### `docs/ImplementationStatus.md`
@@ -92,7 +92,7 @@ Suggested deferred items:
 
 ### `AGENTS.md`
 
-Verify no active glTF routing references remain. Keep no-new-agents and director-only-delegation rules unchanged.
+Verify no active retired model importer routing references remain. Keep no-new-agents and director-only-delegation rules unchanged.
 
 ---
 
@@ -128,7 +128,7 @@ Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
 
 ## Post-BSP state
 
-BSP maps are now the canonical playable level format. glTF functionality has been removed from active
+BSP maps are now the canonical playable level format. retired model importer functionality has been removed from active
 code, build configuration, tests, and active docs. Runtime world assembly, server-authoritative
 movement/collision, triggers, object-collider sensors, Lua hooks, client map validation, and BSP level
 rendering operate from BSP-backed `LevelAsset` data.
@@ -150,7 +150,7 @@ Focus areas:
 - Lua scripting remains mandatory and sandboxed.
 - Default tests remain display-free.
 - OpenGL/Vulkan remain runtime-selectable.
-- No glTF, Source/VBSP, third-party physics, dynamic rigid bodies, full PBR, or client-side gameplay scripting unless explicitly requested.
+- No retired model importer, Source/VBSP, third-party physics, dynamic rigid bodies, full PBR, or client-side gameplay scripting unless explicitly requested.
 ```
 
 If another next scope is more appropriate after implementation findings, `@director` may choose it, but `NEXT.md` must point to future work, not completed migration.
@@ -161,7 +161,7 @@ If another next scope is more appropriate after implementation findings, `@direc
 
 - Full default build and CTest pass.
 - Focused BSP/runtime/render/script tests pass.
-- Active glTF/cgltf reference search is clean.
+- Active retired model importer/retired parser dependency reference search is clean.
 - `docs/Design.md` and `docs/ImplementationStatus.md` reflect final BSP canonical state.
 - Plan is archived if it was committed.
 - `Plans/NEXT.md` points to the next active scope after BSP migration.
@@ -176,7 +176,7 @@ Add to `docs/ImplementationStatus.md`:
 BSP canonical migration is complete as of YYYY-MM-DD:
 
 - BSP maps are now the canonical playable level format.
-- glTF functionality, cgltf dependency, glTF feature gates, glTF startup paths, glTF tests, and active glTF docs have been removed.
+- retired model importer functionality, retired parser dependency dependency, retired model importer feature gates, retired model importer startup paths, retired model importer tests, and active retired model importer docs have been removed.
 - Runtime world assembly, static collision, server-authoritative movement, triggers, object-collider sensors, Lua hooks, client map validation, and level rendering operate from BSP-backed `LevelAsset` data.
 - `Plans/NEXT.md` has been rewritten to the next active post-BSP scope, and the BSP migration plan has been archived.
 
@@ -184,7 +184,7 @@ Validation run:
 
 <commands and result>
 
-Active glTF/cgltf reference search:
+Active retired model importer/retired parser dependency reference search:
 
 <command and result>
 ```
