@@ -424,7 +424,8 @@ private:
                                        "Client protocol version is unsupported");
             session_state_ = stellar::network::SessionState::kRejected;
             ++result.rejected_packets;
-        } else if (hello.requested_map_id != prepared_.map_identity.map_id) {
+        } else if (!hello.requested_map_id.empty() &&
+                   hello.requested_map_id != prepared_.map_identity.map_id) {
             welcome = rejected_welcome(prepared_.map_identity, "map_mismatch",
                                        "Client requested map does not match server map");
             session_state_ = stellar::network::SessionState::kRejected;

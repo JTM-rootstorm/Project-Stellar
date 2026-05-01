@@ -20,8 +20,8 @@ Current phase status:
 - Phase ST-3 — Connection and session lifecycle: active/completed as of 2026-05-01.
 - Phase ST-4 — Remote socket transport: active/completed as of 2026-05-01.
 - Phase ST-5 — Dedicated server entry point: active/completed as of 2026-05-01.
-- Phase ST-6 — Client connect mode: next.
-- Phase ST-7 — Hardening, documentation, validation, and archival: deferred.
+- Phase ST-6 — Client connect mode: active/completed as of 2026-05-01.
+- Phase ST-7 — Hardening, documentation, validation, and archival: next/deferred.
 
 Phase ST-2 completion notes:
 
@@ -133,6 +133,39 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused ST-5 targets built, focused ST-5 CTest passed 21/21, full debug
 build succeeded, and full default CTest passed 54/54 on 2026-05-01.
+
+Phase ST-6 completion notes:
+
+- Added `stellar-client --connect HOST:PORT` and `--client-name` configuration parsing for remote
+  presentation mode. `--map` without `--connect` remains local networked runtime mode; `--connect`
+  without `--map` is remote mode; `--map` plus `--connect` is rejected as ambiguous; `--script-root` is
+  invalid in remote mode.
+- Added `RemoteClientRuntime`, which owns a socket `ClientTransport`, sends `ClientHello`, accepts
+  `ServerWelcome`, stores the server-assigned player id, sends input commands only after accepted
+  welcome, drains `ClientWorldReceiver`, and exposes latest authoritative snapshots/events/session
+  diagnostics without prediction, reconciliation, interpolation, local authority, or script loading.
+- The live application now renders remote connect mode from `NetworkWorldSnapshot` camera/billboard
+  presentation and clears safely until a snapshot arrives. Received `GameplayEvent` records are routed
+  to the existing HUD presentation cache and no-op audio event route.
+- Static level rendering policy is intentionally minimal for ST-6: remote mode without `--map` renders
+  network dynamic state/fallback only, and no map transfer/download or presentation-map option was
+  added. The dedicated server accepts an empty requested map id from clients without a local map
+  expectation and still rejects explicit mismatches.
+- Added display-free coverage for CLI connect parsing/conflicts, validate-only remote preparation with
+  no local authority/scripts, remote hello/welcome/input gating, snapshot/player/event exposure, and a
+  bounded in-process localhost `DedicatedServer` integration.
+
+ST-6 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client stellar-server stellar_client_connect_test stellar_dedicated_server_test stellar_socket_transport_test -j$(nproc)
+ctest --test-dir build -R '^(client_connect|dedicated_server|socket_transport|network_session|networked_client_runtime|client_world_receiver|gameplay_presentation|player_presentation)' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-6 targets built, focused ST-6 CTest passed 8/8, full debug
+build succeeded, and full default CTest passed 55/55 on 2026-05-01.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 

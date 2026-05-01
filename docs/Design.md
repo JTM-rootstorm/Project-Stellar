@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.6 (dedicated server entry point complete)
+**Version:** 0.2.7 (client socket connect mode complete)
 **Last Updated:** 2026-05-01
 
 ---
@@ -108,8 +108,9 @@ deferred.
 Current branch: `socket-transport`.
 
 Primary near-term status: socket transport and networked session lifecycle over the completed BSP
-gameplay loop and presentation/networking polish foundations. The dedicated server entry point is
-complete; the next active slice is client remote-connect mode.
+gameplay loop and presentation/networking polish foundations. The dedicated server entry point and
+client remote-connect mode are complete; final socket-transport hardening/documentation is the next
+deferred slice.
 Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
 and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
 
@@ -157,8 +158,14 @@ Linux/POSIX socket backend using a length-prefixed packet envelope. The `stellar
 loads and validates BSP maps headlessly, loads referenced authoritative Lua scripts from the map
 directory or configured script root, accepts one TCP client, performs `ClientHello`/`ServerWelcome`,
 assigns the authoritative player id, ticks the server-owned runtime, and sends the first full snapshot
-followed by deltas/events. Client remote-connect mode, true simultaneous multiplayer simulation,
-interpolation, prediction, and reconciliation remain deferred until explicitly scoped.
+followed by deltas/events. The `stellar-client --connect HOST:PORT` mode creates only a socket client
+runtime, sends `ClientHello`, waits for accepted `ServerWelcome`, sends input commands after acceptance,
+and renders camera/billboards from `NetworkWorldSnapshot` through `ClientWorldReceiver`. Remote mode
+does not load maps, load gameplay scripts, construct local authority, transfer maps, predict,
+interpolate, or reconcile. Without a local presentation map feature, remote mode renders dynamic
+network state/fallback only; static BSP map transfer/caching remains deferred. True simultaneous
+multiplayer simulation, interpolation, prediction, and reconciliation remain deferred until explicitly
+scoped.
 
 Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
 and retired importer removal are complete historical implementation steps. Their completion notes
@@ -796,9 +803,13 @@ Current contract behavior for this branch:
   with bounded nonblocking loops, and keeps UDP, multi-client simulation, prediction, and
   reconciliation out of scope.
 - The dedicated server entry point uses the TCP socket backend for one accepted client, validates the
-  `ClientHello` protocol and map identity before accepting input, sends `ServerWelcome`, assigns the
-  authoritative player id, emits the first full `NetworkWorldSnapshot`, then emits structural deltas
-  and server-approved gameplay events from server-owned ticks.
+  `ClientHello` protocol and any non-empty requested map identity before accepting input, sends
+  `ServerWelcome`, assigns the authoritative player id, emits the first full `NetworkWorldSnapshot`,
+  then emits structural deltas and server-approved gameplay events from server-owned ticks.
+- The remote client connect path uses `--connect HOST:PORT` without `--map`, sends an empty requested
+  map id when no presentation map exists, accepts the server's map identity in `ServerWelcome`, and
+  presents only received network snapshots/events. `--map` plus `--connect` is rejected as ambiguous,
+  and `--script-root` is invalid in remote mode because scripts are server-authoritative only.
 
 ---
 

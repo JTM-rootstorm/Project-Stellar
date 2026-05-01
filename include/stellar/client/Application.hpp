@@ -55,6 +55,9 @@ struct PreparedApplicationRuntime {
 
     /** @brief Optional transport-backed authoritative runtime for mapped local play. */
     std::unique_ptr<NetworkedClientRuntime> networked_runtime;
+
+    /** @brief Optional socket-backed presentation-only runtime for remote server play. */
+    std::unique_ptr<RemoteClientRuntime> remote_runtime;
 };
 
 /**

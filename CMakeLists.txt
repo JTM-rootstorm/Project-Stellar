@@ -481,6 +481,17 @@ stellar_add_client_runtime_test(stellar_networked_client_runtime_test networked_
     tests/client/NetworkedClientRuntime.cpp
 )
 
+stellar_add_test_executable(stellar_client_connect_test client_connect
+    tests/client/ClientConnect.cpp
+)
+target_include_directories(stellar_client_connect_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+)
+target_link_libraries(stellar_client_connect_test PRIVATE
+    stellar_client_config
+    stellar_dedicated_server
+)
+
 stellar_add_client_runtime_test(stellar_hud_presentation_test hud_presentation
     tests/client/HudPresentation.cpp
 )
@@ -548,6 +559,7 @@ target_link_libraries(stellar-client PRIVATE
     stellar_client_config
     stellar_client_runtime
     stellar_graphics
+    stellar_audio
     stellar_assets
     miniaudio
 )
