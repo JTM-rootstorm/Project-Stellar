@@ -2,15 +2,54 @@
 
 Branch target: `bsp-integration`
 
-## BSP Canonical Migration — Active
+## BSP Canonical Migration — Complete
+
+BSP canonical migration is complete as of 2026-05-01:
+
+- BSP maps are now the canonical playable level format.
+- Retired importer functionality, parser dependency, feature gates, startup paths, tests, and active
+  docs have been removed.
+- Runtime world assembly, static collision, server-authoritative movement, triggers,
+  object-collider sensors, Lua hooks, client map validation, and level rendering operate from
+  BSP-backed `LevelAsset` data.
+- `Plans/NEXT.md` now points to BSP authoring and presentation hardening as the next recommended
+  active scope.
+- The completed migration plan is archived at
+  `Plans/Archived/project_stellar_bsp_canonical_plan/`.
+
+Final validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|runtime_world|collision_world|character_controller|server_world_session|scripted_world_session|bsp_playable_world_smoke|bsp_scripted_collision_smoke|bsp_scripted_object_collider_smoke|billboard|render_level)' --output-on-failure
+```
+
+Result: configure/build succeeded, full CTest passed 31/31, and focused BSP/runtime/render/script
+CTest passed 13/13.
+
+Active retired-importer reference search: no active hits. `git grep` was used because `rg` is
+unavailable in this environment.
+
+Known deferred post-BSP items:
+
+- BSP PVS/leaf visibility culling hardening.
+- BSP lightmap presentation.
+- External texture/WAD/material resolver polish.
+- BSP editor/toolchain and map-authoring documentation.
+- Sprite/entity authoring conventions.
+- Gameplay loop expansion.
+
+## BSP Canonical Migration — Phase Notes
 
 The user selected BSP maps as the canonical playable level format. BSP replaces the retired
 pre-BSP model-import path as the active level pipeline rather than being kept beside it.
 
-Active implementation entry points:
+Archived implementation entry points:
 
 - `Plans/NEXT.md`
-- `Plans/project_stellar_bsp_canonical_plan/00-MASTER-KILO-BSP-CANONICAL-PLAN.md`
+- `Plans/Archived/project_stellar_bsp_canonical_plan/00-MASTER-KILO-BSP-CANONICAL-PLAN.md`
 
 Required migration outcome:
 

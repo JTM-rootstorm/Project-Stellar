@@ -4,32 +4,34 @@ Branch target: `bsp-integration`
 
 ## Current entry point
 
-Use `docs/ImplementationStatus.md` as the current branch-facing source of truth. The active
-implementation plan is
-`Plans/project_stellar_bsp_canonical_plan/00-MASTER-KILO-BSP-CANONICAL-PLAN.md`.
+Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
 
-## Active scope
+## Post-BSP state
 
-The current active scope is migration to BSP maps as the canonical playable level format and removal
-of retired pre-BSP importer functionality from active code, active build configuration, active tests,
-and active docs.
+BSP maps are now the canonical playable level format. Retired importer functionality has been
+removed from active code, build configuration, tests, and active docs. Runtime world assembly,
+server-authoritative movement/collision, triggers, object-collider sensors, Lua hooks, client map
+validation, and BSP level rendering operate from BSP-backed `LevelAsset` data.
 
-Older collision/pre-BSP importer phase plans are historical context only and must not be restarted as
-active work.
+The completed BSP migration plan is archived at
+`Plans/Archived/project_stellar_bsp_canonical_plan/`.
+
+## Next Recommended Active Scope
+
+Recommended next scope: BSP authoring and presentation hardening.
+
+Focus areas:
+
+- BSP PVS/leaf visibility culling if not fully active.
+- BSP lightmap/material/texture fallback hardening.
+- Sprite/entity authoring conventions for BSP entity keys.
+- Map validation diagnostics for malformed or unsupported BSP content.
 
 ## Invariants
 
-- BSP is the canonical level source.
-- Lua scripting remains mandatory server-authoritative infrastructure.
-- Server authority, runtime collision state, triggers, object-collider sensors, and script command
-  validation remain native/server-owned.
+- Server authority remains mandatory.
+- Lua scripting remains mandatory and sandboxed.
 - Default tests remain display-free.
-- OpenGL/Vulkan remain runtime-selectable presentation backends.
-- No third-party physics, dynamic rigid bodies, Source/VBSP, full PBR, model/animation systems, or
-  retired pre-BSP importer functionality are part of this migration.
-
-## NEXT.md lifecycle
-
-After the BSP migration is complete, archive the detailed BSP plan under `Plans/Archived/` and
-rewrite this file to the next active post-BSP scope. Do not leave this file pointing at completed
-migration work.
+- OpenGL/Vulkan remain runtime-selectable.
+- No retired importer functionality, Source/VBSP, third-party physics, dynamic rigid bodies,
+  full PBR, or client-side gameplay scripting unless explicitly requested.

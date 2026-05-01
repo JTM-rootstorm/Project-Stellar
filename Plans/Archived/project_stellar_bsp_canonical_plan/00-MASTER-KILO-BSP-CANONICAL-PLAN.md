@@ -202,4 +202,3 @@ Stop and report to `@director` if any of these occur:
 - Removing retired model importer breaks unrelated mandatory systems in a way that cannot be repaired in two focused attempts.
 - Any test requires a GPU/display by default.
 - A specialist reaches a cross-domain decision boundary.
-

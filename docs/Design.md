@@ -41,8 +41,8 @@ The engine uses a client-server architecture: game logic and authoritative state
 server, while the client handles rendering, audio, input capture, and presentation.
 
 The current engine direction is not to become a full physically based renderer. BSP maps are
-the canonical playable level source, and the current implementation is migrating from the previous
-scene-asset path toward BSP-backed, source-neutral `LevelAsset` data.
+the canonical playable level source, and active runtime, server, client validation, and rendering
+paths use BSP-backed, source-neutral `LevelAsset` data.
 The rendering target is lightweight OpenGL/Vulkan BSP surface/material and billboard parity
 suitable for game content.
 
