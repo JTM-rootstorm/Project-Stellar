@@ -1,0 +1,52 @@
+{
+  "project": "Project Stellar",
+  "branch": "socket-transport",
+  "plan_family": "socket_transport",
+  "generated": "2026-05-01",
+  "purpose": "Kilo Code optimized implementation plan package for socket transport and networked session lifecycle phases ST-2 through ST-7.",
+  "current_branch_start": {
+    "branch_exists": true,
+    "branch_status_vs_main": "identical at inspection time",
+    "active_next_scope": "Remote socket transport and real multiplayer connection/session lifecycle over existing remote-ready contracts"
+  },
+  "files": [
+    {"path": "00-MASTER-KILO-SOCKET-TRANSPORT-PLAN.md", "role": "master plan and intake overview"},
+    {"path": "02-Phase-ST2-Live-Client-Transport-Mode.md", "role": "local networked live client mode"},
+    {"path": "03-Phase-ST3-Connection-Session-Lifecycle.md", "role": "hello/welcome/session state lifecycle"},
+    {"path": "04-Phase-ST4-Remote-Socket-Transport.md", "role": "Linux-first TCP socket transport"},
+    {"path": "05-Phase-ST5-Dedicated-Server-Entry-Point.md", "role": "stellar-server entry point"},
+    {"path": "06-Phase-ST6-Client-Connect-Mode.md", "role": "stellar-client --connect mode"},
+    {"path": "07-Phase-ST7-Hardening-Docs-Validation.md", "role": "final audits docs archival validation"},
+    {"path": "ProjectStellar-SocketTransport-KiloPlanBundle.md", "role": "single-file concatenated bundle"}
+  ],
+  "phase_order": ["ST-2", "ST-3", "ST-4", "ST-5", "ST-6", "ST-7"],
+  "parallelization": {
+    "safe_parallel_after_api_review": [
+      "ST-2 presentation adapters and ST-2 runtime wrapper",
+      "ST-3 codec extensions and ST-3 session state tests",
+      "ST-4 endpoint parsing and ST-4 packet envelope implementation",
+      "ST-5 server CLI parsing can start before socket integration"
+    ],
+    "must_be_sequential": [
+      "ST-6 remote connect integration depends on ST-3, ST-4, ST-5",
+      "ST-7 final docs/archive depends on ST-2 through ST-6 completion"
+    ]
+  },
+  "non_goals": [
+    "client prediction",
+    "client/server reconciliation",
+    "snapshot interpolation",
+    "UDP/unreliable transport unless explicitly scoped",
+    "NAT traversal or matchmaking",
+    "client-side gameplay scripting",
+    "renderer/audio/HUD authority",
+    "dynamic rigid bodies, Source/VBSP, full PBR, model/animation systems"
+  ],
+  "recommended_agents": {
+    "director": "phase sequencing, architecture review, docs, archival",
+    "carmack": "network, socket transport, server loop, CMake, tests",
+    "miyamoto": "consult if render/presentation APIs need changes",
+    "suzuki": "consult only if audio routing changes",
+    "kojima": "consult only if gameplay semantics change"
+  }
+}
