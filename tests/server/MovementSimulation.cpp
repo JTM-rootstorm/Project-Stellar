@@ -79,6 +79,19 @@ stellar::assets::SceneAsset scene_with_collision(
     return scene;
 }
 
+stellar::assets::SceneAsset scene_with_named_collision_meshes() {
+    stellar::assets::SceneAsset scene;
+    stellar::assets::CollisionMesh wall;
+    wall.name = "Wall";
+    wall.triangles = {wall_x_triangle_a(), wall_x_triangle_b()};
+    stellar::assets::CollisionMesh floor;
+    floor.name = "Floor";
+    floor.triangles = {floor_triangle_a(-5.0F), floor_triangle_b(-5.0F)};
+    scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {wall, floor}};
+    scene.world_metadata.markers.push_back(player_spawn({0.0F, 1.0F, 0.0F}));
+    return scene;
+}
+
 stellar::server::MovementSimulationConfig test_config() {
     stellar::server::MovementSimulationConfig config;
     config.max_speed = 6.0F;
@@ -242,6 +255,28 @@ void fixed_dt_repeatability_same_inputs_same_outputs() {
     assert(a.collision.hit == b.collision.hit);
 }
 
+void collision_state_filter_affects_authoritative_movement() {
+    const auto scene = scene_with_named_collision_meshes();
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto state = stellar::world::RuntimeCollisionState::from_world(world);
+    const auto mutation = state.set_mesh_enabled("Wall", false);
+    assert(mutation.applied);
+    auto config = test_config();
+    config.fixed_dt = 0.1F;
+    config.acceleration = 100.0F;
+    stellar::server::MovementState previous;
+    previous.position = {0.0F, 1.0F, 0.0F};
+    previous.grounded = true;
+
+    const auto filtered = stellar::server::simulate_movement_tick(
+        world, previous, {.wish_direction = {1.0F, 0.0F, 0.0F}}, config, &state);
+    const auto unfiltered = stellar::server::simulate_movement_tick(
+        world, previous, {.wish_direction = {1.0F, 0.0F, 0.0F}}, config);
+
+    assert(filtered.state.position[0] > 0.55F);
+    assert(unfiltered.state.position[0] < 0.52F);
+}
+
 } // namespace
 
 int main() {
@@ -256,5 +291,6 @@ int main() {
     client_position_is_not_part_of_command();
     runtime_world_collision_optional_is_handled();
     fixed_dt_repeatability_same_inputs_same_outputs();
+    collision_state_filter_affects_authoritative_movement();
     return 0;
 }

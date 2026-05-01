@@ -137,6 +137,22 @@ struct CollisionTriangleCandidate {
     std::size_t triangle_index = 0;
 };
 
+/** @brief Optional static collision mesh filter used by query and movement APIs. */
+struct CollisionQueryFilter {
+    /**
+     * @brief Optional enabled mask indexed by collision mesh index.
+     *
+     * Null or empty masks mean all meshes are enabled. Non-empty masks fail closed for
+     * out-of-range mesh indices so incomplete authoritative state cannot accidentally enable
+     * unrepresented collision meshes.
+     */
+    const std::vector<bool>* enabled_meshes = nullptr;
+};
+
+/** @brief Return true when a collision mesh index participates in filtered queries. */
+[[nodiscard]] bool collision_mesh_passes_filter(const CollisionQueryFilter& filter,
+                                                std::size_t mesh_index) noexcept;
+
 /**
  * @brief Backend-neutral query wrapper for static level collision triangles.
  */
@@ -151,7 +167,12 @@ public:
      * @brief Cast a finite segment from origin along delta and return the nearest triangle hit.
      */
     [[nodiscard]] RaycastHit raycast(std::array<float, 3> origin,
-                                     std::array<float, 3> delta) const noexcept;
+                                      std::array<float, 3> delta) const noexcept;
+
+    /** @brief Cast a finite segment using an optional static collision mesh filter. */
+    [[nodiscard]] RaycastHit raycast(std::array<float, 3> origin,
+                                     std::array<float, 3> delta,
+                                     CollisionQueryFilter filter) const noexcept;
 
     /**
      * @brief Probe downward along negative Y and return the nearest floor-like hit.
@@ -159,6 +180,12 @@ public:
     [[nodiscard]] GroundProbeHit probe_ground(std::array<float, 3> origin,
                                               float max_distance,
                                               float min_floor_normal_y = 0.5F) const noexcept;
+
+    /** @brief Probe downward using an optional static collision mesh filter. */
+    [[nodiscard]] GroundProbeHit probe_ground(std::array<float, 3> origin,
+                                              float max_distance,
+                                              float min_floor_normal_y,
+                                              CollisionQueryFilter filter) const noexcept;
 
     /**
      * @brief Move a sphere center by displacement using fixed-iteration sweep-and-slide.
@@ -172,6 +199,13 @@ public:
                                           float radius,
                                           int max_iterations = 3) const noexcept;
 
+    /** @brief Move a sphere using an optional static collision mesh filter. */
+    [[nodiscard]] MoveResult move_sphere(std::array<float, 3> position,
+                                          std::array<float, 3> displacement,
+                                          float radius,
+                                          int max_iterations,
+                                          CollisionQueryFilter filter) const noexcept;
+
     /**
      * @brief Return static collision triangles whose bounds intersect the supplied AABB.
      *
@@ -180,6 +214,10 @@ public:
      */
     [[nodiscard]] std::vector<CollisionTriangleCandidate>
     query_triangles(CollisionQueryAabb bounds) const;
+
+    /** @brief Return static collision triangle candidates that pass an optional mesh filter. */
+    [[nodiscard]] std::vector<CollisionTriangleCandidate>
+    query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter filter) const;
 
     /**
      * @brief Return the immutable static collision asset backing this query world.

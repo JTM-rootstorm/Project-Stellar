@@ -40,6 +40,21 @@ stellar::assets::CollisionTriangle wall_x_triangle(float x = 2.0F) {
                     {-1.0F, 0.0F, 0.0F});
 }
 
+stellar::assets::LevelCollisionAsset make_two_mesh_asset(
+    stellar::assets::CollisionTriangle first,
+    stellar::assets::CollisionTriangle second) {
+    stellar::assets::LevelCollisionAsset asset;
+    stellar::assets::CollisionMesh mesh_a;
+    mesh_a.name = "a";
+    mesh_a.triangles.push_back(first);
+    stellar::assets::CollisionMesh mesh_b;
+    mesh_b.name = "b";
+    mesh_b.triangles.push_back(second);
+    asset.meshes.push_back(mesh_a);
+    asset.meshes.push_back(mesh_b);
+    return asset;
+}
+
 stellar::assets::LevelCollisionAsset make_many_floor_asset(int count) {
     stellar::assets::LevelCollisionAsset asset;
     stellar::assets::CollisionMesh mesh;
@@ -287,6 +302,91 @@ void bvh_movement_query_prunes_candidates() {
     assert(world.stats().last_query_triangle_tests < world.stats().triangle_count);
 }
 
+void query_triangles_filter_excludes_disabled_mesh() {
+    const auto asset = make_two_mesh_asset(floor_triangle(), floor_triangle());
+    stellar::physics::CollisionWorld world(asset);
+    const std::vector<bool> enabled{true, false};
+
+    const auto candidates = world.query_triangles({.min = {-20.0F, -0.1F, -20.0F},
+                                                   .max = {20.0F, 0.1F, 20.0F}},
+                                                  {.enabled_meshes = &enabled});
+
+    assert(candidates.size() == 1);
+    assert(candidates[0].mesh_index == 0);
+    assert(world.stats().last_query_candidate_count == 1);
+}
+
+void raycast_ignores_disabled_mesh() {
+    const auto asset = make_two_mesh_asset(floor_triangle(0.0F), floor_triangle(1.0F));
+    stellar::physics::CollisionWorld world(asset);
+    const std::vector<bool> enabled{true, false};
+
+    const auto hit = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F},
+                                   {.enabled_meshes = &enabled});
+
+    assert(hit.hit);
+    assert(hit.mesh_index == 0);
+    assert(nearly_equal(hit.position[1], 0.0F));
+}
+
+void probe_ground_ignores_disabled_floor() {
+    const auto asset = make_two_mesh_asset(floor_triangle(), floor_triangle());
+    stellar::physics::CollisionWorld world(asset);
+    const std::vector<bool> enabled{false, false};
+
+    const auto ground = world.probe_ground({0.0F, 2.0F, 0.0F}, 4.0F, 0.5F,
+                                           {.enabled_meshes = &enabled});
+
+    assert(!ground.hit);
+}
+
+void move_sphere_ignores_disabled_wall() {
+    const auto asset = make_two_mesh_asset(wall_x_triangle(2.0F), floor_triangle(-5.0F));
+    stellar::physics::CollisionWorld world(asset);
+    const std::vector<bool> enabled{false, true};
+
+    const auto moved = world.move_sphere({0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 0.0F}, 0.5F, 3,
+                                         {.enabled_meshes = &enabled});
+
+    assert(!moved.hit);
+    assert(moved.position[0] > 4.99F);
+}
+
+void filter_preserves_deterministic_order() {
+    stellar::assets::LevelCollisionAsset asset;
+    stellar::assets::CollisionMesh mesh_a;
+    mesh_a.triangles.push_back(floor_triangle());
+    stellar::assets::CollisionMesh mesh_b;
+    mesh_b.triangles.push_back(floor_triangle());
+    stellar::assets::CollisionMesh mesh_c;
+    mesh_c.triangles.push_back(floor_triangle());
+    asset.meshes = {mesh_a, mesh_b, mesh_c};
+    stellar::physics::CollisionWorld world(asset);
+    const std::vector<bool> enabled{true, false, true};
+
+    const auto candidates = world.query_triangles({.min = {-20.0F, -0.1F, -20.0F},
+                                                   .max = {20.0F, 0.1F, 20.0F}},
+                                                  {.enabled_meshes = &enabled});
+
+    assert(candidates.size() == 2);
+    assert(candidates[0].mesh_index == 0);
+    assert(candidates[1].mesh_index == 2);
+}
+
+void filter_out_of_range_policy_is_tested() {
+    const auto asset = make_two_mesh_asset(floor_triangle(), floor_triangle());
+    stellar::physics::CollisionWorld world(asset);
+    const std::vector<bool> enabled{true};
+
+    assert(stellar::physics::collision_mesh_passes_filter({.enabled_meshes = &enabled}, 0));
+    assert(!stellar::physics::collision_mesh_passes_filter({.enabled_meshes = &enabled}, 1));
+    const auto candidates = world.query_triangles({.min = {-20.0F, -0.1F, -20.0F},
+                                                   .max = {20.0F, 0.1F, 20.0F}},
+                                                  {.enabled_meshes = &enabled});
+    assert(candidates.size() == 1);
+    assert(candidates[0].mesh_index == 0);
+}
+
 } // namespace
 
 int main() {
@@ -307,5 +407,11 @@ int main() {
     bvh_miss_prunes_all_distant_triangles();
     degenerate_triangles_do_not_crash_build_or_query();
     bvh_movement_query_prunes_candidates();
+    query_triangles_filter_excludes_disabled_mesh();
+    raycast_ignores_disabled_mesh();
+    probe_ground_ignores_disabled_floor();
+    move_sphere_ignores_disabled_wall();
+    filter_preserves_deterministic_order();
+    filter_out_of_range_policy_is_tested();
     return 0;
 }

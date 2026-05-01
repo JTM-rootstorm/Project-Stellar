@@ -130,6 +130,18 @@ void verify_duplicate_mesh_names_return_deterministic_warnings() {
     assert(report.findings[0].mesh_index == 1);
 }
 
+void verify_empty_collision_mesh_name_returns_warning_not_error() {
+    auto collision = make_valid_collision();
+    collision.meshes[0].name.clear();
+
+    const auto report = stellar::world::validate_level_collision(collision);
+    assert(!report.has_errors);
+    assert(report.findings.size() == 1);
+    assert(report.findings[0].code == "empty_mesh_name");
+    assert(report.findings[0].mesh_index == 0);
+    assert(report.findings[0].severity == stellar::world::CollisionValidationSeverity::kWarning);
+}
+
 void verify_no_walkable_surfaces_returns_warning() {
     auto collision = make_valid_collision();
     collision.meshes[0].triangles[0].normal = {1.0F, 0.0F, 0.0F};
@@ -172,6 +184,7 @@ int main() {
     verify_aggregate_bounds_mismatch_returns_finding();
     verify_empty_mesh_and_large_bounds_return_warnings();
     verify_duplicate_mesh_names_return_deterministic_warnings();
+    verify_empty_collision_mesh_name_returns_warning_not_error();
     verify_no_walkable_surfaces_returns_warning();
     verify_findings_are_deterministically_sorted();
     return 0;

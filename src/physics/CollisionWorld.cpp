@@ -265,6 +265,17 @@ CollisionWorld::CollisionWorld(const stellar::assets::LevelCollisionAsset& asset
     build_broadphase();
 }
 
+bool collision_mesh_passes_filter(const CollisionQueryFilter& filter,
+                                  std::size_t mesh_index) noexcept {
+    if (filter.enabled_meshes == nullptr || filter.enabled_meshes->empty()) {
+        return true;
+    }
+    if (mesh_index >= filter.enabled_meshes->size()) {
+        return false;
+    }
+    return (*filter.enabled_meshes)[mesh_index];
+}
+
 void CollisionWorld::build_broadphase() noexcept {
     triangle_refs_.clear();
     bvh_nodes_.clear();
@@ -347,6 +358,12 @@ void CollisionWorld::build_broadphase() noexcept {
 }
 
 RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
+    return raycast(origin, delta, {});
+}
+
+RaycastHit CollisionWorld::raycast(Vec3 origin,
+                                   Vec3 delta,
+                                   CollisionQueryFilter filter) const noexcept {
     RaycastHit result{};
     stats_.last_query_triangle_tests = 0;
     stats_.last_query_candidate_count = 0;
@@ -382,6 +399,9 @@ RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
             if (!segment_aabb(origin, delta, ref.bounds)) {
                 continue;
             }
+            if (!collision_mesh_passes_filter(filter, ref.mesh_index)) {
+                continue;
+            }
 
             const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
             ++stats_.last_query_candidate_count;
@@ -413,6 +433,11 @@ RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
 
 std::vector<CollisionTriangleCandidate>
 CollisionWorld::query_triangles(CollisionQueryAabb bounds) const {
+    return query_triangles(bounds, {});
+}
+
+std::vector<CollisionTriangleCandidate>
+CollisionWorld::query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter filter) const {
     std::vector<CollisionTriangleCandidate> candidates;
     stats_.last_query_triangle_tests = 0;
     stats_.last_query_candidate_count = 0;
@@ -449,6 +474,9 @@ CollisionWorld::query_triangles(CollisionQueryAabb bounds) const {
             if (!intersects(ref.bounds, query)) {
                 continue;
             }
+            if (!collision_mesh_passes_filter(filter, ref.mesh_index)) {
+                continue;
+            }
 
             candidates.push_back({.mesh_index = ref.mesh_index,
                                   .triangle_index = ref.triangle_index});
@@ -467,12 +495,19 @@ CollisionWorld::query_triangles(CollisionQueryAabb bounds) const {
 GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
                                             float max_distance,
                                             float min_floor_normal_y) const noexcept {
+    return probe_ground(origin, max_distance, min_floor_normal_y, {});
+}
+
+GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
+                                            float max_distance,
+                                            float min_floor_normal_y,
+                                            CollisionQueryFilter filter) const noexcept {
     GroundProbeHit result{};
     if (max_distance <= 0.0F) {
         return result;
     }
 
-    const RaycastHit hit = raycast(origin, {0.0F, -max_distance, 0.0F});
+    const RaycastHit hit = raycast(origin, {0.0F, -max_distance, 0.0F}, filter);
     if (!hit.hit || hit.normal[1] < min_floor_normal_y) {
         return result;
     }
@@ -487,6 +522,14 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
                                        Vec3 displacement,
                                        float radius,
                                        int max_iterations) const noexcept {
+    return move_sphere(position, displacement, radius, max_iterations, {});
+}
+
+MoveResult CollisionWorld::move_sphere(Vec3 position,
+                                       Vec3 displacement,
+                                       float radius,
+                                       int max_iterations,
+                                       CollisionQueryFilter filter) const noexcept {
     MoveResult result{};
     result.position = position;
     result.velocity = displacement;
@@ -497,7 +540,8 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
         length_squared(displacement) <= kEpsilon * kEpsilon || bvh_nodes_.empty()) {
         result.position = add(position, displacement);
         result.velocity = {0.0F, 0.0F, 0.0F};
-        result.grounded = probe_ground(result.position, std::max(radius + 0.05F, 0.05F)).hit;
+        result.grounded = probe_ground(result.position, std::max(radius + 0.05F, 0.05F), 0.5F,
+                                       filter).hit;
         return result;
     }
 
@@ -543,6 +587,9 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
                 if (!segment_aabb(current_position, remaining, expand(ref.bounds, safe_radius))) {
                     continue;
                 }
+                if (!collision_mesh_passes_filter(filter, ref.mesh_index)) {
+                    continue;
+                }
 
                 const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
                 ++stats_.last_query_candidate_count;
@@ -582,7 +629,8 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
     result.position = current_position;
     result.velocity = remaining;
     const std::size_t movement_triangle_tests = stats_.last_query_triangle_tests;
-    result.grounded = probe_ground(result.position, std::max(safe_radius + 0.05F, 0.05F)).hit;
+    result.grounded = probe_ground(result.position, std::max(safe_radius + 0.05F, 0.05F), 0.5F,
+                                   filter).hit;
     stats_.last_query_triangle_tests += movement_triangle_tests;
     return result;
 }

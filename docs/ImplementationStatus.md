@@ -1,6 +1,6 @@
 # Project Stellar: Next Implementation Plans
 
-Branch target: `lua-scripting`
+Branch target: `collision-movement`
 
 Prepared for: an implementation AI agent such as Codex/Kilo/other code-writing agent.
 
@@ -16,6 +16,36 @@ The branch already contains completion notes for the earlier Phase 6 world-autho
 Do **not** restart those phases from scratch. Treat them as implemented first passes and focus the next round on making the features coherent, usable at runtime, and harder to break.
 
 ## Current status
+
+Phase 11A-F collision scripting slice is complete as of 2026-04-30:
+
+- Added capsule-aware trigger overlap so authoritative trigger events use the same vertical capsule
+  dimensions as character movement instead of the previous center-sphere approximation.
+- Added `RuntimeCollisionState`, a server-owned enable/disable overlay for immutable imported static
+  collision meshes. Empty and duplicate authored mesh names produce deterministic diagnostics;
+  duplicate names are toggled together by name.
+- Added filtered collision queries for raycasts, ground probes, sphere movement, triangle queries,
+  and character movement. `WorldSession` now owns the runtime collision state, rebuilds it on reset,
+  and routes authoritative movement through that state.
+- Added native script command processing for `collision.set_mesh_enabled`. Lua scripts still emit
+  primitive events only; native server code validates fields and applies approved collision changes
+  after trigger callbacks, affecting subsequent authoritative ticks.
+- Added a backend-neutral kinematic `ObjectColliderSystem` foundation for deterministic object
+  overlap events without adding rigid bodies, ECS ownership, networking, rendering, or script hooks.
+- Added display-free `scripted_collision_smoke` coverage proving an authored glTF trigger script can
+  disable a named `DoorBlocker` collision mesh and allow the next authoritative movement tick to pass
+  through it deterministically.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+Result: full CTest passed (29/29). Build linked successfully; the vendored Lua `tmpnam` linker
+warning remains unchanged.
 
 Phase 10E and the overall Phase 10 Lua scripting slice are complete as of 2026-04-30:
 

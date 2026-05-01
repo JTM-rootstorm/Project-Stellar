@@ -89,7 +89,12 @@ public:
 
     /** @brief Move a character through the static collision world using recovery, slide, snap, and step-up. */
     [[nodiscard]] CharacterMoveResult move(const CharacterMoveInput& input,
-                                           const CharacterControllerConfig& config) const noexcept;
+                                            const CharacterControllerConfig& config) const noexcept;
+
+    /** @brief Move a character using an optional static collision mesh filter for all queries. */
+    [[nodiscard]] CharacterMoveResult move(const CharacterMoveInput& input,
+                                           const CharacterControllerConfig& config,
+                                           CollisionQueryFilter filter) const noexcept;
 
 private:
     const CollisionWorld* world_ = nullptr;

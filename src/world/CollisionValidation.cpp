@@ -137,7 +137,14 @@ CollisionValidationReport validate_level_collision(
     for (std::size_t mesh_index = 0; mesh_index < collision.meshes.size(); ++mesh_index) {
         const auto& mesh = collision.meshes[mesh_index];
 
-        if (!mesh.name.empty()) {
+        if (mesh.name.empty()) {
+            add_finding(report,
+                        CollisionValidationSeverity::kWarning,
+                        "empty_mesh_name",
+                        "Collision mesh name is empty and cannot be targeted by runtime name",
+                        mesh_index,
+                        kCollisionValidationInvalidIndex);
+        } else {
             const auto [it, inserted] = first_mesh_name_indices.emplace(mesh.name, mesh_index);
             if (!inserted) {
                 add_finding(report,

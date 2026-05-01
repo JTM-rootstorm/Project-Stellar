@@ -41,9 +41,8 @@ struct MovementTriggerTickResult {
 /**
  * @brief Stateful trigger tracker for one authoritative moving character.
  *
- * Trigger overlap uses the character radius as a sphere centered at the authoritative movement
- * position. Capsule-height trigger checks are intentionally deferred; Phase 8E treats triggers as
- * inclusive sphere-vs-AABB tests at the character center to match TriggerSystem.
+ * Trigger overlap uses the authoritative character capsule centered at the movement position. The
+ * tracker owns overlap state only; the caller supplies already-authoritative shape configuration.
  */
 class MovementTriggerTracker {
 public:
@@ -53,10 +52,11 @@ public:
     void reset_from_world(const stellar::world::RuntimeWorld& world);
 
     /**
-     * @brief Update trigger state from an authoritative character center position and radius.
+     * @brief Update trigger state from an authoritative character center position and capsule shape.
      */
-    [[nodiscard]] std::vector<MovementTriggerEvent> update(std::array<float, 3> position,
-                                                           float radius) noexcept;
+    [[nodiscard]] std::vector<MovementTriggerEvent> update(
+        std::array<float, 3> position,
+        const stellar::physics::CharacterControllerConfig& character) noexcept;
 
 private:
     stellar::world::TriggerSystem trigger_system_;
@@ -70,6 +70,15 @@ private:
     const MovementState& previous,
     const MovementCommand& command,
     const MovementSimulationConfig& config,
+    MovementTriggerTracker& tracker) noexcept;
+
+/** @brief Advance authoritative movement with optional collision state, then update triggers. */
+[[nodiscard]] MovementTriggerTickResult simulate_movement_tick_and_update_triggers(
+    const stellar::world::RuntimeWorld& world,
+    const MovementState& previous,
+    const MovementCommand& command,
+    const MovementSimulationConfig& config,
+    const stellar::world::RuntimeCollisionState* collision_state,
     MovementTriggerTracker& tracker) noexcept;
 
 } // namespace stellar::server

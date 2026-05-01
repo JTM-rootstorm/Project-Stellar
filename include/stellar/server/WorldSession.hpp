@@ -3,10 +3,12 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <vector>
 
 #include "stellar/server/MovementSimulation.hpp"
 #include "stellar/server/MovementTriggerIntegration.hpp"
+#include "stellar/world/RuntimeCollisionState.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::server {
@@ -84,6 +86,16 @@ public:
     /** @brief Advance one authoritative tick using the local player's command if present. */
     [[nodiscard]] WorldSnapshot tick(std::span<const PlayerCommand> commands) noexcept;
 
+    /**
+     * @brief Authoritatively enable or disable named static collision meshes for future ticks.
+     *
+     * The immutable RuntimeWorld and imported assets are not modified. Duplicate authored names are
+     * toggled together by RuntimeCollisionState in deterministic mesh-index order.
+     */
+    [[nodiscard]] stellar::world::RuntimeCollisionStateResult set_collision_mesh_enabled(
+        std::string_view name,
+        bool enabled) noexcept;
+
     /** @brief Return the number of completed authoritative simulation ticks. */
     [[nodiscard]] std::uint64_t tick_index() const noexcept;
 
@@ -97,6 +109,7 @@ private:
     WorldSessionConfig config_{};
     MovementState player_state_{};
     MovementTriggerTracker trigger_tracker_{};
+    stellar::world::RuntimeCollisionState collision_state_{};
     std::uint64_t tick_index_ = 0;
 };
 

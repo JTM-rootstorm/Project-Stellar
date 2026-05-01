@@ -13,6 +13,7 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
     config_ = config;
     player_state_ = make_spawn_movement_state(world);
     trigger_tracker_.reset_from_world(world);
+    collision_state_ = stellar::world::RuntimeCollisionState::from_world(world);
     tick_index_ = 0;
 }
 
@@ -23,7 +24,7 @@ WorldSnapshot WorldSession::snapshot() const {
 WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexcept {
     const MovementCommand command = select_local_command(commands);
     const MovementTriggerTickResult result = simulate_movement_tick_and_update_triggers(
-        *world_, player_state_, command, config_.movement, trigger_tracker_);
+        *world_, player_state_, command, config_.movement, &collision_state_, trigger_tracker_);
     player_state_ = result.movement.state;
     ++tick_index_;
     return make_snapshot(result.trigger_events);
@@ -31,6 +32,12 @@ WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexce
 
 std::uint64_t WorldSession::tick_index() const noexcept {
     return tick_index_;
+}
+
+stellar::world::RuntimeCollisionStateResult WorldSession::set_collision_mesh_enabled(
+    std::string_view name,
+    bool enabled) noexcept {
+    return collision_state_.set_mesh_enabled(name, enabled);
 }
 
 WorldSnapshot WorldSession::make_snapshot(

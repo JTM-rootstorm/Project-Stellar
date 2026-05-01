@@ -3,6 +3,7 @@
 #include <array>
 
 #include "stellar/physics/CharacterController.hpp"
+#include "stellar/world/RuntimeCollisionState.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::server {
@@ -70,6 +71,23 @@ struct MovementTickResult {
 };
 
 /**
+ * @brief Movement config after authoritative server-side clamping and fallback replacement.
+ */
+struct SanitizedMovementSimulationConfig {
+    /** @brief Sanitized movement settings used by authoritative simulation. */
+    MovementSimulationConfig value{};
+
+    /** @brief True when any unsafe or out-of-range config value was replaced or clamped. */
+    bool sanitized = false;
+};
+
+/**
+ * @brief Sanitize authoritative movement settings without advancing simulation state.
+ */
+[[nodiscard]] SanitizedMovementSimulationConfig sanitize_movement_simulation_config(
+    MovementSimulationConfig config) noexcept;
+
+/**
  * @brief Initialize movement state from the first player spawn, or origin if absent.
  */
 [[nodiscard]] MovementState make_spawn_movement_state(const stellar::world::RuntimeWorld& world);
@@ -82,5 +100,18 @@ struct MovementTickResult {
     const MovementState& previous,
     const MovementCommand& command,
     const MovementSimulationConfig& config) noexcept;
+
+/**
+ * @brief Advance authoritative movement using optional server-owned collision enable state.
+ *
+ * Null collision state preserves the all-enabled behavior. Non-null state filters static collision
+ * queries by authoritative mesh enable bits without mutating the immutable runtime world.
+ */
+[[nodiscard]] MovementTickResult simulate_movement_tick(
+    const stellar::world::RuntimeWorld& world,
+    const MovementState& previous,
+    const MovementCommand& command,
+    const MovementSimulationConfig& config,
+    const stellar::world::RuntimeCollisionState* collision_state) noexcept;
 
 } // namespace stellar::server

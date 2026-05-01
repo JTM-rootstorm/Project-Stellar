@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.5 (lua-scripting branch alignment)  
+**Version:** 0.1.6 (collision scripting branch alignment)  
 **Last Updated:** 2026-04-30
 
 ---
@@ -84,7 +84,7 @@ OpenGL/Vulkan material parity suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`lua-scripting` branch, it is not the highest authority on current implementation
+`collision-movement` branch, it is not the highest authority on current implementation
 status.
 
 Precedence for resolving conflicts:
@@ -105,12 +105,13 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `lua-scripting`.
+Current branch: `collision-movement`.
 
-Primary near-term goal: attach opt-in server-authoritative Lua scripting to the existing playable
-world seam. glTF world metadata may bind trigger markers to script IDs/tables, but import does not
-execute scripts. Runtime scripting wraps authoritative movement/session output and emits validated
-script output events after native trigger events.
+Primary near-term goal: make imported static collision usable by authored gameplay and scripts while
+preserving server authority. glTF world metadata may bind trigger markers to script IDs/tables, but
+import does not execute scripts. Runtime scripting wraps authoritative movement/session output,
+emits primitive script events, and applies only native-validated collision commands to server-owned
+runtime state.
 
 Completed Phase 10 implementation order:
 
@@ -129,9 +130,28 @@ Completed Phase 10 implementation order:
    - Validate the authored glTF -> runtime world -> scripted authoritative trigger path in a
      display-free integration smoke.
 
-Avoid spending the next implementation slices on client-side scripting, renderer/audio scripting
-bindings, full PBR, morph targets, glTF-authored cameras, or glTF-authored lights unless a concrete
-requirement appears.
+Completed Phase 11 implementation order:
+
+1. **Phase 11A — Capsule-Aware Trigger Overlap**
+   - Align trigger enter/stay/exit checks with the authoritative character capsule.
+2. **Phase 11B — Runtime Collision State Overlay**
+   - Add server-owned enable/disable state for named imported static collision meshes without
+     mutating imported assets.
+3. **Phase 11C — Filtered Collision Queries and Movement Integration**
+   - Route raycasts, ground probes, low-level movement, character movement, and `WorldSession`
+     through collision mesh filters.
+4. **Phase 11D — Validated Script Collision Commands**
+   - Apply `collision.set_mesh_enabled` script output events through native validation after script
+     callbacks, affecting subsequent authoritative ticks.
+5. **Phase 11E — Kinematic Object Collider Registry**
+   - Add a backend-neutral deterministic overlap registry foundation without rigid bodies or ECS
+     ownership.
+6. **Phase 11F — Scripted Collision Smoke and Documentation**
+   - Validate a display-free trigger script that disables a named collision blocker.
+
+Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
+client-side scripting, renderer/audio scripting bindings, full PBR, morph targets, glTF-authored
+cameras, or glTF-authored lights unless a concrete requirement appears.
 
 ---
 
@@ -273,20 +293,28 @@ struct LevelCollisionAsset {
 This model may be represented as `std::optional<LevelCollisionAsset>` on `SceneAsset` or as an
 always-present `LevelCollisionAsset` where an empty mesh list means no collision.
 
+Imported static collision remains immutable asset data. Runtime gameplay that needs to open doors,
+gates, traps, or one-way blockers uses a server-owned collision-state overlay keyed by authored
+collision mesh names. The overlay stores enable/disable state only; it does not rebuild assets,
+mutate `CollisionWorld`, or introduce dynamic rigid bodies. Empty collision mesh names are not
+targetable, and duplicate names are diagnosed deterministically and toggled together by name.
+
 ### 5.4 Collision Query Direction
 
-Phase 6B builds on Phase 6A data with a small backend-neutral collision query module. It should
-support:
+Phase 6B and Phase 11 build on Phase 6A data with a small backend-neutral collision query module.
+It should support:
 
 - Finite segment/raycast queries.
 - Nearest-hit selection.
 - Ground probing.
 - Minimal sweep-and-slide movement.
 - Simple deterministic behavior over static collision geometry.
+- Optional runtime mesh filters for server-owned enable/disable state.
+- Character capsule movement and authoritative trigger overlap using consistent capsule dimensions.
 - Display-free tests.
 
 Do not introduce full rigid body simulation, dynamic bodies, navigation meshes, or broad physics
-engine integration in this slice.
+engine integration in this collision-state path.
 
 ---
 
@@ -345,7 +373,7 @@ Intentionally deferred unless a concrete requirement appears:
 - Full physics engine integration.
 - Dynamic rigid bodies.
 - Navigation mesh/pathfinding.
-- Runtime trigger behavior.
+- Runtime trigger behavior beyond authoritative capsule overlap and scripted collision commands.
 - ECS/server spawning directly from glTF metadata.
 
 ### 6.4 glTF Collision Node Conventions
@@ -643,6 +671,11 @@ initial implementation is intentionally narrow:
 - Scripts receive plain event tables, not raw C++ pointers.
 - Scripts emit primitive output events through `stellar.emit_event`; native server/gameplay code must
   validate and apply those outputs explicitly.
+- The initial native command vocabulary supports `collision.set_mesh_enabled` with `mesh` and
+  `enabled` fields. The command processor validates fields and applies approved changes through
+  `server::WorldSession`, not through Lua-owned state.
+- Script-emitted collision commands are processed after native movement and trigger callbacks for
+  the completed tick. Collision state changes affect subsequent authoritative ticks.
 - Runtime script errors become deterministic `ScriptError` diagnostics and do not crash the session.
 
 Supported initial hooks:
@@ -655,6 +688,10 @@ function Door.on_trigger_exit(event) end
 
 Initial event fields include the authoritative trigger name and tick. Future entity/object scripting
 should be added only after ECS/runtime entity ownership and serialization contracts are concrete.
+
+Backend-neutral object collider overlap support may exist as a plain runtime data registry, but it is
+not a rigid body system and does not imply script callbacks or ECS ownership until those contracts are
+explicitly scoped.
 
 ---
 
@@ -1116,10 +1153,12 @@ regression tests before broader benchmark infrastructure is introduced.
 
 ### 17.1 Active Near-Term Roadmap
 
-1. Preserve Phase 10's server-authoritative Lua seam while integrating future gameplay features.
+1. Preserve Phase 11's server-authoritative runtime collision state while integrating future
+   gameplay features.
 2. Expand scripted outputs only through validated native server/gameplay APIs.
 3. Add entity/object scripting after ECS/runtime entity ownership is concrete.
-4. Keep client-side presentation scripting deferred unless explicitly scoped.
+4. Keep client-side presentation scripting, dynamic rigid bodies, and third-party physics deferred
+   unless explicitly scoped.
 
 ### 17.2 Completed Recent Direction
 
@@ -1139,6 +1178,9 @@ Recent completed work includes:
   loopback, and playable-world smoke coverage.
 - Phase 10 Lua scripting seam: `stellar_scripting`, script binding metadata, trigger callbacks,
   `ScriptedWorldSession`, and scripted playable-world smoke coverage.
+- Phase 11 scripted collision seam: capsule-aware trigger overlap, runtime collision state overlay,
+  filtered collision queries/movement, native script collision commands, kinematic object collider
+  registry foundation, and scripted collision smoke coverage.
 
 ### 17.3 Deferred Rendering Work
 
@@ -1160,7 +1202,8 @@ Deferred beyond active Phase 6 slices unless explicitly planned:
 
 - Full rigid body physics engine integration.
 - Dynamic collision objects.
-- Character capsule/stair-step controller polish beyond minimal movement.
+- Dynamic rigid body collision objects.
+- Character capsule/stair-step controller polish beyond current authoritative movement.
 - Runtime ECS/server spawning directly from glTF metadata.
 - Navigation mesh/pathfinding.
 - Editor tooling.
@@ -1189,6 +1232,7 @@ Deferred unless scoped:
 | 2026-04-24 | 0.1.3 | TBD | Replace SFML with SDL2 for windowing and input |
 | 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, current glTF support, and explicit deferred work |
 | 2026-04-30 | 0.1.5 | Kilo | Align design with `lua-scripting` branch status, Phase 10 server-authoritative Lua scripting, `stellar_scripting`, scripted session smoke coverage, dependency/build/test updates, and deferred client/entity scripting work |
+| 2026-04-30 | 0.1.6 | Kilo | Align design with Phase 11 scripted collision behavior: runtime collision state, filtered authoritative movement, native script collision commands, object collider registry foundation, and scripted collision smoke coverage |
 
 ---
 

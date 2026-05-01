@@ -44,6 +44,21 @@ stellar::assets::LevelCollisionAsset make_asset_from_vector(
     return asset;
 }
 
+stellar::assets::LevelCollisionAsset make_two_mesh_asset(
+    std::initializer_list<stellar::assets::CollisionTriangle> first,
+    std::initializer_list<stellar::assets::CollisionTriangle> second) {
+    stellar::assets::LevelCollisionAsset asset;
+    stellar::assets::CollisionMesh mesh_a;
+    mesh_a.name = "a";
+    mesh_a.triangles.assign(first.begin(), first.end());
+    stellar::assets::CollisionMesh mesh_b;
+    mesh_b.name = "b";
+    mesh_b.triangles.assign(second.begin(), second.end());
+    asset.meshes.push_back(mesh_a);
+    asset.meshes.push_back(mesh_b);
+    return asset;
+}
+
 stellar::assets::CollisionTriangle floor_triangle(float y = 0.0F) {
     return triangle({-10.0F, y, -10.0F}, {10.0F, y, -10.0F}, {0.0F, y, 10.0F},
                     {0.0F, 1.0F, 0.0F});
@@ -375,6 +390,71 @@ void capsule_slide_into_corner_stops_cleanly() {
     assert(finite(moved.remaining_displacement));
 }
 
+void disabled_wall_no_longer_blocks_character() {
+    const auto asset = make_two_mesh_asset({wall_x_triangle(), wall_x_triangle_2()}, {});
+    stellar::physics::CollisionWorld world(asset);
+    stellar::physics::CharacterController controller(world);
+    const std::vector<bool> enabled{false, true};
+
+    const auto moved = controller.move({.position = {0.0F, 1.0F, 0.0F},
+                                        .displacement = {5.0F, 0.0F, 0.0F}},
+                                       config(), {.enabled_meshes = &enabled});
+
+    assert(!moved.hit);
+    assert(moved.position[0] > 4.9F);
+}
+
+void disabled_floor_no_longer_grounds_character() {
+    const auto asset = make_two_mesh_asset({floor_triangle()}, {});
+    stellar::physics::CollisionWorld world(asset);
+    stellar::physics::CharacterController controller(world);
+    const std::vector<bool> enabled{false, true};
+
+    const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
+                                        .displacement = {0.0F, 0.0F, 0.0F}},
+                                       config(), {.enabled_meshes = &enabled});
+
+    assert(!moved.grounded);
+    assert(!moved.started_overlapping);
+}
+
+void step_up_ignores_disabled_step() {
+    const auto block = block_asset(0.25F);
+    const auto asset = make_two_mesh_asset({block.meshes[0].triangles[0], block.meshes[0].triangles[1],
+                                            block.meshes[0].triangles[2]},
+                                           {});
+    stellar::physics::CollisionWorld world(asset);
+    stellar::physics::CharacterController controller(world);
+    const std::vector<bool> enabled{false, true};
+
+    const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
+                                        .displacement = {1.6F, 0.0F, 0.0F}},
+                                       config(), {.enabled_meshes = &enabled});
+
+    assert(!moved.stepped);
+    assert(!moved.hit);
+    assert(moved.position[0] > 1.5F);
+}
+
+void all_enabled_filter_matches_existing_behavior() {
+    const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2()});
+    stellar::physics::CollisionWorld world(asset);
+    stellar::physics::CharacterController controller(world);
+    const std::vector<bool> enabled{true};
+
+    const auto unfiltered = controller.move({.position = {0.0F, 1.0F, 0.0F},
+                                            .displacement = {5.0F, 0.0F, 0.0F}},
+                                           config());
+    const auto filtered = controller.move({.position = {0.0F, 1.0F, 0.0F},
+                                          .displacement = {5.0F, 0.0F, 0.0F}},
+                                         config(), {.enabled_meshes = &enabled});
+
+    assert(filtered.hit == unfiltered.hit);
+    assert(nearly_equal(filtered.position[0], unfiltered.position[0], 0.0F));
+    assert(nearly_equal(filtered.position[1], unfiltered.position[1], 0.0F));
+    assert(nearly_equal(filtered.position[2], unfiltered.position[2], 0.0F));
+}
+
 } // namespace
 
 int main() {
@@ -407,5 +487,9 @@ int main() {
     capsule_too_tall_for_tunnel_is_blocked();
     capsule_degenerate_height_and_radius_remain_finite();
     capsule_slide_into_corner_stops_cleanly();
+    disabled_wall_no_longer_blocks_character();
+    disabled_floor_no_longer_grounds_character();
+    step_up_ignores_disabled_step();
+    all_enabled_filter_matches_existing_behavior();
     return 0;
 }

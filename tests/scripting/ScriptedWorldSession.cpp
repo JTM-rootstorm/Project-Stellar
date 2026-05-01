@@ -34,10 +34,36 @@ stellar::assets::WorldMarker trigger_marker(std::string name,
     return marker;
 }
 
+stellar::assets::CollisionTriangle triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 normal) {
+    return stellar::assets::CollisionTriangle{.a = a, .b = b, .c = c, .normal = normal};
+}
+
+stellar::assets::CollisionTriangle wall_x_triangle_a(float x = 0.8F) {
+    return triangle({x, -2.0F, -4.0F}, {x, 4.0F, 4.0F}, {x, -2.0F, 4.0F},
+                    {-1.0F, 0.0F, 0.0F});
+}
+
+stellar::assets::CollisionTriangle wall_x_triangle_b(float x = 0.8F) {
+    return triangle({x, -2.0F, -4.0F}, {x, 4.0F, -4.0F}, {x, 4.0F, 4.0F},
+                    {-1.0F, 0.0F, 0.0F});
+}
+
 stellar::assets::SceneAsset scene_with_markers(
     std::initializer_list<stellar::assets::WorldMarker> markers) {
     stellar::assets::SceneAsset scene{};
     scene.world_metadata.markers.assign(markers.begin(), markers.end());
+    return scene;
+}
+
+stellar::assets::SceneAsset scene_with_trigger_and_wall(std::string wall_name) {
+    auto scene = scene_with_markers({
+        player_spawn({0.0F, 0.5F, 0.0F}),
+        trigger_marker("DoorOpen", {0.0F, 0.5F, 0.0F}, {0.5F, 0.5F, 0.5F}, "door", "Door"),
+    });
+    stellar::assets::CollisionMesh wall;
+    wall.name = std::move(wall_name);
+    wall.triangles = {wall_x_triangle_a(), wall_x_triangle_b()};
+    scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {wall}};
     return scene;
 }
 
@@ -102,6 +128,14 @@ void assert_same_event(const stellar::scripting::ScriptOutputEvent& a,
     }
 }
 
+void assert_same_command_result(const stellar::scripting::ScriptCommandResult& a,
+                                const stellar::scripting::ScriptCommandResult& b) {
+    assert(a.event_name == b.event_name);
+    assert(a.applied == b.applied);
+    assert(a.code == b.code);
+    assert(a.message == b.message);
+}
+
 void assert_same_frame(const stellar::scripting::ScriptedWorldFrame& a,
                        const stellar::scripting::ScriptedWorldFrame& b) {
     assert(a.snapshot.tick == b.snapshot.tick);
@@ -109,8 +143,12 @@ void assert_same_frame(const stellar::scripting::ScriptedWorldFrame& a,
     assert(a.snapshot.trigger_events.size() == b.snapshot.trigger_events.size());
     assert(a.script_errors.size() == b.script_errors.size());
     assert(a.script_events.size() == b.script_events.size());
+    assert(a.command_results.size() == b.command_results.size());
     for (std::size_t i = 0; i < a.script_events.size(); ++i) {
         assert_same_event(a.script_events[i], b.script_events[i]);
+    }
+    for (std::size_t i = 0; i < a.command_results.size(); ++i) {
+        assert_same_command_result(a.command_results[i], b.command_results[i]);
     }
 }
 
@@ -270,6 +308,126 @@ void latest_snapshot_does_not_replay_script_events() {
     assert(latest_b.trigger_events.size() == frame.snapshot.trigger_events.size());
 }
 
+void scripted_trigger_can_disable_named_collision_mesh() {
+    const auto scene = scene_with_trigger_and_wall("DoorBlocker");
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "door",
+        "Door = {}\n"
+        "function Door.on_trigger_enter(event)\n"
+        "  stellar.emit_event('collision.set_mesh_enabled', "
+        "{mesh = 'DoorBlocker', enabled = false})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+
+    const auto frame = session->tick({});
+
+    assert(frame.script_errors.empty());
+    assert(frame.script_events.size() == 1);
+    assert(frame.script_events[0].name == "collision.set_mesh_enabled");
+    assert(frame.command_results.size() == 1);
+    assert(frame.command_results[0].applied);
+    assert(frame.command_results[0].code == "ok");
+}
+
+void collision_disable_affects_next_tick_not_current_tick() {
+    const auto scene = scene_with_trigger_and_wall("DoorBlocker");
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "door",
+        "Door = {}\n"
+        "function Door.on_trigger_enter(event)\n"
+        "  stellar.emit_event('collision.set_mesh_enabled', "
+        "{mesh = 'DoorBlocker', enabled = false})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+    const std::vector<stellar::server::PlayerCommand> move_right{{
+        .player_id = 7,
+        .movement = {.wish_direction = {1.0F, 0.0F, 0.0F}},
+    }};
+
+    const auto first = session->tick(move_right);
+    const auto second = session->tick(move_right);
+
+    assert(first.command_results.size() == 1);
+    assert(first.command_results[0].applied);
+    assert(first.snapshot.players[0].position[0] < 0.56F);
+    assert(second.snapshot.players[0].position[0] > 0.9F);
+}
+
+void scripted_invalid_collision_command_does_not_crash() {
+    const auto scene = scene_with_trigger_and_wall("DoorBlocker");
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "door",
+        "Door = {}\n"
+        "function Door.on_trigger_enter(event)\n"
+        "  stellar.emit_event('collision.set_mesh_enabled', {mesh = 'DoorBlocker'})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+
+    const auto frame = session->tick({});
+
+    assert(frame.script_errors.empty());
+    assert(frame.script_events.size() == 1);
+    assert(frame.command_results.size() == 1);
+    assert(!frame.command_results[0].applied);
+    assert(frame.command_results[0].code == "invalid_field");
+}
+
+void latest_snapshot_does_not_reapply_commands() {
+    const auto scene = scene_with_trigger_and_wall("DoorBlocker");
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "door",
+        "count = 0\n"
+        "Door = {}\n"
+        "function Door.on_trigger_enter(event)\n"
+        "  count = count + 1\n"
+        "  stellar.emit_event('collision.set_mesh_enabled', "
+        "{mesh = 'DoorBlocker', enabled = false, count = count})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+    const auto frame = session->tick({});
+    const auto& latest_a = session->latest_snapshot();
+    const auto& latest_b = session->latest_snapshot();
+
+    assert(frame.command_results.size() == 1);
+    assert(number_field(frame.script_events[0], "count") == 1.0);
+    assert(latest_a.tick == frame.snapshot.tick);
+    assert(latest_b.tick == frame.snapshot.tick);
+}
+
+void repeat_run_produces_same_script_events_and_command_results() {
+    const auto scene = scene_with_trigger_and_wall("DoorBlocker");
+    const auto world = stellar::world::build_runtime_world(scene);
+    const char* source =
+        "Door = {}\n"
+        "function Door.on_trigger_enter(event)\n"
+        "  stellar.emit_event('collision.set_mesh_enabled', "
+        "{mesh = 'DoorBlocker', enabled = false, tick = event.tick})\n"
+        "end\n";
+    auto first_registry = registry_with("door", source);
+    auto second_registry = registry_with("door", source);
+    auto first = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                  std::move(first_registry));
+    auto second = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                   std::move(second_registry));
+    assert(first.has_value());
+    assert(second.has_value());
+
+    assert_same_frame(first->tick({}), second->tick({}));
+    assert_same_frame(first->tick({}), second->tick({}));
+}
+
 } // namespace
 
 int main() {
@@ -279,5 +437,10 @@ int main() {
     repeated_scripted_path_is_deterministic();
     script_errors_are_reported_without_crashing_session();
     latest_snapshot_does_not_replay_script_events();
+    scripted_trigger_can_disable_named_collision_mesh();
+    collision_disable_affects_next_tick_not_current_tick();
+    scripted_invalid_collision_command_does_not_crash();
+    latest_snapshot_does_not_reapply_commands();
+    repeat_run_produces_same_script_events_and_command_results();
     return EXIT_SUCCESS;
 }

@@ -103,12 +103,8 @@ using Vec3 = std::array<float, 3>;
     return std::max(current - max_delta, target);
 }
 
-struct SanitizedConfig {
-    MovementSimulationConfig value{};
-    bool sanitized = false;
-};
-
-[[nodiscard]] SanitizedConfig sanitize_config(MovementSimulationConfig config) noexcept {
+[[nodiscard]] SanitizedMovementSimulationConfig sanitize_config(
+    MovementSimulationConfig config) noexcept {
     bool sanitized = false;
     config.max_speed = sanitize_non_negative(config.max_speed, 6.0F, kMaxReasonableSpeed, sanitized);
     config.acceleration =
@@ -169,12 +165,26 @@ MovementState make_spawn_movement_state(const stellar::world::RuntimeWorld& worl
     return state;
 }
 
+SanitizedMovementSimulationConfig sanitize_movement_simulation_config(
+    MovementSimulationConfig config) noexcept {
+    return sanitize_config(config);
+}
+
 MovementTickResult simulate_movement_tick(const stellar::world::RuntimeWorld& world,
                                           const MovementState& previous,
                                           const MovementCommand& command,
                                           const MovementSimulationConfig& config) noexcept {
+    return simulate_movement_tick(world, previous, command, config, nullptr);
+}
+
+MovementTickResult simulate_movement_tick(
+    const stellar::world::RuntimeWorld& world,
+    const MovementState& previous,
+    const MovementCommand& command,
+    const MovementSimulationConfig& config,
+    const stellar::world::RuntimeCollisionState* collision_state) noexcept {
     bool sanitized = false;
-    const SanitizedConfig sanitized_config = sanitize_config(config);
+    const SanitizedMovementSimulationConfig sanitized_config = sanitize_config(config);
     sanitized = sanitized || sanitized_config.sanitized;
     MovementState state = sanitize_state(previous, sanitized);
     const MovementCommand clean_command = sanitize_command(command, sanitized);
@@ -201,9 +211,15 @@ MovementTickResult simulate_movement_tick(const stellar::world::RuntimeWorld& wo
     if (world.collision_world.has_value()) {
         const stellar::physics::CharacterController controller(*world.collision_world);
         const stellar::physics::CharacterMoveInput input{.position = start_position,
-                                                         .displacement = displacement,
-                                                         .up = {0.0F, 1.0F, 0.0F}};
-        result.collision = controller.move(input, cfg.character);
+                                                          .displacement = displacement,
+                                                          .up = {0.0F, 1.0F, 0.0F}};
+        if (collision_state != nullptr) {
+            const stellar::physics::CollisionQueryFilter filter{
+                .enabled_meshes = &collision_state->enabled_meshes()};
+            result.collision = controller.move(input, cfg.character, filter);
+        } else {
+            result.collision = controller.move(input, cfg.character);
+        }
         state.position = result.collision.position;
         state.grounded = result.collision.grounded;
         state.velocity = mul(sub(state.position, start_position), 1.0F / cfg.fixed_dt);

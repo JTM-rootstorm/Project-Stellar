@@ -72,6 +72,22 @@ stellar::assets::SceneAsset scene_with_collision_and_markers(
     return scene;
 }
 
+stellar::assets::SceneAsset scene_with_named_collision_meshes(
+    std::string wall_name,
+    float wall_x,
+    Vec3 spawn_position) {
+    stellar::assets::SceneAsset scene = scene_with_markers({player_spawn(spawn_position)});
+    stellar::assets::CollisionMesh wall;
+    wall.name = std::move(wall_name);
+    wall.triangles = {wall_x_triangle_a(wall_x), wall_x_triangle_b(wall_x)};
+    stellar::assets::CollisionMesh floor;
+    floor.name = "Floor";
+    floor.triangles = {triangle({-10.0F, -5.0F, -10.0F}, {10.0F, -5.0F, -10.0F},
+                                {10.0F, -5.0F, 10.0F}, {0.0F, 1.0F, 0.0F})};
+    scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {wall, floor}};
+    return scene;
+}
+
 stellar::server::WorldSessionConfig test_session_config(
     stellar::server::PlayerId player_id = 1) {
     stellar::server::WorldSessionConfig config;
@@ -285,6 +301,64 @@ void same_inputs_produce_same_snapshots() {
     assert_same_snapshot(a.snapshot(), b.snapshot());
 }
 
+void world_session_disabled_mesh_affects_next_tick() {
+    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+    const std::vector<stellar::server::PlayerCommand> commands{
+        {.player_id = 1, .movement = {.wish_direction = {1.0F, 0.0F, 0.0F}}}};
+
+    const auto mutation = session.set_collision_mesh_enabled("Gate", false);
+    const auto snapshot = session.tick(commands);
+
+    assert(mutation.applied);
+    assert(mutation.code == "ok");
+    assert(only_player(snapshot).position[0] > 0.9F);
+}
+
+void world_session_collision_state_resets_with_world() {
+    const auto first_scene = scene_with_named_collision_meshes("GateA", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto first_world = stellar::world::build_runtime_world(first_scene);
+    const auto second_scene = scene_with_named_collision_meshes("GateB", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto second_world = stellar::world::build_runtime_world(second_scene);
+    stellar::server::WorldSession session(first_world, test_session_config());
+    assert(session.set_collision_mesh_enabled("GateA", false).applied);
+
+    session.reset(second_world, test_session_config());
+    const auto old_name = session.set_collision_mesh_enabled("GateA", false);
+    const auto new_name = session.set_collision_mesh_enabled("GateB", false);
+
+    assert(!old_name.applied);
+    assert(old_name.code == "not_found");
+    assert(new_name.applied);
+}
+
+void snapshot_does_not_apply_or_replay_collision_mutation() {
+    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+    const auto before = session.snapshot();
+    const auto mutation = session.set_collision_mesh_enabled("Gate", false);
+    const auto after = session.snapshot();
+
+    assert(mutation.applied);
+    assert_same_snapshot(before, after);
+}
+
+void same_collision_state_and_inputs_produce_same_snapshots() {
+    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession a(world, test_session_config());
+    stellar::server::WorldSession b(world, test_session_config());
+    assert(a.set_collision_mesh_enabled("Gate", false).applied);
+    assert(b.set_collision_mesh_enabled("Gate", false).applied);
+    const std::vector<stellar::server::PlayerCommand> commands{
+        {.player_id = 1, .movement = {.wish_direction = {1.0F, 0.0F, 0.0F}}}};
+
+    assert_same_snapshot(a.tick(commands), b.tick(commands));
+    assert_same_snapshot(a.tick({}), b.tick({}));
+}
+
 } // namespace
 
 int main() {
@@ -298,5 +372,9 @@ int main() {
     snapshot_does_not_replay_previous_trigger_events();
     reset_reinitializes_spawn_state_tick_and_trigger_tracker();
     same_inputs_produce_same_snapshots();
+    world_session_disabled_mesh_affects_next_tick();
+    world_session_collision_state_resets_with_world();
+    snapshot_does_not_apply_or_replay_collision_mutation();
+    same_collision_state_and_inputs_produce_same_snapshots();
     return 0;
 }

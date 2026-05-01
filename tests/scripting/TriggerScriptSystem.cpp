@@ -1,5 +1,7 @@
 #include "stellar/scripting/TriggerScriptSystem.hpp"
 
+#include "stellar/server/MovementTriggerIntegration.hpp"
+
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -223,6 +225,54 @@ void runtime_error_continues_to_later_callbacks() {
     require_true(result.output_events[0].name == "good_after_bad", "later callback should continue");
 }
 
+void script_trigger_enter_uses_capsule_accurate_authoritative_event() {
+    RuntimeWorld world{};
+    auto marker = trigger_marker("TallDoor", "door", "Door");
+    marker.position = {0.0F, 1.75F, 0.0F};
+    marker.scale = {0.2F, 0.05F, 0.2F};
+    world.world_metadata.markers.push_back(std::move(marker));
+
+    stellar::server::MovementSimulationConfig config{};
+    config.gravity = 0.0F;
+    config.fixed_dt = 0.1F;
+    config.character.radius = 0.25F;
+    config.character.height = 4.0F;
+    config.character.skin_width = 0.0F;
+    config.character.ground_snap_distance = 0.0F;
+    stellar::server::MovementState previous{};
+    previous.grounded = true;
+    stellar::server::MovementTriggerTracker tracker;
+    tracker.reset_from_world(world);
+
+    const auto tick = stellar::server::simulate_movement_tick_and_update_triggers(
+        world, previous, {}, config, tracker);
+    require_true(tick.trigger_events.size() == 1, "capsule should enter high trigger");
+    require_true(tick.trigger_events[0].trigger_name == "TallDoor", "capsule event trigger name");
+    require_true(tick.trigger_events[0].entered, "capsule event should be enter");
+
+    TriggerScriptSystem system{world};
+    LuaRuntime runtime{};
+    auto loaded = runtime.load_script(
+        "door",
+        "Door = {}\n"
+        "function Door.on_trigger_enter(event)\n"
+        "  stellar.emit_event('capsule_enter', {trigger = event.trigger_name})\n"
+        "end\n");
+    require_true(loaded.has_value(), "capsule trigger script should load");
+
+    WorldSnapshot snapshot{};
+    snapshot.players.push_back(
+        PlayerSnapshot{.player_id = 1, .position = tick.movement.state.position});
+    snapshot.trigger_events = tick.trigger_events;
+    const auto result = system.process_trigger_events(runtime, snapshot);
+
+    require_true(result.errors.empty(), "capsule script enter should not error");
+    require_true(result.output_events.size() == 1, "capsule enter should emit one script event");
+    require_true(result.output_events[0].name == "capsule_enter", "capsule enter callback should run");
+    require_true(string_field(result.output_events[0], "trigger") == "TallDoor",
+                 "capsule enter script receives trigger name");
+}
+
 } // namespace
 
 int main() {
@@ -232,5 +282,6 @@ int main() {
     missing_callback_is_noop_and_unbound_markers_are_ignored();
     missing_table_reports_deterministic_error();
     runtime_error_continues_to_later_callbacks();
+    script_trigger_enter_uses_capsule_accurate_authoritative_event();
     return EXIT_SUCCESS;
 }

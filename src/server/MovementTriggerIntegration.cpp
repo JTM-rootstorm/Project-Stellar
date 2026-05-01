@@ -20,9 +20,14 @@ void MovementTriggerTracker::reset_from_world(const stellar::world::RuntimeWorld
     trigger_system_.set_triggers(triggers);
 }
 
-std::vector<MovementTriggerEvent> MovementTriggerTracker::update(std::array<float, 3> position,
-                                                                 float radius) noexcept {
-    const auto overlaps = trigger_system_.update_sphere(position, radius);
+std::vector<MovementTriggerEvent> MovementTriggerTracker::update(
+    std::array<float, 3> position,
+    const stellar::physics::CharacterControllerConfig& character) noexcept {
+    const stellar::world::TriggerCapsule capsule{.center = position,
+                                                 .up = {0.0F, 1.0F, 0.0F},
+                                                 .radius = character.radius,
+                                                 .height = character.height};
+    const auto overlaps = trigger_system_.update_capsule(capsule);
     std::vector<MovementTriggerEvent> events;
     events.reserve(overlaps.size());
     for (auto overlap : overlaps) {
@@ -37,9 +42,23 @@ MovementTriggerTickResult simulate_movement_tick_and_update_triggers(
     const MovementCommand& command,
     const MovementSimulationConfig& config,
     MovementTriggerTracker& tracker) noexcept {
+    return simulate_movement_tick_and_update_triggers(world, previous, command, config, nullptr,
+                                                      tracker);
+}
+
+MovementTriggerTickResult simulate_movement_tick_and_update_triggers(
+    const stellar::world::RuntimeWorld& world,
+    const MovementState& previous,
+    const MovementCommand& command,
+    const MovementSimulationConfig& config,
+    const stellar::world::RuntimeCollisionState* collision_state,
+    MovementTriggerTracker& tracker) noexcept {
     MovementTriggerTickResult result;
-    result.movement = simulate_movement_tick(world, previous, command, config);
-    result.trigger_events = tracker.update(result.movement.state.position, config.character.radius);
+    result.movement = simulate_movement_tick(world, previous, command, config, collision_state);
+    const SanitizedMovementSimulationConfig sanitized_config =
+        sanitize_movement_simulation_config(config);
+    result.trigger_events = tracker.update(result.movement.state.position,
+                                           sanitized_config.value.character);
     return result;
 }
 

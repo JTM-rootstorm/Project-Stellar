@@ -74,10 +74,13 @@ ScriptedWorldFrame ScriptedWorldSession::tick(
     latest_snapshot_ = session_.tick(commands);
     TriggerScriptResult script_result =
         trigger_scripts_.process_trigger_events(runtime_, latest_snapshot_);
+    ScriptCommandApplication command_application =
+        apply_script_commands(session_, script_result.output_events);
 
     return ScriptedWorldFrame{.snapshot = latest_snapshot_,
-                              .script_events = std::move(script_result.output_events),
-                              .script_errors = std::move(script_result.errors)};
+                               .script_events = std::move(script_result.output_events),
+                               .script_errors = std::move(script_result.errors),
+                               .command_results = std::move(command_application.results)};
 }
 
 const stellar::server::WorldSnapshot& ScriptedWorldSession::latest_snapshot() const noexcept {

@@ -6,6 +6,7 @@
 
 #include "stellar/server/WorldSession.hpp"
 #include "stellar/scripting/LuaRuntime.hpp"
+#include "stellar/scripting/ScriptCommandProcessor.hpp"
 #include "stellar/scripting/ScriptError.hpp"
 #include "stellar/scripting/ScriptRegistry.hpp"
 #include "stellar/scripting/ScriptValue.hpp"
@@ -24,6 +25,9 @@ struct ScriptedWorldFrame {
 
     /** @brief Script errors produced during this frame. */
     std::vector<ScriptError> script_errors;
+
+    /** @brief Results of native authoritative command processing for script output events. */
+    std::vector<ScriptCommandResult> command_results;
 };
 
 /**

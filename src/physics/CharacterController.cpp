@@ -410,7 +410,8 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
                                  Vec3 position,
                                  float radius,
                                  float height,
-                                 Vec3 up) noexcept {
+                                 Vec3 up,
+                                 CollisionQueryFilter filter) noexcept {
     RecoveryResult result{.position = position};
     const auto& asset = world.asset();
 
@@ -419,7 +420,8 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
         Vec3 push_normal = up;
         bool found = false;
 
-        const auto candidates = world.query_triangles(capsule_bounds(result.position, up, radius, height));
+        const auto candidates = world.query_triangles(capsule_bounds(result.position, up, radius, height),
+                                                      filter);
         for (const auto& candidate : candidates) {
             const auto& triangle =
                 asset.meshes[candidate.mesh_index].triangles[candidate.triangle_index];
@@ -469,7 +471,8 @@ SlideResult slide_move(const CollisionWorld& world,
                        float radius,
                        float height,
                        Vec3 up,
-                       int max_iterations) noexcept {
+                       int max_iterations,
+                       CollisionQueryFilter filter) noexcept {
     SlideResult result{.position = start, .remaining = displacement};
     const auto& asset = world.asset();
     const int iterations = std::clamp(max_iterations, 0, 8);
@@ -482,7 +485,7 @@ SlideResult slide_move(const CollisionWorld& world,
 
         Contact nearest{};
         const auto candidates = world.query_triangles(
-            swept_capsule_bounds(result.position, result.remaining, up, radius, height));
+            swept_capsule_bounds(result.position, result.remaining, up, radius, height), filter);
         for (const auto& candidate : candidates) {
             const auto& triangle =
                 asset.meshes[candidate.mesh_index].triangles[candidate.triangle_index];
@@ -519,7 +522,8 @@ bool snap_to_ground(const CollisionWorld& world,
                     float height,
                     float snap_distance,
                     float min_ground_dot,
-                    Vec3& ground_normal) noexcept {
+                    Vec3& ground_normal,
+                    CollisionQueryFilter filter) noexcept {
     const float cast_distance = std::max(0.0F, radius + snap_distance + kSweepContactOffset);
     if (cast_distance <= 0.0F) {
         return false;
@@ -527,7 +531,7 @@ bool snap_to_ground(const CollisionWorld& world,
 
     const float half_segment = effective_capsule_half_segment(radius, height);
     const Vec3 lower_endpoint = subtract(position, multiply(up, half_segment));
-    const RaycastHit hit = world.raycast(lower_endpoint, multiply(up, -cast_distance));
+    const RaycastHit hit = world.raycast(lower_endpoint, multiply(up, -cast_distance), filter);
     if (!hit.hit || !is_walkable(hit.normal, up, min_ground_dot)) {
         return false;
     }
@@ -556,9 +560,10 @@ void publish_character_query_diagnostics(const CollisionWorld& world,
                                           Vec3 end,
                                           Vec3 up,
                                           float radius,
-                                          float height) {
+                                          float height,
+                                          CollisionQueryFilter filter) {
     const Vec3 displacement = subtract(end, start);
-    (void)world.query_triangles(swept_capsule_bounds(start, displacement, up, radius, height));
+    (void)world.query_triangles(swept_capsule_bounds(start, displacement, up, radius, height), filter);
 }
 
 } // namespace
@@ -566,7 +571,13 @@ void publish_character_query_diagnostics(const CollisionWorld& world,
 CharacterController::CharacterController(const CollisionWorld& world) noexcept : world_(&world) {}
 
 CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
-                                              const CharacterControllerConfig& config) const noexcept {
+                                               const CharacterControllerConfig& config) const noexcept {
+    return move(input, config, {});
+}
+
+CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
+                                              const CharacterControllerConfig& config,
+                                              CollisionQueryFilter filter) const noexcept {
     CharacterMoveResult result{};
     const Vec3 up = normalize_or(input.up, {0.0F, 1.0F, 0.0F});
     result.position = input.position;
@@ -585,18 +596,19 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
     const float height = std::max(requested_height + (skin_width * 2.0F), radius * 2.0F);
     const float min_ground_dot = min_walkable_dot(config.max_slope_degrees);
 
-    const RecoveryResult recovered = recover_overlaps(*world_, input.position, radius, height, up);
+    const RecoveryResult recovered = recover_overlaps(*world_, input.position, radius, height, up,
+                                                      filter);
     Vec3 start = recovered.position;
     result.started_overlapping = recovered.overlapped;
     result.hit = recovered.overlapped;
 
     SlideResult normal_move = slide_move(*world_, start, input.displacement, radius, height, up,
-                                          config.max_slide_iterations);
+                                          config.max_slide_iterations, filter);
 
     Vec3 normal_ground = up;
     const bool normal_grounded = snap_to_ground(*world_, normal_move.position, up, radius, height,
                                                 config.ground_snap_distance,
-                                                 min_ground_dot, normal_ground);
+                                                min_ground_dot, normal_ground, filter);
 
     SlideResult chosen = normal_move;
     Vec3 chosen_ground = normal_ground;
@@ -607,18 +619,18 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
     const Vec3 horizontal = subtract(input.displacement, vertical);
     if (normal_move.hit && config.step_height > 0.0F && length_squared(horizontal) > kEpsilon) {
         SlideResult lift_move = slide_move(*world_, start, multiply(up, config.step_height), radius,
-                                           height, up, 1);
+                                           height, up, 1, filter);
         const bool lift_clear = !lift_move.hit &&
                                 length_squared(lift_move.remaining) <= kEpsilon * kEpsilon;
         const Vec3 raised_start = lift_move.position;
         SlideResult step_move = slide_move(*world_, raised_start, horizontal, radius, height, up,
-                                           config.max_slide_iterations);
+                                           config.max_slide_iterations, filter);
         Vec3 step_ground = up;
         const bool step_grounded = snap_to_ground(*world_, step_move.position, up, radius, height,
                                                    config.step_height + config.ground_snap_distance,
-                                                   min_ground_dot, step_ground);
+                                                   min_ground_dot, step_ground, filter);
         const RecoveryResult step_recovery = recover_overlaps(*world_, step_move.position, radius,
-                                                              height, up);
+                                                              height, up, filter);
         const float normal_progress = progress_along(start, normal_move.position, horizontal);
         const float step_progress = progress_along(start, step_move.position, horizontal);
         const float lifted = dot(subtract(step_move.position, start), up);
@@ -651,9 +663,10 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
     publish_character_query_diagnostics(*world_,
                                          input.position,
                                          add(input.position, input.displacement),
-                                         up,
-                                         radius + kSweepContactOffset,
-                                         height);
+                                          up,
+                                          radius + kSweepContactOffset,
+                                          height,
+                                          filter);
 
     return result;
 }

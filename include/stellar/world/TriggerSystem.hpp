@@ -46,6 +46,26 @@ struct TriggerOverlap {
 };
 
 /**
+ * @brief Vertical capsule used for backend-neutral trigger overlap queries.
+ *
+ * The center is the world-space capsule center, height is the total capsule height including both
+ * hemispherical ends, and up is normalized internally with world-Y fallback for zero vectors.
+ */
+struct TriggerCapsule {
+    /** @brief World-space center of the capsule. */
+    std::array<float, 3> center{};
+
+    /** @brief Capsule axis direction; normalized by TriggerSystem during overlap queries. */
+    std::array<float, 3> up{0.0F, 1.0F, 0.0F};
+
+    /** @brief Capsule radius in world units. */
+    float radius = 0.0F;
+
+    /** @brief Total capsule height including hemispherical ends. */
+    float height = 0.0F;
+};
+
+/**
  * @brief Deterministic backend-neutral trigger overlap state machine.
  *
  * Sphere-vs-AABB tests use an inclusive touch policy: if the closest point on the trigger AABB is
@@ -63,6 +83,15 @@ public:
      */
     [[nodiscard]] std::vector<TriggerOverlap> update_sphere(std::array<float, 3> center,
                                                             float radius) noexcept;
+
+    /**
+     * @brief Update one capsule against all triggers and return enter/stay/exit transitions.
+     *
+     * Capsule-vs-AABB tests use the same inclusive touch policy as sphere-vs-AABB tests. Invalid
+     * capsule positions deterministically produce no current overlaps.
+     */
+    [[nodiscard]] std::vector<TriggerOverlap> update_capsule(
+        const TriggerCapsule& capsule) noexcept;
 
     /**
      * @brief Return the current immutable trigger volume list.
