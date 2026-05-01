@@ -106,10 +106,10 @@ deferred.
 
 Current branch: `bsp-integration`.
 
-Primary near-term goal: harden BSP maps as the already-canonical playable level format while
-preserving server authority. Current work focuses on actionable BSP diagnostics, source-neutral PVS
-and lightmap/material data contracts, optional presentation-only render culling, BSP entity authoring
-conventions, and deterministic headless validation.
+Primary near-term goal: expand the gameplay loop over BSP maps while preserving server authority.
+Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
+contracts, optional presentation-only render culling, BSP entity authoring conventions, and
+deterministic headless validation.
 
 BSP entity metadata binds triggers, object-collider sensors, sprite markers, spawns, and script
 IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative

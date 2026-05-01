@@ -2,18 +2,22 @@
 
 Branch target: `bsp-integration`
 
-## BSP Authoring and Presentation Hardening — Active
+## BSP Authoring and Presentation Hardening — Complete
 
-Active implementation plan package:
+BSP authoring and presentation hardening is complete as of 2026-05-01:
 
-- `Plans/ProjectStellar-BSP-NextSupport-KiloPlan/00-MASTER-KILO-BSP-HARDENING-PLAN.md`
-- Phase files in `Plans/ProjectStellar-BSP-NextSupport-KiloPlan/`
+- Added structured BSP import, authoring, and validation diagnostics.
+- Added BSP leaf/PVS visibility data and optional presentation-only culling.
+- Added BSP lightmap metadata, material/texture import, and deterministic fallback behavior.
+- Documented and validated BSP entity authoring conventions for spawns, triggers, sprites, object
+  colliders, static collision brushes, and script metadata.
+- Added generated BSP fixtures plus display-free/headless validation coverage, including client map
+  validation before window or graphics context creation.
+- Archived the completed hardening plan at
+  `Plans/Archived/project_stellar_bsp_hardening_plan/`.
+- `Plans/NEXT.md` now points to gameplay loop expansion over BSP maps as the next active scope.
 
-This work hardens BSP maps as the already-canonical playable level format. It must not restart the
-BSP migration, reintroduce retired importer functionality, or weaken server authority, mandatory Lua
-sandboxing, display-free default tests, or OpenGL/Vulkan abstraction parity.
-
-Planned phase status:
+Final phase status:
 
 - Phase 0 — Active handoff and `NEXT.md` lock-in: complete as of 2026-05-01.
 - Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: complete as of 2026-05-01.
@@ -21,7 +25,31 @@ Planned phase status:
 - Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: complete as of 2026-05-01.
 - Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: complete as of 2026-05-01.
 - Phase 5 — BSP validation tooling and regression fixtures: complete as of 2026-05-01.
-- Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: not started.
+- Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: complete as of
+  2026-05-01.
+
+Final validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|render_level|runtime_world|client_map_validation|client_cli_map_validation|world_metadata_validation|collision_validation|scripted_world_session|bsp_playable_world_smoke)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+```
+
+Result: final validation passed on 2026-05-01. Configure/build succeeded, full default CTest passed
+40/40, and focused BSP/runtime/render/client/script validation passed 22/22. Active retired-importer
+reference search returned only this documented validation command outside archived plans and ignored
+build outputs; no active retired-importer functionality remains.
+
+Known deferred post-hardening items:
+
+- Gameplay loop expansion over BSP maps.
+- BSP toolchain/editor workflow polish.
+- Networking/snapshot expansion.
+- Source/VBSP, moving brush simulation, dynamic rigid bodies, full PBR, model/animation systems,
+  and client-side gameplay scripting remain out of scope unless explicitly requested.
 
 Phase 1 completion notes:
 
