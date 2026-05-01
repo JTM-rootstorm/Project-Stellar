@@ -13,7 +13,7 @@ struct CharacterControllerConfig {
     /** @brief Character collision radius used for static sweeps. */
     float radius = 0.35F;
 
-    /** @brief Reserved vertical capsule height; current implementation uses the center sphere. */
+    /** @brief Total vertical capsule height including hemispherical ends. */
     float height = 1.8F;
 
     /** @brief Small separation kept between the character and static triangles. */
@@ -78,8 +78,9 @@ struct CharacterMoveResult {
 /**
  * @brief Small deterministic character controller over immutable static CollisionWorld triangles.
  *
- * This is a static-world sweep/slide helper, not a full physics engine. The current controller uses
- * a sphere at the supplied position; height is retained in the config for a future capsule upgrade.
+ * This is a static-world sweep/slide helper, not a full physics engine. The controller treats the
+ * supplied position as the capsule center, uses input up as the capsule axis, clamps effective height
+ * to at least two radii, and preserves sphere-like behavior when height collapses to two radii.
  */
 class CharacterController {
 public:

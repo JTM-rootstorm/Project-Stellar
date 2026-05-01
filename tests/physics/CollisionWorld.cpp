@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace {
@@ -64,6 +65,76 @@ void ray_misses_empty_collision_world() {
     assert(stats.triangle_count == 0);
     assert(stats.broadphase_node_count == 0);
     assert(stats.last_query_triangle_tests == 0);
+}
+
+void query_triangles_empty_world_returns_empty() {
+    stellar::assets::LevelCollisionAsset asset;
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto candidates = world.query_triangles({.min = {-1.0F, -1.0F, -1.0F},
+                                                   .max = {1.0F, 1.0F, 1.0F}});
+    assert(candidates.empty());
+    assert(world.stats().last_query_candidate_count == 0);
+    assert(world.stats().last_query_triangle_tests == 0);
+}
+
+void query_triangles_returns_only_intersecting_bounds() {
+    const auto asset = make_many_floor_asset(8);
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto candidates = world.query_triangles({.min = {3.5F, -0.1F, -2.0F},
+                                                   .max = {6.5F, 0.1F, 2.0F}});
+    assert(candidates.size() == 1);
+    assert(candidates[0].mesh_index == 0);
+    assert(candidates[0].triangle_index == 1);
+    assert(world.stats().last_query_candidate_count == 1);
+    assert(world.stats().last_query_triangle_tests == 1);
+}
+
+void query_triangles_order_is_deterministic() {
+    stellar::assets::LevelCollisionAsset asset;
+    stellar::assets::CollisionMesh mesh_a;
+    mesh_a.name = "a";
+    mesh_a.triangles.push_back(floor_triangle(0.0F));
+    mesh_a.triangles.push_back(floor_triangle(0.0F));
+    stellar::assets::CollisionMesh mesh_b;
+    mesh_b.name = "b";
+    mesh_b.triangles.push_back(floor_triangle(0.0F));
+    asset.meshes.push_back(mesh_a);
+    asset.meshes.push_back(mesh_b);
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto first = world.query_triangles({.min = {-20.0F, -0.1F, -20.0F},
+                                              .max = {20.0F, 0.1F, 20.0F}});
+    const auto second = world.query_triangles({.min = {-20.0F, -0.1F, -20.0F},
+                                               .max = {20.0F, 0.1F, 20.0F}});
+    assert(first.size() == 3);
+    assert(second.size() == first.size());
+    assert(first[0].mesh_index == 0 && first[0].triangle_index == 0);
+    assert(first[1].mesh_index == 0 && first[1].triangle_index == 1);
+    assert(first[2].mesh_index == 1 && first[2].triangle_index == 0);
+    for (std::size_t index = 0; index < first.size(); ++index) {
+        assert(first[index].mesh_index == second[index].mesh_index);
+        assert(first[index].triangle_index == second[index].triangle_index);
+    }
+}
+
+void query_triangles_handles_degenerate_bounds() {
+    const auto asset = make_asset({floor_triangle()});
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto touching = world.query_triangles({.min = {0.0F, 0.0F, 0.0F},
+                                                 .max = {0.0F, 0.0F, 0.0F}});
+    assert(touching.size() == 1);
+
+    const auto inverted = world.query_triangles({.min = {1.0F, 1.0F, 1.0F},
+                                                 .max = {0.0F, 0.0F, 0.0F}});
+    assert(inverted.empty());
+
+    const float infinity = std::numeric_limits<float>::infinity();
+    const auto non_finite = world.query_triangles({.min = {-infinity, -1.0F, -1.0F},
+                                                   .max = {1.0F, 1.0F, 1.0F}});
+    assert(non_finite.empty());
 }
 
 void ray_hits_floor_triangle() {
@@ -220,6 +291,10 @@ void bvh_movement_query_prunes_candidates() {
 
 int main() {
     ray_misses_empty_collision_world();
+    query_triangles_empty_world_returns_empty();
+    query_triangles_returns_only_intersecting_bounds();
+    query_triangles_order_is_deterministic();
+    query_triangles_handles_degenerate_bounds();
     ray_hits_floor_triangle();
     bvh_raycast_matches_bruteforce_order_for_equal_hits();
     ray_returns_nearest_hit();

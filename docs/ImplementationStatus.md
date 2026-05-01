@@ -17,6 +17,59 @@ Do **not** restart those phases from scratch. Treat them as implemented first pa
 
 ## Current status
 
+Phase 8F is complete as of 2026-04-30:
+
+- Added a display-free collision performance regression harness with large synthetic floor,
+  corridor/wall, distant geometry, degenerate, empty, and single-triangle scenes.
+- Tests assert BVH/candidate pruning through diagnostics using generous ratios instead of timing or
+  exact node-count assumptions.
+- Repeated raycast and character movement results are covered for deterministic output stability.
+
+Phase 8E is complete as of 2026-04-30:
+
+- Added backend-neutral authoritative movement-trigger integration in `stellar_server_core`.
+- `MovementTriggerTracker` builds trigger volumes from `RuntimeWorld`, owns overlap state outside the
+  runtime world, and emits deterministic enter/stay/exit movement trigger events.
+- Added an explicit helper that simulates one authoritative movement tick and updates triggers from
+  the server-owned final character position and configured radius.
+
+Phase 8D is complete as of 2026-04-30:
+
+- Added standalone backend-neutral `validate_level_collision` authoring diagnostics without changing
+  `LevelCollisionAsset` layout.
+- Validation reports deterministic warning/error findings for non-finite data, bad normals,
+  zero-area triangles, bounds mismatches, empty assets/meshes, large bounds, duplicate mesh names,
+  and missing walkable upward-facing surfaces.
+
+Phase 8C is complete as of 2026-04-30:
+
+- Added `stellar_server_core` with a small server-authoritative movement simulation seam over
+  `RuntimeWorld` and `CharacterController`.
+- Movement commands are intent-only and sanitized; authoritative state remains plain data with no
+  renderer, audio, ECS, networking, or platform dependency.
+- Tests cover spawn initialization, no-collision movement, floor/wall collision, optional collision,
+  input/config sanitization, terminal fall clamping, and fixed-tick repeatability.
+
+Phase 8B is complete as of 2026-04-30:
+
+- Activated `CharacterControllerConfig::height` as total vertical capsule height including
+  hemispherical ends, with position remaining the capsule center and effective height clamped to at
+  least `2 * radius`.
+- Character movement now uses conservative capsule overlap/recovery, sampled/refined capsule sweeps,
+  lower-endpoint ground snap, and ceiling-checked step-up over Phase 8A BVH candidate queries.
+- Sphere-like behavior is preserved when height collapses to two radii.
+- Extended display-free character controller tests for capsule floor, wall/body height, ceiling,
+  ground snap, step-up under low ceilings, too-tall tunnels, degenerate dimensions, and corner slide.
+
+Phase 8A is complete as of 2026-04-30:
+
+- Added deterministic BVH-backed static triangle candidate queries through
+  `CollisionWorld::query_triangles` using stable mesh/triangle indices.
+- Character controller recovery and sweep/slide now query pruned triangle candidates instead of
+  brute-force scanning all static triangles while preserving deterministic behavior.
+- Diagnostics now expose the most recent candidate count so tests can prove pruning without exposing
+  BVH internals.
+
 Phase 7E is complete as of 2026-04-30:
 
 - Added a deterministic internal static BVH over imported collision triangle AABBs in

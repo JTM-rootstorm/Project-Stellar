@@ -57,6 +57,7 @@ target_link_libraries(stellar_physics PUBLIC
 add_library(stellar_world
     src/world/RuntimeWorld.cpp
     src/world/TriggerSystem.cpp
+    src/world/CollisionValidation.cpp
 )
 
 target_include_directories(stellar_world PUBLIC
@@ -65,6 +66,20 @@ target_include_directories(stellar_world PUBLIC
 
 target_link_libraries(stellar_world PUBLIC
     stellar_assets
+    stellar_physics
+)
+
+add_library(stellar_server_core
+    src/server/MovementSimulation.cpp
+    src/server/MovementTriggerIntegration.cpp
+)
+
+target_include_directories(stellar_server_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_server_core PUBLIC
+    stellar_world
     stellar_physics
 )
 
@@ -194,6 +209,48 @@ target_link_libraries(stellar_trigger_system_test PRIVATE
 
 add_test(NAME trigger_system COMMAND stellar_trigger_system_test)
 
+add_executable(stellar_collision_validation_test
+    tests/world/CollisionValidation.cpp
+)
+
+target_include_directories(stellar_collision_validation_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_collision_validation_test PRIVATE
+    stellar_world
+)
+
+add_test(NAME collision_validation COMMAND stellar_collision_validation_test)
+
+add_executable(stellar_server_movement_simulation_test
+    tests/server/MovementSimulation.cpp
+)
+
+target_include_directories(stellar_server_movement_simulation_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_server_movement_simulation_test PRIVATE
+    stellar_server_core
+)
+
+add_test(NAME server_movement_simulation COMMAND stellar_server_movement_simulation_test)
+
+add_executable(stellar_movement_trigger_integration_test
+    tests/server/MovementTriggerIntegration.cpp
+)
+
+target_include_directories(stellar_movement_trigger_integration_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_movement_trigger_integration_test PRIVATE
+    stellar_server_core
+)
+
+add_test(NAME movement_trigger_integration COMMAND stellar_movement_trigger_integration_test)
+
 add_executable(stellar_render_scene_upload_test
     tests/graphics/RenderSceneUpload.cpp
 )
@@ -314,6 +371,20 @@ target_link_libraries(stellar_character_controller_test PRIVATE
 )
 
 add_test(NAME character_controller COMMAND stellar_character_controller_test)
+
+add_executable(stellar_collision_performance_regression_test
+    tests/physics/CollisionPerformanceRegression.cpp
+)
+
+target_include_directories(stellar_collision_performance_regression_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_collision_performance_regression_test PRIVATE
+    stellar_physics
+)
+
+add_test(NAME collision_performance_regression COMMAND stellar_collision_performance_regression_test)
 
 add_executable(stellar_client_asset_validation_smoke
     tests/client/AssetValidationSmoke.cpp

@@ -196,6 +196,16 @@ bool intersects(Aabb a, Aabb b) noexcept {
            a.min[1] <= b.max[1] && a.max[2] >= b.min[2] && a.min[2] <= b.max[2];
 }
 
+bool finite_bounds(Aabb bounds) noexcept {
+    for (int axis = 0; axis < 3; ++axis) {
+        if (!std::isfinite(bounds.min[axis]) || !std::isfinite(bounds.max[axis]) ||
+            bounds.min[axis] > bounds.max[axis]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool triangle_order_less(const TriangleRef& a, const TriangleRef& b) noexcept {
     if (a.mesh_index != b.mesh_index) {
         return a.mesh_index < b.mesh_index;
@@ -339,6 +349,7 @@ void CollisionWorld::build_broadphase() noexcept {
 RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
     RaycastHit result{};
     stats_.last_query_triangle_tests = 0;
+    stats_.last_query_candidate_count = 0;
     if (asset_ == nullptr || length_squared(delta) <= kEpsilon * kEpsilon || bvh_nodes_.empty()) {
         return result;
     }
@@ -373,6 +384,7 @@ RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
             }
 
             const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
+            ++stats_.last_query_candidate_count;
             ++stats_.last_query_triangle_tests;
             float t = 0.0F;
             if (!segment_triangle(origin, delta, triangle, t)) {
@@ -397,6 +409,59 @@ RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
     }
 
     return result;
+}
+
+std::vector<CollisionTriangleCandidate>
+CollisionWorld::query_triangles(CollisionQueryAabb bounds) const {
+    std::vector<CollisionTriangleCandidate> candidates;
+    stats_.last_query_triangle_tests = 0;
+    stats_.last_query_candidate_count = 0;
+
+    const Aabb query{.min = bounds.min, .max = bounds.max};
+    if (asset_ == nullptr || bvh_nodes_.empty() || !finite_bounds(query)) {
+        return candidates;
+    }
+
+    std::vector<std::uint32_t> stack;
+    stack.reserve(bvh_nodes_.size());
+    stack.push_back(0);
+
+    while (!stack.empty()) {
+        const std::uint32_t node_index = stack.back();
+        stack.pop_back();
+        const BvhNode& node = bvh_nodes_[node_index];
+        if (!intersects(node.bounds, query)) {
+            continue;
+        }
+
+        if (node.count == 0) {
+            if (node.right != kInvalidNode) {
+                stack.push_back(node.right);
+            }
+            if (node.left != kInvalidNode) {
+                stack.push_back(node.left);
+            }
+            continue;
+        }
+
+        for (std::uint32_t index = node.first; index < node.first + node.count; ++index) {
+            const TriangleRef& ref = triangle_refs_[index];
+            if (!intersects(ref.bounds, query)) {
+                continue;
+            }
+
+            candidates.push_back({.mesh_index = ref.mesh_index,
+                                  .triangle_index = ref.triangle_index});
+        }
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [](const CollisionTriangleCandidate& a,
+                                                       const CollisionTriangleCandidate& b) {
+        return hit_order_less(a.mesh_index, a.triangle_index, b.mesh_index, b.triangle_index);
+    });
+    stats_.last_query_candidate_count = candidates.size();
+    stats_.last_query_triangle_tests = candidates.size();
+    return candidates;
 }
 
 GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
@@ -427,6 +492,7 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
     result.velocity = displacement;
 
     stats_.last_query_triangle_tests = 0;
+    stats_.last_query_candidate_count = 0;
     if (asset_ == nullptr || asset_->meshes.empty() ||
         length_squared(displacement) <= kEpsilon * kEpsilon || bvh_nodes_.empty()) {
         result.position = add(position, displacement);
@@ -479,6 +545,7 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
                 }
 
                 const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
+                ++stats_.last_query_candidate_count;
                 ++stats_.last_query_triangle_tests;
                 const SweepHit candidate =
                     sweep_sphere_against_triangle(current_position, remaining, safe_radius, triangle);

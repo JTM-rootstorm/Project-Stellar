@@ -108,6 +108,33 @@ struct CollisionWorldStats {
 
     /** @brief Number of narrowphase triangle tests performed by the most recent query. */
     std::size_t last_query_triangle_tests = 0;
+
+    /**
+     * @brief Number of broadphase triangle candidates returned by the most recent candidate query.
+     */
+    std::size_t last_query_candidate_count = 0;
+};
+
+/**
+ * @brief Axis-aligned query bounds in world space for static collision triangle candidates.
+ */
+struct CollisionQueryAabb {
+    /** @brief Inclusive minimum world-space bounds. */
+    std::array<float, 3> min{};
+
+    /** @brief Inclusive maximum world-space bounds. */
+    std::array<float, 3> max{};
+};
+
+/**
+ * @brief Stable triangle index returned by a static collision candidate query.
+ */
+struct CollisionTriangleCandidate {
+    /** @brief Collision mesh index containing the candidate triangle. */
+    std::size_t mesh_index = 0;
+
+    /** @brief Triangle index within the candidate collision mesh. */
+    std::size_t triangle_index = 0;
 };
 
 /**
@@ -141,9 +168,18 @@ public:
      * inside the source triangle; triangle edges and vertices are not expanded into capsules.
      */
     [[nodiscard]] MoveResult move_sphere(std::array<float, 3> position,
-                                         std::array<float, 3> displacement,
-                                         float radius,
-                                         int max_iterations = 3) const noexcept;
+                                          std::array<float, 3> displacement,
+                                          float radius,
+                                          int max_iterations = 3) const noexcept;
+
+    /**
+     * @brief Return static collision triangles whose bounds intersect the supplied AABB.
+     *
+     * Candidates are returned in deterministic mesh/triangle order. Empty worlds, non-finite
+     * bounds, and inverted bounds return an empty vector.
+     */
+    [[nodiscard]] std::vector<CollisionTriangleCandidate>
+    query_triangles(CollisionQueryAabb bounds) const;
 
     /**
      * @brief Return the immutable static collision asset backing this query world.

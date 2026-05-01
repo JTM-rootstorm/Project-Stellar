@@ -322,6 +322,28 @@ Append to this plan after implementation if the plan is copied into the repo:
   - Authoritative server movement remains Phase 8C.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 8A broadphase-backed character queries.
+- Public/API changes: added `CollisionQueryAabb`, `CollisionTriangleCandidate`, and
+  `CollisionWorld::query_triangles(CollisionQueryAabb) const` returning stable mesh/triangle indices.
+- Character controller changes: recovery and sweep/slide now build capsule/sphere query AABBs and use
+  BVH-pruned candidates rather than scanning all static triangles.
+- Determinism: candidate results are sorted by mesh index and triangle index; tie behavior remains
+  stable through existing movement ordering.
+- Diagnostics: `CollisionWorldStats::last_query_candidate_count` records the latest candidate count so
+  pruning can be tested without exposing BVH nodes.
+- Tests added/updated: `tests/physics/CollisionWorld.cpp` and
+  `tests/physics/CharacterController.cpp` cover query bounds, deterministic ordering, degenerate
+  input, movement equivalence, and pruning.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_world_test stellar_character_controller_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(collision_world|character_controller)$' --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Dynamic broadphase and third-party physics remain out of scope.
+
 ---
 
 <!-- Phase8B-CapsuleCharacterController.md -->
@@ -489,6 +511,28 @@ ctest --test-dir build --output-on-failure
   - Server-authoritative movement remains Phase 8C if not complete.
   - Performance regression coverage remains Phase 8F if not complete.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 8B conservative capsule character controller.
+- Shape behavior: `position` remains the capsule center, `up` is the capsule axis, `radius` is the
+  capsule radius, and `height` is total capsule height including hemispherical ends clamped to at
+  least two radii.
+- Movement behavior: start recovery, sampled/refined sweep-slide, lower-endpoint ground snap, and
+  step-up now use capsule-vs-triangle helpers while preserving BVH-backed candidate pruning.
+- Compatibility: height values at or below two radii collapse to sphere-like behavior.
+- Limitations: continuous capsule collision remains conservative sampled/refined static-triangle
+  testing rather than a full exact CCD solver or physics engine.
+- Tests added/updated: extended `tests/physics/CharacterController.cpp` with capsule floor, wall,
+  ceiling, snap, step-up/low-ceiling, tunnel, degenerate dimension, and corner coverage.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_world_test stellar_character_controller_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(collision_world|character_controller)$' --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Full ECS/network integration remains future work.
+  - Exact continuous capsule CCD remains future work.
 
 ---
 
@@ -752,6 +796,27 @@ ctest --test-dir build --output-on-failure
   - Full ECS/network integration remains future work.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 8C server-authoritative movement simulation seam.
+- Public API: added `MovementSimulationConfig`, `MovementCommand`, `MovementState`,
+  `MovementTickResult`, `make_spawn_movement_state`, and `simulate_movement_tick` under
+  `stellar::server`.
+- Collision integration: simulation uses `RuntimeWorld::collision_world` and black-box
+  `CharacterController` when collision exists; no-collision worlds move deterministically.
+- Authority validation: commands are intent-only; non-finite input/state values are sanitized, wish
+  direction is horizontalized and clamped, and unsafe config values are bounded.
+- Tests added/updated: added `tests/server/MovementSimulation.cpp` and CTest
+  `server_movement_simulation` for spawn, optional collision, gravity, wall collision, sanitization,
+  terminal velocity, and repeatability.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_server_movement_simulation_test -j$(nproc)`
+  - `ctest --test-dir build -R '^server_movement_simulation$' --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Full ECS/network integration remains future work.
+
 ---
 
 <!-- Phase8D-CollisionAuthoringValidation.md -->
@@ -978,6 +1043,26 @@ If no standalone target is added, adjust the focused build/test names and record
   - Editor/tool UI remains future work.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 8D collision authoring validation and diagnostics.
+- Public API: added `CollisionValidationSeverity`, `CollisionValidationFinding`,
+  `CollisionValidationReport`, and `validate_level_collision` under `stellar::world`.
+- Checks: non-finite vertices/normals, near-zero normals, zero-area triangles, mesh and aggregate
+  bounds mismatches, empty assets/meshes, extremely large bounds, duplicate mesh names, and missing
+  walkable upward-facing surfaces.
+- Runtime/import integration: validation is standalone and does not make importer/runtime warnings
+  fatal or reshape collision assets.
+- Tests added/updated: added `tests/world/CollisionValidation.cpp` and CTest `collision_validation`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_validation_test -j$(nproc)`
+  - `ctest --test-dir build -R '^collision_validation$' --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Surface gameplay/material metadata remains future work.
+  - Editor/tool UI remains future work.
+
 ---
 
 <!-- Phase8E-MovementTriggerIntegration.md -->
@@ -1175,6 +1260,27 @@ ctest --test-dir build --output-on-failure
   - Audio/VFX presentation remains future work.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 8E movement-trigger integration.
+- Public API: added `MovementTriggerEvent`, `MovementTriggerTracker`, and an explicit
+  `simulate_movement_tick_and_update_triggers` helper under `stellar::server`.
+- Runtime behavior: tracker builds trigger volumes from `RuntimeWorld`, keeps overlap state outside
+  `RuntimeWorld`, and emits deterministic enter/stay/exit events in trigger-system order.
+- Authority: trigger updates use authoritative movement output and configured character radius;
+  capsule-height trigger overlap remains deferred.
+- Tests added/updated: added `tests/server/MovementTriggerIntegration.cpp` and CTest
+  `movement_trigger_integration`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_movement_trigger_integration_test -j$(nproc)`
+  - `ctest --test-dir build -R '^movement_trigger_integration$' --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - ECS event bus and gameplay callbacks remain future work.
+  - Network replication remains future work.
+  - Audio/VFX presentation remains future work.
+
 ---
 
 <!-- Phase8F-CollisionPerformanceRegression.md -->
@@ -1337,3 +1443,23 @@ ctest --test-dir build --output-on-failure
   - Real profiling benchmark target remains future work.
   - Dynamic broadphase remains future work.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 8F collision performance regression and diagnostics harness.
+- Test scenes: large grid floors, corridor/walls, distant triangle clouds, degenerate triangles,
+  empty worlds, and single-triangle worlds.
+- Pruning checks: asserts diagnostic counts stay below generous fractions of total triangle count;
+  no wall-clock or exact BVH-node assertions are used.
+- Determinism checks: repeated raycast and character movement queries produce stable hit/result data,
+  including equal-hit cases.
+- Tests added/updated: added `tests/physics/CollisionPerformanceRegression.cpp` and CTest
+  `collision_performance_regression`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_performance_regression_test -j$(nproc)`
+  - `ctest --test-dir build -R '^collision_performance_regression$' --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Real profiling benchmark target remains future work.
+  - Dynamic broadphase remains future work.
