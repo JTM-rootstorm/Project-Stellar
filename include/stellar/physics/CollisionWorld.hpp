@@ -2,10 +2,39 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 #include "stellar/assets/CollisionAsset.hpp"
 
 namespace stellar::physics {
+
+namespace detail {
+
+/** @brief Internal static broadphase AABB storage. */
+struct CollisionAabb {
+    std::array<float, 3> min{};
+    std::array<float, 3> max{};
+};
+
+/** @brief Internal triangle reference used by the static broadphase. */
+struct CollisionTriangleRef {
+    std::size_t mesh_index = 0;
+    std::size_t triangle_index = 0;
+    CollisionAabb bounds{};
+    std::array<float, 3> centroid{};
+};
+
+/** @brief Internal static broadphase node storage. */
+struct CollisionBvhNode {
+    CollisionAabb bounds{};
+    std::uint32_t first = 0;
+    std::uint32_t count = 0;
+    std::uint32_t left = 0;
+    std::uint32_t right = 0;
+};
+
+} // namespace detail
 
 /**
  * @brief Result of a finite segment query against static collision geometry.
@@ -65,6 +94,23 @@ struct MoveResult {
 };
 
 /**
+ * @brief Diagnostics for immutable static collision geometry and the most recent query.
+ */
+struct CollisionWorldStats {
+    /** @brief Number of static collision meshes in the backing asset. */
+    std::size_t mesh_count = 0;
+
+    /** @brief Number of static collision triangles in the backing asset. */
+    std::size_t triangle_count = 0;
+
+    /** @brief Number of internal broadphase nodes built for triangle queries. */
+    std::size_t broadphase_node_count = 0;
+
+    /** @brief Number of narrowphase triangle tests performed by the most recent query. */
+    std::size_t last_query_triangle_tests = 0;
+};
+
+/**
  * @brief Backend-neutral query wrapper for static level collision triangles.
  */
 class CollisionWorld {
@@ -99,8 +145,23 @@ public:
                                          float radius,
                                          int max_iterations = 3) const noexcept;
 
+    /**
+     * @brief Return the immutable static collision asset backing this query world.
+     */
+    [[nodiscard]] const stellar::assets::LevelCollisionAsset& asset() const noexcept;
+
+    /**
+     * @brief Return static broadphase diagnostics and the most recent query's triangle-test count.
+     */
+    [[nodiscard]] CollisionWorldStats stats() const noexcept;
+
 private:
+    void build_broadphase() noexcept;
+
     const stellar::assets::LevelCollisionAsset* asset_ = nullptr;
+    std::vector<detail::CollisionTriangleRef> triangle_refs_;
+    std::vector<detail::CollisionBvhNode> bvh_nodes_;
+    mutable CollisionWorldStats stats_{};
 };
 
 } // namespace stellar::physics

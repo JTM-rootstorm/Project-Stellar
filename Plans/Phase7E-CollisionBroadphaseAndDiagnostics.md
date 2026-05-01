@@ -219,3 +219,28 @@ Append after implementation:
   - Dynamic broadphase remains future work.
   - Profiling/benchmark targets remain future work unless added.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 7E static collision broadphase and diagnostics.
+- Broadphase design: `CollisionWorld` builds a deterministic immutable BVH in its constructor from
+  triangle AABBs, using longest-axis centroid median splits, stable sorting, mesh/triangle-index
+  tie-breaking, and four-triangle leaves.
+- Public API: added `stellar::physics::CollisionWorldStats` and `CollisionWorld::stats()` for mesh
+  count, triangle count, broadphase node count, and last-query narrowphase triangle-test count.
+- Query behavior: raycast and low-level sphere movement traverse broadphase candidates before the
+  existing triangle tests and preserve nearest-hit and sweep/slide tie behavior by mesh/triangle
+  order.
+- Tests added/updated: extended `tests/physics/CollisionWorld.cpp` for empty and single worlds,
+  deterministic equal hits, many-triangle BVH pruning, miss pruning, movement stop/slide
+  preservation, degenerate triangles, and diagnostics.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_world_test -j$(nproc)`
+  - `ctest --test-dir build -R '^collision_world$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; focused collision test passed and full CTest reported 11/11 tests passed.
+- Deferred follow-up:
+  - Dynamic broadphase remains future work.
+  - Profiling/benchmark targets remain future work.

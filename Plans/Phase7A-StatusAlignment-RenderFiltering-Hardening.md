@@ -142,3 +142,26 @@ Append after implementation:
   - Runtime world assembly remains Phase 7C.
   - Runtime triggers remain Phase 7D.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 7A status alignment, collision render filtering, and regression hardening.
+- Documentation updates: `docs/ImplementationStatus.md` now records Phase 7A completion, documents
+  the collision-only render filtering policy, and identifies Phase 7B as the next recommended slice.
+- Render filtering behavior: glTF import extracts collision first, then clears render mesh instances
+  for nodes named `COL_*`, nodes named `Collision_*`, and mesh descendants of an exact node named
+  `Collision`; shared mesh assets remain intact for ordinary render nodes.
+- Tests added/updated: importer regression coverage now verifies collision extraction plus render
+  filtering for `COL_*`, `Collision_*`, and `Collision` descendants, ordinary render preservation,
+  metadata/collision convention separation, and metadata markers not becoming collision meshes.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_import_gltf_regression stellar_render_scene_inspection_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(gltf_importer_regression|render_scene_inspection)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass.
+- Deferred follow-up:
+  - Robust character movement remains Phase 7B.
+  - Runtime world assembly remains Phase 7C.
+  - Runtime triggers remain Phase 7D.

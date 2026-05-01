@@ -785,6 +785,11 @@ const stellar::assets::CollisionMesh* find_collision_mesh(
     return nullptr;
 }
 
+const stellar::assets::WorldMarker* find_marker(
+    const stellar::assets::WorldMetadataAsset& metadata,
+    stellar::assets::WorldMarkerType type,
+    std::string_view name);
+
 bool run_empty_collision_fixture(const std::filesystem::path& root) {
     const auto work_dir = root / "empty_collision";
     std::filesystem::create_directories(work_dir);
@@ -889,6 +894,18 @@ bool run_collision_extraction_fixture(const std::filesystem::path& root) {
         !check(child->triangles.size() == 1, "expected child collision one triangle")) {
         return false;
     }
+    if (!check(scene->nodes[0].mesh_instances.size() == 1,
+               "expected ordinary render node to keep render mesh")) {
+        return false;
+    }
+    if (!check(scene->nodes[1].mesh_instances.empty(),
+               "expected COL_* node to be filtered from render meshes") ||
+        !check(scene->nodes[2].mesh_instances.empty(),
+               "expected Collision_* node to be filtered from render meshes") ||
+        !check(scene->nodes[4].mesh_instances.empty(),
+               "expected descendant of Collision node to be filtered from render meshes")) {
+        return false;
+    }
 
     const auto& floor_triangle = floor->triangles[0];
     const auto& child_triangle = child->triangles[0];
@@ -913,9 +930,110 @@ bool run_collision_extraction_fixture(const std::filesystem::path& root) {
            check_vec3(collision.bounds_max, {11.0f, 6.0f, 3.0f},
                       "expected aggregate collision bounds maximum") &&
            check(std::isfinite(floor_triangle.normal[0]) &&
-                     std::isfinite(floor_triangle.normal[1]) &&
-                     std::isfinite(floor_triangle.normal[2]),
-                  "expected finite collision normal");
+                      std::isfinite(floor_triangle.normal[1]) &&
+                      std::isfinite(floor_triangle.normal[2]),
+                   "expected finite collision normal");
+}
+
+bool run_phase7a_convention_separation_fixture(const std::filesystem::path& root) {
+    const auto work_dir = root / "phase7a_convention_separation";
+    std::filesystem::create_directories(work_dir);
+
+    std::vector<std::uint8_t> bytes;
+    append_vec3(bytes, 0.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 1.0f, 0.0f, 0.0f);
+    append_vec3(bytes, 0.0f, 1.0f, 0.0f);
+    const std::size_t indices_offset = bytes.size();
+    append_u16_le(bytes, 0);
+    append_u16_le(bytes, 1);
+    append_u16_le(bytes, 2);
+
+    const auto gltf_path = work_dir / "phase7a.gltf";
+    const std::string buffer_uri = data_uri("application/octet-stream", bytes);
+    write_text_file(gltf_path,
+                    "{\n"
+                    "  \"asset\": { \"version\": \"2.0\" },\n"
+                    "  \"buffers\": [{ \"byteLength\": " +
+                        std::to_string(bytes.size()) + ", \"uri\": \"" + buffer_uri +
+                        "\" }],\n"
+                    "  \"bufferViews\": [\n"
+                    "    { \"buffer\": 0, \"byteOffset\": 0, \"byteLength\": 36 },\n"
+                    "    { \"buffer\": 0, \"byteOffset\": " +
+                        std::to_string(indices_offset) + ", \"byteLength\": 6 }\n"
+                    "  ],\n"
+                    "  \"accessors\": [\n"
+                    "    { \"bufferView\": 0, \"componentType\": 5126, \"count\": 3, "
+                    "\"type\": \"VEC3\", \"min\": [0, 0, 0], \"max\": [1, 1, 0] },\n"
+                    "    { \"bufferView\": 1, \"componentType\": 5123, \"count\": 3, "
+                    "\"type\": \"SCALAR\" }\n"
+                    "  ],\n"
+                    "  \"meshes\": [{ \"name\": \"triangle\", \"primitives\": [{ "
+                    "\"attributes\": { \"POSITION\": 0 }, \"indices\": 1, \"mode\": 4 }] }],\n"
+                    "  \"nodes\": [\n"
+                    "    { \"name\": \"ordinary_render\", \"mesh\": 0 },\n"
+                    "    { \"name\": \"SPAWN_Player\", \"mesh\": 0 },\n"
+                    "    { \"name\": \"TRIGGER_Use\", \"mesh\": 0 },\n"
+                    "    { \"name\": \"SPRITE_Torch\", \"mesh\": 0 },\n"
+                    "    { \"name\": \"COL_floor\", \"mesh\": 0 },\n"
+                    "    { \"name\": \"Collision\", \"children\": [6] },\n"
+                    "    { \"name\": \"collision_child\", \"mesh\": 0 }\n"
+                    "  ],\n"
+                    "  \"scenes\": [{ \"nodes\": [0, 1, 2, 3, 4, 5] }],\n"
+                    "  \"scene\": 0\n"
+                    "}\n");
+
+    auto scene = stellar::import::gltf::load_scene(gltf_path.string());
+    if (!scene) {
+        std::cerr << "load_scene failed: " << scene.error().message << '\n';
+        return false;
+    }
+    if (!check(scene->level_collision.has_value(), "expected Phase 7A collision asset")) {
+        return false;
+    }
+    if (!check(scene->level_collision->meshes.size() == 2,
+               "expected only collision conventions to create collision meshes")) {
+        return false;
+    }
+    if (!check(find_collision_mesh(*scene->level_collision, "COL_floor") != nullptr,
+               "expected direct COL_* collision mesh") ||
+        !check(find_collision_mesh(*scene->level_collision, "collision_child") != nullptr,
+               "expected Collision parent descendant collision mesh") ||
+        !check(find_collision_mesh(*scene->level_collision, "SPAWN_Player") == nullptr,
+               "expected SPAWN_* mesh not to become collision") ||
+        !check(find_collision_mesh(*scene->level_collision, "TRIGGER_Use") == nullptr,
+               "expected TRIGGER_* mesh not to become collision") ||
+        !check(find_collision_mesh(*scene->level_collision, "SPRITE_Torch") == nullptr,
+               "expected SPRITE_* mesh not to become collision") ||
+        !check(find_collision_mesh(*scene->level_collision, "ordinary_render") == nullptr,
+               "expected ordinary render mesh not to become collision")) {
+        return false;
+    }
+    if (!check(scene->world_metadata.markers.size() == 3,
+               "expected only metadata conventions to create world markers")) {
+        return false;
+    }
+
+    return check(scene->nodes[0].mesh_instances.size() == 1,
+                 "expected ordinary node to remain renderable") &&
+           check(scene->nodes[1].mesh_instances.size() == 1,
+                 "expected SPAWN_* node not to be render-filtered as collision") &&
+           check(scene->nodes[2].mesh_instances.size() == 1,
+                 "expected TRIGGER_* node not to be render-filtered as collision") &&
+           check(scene->nodes[3].mesh_instances.size() == 1,
+                 "expected SPRITE_* node not to be render-filtered as collision") &&
+           check(scene->nodes[4].mesh_instances.empty(),
+                 "expected COL_* node to be render-filtered") &&
+           check(scene->nodes[6].mesh_instances.empty(),
+                 "expected Collision descendant node to be render-filtered") &&
+           check(find_marker(scene->world_metadata, stellar::assets::WorldMarkerType::kPlayerSpawn,
+                             "Player") != nullptr,
+                 "expected player spawn marker") &&
+           check(find_marker(scene->world_metadata, stellar::assets::WorldMarkerType::kTrigger,
+                             "Use") != nullptr,
+                 "expected trigger marker") &&
+           check(find_marker(scene->world_metadata, stellar::assets::WorldMarkerType::kSprite,
+                             "Torch") != nullptr,
+                 "expected sprite marker");
 }
 
 const stellar::assets::WorldMarker* find_marker(
@@ -2174,6 +2292,9 @@ int main() {
         return 1;
     }
     if (!run_collision_extraction_fixture(root)) {
+        return 1;
+    }
+    if (!run_phase7a_convention_separation_fixture(root)) {
         return 1;
     }
     if (!run_empty_world_metadata_fixture(root)) {

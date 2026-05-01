@@ -80,6 +80,33 @@ public:
 }
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 7D runtime trigger volumes and metadata hooks.
+- Public API: added `stellar::world::TriggerVolume`, `TriggerOverlap`, `TriggerSystem`, and
+  `build_trigger_volumes` overloads for `WorldMetadataAsset` and `RuntimeWorld`.
+- Metadata conversion: only `WorldMarkerType::kTrigger` markers become trigger volumes; marker
+  position is the AABB center, absolute marker scale is half extents, marker rotation is ignored,
+  and zero extents are allowed as point/line/plane triggers under the inclusive overlap policy.
+- Runtime behavior: `TriggerSystem::set_triggers` sorts volumes by trigger name for deterministic
+  output and clears prior overlap state; `update_sphere` returns enter, stay, and exit transitions
+  with sphere-vs-AABB touch treated as overlapping.
+- Tests added/updated: added `tests/world/TriggerSystem.cpp` and CTest `trigger_system` covering
+  metadata conversion, ignored marker types, outside/touching/inside sphere overlap, enter/stay/exit
+  and re-enter, deterministic ordering, empty systems, and RuntimeWorld helper conversion.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_trigger_system_test -j$(nproc)`
+  - `ctest --test-dir build -R '^trigger_system$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; focused trigger test reported 1/1 tests passed and full CTest reported 11/11 tests
+    passed.
+- Deferred follow-up:
+  - ECS/gameplay callback integration remains future work.
+  - Rotated/non-box trigger shapes remain future work.
+  - Portal runtime behavior remains future work.
+
 If `std::span` creates compatibility friction, use a vector reference.
 
 ## Recommended behavior

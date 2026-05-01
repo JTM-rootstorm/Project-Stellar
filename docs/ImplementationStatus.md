@@ -15,36 +15,72 @@ The branch already contains completion notes for the earlier Phase 6 world-autho
 
 Do **not** restart those phases from scratch. Treat them as implemented first passes and focus the next round on making the features coherent, usable at runtime, and harder to break.
 
-## Recommended next-round order
+## Current status
 
-1. **Phase 7A — Status alignment, collision render filtering, and regression hardening**
-   - Lowest-risk cleanup.
-   - Fix stale docs/status so future agents do not implement already-finished work.
-   - Decide and implement whether collision-only glTF nodes should be excluded from render scene generation.
-   - Expand regression tests around collision/metadata/sprite coexistence.
+Phase 7E is complete as of 2026-04-30:
 
-2. **Phase 7B — Robust static character movement over imported collision**
-   - Highest gameplay value.
-   - Upgrade the minimal `CollisionWorld::move_sphere` helper into a small, testable character-movement module.
-   - Add support for start-overlap recovery, stable grounding, slope limits, step-up behavior, and better edge/corner contacts.
+- Added a deterministic internal static BVH over imported collision triangle AABBs in
+  `stellar::physics::CollisionWorld`.
+- Raycast and low-level sphere movement now traverse BVH candidates before narrowphase triangle
+  tests while preserving nearest-hit and sweep/slide observable behavior.
+- Added `CollisionWorldStats` diagnostics for mesh count, triangle count, broadphase node count, and
+  the most recent query's narrowphase triangle-test count.
+- Extended display-free `collision_world` tests for empty/single/many triangles, deterministic equal
+  hit ordering, movement stop/slide preservation, degenerate triangles, diagnostics, and pruning.
 
-3. **Phase 7C — Runtime world assembly from imported glTF scenes**
-   - Connect imported `SceneAsset` data to an actual runtime/playable world container.
-   - Build a single place where render scene, collision world, spawns, trigger metadata, and sprite markers are assembled.
+## Previous status
 
-4. **Phase 7D — Runtime trigger volumes and metadata-driven gameplay hooks**
-   - Make Phase 6D metadata usable.
-   - Implement simple trigger overlap queries and event-style state changes without adding a full ECS or physics engine.
+Phase 7D is complete as of 2026-04-30:
 
-5. **Phase 7E — Static collision broadphase and diagnostics**
-   - Add broadphase only after the correctness-focused movement layer is stable.
-   - Include debug/stat inspection so performance improvements are measurable.
+- Added backend-neutral `stellar::world::TriggerVolume`, `TriggerOverlap`, and `TriggerSystem`
+  runtime trigger support.
+- Trigger metadata now converts into deterministic axis-aligned trigger volumes through
+  `build_trigger_volumes` overloads for `WorldMetadataAsset` and `RuntimeWorld`.
+- Runtime overlap supports sphere-vs-AABB queries with an inclusive touch policy and deterministic
+  enter/stay/exit transition state, without ECS, scripts, networking, rendering, or physics response.
+- Added display-free `trigger_system` tests covering metadata conversion, ignored marker types,
+  outside/touching/inside overlap behavior, enter/stay/exit/re-enter transitions, deterministic
+  ordering, empty systems, and RuntimeWorld metadata hooks.
+
+Phase 7C is complete as of 2026-04-30:
+
+- Added a backend-neutral `stellar::world::RuntimeWorld` assembly layer over imported
+  `SceneAsset` data.
+- Runtime world assembly keeps an explicit source scene pointer, creates `CollisionWorld` only for
+  non-empty `SceneAsset::level_collision`, copies world metadata for stable pure marker lookups,
+  and emits diagnostics for collision, markers, sprite markers, player spawn presence, and warnings.
+- Added helper lookups for player spawns, typed markers, entity spawn archetypes, sprite markers,
+  and trigger markers without adding texture/material binding or gameplay behavior.
+- Client asset validation now records display-free runtime world diagnostics after glTF import.
+- Added display-free `runtime_world` tests covering empty scenes, collision creation/absence,
+  empty collision assets, marker lookups, diagnostics, and metadata lookup lifetime behavior.
+
+Phase 7B is complete as of 2026-04-30:
+
+- Added a small `stellar::physics::CharacterController` layer over the existing static
+  `CollisionWorld` API.
+- Preserved existing `CollisionWorld` raycast, ground probe, and low-level `move_sphere` behavior
+  while exposing immutable collision asset access for higher-level static queries.
+- Character movement now covers deterministic start-overlap recovery, conservative sphere
+  sweep/slide, walkable slope classification, ground snap, and simple step-up fallback.
+- Added display-free `character_controller` tests covering empty movement, grounding, shallow
+  recovery, wall stop/slide, corner stop, edge/vertex contacts, slope limits, snap, step-up, and
+  finite degenerate/zero-displacement output.
+
+Phase 7A is complete as of 2026-04-30:
+
+- Status documentation now treats Phase 6A/6B/6C/6D as implemented first passes.
+- glTF collision-only nodes are still extracted into `SceneAsset::level_collision`.
+- Collision-only nodes are excluded from normal imported render scene membership by clearing
+  mesh instances during scene import after collision extraction.
+- Collision-only render filtering applies to nodes named `COL_*`, nodes named `Collision_*`,
+  and mesh descendants of an exact node named `Collision`.
+- Metadata markers remain independent: `SPAWN_*`, `TRIGGER_*`, and `SPRITE_*` do not become
+  collision meshes, and collision nodes do not become world metadata markers.
 
 ## Strong recommendation
 
 Implement only one phase per pull request/branch slice. Keep every phase display-free by default, with optional graphics context tests remaining opt-in.
-
-The best next single step is **Phase 7A** because it prevents future agent confusion and gives a reliable baseline before the larger character-controller work.
 
 ## Shared implementation rules
 

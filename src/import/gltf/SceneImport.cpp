@@ -4,6 +4,39 @@
 
 namespace stellar::import::gltf {
 
+namespace {
+
+bool has_collision_parent(const stellar::assets::SceneAsset& scene,
+                          std::size_t node_index) noexcept {
+    std::size_t guard = 0;
+    auto parent_index = scene.nodes[node_index].parent_index;
+    while (parent_index.has_value() && *parent_index < scene.nodes.size() &&
+           guard < scene.nodes.size()) {
+        if (is_collision_parent_node_name(scene.nodes[*parent_index].name)) {
+            return true;
+        }
+        parent_index = scene.nodes[*parent_index].parent_index;
+        ++guard;
+    }
+    return false;
+}
+
+bool is_collision_only_render_node(const stellar::assets::SceneAsset& scene,
+                                   std::size_t node_index) noexcept {
+    const auto& node = scene.nodes[node_index];
+    return is_direct_collision_node_name(node.name) || has_collision_parent(scene, node_index);
+}
+
+} // namespace
+
+void filter_collision_only_render_nodes(stellar::assets::SceneAsset& scene) noexcept {
+    for (std::size_t node_index = 0; node_index < scene.nodes.size(); ++node_index) {
+        if (is_collision_only_render_node(scene, node_index)) {
+            scene.nodes[node_index].mesh_instances.clear();
+        }
+    }
+}
+
 [[nodiscard]] std::expected<void, stellar::platform::Error>
 validate_skinned_mesh_joint_indices(const stellar::assets::SceneAsset& scene) {
     for (const auto& node : scene.nodes) {
@@ -235,6 +268,8 @@ load_scene_from_file(std::string_view path) {
     if (!collision->meshes.empty()) {
         scene.level_collision = std::move(*collision);
     }
+
+    filter_collision_only_render_nodes(scene);
 
     auto world_metadata = extract_world_metadata(scene, data.get());
     if (!world_metadata) {

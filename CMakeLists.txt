@@ -43,6 +43,7 @@ target_link_libraries(stellar_assets INTERFACE stellar_scene)
 
 add_library(stellar_physics
     src/physics/CollisionWorld.cpp
+    src/physics/CharacterController.cpp
 )
 
 target_include_directories(stellar_physics PUBLIC
@@ -51,6 +52,20 @@ target_include_directories(stellar_physics PUBLIC
 
 target_link_libraries(stellar_physics PUBLIC
     stellar_assets
+)
+
+add_library(stellar_world
+    src/world/RuntimeWorld.cpp
+    src/world/TriggerSystem.cpp
+)
+
+target_include_directories(stellar_world PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_world PUBLIC
+    stellar_assets
+    stellar_physics
 )
 
 if(STELLAR_ENABLE_GLTF)
@@ -148,7 +163,36 @@ target_include_directories(stellar_client_config PUBLIC
 target_link_libraries(stellar_client_config PUBLIC
     stellar_assets
     stellar_scene
+    stellar_world
 )
+
+add_executable(stellar_runtime_world_test
+    tests/world/RuntimeWorld.cpp
+)
+
+target_include_directories(stellar_runtime_world_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_runtime_world_test PRIVATE
+    stellar_world
+)
+
+add_test(NAME runtime_world COMMAND stellar_runtime_world_test)
+
+add_executable(stellar_trigger_system_test
+    tests/world/TriggerSystem.cpp
+)
+
+target_include_directories(stellar_trigger_system_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_trigger_system_test PRIVATE
+    stellar_world
+)
+
+add_test(NAME trigger_system COMMAND stellar_trigger_system_test)
 
 add_executable(stellar_render_scene_upload_test
     tests/graphics/RenderSceneUpload.cpp
@@ -256,6 +300,20 @@ target_link_libraries(stellar_collision_world_test PRIVATE
 )
 
 add_test(NAME collision_world COMMAND stellar_collision_world_test)
+
+add_executable(stellar_character_controller_test
+    tests/physics/CharacterController.cpp
+)
+
+target_include_directories(stellar_character_controller_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_character_controller_test PRIVATE
+    stellar_physics
+)
+
+add_test(NAME character_controller COMMAND stellar_character_controller_test)
 
 add_executable(stellar_client_asset_validation_smoke
     tests/client/AssetValidationSmoke.cpp

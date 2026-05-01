@@ -314,3 +314,32 @@ Append after implementation:
   - Runtime triggers remain Phase 7D.
   - Broadphase remains Phase 7E unless already needed for correctness.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 7B robust static character movement.
+- Public API: added `stellar::physics::CharacterController` with small config/input/result structs
+  and preserved existing `CollisionWorld` query/movement APIs; `CollisionWorld::asset()` exposes the
+  immutable static asset for higher-level deterministic queries.
+- Movement behavior: start-overlap recovery uses fixed iterations over closest triangle points;
+  movement uses conservative sampled sphere sweeps with fixed slide iterations; final state applies
+  slope-limited ground snap and a conservative step-up retry for low obstacles.
+- Limitations: controller is still a static-world helper, not a physics engine; it uses a sphere at
+  the supplied position and reserves `height` for a future capsule upgrade; broadphase remains a
+  future performance pass.
+- Tests added/updated: `tests/physics/CharacterController.cpp` and CTest `character_controller`,
+  covering empty movement, grounding, floor/wall recovery, wall stop/slide, angled slide, corner
+  stop, edge/vertex contacts, slope limits, ground snap, low/high steps, and finite degenerate or
+  zero-displacement output.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_collision_world_test stellar_character_controller_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(collision_world|character_controller)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; physics subset reported 2/2 tests passed and full CTest reported 9/9 tests
+    passed.
+- Deferred follow-up:
+  - Runtime world integration remains Phase 7C.
+  - Runtime triggers remain Phase 7D.
+  - Broadphase remains Phase 7E unless already needed for correctness.

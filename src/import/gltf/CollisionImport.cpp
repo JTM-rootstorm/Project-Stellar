@@ -17,10 +17,6 @@ bool starts_with(std::string_view value, std::string_view prefix) noexcept {
     return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
 }
 
-bool is_direct_collision_node_name(std::string_view name) noexcept {
-    return starts_with(name, "COL_") || starts_with(name, "Collision_");
-}
-
 Mat4 multiply(const Mat4& lhs, const Mat4& rhs) noexcept {
     Mat4 out{};
     for (std::size_t column = 0; column < 4; ++column) {
@@ -164,7 +160,7 @@ walk_collision_nodes(const stellar::assets::SceneAsset& scene,
     const Mat4 world = multiply(parent_world, local);
     const bool direct_collision = is_direct_collision_node_name(node.name);
     const bool extract_node = direct_collision || inherited_collision;
-    const bool child_collision = inherited_collision || node.name == "Collision";
+    const bool child_collision = inherited_collision || is_collision_parent_node_name(node.name);
 
     if (extract_node) {
         for (const auto& instance : node.mesh_instances) {
@@ -206,6 +202,14 @@ std::vector<std::size_t> collision_roots(const stellar::assets::SceneAsset& scen
 }
 
 } // namespace
+
+bool is_direct_collision_node_name(std::string_view name) noexcept {
+    return starts_with(name, "COL_") || starts_with(name, "Collision_");
+}
+
+bool is_collision_parent_node_name(std::string_view name) noexcept {
+    return name == "Collision";
+}
 
 std::expected<stellar::assets::LevelCollisionAsset, stellar::platform::Error>
 extract_level_collision(const stellar::assets::SceneAsset& scene) {

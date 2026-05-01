@@ -1,5 +1,7 @@
 #include "stellar/client/ApplicationConfig.hpp"
 
+#include "stellar/world/RuntimeWorld.hpp"
+
 #if defined(STELLAR_ENABLE_GLTF)
 #include "stellar/import/gltf/Loader.hpp"
 #endif
@@ -23,6 +25,8 @@ validate_application_config(const ApplicationConfig& config) {
     }
 
     validation.scene = std::move(*loaded_scene);
+    validation.runtime_world_diagnostics =
+        stellar::world::build_runtime_world(*validation.scene).diagnostics;
     return validation;
 #else
     return std::unexpected(stellar::platform::Error(

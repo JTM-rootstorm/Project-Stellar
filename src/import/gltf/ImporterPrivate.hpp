@@ -62,6 +62,8 @@ read_mat4(const cgltf_accessor* accessor, std::size_t index, const char* error_m
 bool normalize_weights(std::array<float, 4>& weights) noexcept;
 std::array<float, 16> identity_matrix() noexcept;
 std::array<float, 16> node_matrix(const cgltf_node& node);
+bool is_direct_collision_node_name(std::string_view name) noexcept;
+bool is_collision_parent_node_name(std::string_view name) noexcept;
 
 [[nodiscard]] std::expected<std::vector<std::uint8_t>, stellar::platform::Error>
 decode_data_uri(std::string_view uri);
@@ -91,6 +93,7 @@ load_node(const cgltf_data* data, const cgltf_node& node);
 
 [[nodiscard]] std::expected<void, stellar::platform::Error>
 validate_skinned_mesh_joint_indices(const stellar::assets::SceneAsset& scene);
+void filter_collision_only_render_nodes(stellar::assets::SceneAsset& scene) noexcept;
 [[nodiscard]] std::expected<stellar::assets::LevelCollisionAsset, stellar::platform::Error>
 extract_level_collision(const stellar::assets::SceneAsset& scene);
 [[nodiscard]] std::expected<stellar::assets::WorldMetadataAsset, stellar::platform::Error>

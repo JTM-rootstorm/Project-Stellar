@@ -2,13 +2,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <vector>
 
 namespace stellar::physics {
 namespace {
 
 constexpr float kEpsilon = 1.0e-5F;
 constexpr float kContactOffset = 1.0e-4F;
+constexpr std::uint32_t kInvalidNode = std::numeric_limits<std::uint32_t>::max();
+constexpr std::size_t kBvhLeafSize = 4;
 
 using Vec3 = std::array<float, 3>;
 
@@ -22,6 +26,14 @@ Vec3 subtract(Vec3 a, Vec3 b) noexcept {
 
 Vec3 multiply(Vec3 a, float scalar) noexcept {
     return {a[0] * scalar, a[1] * scalar, a[2] * scalar};
+}
+
+Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
+    return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
+}
+
+Vec3 max_vec(Vec3 a, Vec3 b) noexcept {
+    return {std::max(a[0], b[0]), std::max(a[1], b[1]), std::max(a[2], b[2])};
 }
 
 float dot(Vec3 a, Vec3 b) noexcept {
@@ -112,7 +124,91 @@ struct SweepHit {
     bool hit = false;
     float t = 1.0F;
     Vec3 normal{};
+    std::size_t mesh_index = 0;
+    std::size_t triangle_index = 0;
 };
+
+} // namespace
+
+namespace {
+
+using Aabb = detail::CollisionAabb;
+using BvhNode = detail::CollisionBvhNode;
+using TriangleRef = detail::CollisionTriangleRef;
+
+Aabb make_empty_aabb() noexcept {
+    return {.min = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
+                    std::numeric_limits<float>::max()},
+            .max = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(),
+                    std::numeric_limits<float>::lowest()}};
+}
+
+Aabb merge(Aabb a, Aabb b) noexcept {
+    return {.min = min_vec(a.min, b.min), .max = max_vec(a.max, b.max)};
+}
+
+Aabb expand(Aabb bounds, float amount) noexcept {
+    const float safe_amount = std::max(amount, 0.0F);
+    const Vec3 margin{safe_amount, safe_amount, safe_amount};
+    return {.min = subtract(bounds.min, margin), .max = add(bounds.max, margin)};
+}
+
+Aabb triangle_bounds(const stellar::assets::CollisionTriangle& triangle) noexcept {
+    const Vec3 min_ab = min_vec(triangle.a, triangle.b);
+    const Vec3 max_ab = max_vec(triangle.a, triangle.b);
+    return {.min = min_vec(min_ab, triangle.c), .max = max_vec(max_ab, triangle.c)};
+}
+
+Vec3 aabb_centroid(Aabb bounds) noexcept {
+    return multiply(add(bounds.min, bounds.max), 0.5F);
+}
+
+bool segment_aabb(Vec3 origin, Vec3 delta, Aabb bounds) noexcept {
+    float t_min = 0.0F;
+    float t_max = 1.0F;
+
+    for (int axis = 0; axis < 3; ++axis) {
+        if (std::abs(delta[axis]) <= kEpsilon) {
+            if (origin[axis] < bounds.min[axis] || origin[axis] > bounds.max[axis]) {
+                return false;
+            }
+            continue;
+        }
+
+        const float inv_delta = 1.0F / delta[axis];
+        float near_t = (bounds.min[axis] - origin[axis]) * inv_delta;
+        float far_t = (bounds.max[axis] - origin[axis]) * inv_delta;
+        if (near_t > far_t) {
+            std::swap(near_t, far_t);
+        }
+        t_min = std::max(t_min, near_t);
+        t_max = std::min(t_max, far_t);
+        if (t_min > t_max + kEpsilon) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool intersects(Aabb a, Aabb b) noexcept {
+    return a.max[0] >= b.min[0] && a.min[0] <= b.max[0] && a.max[1] >= b.min[1] &&
+           a.min[1] <= b.max[1] && a.max[2] >= b.min[2] && a.min[2] <= b.max[2];
+}
+
+bool triangle_order_less(const TriangleRef& a, const TriangleRef& b) noexcept {
+    if (a.mesh_index != b.mesh_index) {
+        return a.mesh_index < b.mesh_index;
+    }
+    return a.triangle_index < b.triangle_index;
+}
+
+bool hit_order_less(std::size_t mesh_a,
+                    std::size_t triangle_a,
+                    std::size_t mesh_b,
+                    std::size_t triangle_b) noexcept {
+    return mesh_a < mesh_b || (mesh_a == mesh_b && triangle_a < triangle_b);
+}
 
 SweepHit sweep_sphere_against_triangle(Vec3 position,
                                         Vec3 displacement,
@@ -155,32 +251,147 @@ SweepHit sweep_sphere_against_triangle(Vec3 position,
 } // namespace
 
 CollisionWorld::CollisionWorld(const stellar::assets::LevelCollisionAsset& asset) noexcept
-    : asset_(&asset) {}
+    : asset_(&asset) {
+    build_broadphase();
+}
+
+void CollisionWorld::build_broadphase() noexcept {
+    triangle_refs_.clear();
+    bvh_nodes_.clear();
+    stats_ = {};
+
+    if (asset_ == nullptr) {
+        return;
+    }
+
+    stats_.mesh_count = asset_->meshes.size();
+    for (std::size_t mesh_index = 0; mesh_index < asset_->meshes.size(); ++mesh_index) {
+        const auto& mesh = asset_->meshes[mesh_index];
+        stats_.triangle_count += mesh.triangles.size();
+        for (std::size_t triangle_index = 0; triangle_index < mesh.triangles.size();
+             ++triangle_index) {
+            const Aabb bounds = triangle_bounds(mesh.triangles[triangle_index]);
+            triangle_refs_.push_back({.mesh_index = mesh_index,
+                                      .triangle_index = triangle_index,
+                                      .bounds = bounds,
+                                      .centroid = aabb_centroid(bounds)});
+        }
+    }
+
+    if (triangle_refs_.empty()) {
+        return;
+    }
+
+    auto build_node = [this](auto&& self,
+                             std::uint32_t first,
+                             std::uint32_t count) -> std::uint32_t {
+        const std::uint32_t node_index = static_cast<std::uint32_t>(bvh_nodes_.size());
+        BvhNode node{};
+        node.first = first;
+        node.count = count;
+        node.left = kInvalidNode;
+        node.right = kInvalidNode;
+        Aabb bounds = make_empty_aabb();
+        Aabb centroid_bounds = make_empty_aabb();
+        for (std::uint32_t index = first; index < first + count; ++index) {
+            bounds = merge(bounds, triangle_refs_[index].bounds);
+            const Aabb point_bounds{.min = triangle_refs_[index].centroid,
+                                    .max = triangle_refs_[index].centroid};
+            centroid_bounds = merge(centroid_bounds, point_bounds);
+        }
+        node.bounds = bounds;
+        bvh_nodes_.push_back(node);
+
+        if (count <= kBvhLeafSize) {
+            return node_index;
+        }
+
+        const Vec3 extent = subtract(centroid_bounds.max, centroid_bounds.min);
+        int split_axis = 0;
+        if (extent[1] > extent[split_axis]) {
+            split_axis = 1;
+        }
+        if (extent[2] > extent[split_axis]) {
+            split_axis = 2;
+        }
+
+        auto begin = triangle_refs_.begin() + static_cast<std::ptrdiff_t>(first);
+        auto end = begin + static_cast<std::ptrdiff_t>(count);
+        std::stable_sort(begin, end, [split_axis](const TriangleRef& a, const TriangleRef& b) {
+            if (std::abs(a.centroid[split_axis] - b.centroid[split_axis]) > kEpsilon) {
+                return a.centroid[split_axis] < b.centroid[split_axis];
+            }
+            return triangle_order_less(a, b);
+        });
+
+        const std::uint32_t left_count = count / 2;
+        const std::uint32_t right_count = count - left_count;
+        bvh_nodes_[node_index].left = self(self, first, left_count);
+        bvh_nodes_[node_index].right = self(self, first + left_count, right_count);
+        bvh_nodes_[node_index].count = 0;
+        return node_index;
+    };
+
+    build_node(build_node, 0, static_cast<std::uint32_t>(triangle_refs_.size()));
+    stats_.broadphase_node_count = bvh_nodes_.size();
+}
 
 RaycastHit CollisionWorld::raycast(Vec3 origin, Vec3 delta) const noexcept {
     RaycastHit result{};
-    if (asset_ == nullptr || length_squared(delta) <= kEpsilon * kEpsilon) {
+    stats_.last_query_triangle_tests = 0;
+    if (asset_ == nullptr || length_squared(delta) <= kEpsilon * kEpsilon || bvh_nodes_.empty()) {
         return result;
     }
 
     float nearest_t = std::numeric_limits<float>::max();
-    for (std::size_t mesh_index = 0; mesh_index < asset_->meshes.size(); ++mesh_index) {
-        const auto& mesh = asset_->meshes[mesh_index];
-        for (std::size_t triangle_index = 0; triangle_index < mesh.triangles.size(); ++triangle_index) {
-            const auto& triangle = mesh.triangles[triangle_index];
+    std::vector<std::uint32_t> stack;
+    stack.reserve(bvh_nodes_.size());
+    stack.push_back(0);
+
+    while (!stack.empty()) {
+        const std::uint32_t node_index = stack.back();
+        stack.pop_back();
+        const BvhNode& node = bvh_nodes_[node_index];
+        if (!segment_aabb(origin, delta, node.bounds)) {
+            continue;
+        }
+
+        if (node.count == 0) {
+            if (node.right != kInvalidNode) {
+                stack.push_back(node.right);
+            }
+            if (node.left != kInvalidNode) {
+                stack.push_back(node.left);
+            }
+            continue;
+        }
+
+        for (std::uint32_t index = node.first; index < node.first + node.count; ++index) {
+            const TriangleRef& ref = triangle_refs_[index];
+            if (!segment_aabb(origin, delta, ref.bounds)) {
+                continue;
+            }
+
+            const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
+            ++stats_.last_query_triangle_tests;
             float t = 0.0F;
             if (!segment_triangle(origin, delta, triangle, t)) {
                 continue;
             }
 
-            if (t < nearest_t) {
+            const bool nearer = t < nearest_t - kEpsilon;
+            const bool tie_break = std::abs(t - nearest_t) <= kEpsilon &&
+                                   (!result.hit || hit_order_less(ref.mesh_index, ref.triangle_index,
+                                                                  result.mesh_index,
+                                                                  result.triangle_index));
+            if (nearer || tie_break) {
                 nearest_t = t;
                 result.hit = true;
                 result.t = t;
                 result.position = add(origin, multiply(delta, t));
                 result.normal = triangle_normal(triangle);
-                result.mesh_index = mesh_index;
-                result.triangle_index = triangle_index;
+                result.mesh_index = ref.mesh_index;
+                result.triangle_index = ref.triangle_index;
             }
         }
     }
@@ -215,7 +426,9 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
     result.position = position;
     result.velocity = displacement;
 
-    if (asset_ == nullptr || asset_->meshes.empty() || length_squared(displacement) <= kEpsilon * kEpsilon) {
+    stats_.last_query_triangle_tests = 0;
+    if (asset_ == nullptr || asset_->meshes.empty() ||
+        length_squared(displacement) <= kEpsilon * kEpsilon || bvh_nodes_.empty()) {
         result.position = add(position, displacement);
         result.velocity = {0.0F, 0.0F, 0.0F};
         result.grounded = probe_ground(result.position, std::max(radius + 0.05F, 0.05F)).hit;
@@ -233,12 +446,52 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
         }
 
         SweepHit nearest{};
-        for (const auto& mesh : asset_->meshes) {
-            for (const auto& triangle : mesh.triangles) {
+        const Aabb sweep_bounds = expand({.min = min_vec(current_position, add(current_position, remaining)),
+                                          .max = max_vec(current_position, add(current_position, remaining))},
+                                         safe_radius);
+        std::vector<std::uint32_t> stack;
+        stack.reserve(bvh_nodes_.size());
+        stack.push_back(0);
+
+        while (!stack.empty()) {
+            const std::uint32_t node_index = stack.back();
+            stack.pop_back();
+            const BvhNode& node = bvh_nodes_[node_index];
+            if (!segment_aabb(current_position, remaining, expand(node.bounds, safe_radius)) &&
+                !intersects(node.bounds, sweep_bounds)) {
+                continue;
+            }
+
+            if (node.count == 0) {
+                if (node.right != kInvalidNode) {
+                    stack.push_back(node.right);
+                }
+                if (node.left != kInvalidNode) {
+                    stack.push_back(node.left);
+                }
+                continue;
+            }
+
+            for (std::uint32_t index = node.first; index < node.first + node.count; ++index) {
+                const TriangleRef& ref = triangle_refs_[index];
+                if (!segment_aabb(current_position, remaining, expand(ref.bounds, safe_radius))) {
+                    continue;
+                }
+
+                const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
+                ++stats_.last_query_triangle_tests;
                 const SweepHit candidate =
                     sweep_sphere_against_triangle(current_position, remaining, safe_radius, triangle);
-                if (candidate.hit && candidate.t < nearest.t) {
+                const bool nearer = candidate.hit && candidate.t < nearest.t - kEpsilon;
+                const bool tie_break = candidate.hit && std::abs(candidate.t - nearest.t) <= kEpsilon &&
+                                       (!nearest.hit || hit_order_less(ref.mesh_index,
+                                                                      ref.triangle_index,
+                                                                      nearest.mesh_index,
+                                                                      nearest.triangle_index));
+                if (nearer || tie_break) {
                     nearest = candidate;
+                    nearest.mesh_index = ref.mesh_index;
+                    nearest.triangle_index = ref.triangle_index;
                 }
             }
         }
@@ -261,8 +514,18 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
 
     result.position = current_position;
     result.velocity = remaining;
+    const std::size_t movement_triangle_tests = stats_.last_query_triangle_tests;
     result.grounded = probe_ground(result.position, std::max(safe_radius + 0.05F, 0.05F)).hit;
+    stats_.last_query_triangle_tests += movement_triangle_tests;
     return result;
+}
+
+const stellar::assets::LevelCollisionAsset& CollisionWorld::asset() const noexcept {
+    return *asset_;
+}
+
+CollisionWorldStats CollisionWorld::stats() const noexcept {
+    return stats_;
 }
 
 } // namespace stellar::physics

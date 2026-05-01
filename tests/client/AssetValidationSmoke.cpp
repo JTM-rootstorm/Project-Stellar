@@ -34,6 +34,12 @@ int main() {
 
 #if defined(STELLAR_ENABLE_GLTF)
     assert(result.has_value());
+    assert(result->scene.has_value());
+    assert(result->runtime_world_diagnostics.has_value());
+    assert(!result->runtime_world_diagnostics->has_collision);
+    assert(result->runtime_world_diagnostics->marker_count == 0);
+    assert(result->runtime_world_diagnostics->sprite_marker_count == 0);
+    assert(!result->runtime_world_diagnostics->has_player_spawn);
 #else
     assert(!result.has_value());
     assert(result.error().message.find("STELLAR_ENABLE_GLTF=ON") != std::string::npos);

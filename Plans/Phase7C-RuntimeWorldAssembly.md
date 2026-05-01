@@ -232,3 +232,31 @@ Append after implementation:
   - Broadphase remains Phase 7E.
   - ECS/gameplay spawning remains future work.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 7C runtime world assembly.
+- Public API: added `stellar::world::RuntimeWorld`, `RuntimeWorldDiagnostics`,
+  `build_runtime_world`, and pure lookup helpers for player spawns, marker type, entity spawn
+  archetype, sprite markers, and trigger markers.
+- Collision integration: `RuntimeWorld` keeps a pointer to the caller-owned `SceneAsset` and creates
+  `CollisionWorld` only when `SceneAsset::level_collision` exists with at least one mesh;
+  diagnostics count collision meshes and triangles.
+- Metadata integration: imported world metadata is copied into the runtime world for stable marker
+  helper lookups; sprite markers are exposed as metadata only, with texture/material binding deferred.
+- Client validation: `ApplicationValidation` now includes display-free runtime world diagnostics when
+  glTF validation loads a scene.
+- Tests added/updated: added `tests/world/RuntimeWorld.cpp` and CTest `runtime_world`; updated client
+  asset validation smoke assertions for runtime diagnostics.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_runtime_world_test stellar_client_asset_validation_smoke -j$(nproc)`
+  - `ctest --test-dir build -R '^(runtime_world|client_asset_validation_smoke|client_cli_asset_validation)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: pass; focused Phase 7C subset reported 3/3 tests passed and full CTest reported 10/10
+    tests passed.
+- Deferred follow-up:
+  - Runtime trigger overlap remains Phase 7D.
+  - Broadphase remains Phase 7E.
+  - ECS/gameplay spawning remains future work.

@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <vector>
 
 namespace {
 
@@ -38,12 +39,31 @@ stellar::assets::CollisionTriangle wall_x_triangle(float x = 2.0F) {
                     {-1.0F, 0.0F, 0.0F});
 }
 
+stellar::assets::LevelCollisionAsset make_many_floor_asset(int count) {
+    stellar::assets::LevelCollisionAsset asset;
+    stellar::assets::CollisionMesh mesh;
+    mesh.name = "many";
+    for (int index = 0; index < count; ++index) {
+        const float x = static_cast<float>(index) * 4.0F;
+        mesh.triangles.push_back(triangle({x, 0.0F, -1.0F}, {x + 1.0F, 0.0F, 1.0F},
+                                          {x + 2.0F, 0.0F, -1.0F}, {0.0F, 1.0F, 0.0F}));
+    }
+    asset.meshes.push_back(mesh);
+    return asset;
+}
+
 void ray_misses_empty_collision_world() {
     stellar::assets::LevelCollisionAsset asset;
     stellar::physics::CollisionWorld world(asset);
 
     const auto hit = world.raycast({0.0F, 1.0F, 0.0F}, {0.0F, -2.0F, 0.0F});
     assert(!hit.hit);
+
+    const auto stats = world.stats();
+    assert(stats.mesh_count == 0);
+    assert(stats.triangle_count == 0);
+    assert(stats.broadphase_node_count == 0);
+    assert(stats.last_query_triangle_tests == 0);
 }
 
 void ray_hits_floor_triangle() {
@@ -55,6 +75,25 @@ void ray_hits_floor_triangle() {
     assert(nearly_equal(hit.t, 0.5F));
     assert(nearly_equal(hit.position[1], 0.0F));
     assert(nearly_equal(hit.normal[1], 1.0F));
+
+    const auto stats = world.stats();
+    assert(stats.mesh_count == 1);
+    assert(stats.triangle_count == 1);
+    assert(stats.broadphase_node_count == 1);
+    assert(stats.last_query_triangle_tests == 1);
+}
+
+void bvh_raycast_matches_bruteforce_order_for_equal_hits() {
+    const auto first = floor_triangle(0.0F);
+    const auto second = floor_triangle(0.0F);
+    const auto asset = make_asset({second, first});
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto hit = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    assert(hit.hit);
+    assert(nearly_equal(hit.t, 0.5F));
+    assert(hit.mesh_index == 0);
+    assert(hit.triangle_index == 0);
 }
 
 void ray_returns_nearest_hit() {
@@ -122,16 +161,76 @@ void empty_collision_world_movement_passes_through_unchanged() {
     assert(nearly_equal(moved.velocity[2], 0.0F));
 }
 
+void bvh_handles_many_triangles_deterministically_and_prunes() {
+    const auto asset = make_many_floor_asset(64);
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto hit = world.raycast({5.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    assert(hit.hit);
+    assert(hit.triangle_index == 1);
+    assert(nearly_equal(hit.position[1], 0.0F));
+
+    const auto first_stats = world.stats();
+    assert(first_stats.triangle_count == 64);
+    assert(first_stats.broadphase_node_count > 1);
+    assert(first_stats.last_query_triangle_tests > 0);
+    assert(first_stats.last_query_triangle_tests < first_stats.triangle_count);
+
+    const auto repeated = world.raycast({5.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    assert(repeated.hit);
+    assert(repeated.triangle_index == hit.triangle_index);
+    assert(nearly_equal(repeated.t, hit.t));
+}
+
+void bvh_miss_prunes_all_distant_triangles() {
+    const auto asset = make_many_floor_asset(32);
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto hit = world.raycast({0.0F, 2.0F, 100.0F}, {0.0F, -4.0F, 0.0F});
+    assert(!hit.hit);
+    assert(world.stats().last_query_triangle_tests == 0);
+}
+
+void degenerate_triangles_do_not_crash_build_or_query() {
+    const auto degenerate = triangle({0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F},
+                                     {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto asset = make_asset({degenerate, floor_triangle()});
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto hit = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    assert(hit.hit);
+    assert(hit.triangle_index == 1);
+    assert(world.stats().triangle_count == 2);
+}
+
+void bvh_movement_query_prunes_candidates() {
+    auto asset = make_many_floor_asset(64);
+    asset.meshes[0].triangles.push_back(wall_x_triangle(5.0F));
+    stellar::physics::CollisionWorld world(asset);
+
+    const auto moved = world.move_sphere({3.0F, 1.0F, 0.0F}, {4.0F, 0.0F, 0.0F}, 0.5F);
+    assert(moved.hit);
+    assert(moved.position[0] < 4.501F);
+    assert(moved.position[0] > 4.49F);
+    assert(world.stats().last_query_triangle_tests > 0);
+    assert(world.stats().last_query_triangle_tests < world.stats().triangle_count);
+}
+
 } // namespace
 
 int main() {
     ray_misses_empty_collision_world();
     ray_hits_floor_triangle();
+    bvh_raycast_matches_bruteforce_order_for_equal_hits();
     ray_returns_nearest_hit();
     ray_misses_outside_triangle_bounds();
     horizontal_movement_stops_before_wall();
     horizontal_movement_slides_along_axis_aligned_wall();
     downward_ground_probe_detects_floor();
     empty_collision_world_movement_passes_through_unchanged();
+    bvh_handles_many_triangles_deterministically_and_prunes();
+    bvh_miss_prunes_all_distant_triangles();
+    degenerate_triangles_do_not_crash_build_or_query();
+    bvh_movement_query_prunes_candidates();
     return 0;
 }

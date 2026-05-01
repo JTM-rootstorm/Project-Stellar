@@ -8,6 +8,7 @@
 #include "stellar/assets/SceneAsset.hpp"
 #include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/platform/Error.hpp"
+#include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::client {
 
@@ -41,6 +42,9 @@ struct ApplicationConfig {
 struct ApplicationValidation {
     /** @brief Optional CPU-side scene loaded from the configured asset path. */
     std::optional<stellar::assets::SceneAsset> scene;
+
+    /** @brief Optional display-free diagnostics for the assembled runtime world. */
+    std::optional<stellar::world::RuntimeWorldDiagnostics> runtime_world_diagnostics;
 };
 
 /**
