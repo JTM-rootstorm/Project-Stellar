@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.0 (BSP canonical migration alignment)  
+**Version:** 0.2.1 (BSP hardening alignment)  
 **Last Updated:** 2026-05-01
 
 ---
@@ -84,8 +84,7 @@ suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`collision-movement` branch, it is not the highest authority on current implementation
-status.
+`bsp-integration` branch, it is not the highest authority on current implementation status.
 
 Precedence for resolving conflicts:
 
@@ -107,64 +106,19 @@ deferred.
 
 Current branch: `bsp-integration`.
 
-Primary near-term goal: migrate playable levels to BSP-backed `LevelAsset` data while preserving
-server authority. BSP entity metadata will bind triggers, object-collider sensors, sprite markers,
-spawns, and script IDs/tables, but import does not execute scripts. Runtime scripting wraps
-authoritative movement/session output, emits primitive script events, and applies only
-native-validated collision/object-collider commands to server-owned runtime state.
+Primary near-term goal: harden BSP maps as the already-canonical playable level format while
+preserving server authority. Current work focuses on actionable BSP diagnostics, source-neutral PVS
+and lightmap/material data contracts, optional presentation-only render culling, BSP entity authoring
+conventions, and deterministic headless validation.
 
-Completed Phase 10 implementation order:
+BSP entity metadata binds triggers, object-collider sensors, sprite markers, spawns, and script
+IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative
+movement/session output, emits primitive script events, and applies only native-validated
+collision/object-collider commands to server-owned runtime state.
 
-1. **Phase 10A — Lua Runtime Foundation**
-   - Add `stellar_scripting`, vendored Lua 5.4.x, sandbox setup, protected calls, output event
-     buffering, bytecode rejection, and instruction budgeting.
-2. **Phase 10B — Script Binding Metadata**
-   - Extract `extras.stellar.script` and `extras.stellar.table` into backend-neutral world metadata
-     without executing scripts during import.
-3. **Phase 10C — Trigger Script Hooks**
-   - Invoke `on_trigger_enter`, `on_trigger_stay`, and `on_trigger_exit` from authoritative trigger
-     events after server movement resolves.
-4. **Phase 10D — Scripted Session Wrapper**
-   - Add `ScriptedWorldSession` as the script-capable wrapper around native `WorldSession`.
-5. **Phase 10E — Documentation and Playable Integration Smoke**
-   - Validate the authored pre-BSP level -> runtime world -> scripted authoritative trigger path in a
-     display-free integration smoke.
-
-Completed Phase 11 implementation order:
-
-1. **Phase 11A — Capsule-Aware Trigger Overlap**
-   - Align trigger enter/stay/exit checks with the authoritative character capsule.
-2. **Phase 11B — Runtime Collision State Overlay**
-   - Add server-owned enable/disable state for named imported static collision meshes without
-     mutating imported assets.
-3. **Phase 11C — Filtered Collision Queries and Movement Integration**
-   - Route raycasts, ground probes, low-level movement, character movement, and `WorldSession`
-     through collision mesh filters.
-4. **Phase 11D — Validated Script Collision Commands**
-   - Apply `collision.set_mesh_enabled` script output events through native validation after script
-     callbacks, affecting subsequent authoritative ticks.
-5. **Phase 11E — Kinematic Object Collider Registry**
-   - Add a backend-neutral deterministic overlap registry foundation without rigid bodies or ECS
-     ownership.
-6. **Phase 11F — Scripted Collision Smoke and Documentation**
-    - Validate a display-free trigger script that disables a named collision blocker.
-
-Completed Phase 12 implementation order:
-
-1. **Phase 12A — Object Collider Lifecycle Semantics**
-   - Harden live enable/disable, upsert, removal, preserving-overlap replacement, and deterministic
-     synchronous exit behavior for sensor object colliders.
-2. **Phase 12B — WorldSession Object Collider Events**
-   - Build runtime object colliders from `RuntimeWorld` metadata and emit authoritative
-     post-movement enter/stay/exit events in `WorldSnapshot`.
-3. **Phase 12C — Authored Object Collider Metadata**
-   - Import `COLLIDER_<Name>` markers as sensor AABB object colliders with deterministic validation.
-4. **Phase 12D — Object Collider Lua Hooks and Commands**
-   - Invoke `on_object_collider_enter/stay/exit` hooks and validate/apply
-     `object_collider.set_enabled` script output events by collider id.
-5. **Phase 12E — Scripted Object Collider Smoke and Documentation**
-   - Validate the authored pre-BSP level -> runtime world -> authoritative movement -> Lua hook -> native
-     command path without requiring display, GPU, renderer, network, or third-party physics.
+Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
+and retired importer removal are complete historical implementation steps. Their completion notes
+live in `docs/ImplementationStatus.md` and archived plans rather than defining the active scope here.
 
 Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
 client-side scripting, renderer/audio scripting bindings, full PBR, Source/VBSP, moving brush

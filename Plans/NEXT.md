@@ -6,32 +6,34 @@ Branch target: `bsp-integration`
 
 Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
 
-## Post-BSP state
+Active implementation plan package:
 
-BSP maps are now the canonical playable level format. Retired importer functionality has been
-removed from active code, build configuration, tests, and active docs. Runtime world assembly,
-server-authoritative movement/collision, triggers, object-collider sensors, Lua hooks, client map
-validation, and BSP level rendering operate from BSP-backed `LevelAsset` data.
+- `Plans/ProjectStellar-BSP-NextSupport-KiloPlan/00-MASTER-KILO-BSP-HARDENING-PLAN.md`
+- Phase files in `Plans/ProjectStellar-BSP-NextSupport-KiloPlan/`
 
-The completed BSP migration plan is archived at
+## Active scope
+
+BSP maps are already the canonical playable level format. The current scope is BSP authoring and
+presentation hardening, not another migration and not a reintroduction of the retired importer.
+
+The completed BSP migration plan remains archived at
 `Plans/Archived/project_stellar_bsp_canonical_plan/`.
 
-## Next Recommended Active Scope
+Work phases are defined by the active hardening plan:
 
-Recommended next scope: BSP authoring and presentation hardening.
-
-Focus areas:
-
-- BSP PVS/leaf visibility culling if not fully active.
-- BSP lightmap/material/texture fallback hardening.
-- Sprite/entity authoring conventions for BSP entity keys.
-- Map validation diagnostics for malformed or unsupported BSP content.
+1. BSP diagnostics and `LevelAsset` data-contract foundation.
+2. BSP PVS/leaf visibility and optional render culling.
+3. BSP lightmap, texture, WAD/material fallback hardening.
+4. BSP entity/sprite/object authoring conventions.
+5. BSP validation tooling and generated-map regression fixtures.
+6. Final hardening, documentation, archive, and next-scope handoff.
 
 ## Invariants
 
 - Server authority remains mandatory.
 - Lua scripting remains mandatory and sandboxed.
+- Runtime collision, movement, triggers, object colliders, and scripting remain backend-neutral.
 - Default tests remain display-free.
-- OpenGL/Vulkan remain runtime-selectable.
+- OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
 - No retired importer functionality, Source/VBSP, third-party physics, dynamic rigid bodies,
   full PBR, or client-side gameplay scripting unless explicitly requested.

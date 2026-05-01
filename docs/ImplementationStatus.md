@@ -2,6 +2,35 @@
 
 Branch target: `bsp-integration`
 
+## BSP Authoring and Presentation Hardening — Active
+
+Active implementation plan package:
+
+- `Plans/ProjectStellar-BSP-NextSupport-KiloPlan/00-MASTER-KILO-BSP-HARDENING-PLAN.md`
+- Phase files in `Plans/ProjectStellar-BSP-NextSupport-KiloPlan/`
+
+This work hardens BSP maps as the already-canonical playable level format. It must not restart the
+BSP migration, reintroduce retired importer functionality, or weaken server authority, mandatory Lua
+sandboxing, display-free default tests, or OpenGL/Vulkan abstraction parity.
+
+Planned phase status:
+
+- Phase 0 — Active handoff and `NEXT.md` lock-in: complete as of 2026-05-01.
+- Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: not started.
+- Phase 2 — BSP PVS, leaf visibility, and render culling: not started.
+- Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: not started.
+- Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: not started.
+- Phase 5 — BSP validation tooling and regression fixtures: not started.
+- Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: not started.
+
+Phase 0 completion notes:
+
+- Locked `Plans/NEXT.md` to the BSP hardening plan package as the active implementation entry point.
+- Recorded this hardening work as the current active branch scope without restarting BSP migration.
+- Updated `docs/Design.md` to describe current BSP hardening rather than the completed migration as
+  the near-term goal.
+- No source or build behavior changes were introduced.
+
 ## BSP Canonical Migration — Complete
 
 BSP canonical migration is complete as of 2026-05-01:
