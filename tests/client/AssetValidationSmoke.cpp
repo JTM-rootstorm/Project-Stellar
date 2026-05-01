@@ -1,4 +1,4 @@
-#include "stellar/client/ApplicationConfig.hpp"
+#include "stellar/client/Application.hpp"
 
 #include "../fixtures/BspFixture.hpp"
 
@@ -30,6 +30,28 @@ int main() {
   assert(result->runtime_world_diagnostics->sprite_marker_count == 1);
   assert(result->runtime_world_diagnostics->object_collider_marker_count == 1);
   assert(result->runtime_world_diagnostics->has_player_spawn);
+
+  const auto runtime = stellar::client::prepare_application_runtime(config);
+  assert(runtime.has_value());
+  assert(runtime->validation != nullptr);
+  assert(runtime->validation->level.has_value());
+  assert(runtime->runtime_world != nullptr);
+  assert(runtime->runtime_world->level_asset == &*runtime->validation->level);
+  assert(runtime->runtime_world->diagnostics.has_collision);
+  assert(runtime->runtime_world->diagnostics.marker_count == 5);
+  assert(runtime->local_loopback_runtime != nullptr);
+  assert(runtime->local_loopback_runtime->latest_snapshot().players.size() == 1);
+  assert(runtime->local_loopback_runtime->latest_snapshot().players[0].player_id ==
+         1);
+
+  stellar::client::ApplicationConfig no_map_config;
+  const auto no_map_runtime =
+      stellar::client::prepare_application_runtime(no_map_config);
+  assert(no_map_runtime.has_value());
+  assert(no_map_runtime->validation != nullptr);
+  assert(!no_map_runtime->validation->level.has_value());
+  assert(no_map_runtime->runtime_world == nullptr);
+  assert(no_map_runtime->local_loopback_runtime == nullptr);
 
   config.map_path = (root / "unsupported.map").string();
   const auto unsupported = stellar::client::validate_application_config(config);

@@ -39,7 +39,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 - Phase 0 — Active gameplay-loop handoff lock-in: complete as of 2026-05-01.
 - Phase 1 — Inch-based world scale and gameplay tuning: complete as of 2026-05-01.
 - Phase 2 — Procedural developer textures for inch-scale BSP authoring: complete as of 2026-05-01.
-- Phase 3 — Load the configured BSP map into the live client path: not started.
+- Phase 3 — Load the configured BSP map into the live client path: complete as of 2026-05-01.
 - Phase 4 — Authoritative player camera drives level rendering: not started.
 - Phase 5 — Minimal ECS/entity spawn from BSP metadata: not started.
 - Phase 6 — Single-room controllable player loop: not started.
@@ -99,6 +99,30 @@ ctest --test-dir build -R '^(bsp_materials|render_level_upload|render_level_insp
 ```
 
 Result: focused Phase 2 build and CTest passed on 2026-05-01.
+
+Phase 3 completion notes:
+
+- Added display-free client runtime preparation that keeps the `LevelAsset` loaded during startup
+  validation alive for the prepared `RuntimeWorld`, `WorldSession`, and `LocalLoopbackRuntime` chain.
+- The live client path now reuses the validated BSP level instead of re-importing it, passes that
+  loaded level into renderer creation, and preserves no-map debug cube fallback behavior.
+- Configured BSP maps now instantiate an in-process authoritative `LocalLoopbackRuntime` using the
+  default inch-scale movement/session tuning; no networking, prediction, or client scripting was
+  added.
+- Extended the client map validation smoke test to assert prepared runtime diagnostics, stable
+  `RuntimeWorld` backing level lifetime, optional loopback state, and no-map fallback preparation.
+- Linked `stellar-client` and client startup validation support with `stellar_client_runtime` so the
+  live client bootstrap can own local loopback runtime state.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client stellar_client_map_validation_smoke stellar_client_local_loopback_runtime_test stellar_render_level_upload_test -j$(nproc)
+ctest --test-dir build -R '^(client_map_validation_smoke|client_cli_map_validation|client_cli_validate_map|client_local_loopback_runtime|render_level_upload)$' --output-on-failure
+```
+
+Result: configure/build and focused Phase 3 CTest passed on 2026-05-01.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

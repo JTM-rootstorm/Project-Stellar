@@ -230,6 +230,7 @@ target_include_directories(stellar_client_config PUBLIC
 
 target_link_libraries(stellar_client_config PUBLIC
     stellar_assets
+    stellar_client_runtime
     stellar_import_bsp
     stellar_world
 )
@@ -433,6 +434,7 @@ target_include_directories(stellar-client PRIVATE
 
 target_link_libraries(stellar-client PRIVATE
     stellar_client_config
+    stellar_client_runtime
     stellar_graphics
     stellar_assets
     miniaudio

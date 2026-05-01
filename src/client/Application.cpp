@@ -22,9 +22,9 @@ Application::Application(ApplicationConfig config) noexcept
     : config_(std::move(config)) {}
 
 std::expected<void, stellar::platform::Error> Application::run() {
-  auto validation = validate_application_config(config_);
-  if (!validation) {
-    return std::unexpected(validation.error());
+  auto runtime = prepare_application_runtime(config_);
+  if (!runtime) {
+    return std::unexpected(runtime.error());
   }
 
   if (config_.validate_only) {
@@ -42,8 +42,12 @@ std::expected<void, stellar::platform::Error> Application::run() {
     return result;
   }
 
+  std::optional<stellar::assets::LevelAsset> renderer_level;
+  if (runtime->validation->level.has_value()) {
+    renderer_level = *runtime->validation->level;
+  }
   auto renderer = stellar::graphics::create_renderer(config_.graphics_backend,
-                                                     std::nullopt);
+                                                     std::move(renderer_level));
   if (auto result = renderer->initialize(window); !result) {
     return result;
   }
@@ -60,6 +64,11 @@ std::expected<void, stellar::platform::Error> Application::run() {
     const float delta_seconds =
         static_cast<float>(frame_start - previous_frame_start) / 1000.0f;
     previous_frame_start = frame_start;
+
+    if (runtime->local_loopback_runtime) {
+      [[maybe_unused]] const LocalLoopbackFrameResult loopback_frame =
+          runtime->local_loopback_runtime->update(input, delta_seconds);
+    }
 
     renderer->render(elapsed_seconds, delta_seconds, kWindowWidth,
                      kWindowHeight);
