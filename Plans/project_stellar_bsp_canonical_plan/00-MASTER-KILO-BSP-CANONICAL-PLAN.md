@@ -1,7 +1,7 @@
 # Project Stellar — BSP Canonical Level Format Migration Plan
 
 Prepared: 2026-05-01  
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Audience: Kilo Code agents / Codex-style implementation agents  
 Primary objective: make classic Half-Life/Quake-style BSP maps the canonical level format and remove glTF functionality from the engine.
 

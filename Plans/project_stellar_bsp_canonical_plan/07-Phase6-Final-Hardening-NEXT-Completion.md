@@ -1,6 +1,6 @@
 # Phase 6 — Final Hardening, Documentation, and NEXT.md Completion
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@director`  
 Implementation support: `@carmack`, `@miyamoto`, `@kojima` as needed  
 Dependencies: Phases 0–5 complete  
@@ -120,7 +120,7 @@ Rewrite it to a short post-BSP handoff. Pick exactly one next active scope. Reco
 ```markdown
 # Stellar Engine — Current Branch Handoff
 
-Branch target: `collision-movement`
+Branch target: `bsp-integration`
 
 ## Current entry point
 

@@ -1,6 +1,6 @@
 # Phase 3 — RuntimeWorld, Server, Scripting, and Client Startup Integration
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@carmack`  
 Gameplay metadata support: `@kojima` through `@director`  
 Dependencies: Phase 1 and Phase 2 complete  

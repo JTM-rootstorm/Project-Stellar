@@ -1,6 +1,6 @@
 # Phase 2 — BSP Importer, Entity Metadata, and Collision Extraction
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@carmack`  
 Gameplay metadata support: `@kojima` through `@director`  
 Dependencies: Phase 1 complete  

@@ -1,6 +1,6 @@
 # Phase 1 — Source-Neutral LevelAsset Contract
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@carmack`  
 Coordinator: `@director`  
 Dependencies: Phase 0 complete  

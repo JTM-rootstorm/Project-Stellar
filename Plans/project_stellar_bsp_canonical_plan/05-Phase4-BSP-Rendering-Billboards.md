@@ -1,6 +1,6 @@
 # Phase 4 — BSP Rendering and Billboard Preservation
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@miyamoto`  
 Coordinator: `@director`  
 Dependencies: Phase 1 complete; Phase 2/3 helpful for real fixtures  

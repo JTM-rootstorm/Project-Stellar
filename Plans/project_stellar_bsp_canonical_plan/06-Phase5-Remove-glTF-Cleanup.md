@@ -1,6 +1,6 @@
 # Phase 5 — Remove glTF Functionality and Cleanup Active References
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@carmack` for build/core cleanup  
 Renderer cleanup: `@miyamoto` through `@director`  
 Coordinator: `@director`  

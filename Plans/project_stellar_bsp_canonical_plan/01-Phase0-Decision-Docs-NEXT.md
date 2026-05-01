@@ -1,6 +1,6 @@
 # Phase 0 — Decision Lock-In, Active Docs, and NEXT.md Reset
 
-Branch target: `collision-movement`  
+Branch target: `bsp-integration`  
 Primary agent: `@director`  
 Dependencies: none  
 Parallelizable: no; this phase establishes the source-of-truth direction.
@@ -23,7 +23,7 @@ Replace the current cleanup-oriented handoff with a short BSP migration handoff.
 
 Required content:
 
-- Branch target: `collision-movement`.
+- Branch target: `bsp-integration`.
 - Current active scope: BSP canonical level format migration and glTF removal.
 - Entry point: `docs/ImplementationStatus.md` plus the active BSP plan file under `Plans/`.
 - Preserve assumptions:
@@ -41,7 +41,7 @@ Recommended replacement skeleton:
 ```markdown
 # Stellar Engine — Current Branch Handoff
 
-Branch target: `collision-movement`
+Branch target: `bsp-integration`
 
 ## Current entry point
 
