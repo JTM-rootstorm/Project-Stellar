@@ -17,6 +17,18 @@ stellar::server::GameplayEntity make_entity(stellar::server::EntityKind kind, bo
     return entity;
 }
 
+stellar::network::NetworkGameplayEntity make_network_entity(stellar::server::EntityKind kind,
+                                                            bool active = true) {
+    stellar::network::NetworkGameplayEntity entity;
+    entity.id = 7;
+    entity.kind = kind;
+    entity.active = active;
+    entity.transform.position = {1.0F, 2.0F, 3.0F};
+    entity.metadata.size = {12.0F, 18.0F, 0.0F};
+    entity.metadata.alpha = 0.75F;
+    return entity;
+}
+
 void active_sprite_converts_to_billboard() {
     stellar::server::WorldSnapshot snapshot;
     snapshot.gameplay_world.entities.push_back(make_entity(stellar::server::EntityKind::kSprite));
@@ -100,6 +112,27 @@ void non_presented_entity_kinds_are_hidden_by_default() {
     assert(frame.sprites.empty());
 }
 
+void network_snapshot_overload_matches_server_snapshot_behavior() {
+    stellar::network::NetworkWorldSnapshot snapshot;
+    snapshot.entities.push_back(make_network_entity(stellar::server::EntityKind::kSprite));
+    snapshot.entities.push_back(make_network_entity(stellar::server::EntityKind::kPickup));
+    snapshot.entities.push_back(make_network_entity(stellar::server::EntityKind::kPickup, false));
+    auto door = make_network_entity(stellar::server::EntityKind::kDoor);
+    door.open = true;
+    snapshot.entities.push_back(door);
+
+    assert(stellar::client::make_gameplay_presentation_frame(snapshot).sprites.size() == 2);
+
+    stellar::client::GameplayPresentationConfig config;
+    config.show_debug_interaction_markers = true;
+    const auto frame = stellar::client::make_gameplay_presentation_frame(snapshot, config);
+
+    assert(frame.sprites.size() == 3);
+    assert(frame.sprites[0].position == (std::array<float, 3>{1.0F, 2.0F, 3.0F}));
+    assert(frame.sprites[1].color[2] == 0.25F);
+    assert(frame.sprites[2].color[1] == 1.0F);
+}
+
 } // namespace
 
 int main() {
@@ -108,5 +141,6 @@ int main() {
     door_marker_requires_debug_flag_and_tracks_open_state();
     unknown_metadata_uses_finite_defaults();
     non_presented_entity_kinds_are_hidden_by_default();
+    network_snapshot_overload_matches_server_snapshot_behavior();
     return 0;
 }

@@ -4,6 +4,7 @@
 #include <optional>
 
 #include "stellar/core/WorldUnits.hpp"
+#include "stellar/network/Messages.hpp"
 #include "stellar/server/WorldSession.hpp"
 
 namespace stellar::client {
@@ -54,6 +55,11 @@ struct PlayerCameraFrame {
 /** @brief Extract player presentation state from the latest authoritative world snapshot. */
 [[nodiscard]] std::optional<PlayerPresentationState> make_player_presentation_state(
     const stellar::server::WorldSnapshot& snapshot,
+    stellar::server::PlayerId player_id);
+
+/** @brief Extract player presentation state from the latest authoritative network snapshot. */
+[[nodiscard]] std::optional<PlayerPresentationState> make_player_presentation_state(
+    const stellar::network::NetworkWorldSnapshot& snapshot,
     stellar::server::PlayerId player_id);
 
 /**

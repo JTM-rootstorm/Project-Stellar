@@ -114,11 +114,11 @@ prepare_application_runtime(const ApplicationConfig &config) {
             scripted_session.error().message));
       }
       prepared.validation->scripted_runtime_enabled = true;
-      prepared.local_loopback_runtime = std::make_unique<LocalLoopbackRuntime>(
+      prepared.networked_runtime = std::make_unique<NetworkedClientRuntime>(
           std::move(*scripted_session));
     } else {
-      prepared.local_loopback_runtime =
-          std::make_unique<LocalLoopbackRuntime>(*prepared.runtime_world);
+      prepared.networked_runtime =
+          std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world);
     }
   }
 

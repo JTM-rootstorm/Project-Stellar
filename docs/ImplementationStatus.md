@@ -1,6 +1,53 @@
 # Project Stellar: Implementation Status
 
-Branch target: `bsp-gameplay-loop`
+Branch target: `socket-transport`
+
+## Active Scope — Socket Transport and Networked Session Lifecycle
+
+Active handoff docs:
+
+- `Plans/SocketTransport-AgentPlan.md`
+- `Plans/ProjectStellar-SocketTransport-AgentPlan.md`
+- Source plan package: `Plans/project_stellar_socket_transport_plans/`
+
+The branch target is now socket transport. Completed BSP gameplay-loop and BSP
+presentation/networking polish scopes remain archived and must not be restarted.
+
+Current phase status:
+
+- Phase ST-2 — Live client over local networked transport path: active/completed as of
+  2026-05-01.
+- Phase ST-3 — Connection and session lifecycle: next.
+- Phase ST-4 — Remote socket transport: deferred.
+- Phase ST-5 — Dedicated server entry point: deferred.
+- Phase ST-6 — Client connect mode: deferred.
+- Phase ST-7 — Hardening, documentation, validation, and archival: deferred.
+
+Phase ST-2 completion notes:
+
+- Added `NetworkedClientRuntime` for mapped local play over
+  `LoopbackTransportPair + LocalServerBridge + ClientWorldReceiver` with monotonic
+  `NetworkPlayerCommand` sequencing and authoritative `NetworkWorldSnapshot` presentation.
+- Added presentation-safe `NetworkWorldSnapshot` overloads for player/camera and gameplay billboard
+  helpers without GPU handles or client authority in snapshots.
+- `prepare_application_runtime()` now creates `networked_runtime` for mapped play by default while
+  preserving `LocalLoopbackRuntime` in the codebase for low-level tests and fallback.
+- Live mapped client rendering now reads from latest authoritative network snapshots. No-map debug
+  fallback remains unchanged.
+- Scripted maps still load Lua through the existing sandboxed server-authoritative registry path and
+  fail deterministically on script load errors.
+
+ST-2 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client stellar_networked_client_runtime_test stellar_client_map_validation_smoke stellar_gameplay_presentation_test stellar_player_presentation_test -j$(nproc)
+ctest --test-dir build -R '^(networked_client_runtime|client_map_validation_smoke|client_cli_map_validation|gameplay_presentation|player_presentation|client_world_receiver|loopback_transport|snapshot_)' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-2 targets built, focused ST-2 CTest passed 12/12, full
+debug build succeeded, and full default CTest passed 49/49 on 2026-05-01.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 

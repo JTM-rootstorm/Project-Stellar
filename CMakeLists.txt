@@ -202,6 +202,7 @@ add_library(stellar_client_runtime
     src/client/HudPresentation.cpp
     src/client/LocalServerBridge.cpp
     src/client/MovementInputMapper.cpp
+    src/client/NetworkedClientRuntime.cpp
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
     src/client/GameplayPresentation.cpp
@@ -450,6 +451,10 @@ stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test clien
 
 stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_receiver
     tests/client/ClientWorldReceiver.cpp
+)
+
+stellar_add_client_runtime_test(stellar_networked_client_runtime_test networked_client_runtime
+    tests/client/NetworkedClientRuntime.cpp
 )
 
 stellar_add_client_runtime_test(stellar_hud_presentation_test hud_presentation
