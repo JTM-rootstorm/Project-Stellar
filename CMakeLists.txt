@@ -142,6 +142,7 @@ add_library(stellar_import_bsp
     src/import/bsp/Validation.cpp
     src/import/bsp/BspParser.cpp
     src/import/bsp/BspEntities.cpp
+    src/import/bsp/DeveloperTextures.cpp
     src/import/bsp/BspLevelBuilder.cpp
 )
 

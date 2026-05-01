@@ -2,6 +2,7 @@
 
 #include "../../../src/import/bsp/BspBinary.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -116,17 +117,21 @@ inline void append_basic_lumps(std::vector<std::byte> &bytes, std::int32_t light
     set_lump(bytes, LumpIndex::kModels, model_offset, 64);
 }
 
-inline std::vector<std::byte> single_face_bsp(bool embedded_texture, std::int32_t light_offset = -1,
-                                              std::size_t lighting_bytes = 0) {
+inline std::vector<std::byte> single_face_bsp(bool embedded_texture,
+                                              std::int32_t light_offset = -1,
+                                              std::size_t lighting_bytes = 0,
+                                              std::string texture_name = "stone") {
     std::vector<std::byte> bytes(4 + 15 * 8);
     patch_i32(bytes, 0, 29);
 
     const std::size_t texture_offset = bytes.size();
     append<std::int32_t>(bytes, 1);
     append<std::int32_t>(bytes, 8);
-    const char name[16] = {'s', 't', 'o', 'n', 'e', 0};
-    bytes.insert(bytes.end(), reinterpret_cast<const std::byte *>(name),
-                 reinterpret_cast<const std::byte *>(name + 16));
+    std::array<char, 16> name{};
+    const std::size_t copy_size = std::min(texture_name.size(), name.size());
+    std::memcpy(name.data(), texture_name.data(), copy_size);
+    bytes.insert(bytes.end(), reinterpret_cast<const std::byte *>(name.data()),
+                 reinterpret_cast<const std::byte *>(name.data() + name.size()));
     append<std::uint32_t>(bytes, 2);
     append<std::uint32_t>(bytes, 2);
     append<std::uint32_t>(bytes, embedded_texture ? 40U : 0U);

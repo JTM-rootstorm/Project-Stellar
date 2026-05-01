@@ -1,4 +1,5 @@
 #include "BspBinary.hpp"
+#include "DeveloperTextures.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -204,50 +205,88 @@ void add_entity_warning(ImportReport *report, DiagnosticCode code,
                                            .face_index = std::nullopt});
 }
 
-[[nodiscard]] std::optional<std::size_t>
+struct TextureBuildResult {
+  std::optional<std::size_t> texture_index;
+  std::optional<std::array<std::uint32_t, 2>> texel_size;
+};
+
+[[nodiscard]] TextureBuildResult
 texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
                     std::map<std::string, std::size_t> &textures,
+                    const std::string &texture_name,
                     const Miptex *miptex, const std::string &source_uri,
                     ImportReport *report) {
-  if (miptex == nullptr || miptex->name.empty()) {
-    return std::nullopt;
+  if (texture_name.empty()) {
+    return {};
   }
-  const auto existing = textures.find(miptex->name);
+  const auto existing = textures.find(texture_name);
   if (existing != textures.end()) {
-    return existing->second;
+    const auto &texture = geometry.textures[existing->second];
+    if (texture.image_index.has_value() &&
+        *texture.image_index < geometry.images.size()) {
+      const auto &image = geometry.images[*texture.image_index];
+      return TextureBuildResult{.texture_index = existing->second,
+                                .texel_size = std::array<std::uint32_t, 2>{
+                                    image.width, image.height}};
+    }
+    return TextureBuildResult{.texture_index = existing->second};
   }
-  if (!miptex->has_embedded_pixels || miptex->pixels.empty()) {
+
+  if (miptex != nullptr && miptex->has_embedded_pixels &&
+      !miptex->pixels.empty()) {
+    stellar::assets::ImageAsset image{};
+    image.name = miptex->name;
+    image.width = miptex->width;
+    image.height = miptex->height;
+    image.format = stellar::assets::ImageFormat::kR8G8B8A8;
+    image.source_uri = source_uri + "#miptex/" + miptex->name;
+    image.pixels.reserve(miptex->pixels.size() * 4);
+    for (const std::uint8_t index : miptex->pixels) {
+      image.pixels.push_back(index);
+      image.pixels.push_back(index);
+      image.pixels.push_back(index);
+      image.pixels.push_back(255U);
+    }
+    const std::size_t image_index = geometry.images.size();
+    geometry.images.push_back(std::move(image));
+
+    const std::size_t texture_index = geometry.textures.size();
+    geometry.textures.push_back(stellar::assets::TextureAsset{
+        .name = miptex->name,
+        .image_index = image_index,
+        .sampler_index = std::nullopt,
+        .color_space = stellar::assets::TextureColorSpace::kSrgb});
+    textures.emplace(texture_name, texture_index);
+    return TextureBuildResult{.texture_index = texture_index,
+                              .texel_size = std::array<std::uint32_t, 2>{
+                                  miptex->width, miptex->height}};
+  }
+
+  if (auto developer_texture = make_developer_texture(texture_name, source_uri)) {
+    const std::size_t image_index = geometry.images.size();
+    const std::array<std::uint32_t, 2> texel_size{
+        developer_texture->image.width, developer_texture->image.height};
+    geometry.images.push_back(std::move(developer_texture->image));
+
+    const std::size_t sampler_index = geometry.samplers.size();
+    geometry.samplers.push_back(std::move(developer_texture->sampler));
+
+    const std::size_t texture_index = geometry.textures.size();
+    developer_texture->texture.image_index = image_index;
+    developer_texture->texture.sampler_index = sampler_index;
+    geometry.textures.push_back(std::move(developer_texture->texture));
+    textures.emplace(texture_name, texture_index);
+    return TextureBuildResult{.texture_index = texture_index,
+                              .texel_size = texel_size};
+  }
+
+  if (miptex != nullptr) {
     add_warning(report, DiagnosticCode::kMissingTexture, source_uri,
-                source_uri + ": BSP texture '" + miptex->name +
+                source_uri + ": BSP texture '" + texture_name +
                     "' references external WAD data; using fallback material",
                 static_cast<std::size_t>(LumpIndex::kTextures));
-    return std::nullopt;
   }
-
-  stellar::assets::ImageAsset image{};
-  image.name = miptex->name;
-  image.width = miptex->width;
-  image.height = miptex->height;
-  image.format = stellar::assets::ImageFormat::kR8G8B8A8;
-  image.source_uri = source_uri + "#miptex/" + miptex->name;
-  image.pixels.reserve(miptex->pixels.size() * 4);
-  for (const std::uint8_t index : miptex->pixels) {
-    image.pixels.push_back(index);
-    image.pixels.push_back(index);
-    image.pixels.push_back(index);
-    image.pixels.push_back(255U);
-  }
-  const std::size_t image_index = geometry.images.size();
-  geometry.images.push_back(std::move(image));
-
-  const std::size_t texture_index = geometry.textures.size();
-  geometry.textures.push_back(stellar::assets::TextureAsset{
-      .name = miptex->name,
-      .image_index = image_index,
-      .sampler_index = std::nullopt,
-      .color_space = stellar::assets::TextureColorSpace::kSrgb});
-  textures.emplace(miptex->name, texture_index);
-  return texture_index;
+  return {};
 }
 
 [[nodiscard]] std::size_t
@@ -526,14 +565,14 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         continue;
       }
       const std::string texture = texture_name_for(map, face);
-      const std::optional<std::size_t> texture_asset = texture_asset_index(
-          level.geometry, texture_indices, texture_for_face(map, face),
+      const TextureBuildResult texture_asset = texture_asset_index(
+          level.geometry, texture_indices, texture, texture_for_face(map, face),
           level.source_uri, report);
       const LightmapBuildResult lightmap = build_lightmap_for_face(
           level.geometry, map, face, polygon, static_cast<std::size_t>(face_index),
           level.source_uri, report);
       const std::size_t mat = material_index(level.geometry, material_indices,
-                                             texture, texture_asset,
+                                             texture, texture_asset.texture_index,
                                              lightmap.lightmap_index);
 
       stellar::assets::MeshPrimitive primitive{};
@@ -556,7 +595,14 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                           point[2] * info.s[2] + info.s[3];
           const float t = point[0] * info.t[0] + point[1] * info.t[1] +
                           point[2] * info.t[2] + info.t[3];
-          vertex.uv0 = {s, t};
+          if (texture_asset.texel_size.has_value() &&
+              (*texture_asset.texel_size)[0] > 0U &&
+              (*texture_asset.texel_size)[1] > 0U) {
+            vertex.uv0 = {s / static_cast<float>((*texture_asset.texel_size)[0]),
+                          t / static_cast<float>((*texture_asset.texel_size)[1])};
+          } else {
+            vertex.uv0 = {s, t};
+          }
           if (lightmap.uv_min.has_value() && lightmap.uv_extent.has_value()) {
             vertex.uv1 = {(s - (*lightmap.uv_min)[0]) / (*lightmap.uv_extent)[0],
                           (t - (*lightmap.uv_min)[1]) / (*lightmap.uv_extent)[1]};

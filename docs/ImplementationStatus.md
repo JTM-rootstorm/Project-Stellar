@@ -38,7 +38,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 
 - Phase 0 — Active gameplay-loop handoff lock-in: complete as of 2026-05-01.
 - Phase 1 — Inch-based world scale and gameplay tuning: complete as of 2026-05-01.
-- Phase 2 — Procedural developer textures for inch-scale BSP authoring: not started.
+- Phase 2 — Procedural developer textures for inch-scale BSP authoring: complete as of 2026-05-01.
 - Phase 3 — Load the configured BSP map into the live client path: not started.
 - Phase 4 — Authoritative player camera drives level rendering: not started.
 - Phase 5 — Minimal ECS/entity spawn from BSP metadata: not started.
@@ -76,6 +76,29 @@ ctest --test-dir build -R '^(character_controller|server_movement_simulation|pla
 ```
 
 Result: configure/build and focused CTest passed on 2026-05-01.
+
+Phase 2 completion notes:
+
+- Added deterministic procedural BSP developer texture fallback for `stellar_dev_grid_12`,
+  `stellar_dev_grid_16`, `stellar_dev_grid_32`, `stellar_dev_grid_64`,
+  `stellar_dev_player_72`, `stellar_dev_wall_96`, and safe `dev/...` slash aliases.
+- Known developer textures now generate source-neutral `ImageAsset`, `TextureAsset`, sampler, and
+  material bindings without WAD files, using nearest filtering and repeat wrapping for crisp inch-scale
+  authoring marks.
+- BSP base texture coordinates are normalized by resolved texture dimensions when image data is
+  available, so standard BSP texture axes treat one texel as one authored world inch unless authors
+  change texture scaling.
+- Unknown missing or external textures continue to use existing deterministic fallback material
+  behavior and missing-texture diagnostics.
+
+Validation run:
+
+```bash
+cmake --build build --target stellar_bsp_materials_test stellar_render_level_upload_test stellar_render_level_inspection_test -j$(nproc)
+ctest --test-dir build -R '^(bsp_materials|render_level_upload|render_level_inspection)$' --output-on-failure
+```
+
+Result: focused Phase 2 build and CTest passed on 2026-05-01.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

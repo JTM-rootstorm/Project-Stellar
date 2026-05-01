@@ -17,6 +17,25 @@ capsule center 36 inches above the floor.
 
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD definitions, or equivalent editor mechanisms that preserve keys exactly.
 
+## Procedural developer textures
+
+BSP materials may reference these deterministic developer textures without embedding miptex pixels or
+shipping external WAD files:
+
+| Material name | Slash alias | Intended scale cue |
+| --- | --- | --- |
+| `stellar_dev_grid_12` | `dev/grid_12` | 12 inch / 1 foot grid tile. |
+| `stellar_dev_grid_16` | `dev/grid_16` | 16 inch tile/checker. |
+| `stellar_dev_grid_32` | `dev/grid_32` | 32 inch tile/checker. |
+| `stellar_dev_grid_64` | `dev/grid_64` | 64 inch tile/checker. |
+| `stellar_dev_player_72` | `dev/player_72` | 72 inch player-height reference strip. |
+| `stellar_dev_wall_96` | `dev/wall_96` | 96 inch / 8 foot wall-height reference strip. |
+
+The importer generates `ImageAsset`/`TextureAsset` data for these names during BSP material fallback,
+uses nearest filtering so markings stay crisp, and uses repeat wrapping so authored texture axes can
+tile across room surfaces. With standard BSP texture axes, one texel/texture unit corresponds to one
+world inch; changing editor texture scale changes the visible inch marks accordingly.
+
 ## Entity key reference
 
 | Purpose | Class/key | Required keys | Optional keys | Runtime semantics |
