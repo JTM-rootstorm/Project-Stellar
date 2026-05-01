@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -52,8 +53,25 @@ public:
    * sorting.
    */
   void render(int width, int height,
+               const std::array<float, 16> &view_projection,
+               const std::array<float, 16> &view) noexcept;
+
+  /**
+   * @brief Render static level geometry with optional visibility culling from
+   * a camera point.
+   * @param width Viewport width in pixels.
+   * @param height Viewport height in pixels.
+   * @param view_projection Column-major view-projection matrix.
+   * @param view Column-major view matrix used for transparent primitive
+   * sorting.
+   * @param camera_world_position Optional camera position used for static level
+   * visibility culling.
+   */
+  void render(int width, int height,
               const std::array<float, 16> &view_projection,
-              const std::array<float, 16> &view) noexcept;
+              const std::array<float, 16> &view,
+              std::optional<std::array<float, 3>> camera_world_position)
+      noexcept;
 
   /**
    * @brief Render static level geometry plus backend-neutral 3D billboard
@@ -75,6 +93,28 @@ public:
               std::span<const BillboardSprite> sprites) noexcept;
 
   /**
+   * @brief Render static level geometry with optional visibility culling, then
+   * billboards.
+   * @param width Viewport width in pixels.
+   * @param height Viewport height in pixels.
+   * @param view_projection Column-major view-projection matrix.
+   * @param view Column-major view matrix used for transparent primitive
+   * sorting.
+   * @param camera_world_position Optional camera position used for static level
+   * visibility culling.
+   * @param billboard_view Camera basis and matrices used to generate sprite
+   * quads.
+   * @param sprites Sprite draw data to submit after static opaque/mask
+   * geometry.
+   */
+  void render(int width, int height,
+              const std::array<float, 16> &view_projection,
+              const std::array<float, 16> &view,
+              std::optional<std::array<float, 3>> camera_world_position,
+              const BillboardView &billboard_view,
+              std::span<const BillboardSprite> sprites) noexcept;
+
+  /**
    * @brief Render static level geometry using view-projection depth as a
    * compatibility fallback.
    * @param width Viewport width in pixels.
@@ -88,10 +128,12 @@ private:
   void render(int width, int height,
               const std::array<float, 16> &view_projection,
               const std::array<float, 16> &view,
+              std::optional<std::array<float, 3>> camera_world_position,
               const BillboardView *billboard_view,
               std::span<const BillboardSprite> sprites) noexcept;
   void
   queue_static_draws(const glm::mat4 &view_projection, const glm::mat4 &view,
+                     std::optional<std::array<float, 3>> camera_world_position,
                      std::vector<struct QueuedLevelDraw> &opaque_draws,
                      std::vector<struct QueuedLevelDraw> &blend_draws) noexcept;
   void draw_billboard_quads(std::span<const BillboardQuad> quads,

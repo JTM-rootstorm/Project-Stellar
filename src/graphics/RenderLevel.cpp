@@ -253,30 +253,52 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
 }
 
 void RenderLevel::render(int width, int height,
-                         const std::array<float, 16> &view_projection,
-                         const std::array<float, 16> &view) noexcept {
-  render(width, height, view_projection, view, nullptr, {});
+                          const std::array<float, 16> &view_projection,
+                          const std::array<float, 16> &view) noexcept {
+  render(width, height, view_projection, view, std::nullopt, nullptr, {});
+}
+
+void RenderLevel::render(
+    int width, int height, const std::array<float, 16> &view_projection,
+    const std::array<float, 16> &view,
+    std::optional<std::array<float, 3>> camera_world_position) noexcept {
+  render(width, height, view_projection, view, camera_world_position, nullptr,
+         {});
 }
 
 void RenderLevel::render(int width, int height,
-                         const std::array<float, 16> &view_projection,
-                         const std::array<float, 16> &view,
-                         const BillboardView &billboard_view,
-                         std::span<const BillboardSprite> sprites) noexcept {
-  render(width, height, view_projection, view, &billboard_view, sprites);
+                          const std::array<float, 16> &view_projection,
+                          const std::array<float, 16> &view,
+                          const BillboardView &billboard_view,
+                          std::span<const BillboardSprite> sprites) noexcept {
+  render(width, height, view_projection, view, std::nullopt, &billboard_view,
+         sprites);
+}
+
+void RenderLevel::render(
+    int width, int height, const std::array<float, 16> &view_projection,
+    const std::array<float, 16> &view,
+    std::optional<std::array<float, 3>> camera_world_position,
+    const BillboardView &billboard_view,
+    std::span<const BillboardSprite> sprites) noexcept {
+  render(width, height, view_projection, view, camera_world_position,
+         &billboard_view, sprites);
 }
 
 void RenderLevel::render(
     int width, int height,
     const std::array<float, 16> &view_projection) noexcept {
-  render(width, height, view_projection, view_projection, nullptr, {});
+  render(width, height, view_projection, view_projection, std::nullopt, nullptr,
+         {});
 }
 
 void RenderLevel::render(int width, int height,
-                         const std::array<float, 16> &view_projection,
-                         const std::array<float, 16> &view,
-                         const BillboardView *billboard_view,
-                         std::span<const BillboardSprite> sprites) noexcept {
+                          const std::array<float, 16> &view_projection,
+                          const std::array<float, 16> &view,
+                          std::optional<std::array<float, 3>>
+                              camera_world_position,
+                          const BillboardView *billboard_view,
+                          std::span<const BillboardSprite> sprites) noexcept {
   if (!device_) {
     return;
   }
@@ -287,7 +309,8 @@ void RenderLevel::render(int width, int height,
   const glm::mat4 view_matrix = to_glm_mat4(view);
   std::vector<QueuedLevelDraw> opaque_draws;
   std::vector<QueuedLevelDraw> blend_draws;
-  queue_static_draws(vp, view_matrix, opaque_draws, blend_draws);
+  queue_static_draws(vp, view_matrix, camera_world_position, opaque_draws,
+                     blend_draws);
 
   std::sort(
       blend_draws.begin(), blend_draws.end(),
@@ -314,6 +337,7 @@ void RenderLevel::render(int width, int height,
 
 void RenderLevel::queue_static_draws(
     const glm::mat4 &view_projection, const glm::mat4 &view,
+    std::optional<std::array<float, 3>> camera_world_position,
     std::vector<QueuedLevelDraw> &opaque_draws,
     std::vector<QueuedLevelDraw> &blend_draws) noexcept {
   const glm::mat4 world(1.0F);
@@ -321,9 +345,26 @@ void RenderLevel::queue_static_draws(
                                       .world = kIdentity4,
                                       .normal = normal_matrix_for(world)};
   const auto &geometry = level_.geometry;
+  std::vector<bool> visible_surfaces;
+  if (!geometry.surfaces.empty() && camera_world_position.has_value()) {
+    const auto leaf_index = stellar::assets::find_level_leaf_for_point(
+        level_.visibility, *camera_world_position);
+    if (leaf_index.has_value()) {
+      visible_surfaces = stellar::assets::visible_level_surfaces_from_leaf(
+          level_, *leaf_index);
+      if (visible_surfaces.size() != geometry.surfaces.size()) {
+        visible_surfaces.clear();
+      }
+    }
+  }
 
   if (!geometry.surfaces.empty()) {
-    for (const auto &surface : geometry.surfaces) {
+    for (std::size_t surface_index = 0; surface_index < geometry.surfaces.size();
+         ++surface_index) {
+      if (!visible_surfaces.empty() && !visible_surfaces[surface_index]) {
+        continue;
+      }
+      const auto &surface = geometry.surfaces[surface_index];
       if (surface.mesh_index >= geometry.meshes.size() ||
           surface.mesh_index >= mesh_handles_.size()) {
         continue;

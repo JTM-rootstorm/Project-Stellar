@@ -205,6 +205,19 @@ void copy_properties(stellar::assets::WorldMarker &marker,
   return "bsp_model_" + std::to_string(model_index);
 }
 
+void add_visibility_warning(ImportReport *report, const std::string &source_uri,
+                            std::string message) {
+  if (report == nullptr) {
+    return;
+  }
+  report->diagnostics.push_back(Diagnostic{
+      .severity = DiagnosticSeverity::kWarning,
+      .code = DiagnosticCode::kInvalidVisibilityData,
+      .message = std::move(message),
+      .source_uri = source_uri,
+      .lump_index = static_cast<std::size_t>(LumpIndex::kVisibility)});
+}
+
 } // namespace
 
 std::expected<stellar::assets::LevelAsset, stellar::platform::Error>
@@ -222,7 +235,6 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
   level.source_uri = std::move(source_uri);
   level.visibility.available = map.has_visibility;
   level.visibility.compressed_pvs = std::move(map.visibility_bytes);
-  level.visibility.cluster_count = map.leaves.size();
   level.geometry.raw_lighting = std::move(map.lighting_bytes);
   if (map.has_lighting) {
     level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
@@ -231,30 +243,6 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         .style = 0,
         .source_name = "lighting"});
   }
-  for (const Leaf &leaf : map.leaves) {
-    stellar::assets::LevelLeaf output_leaf{};
-    output_leaf.contents = leaf.contents;
-    for (std::size_t i = 0; i < 3; ++i) {
-      output_leaf.bounds_min[i] = static_cast<float>(leaf.mins[i]);
-      output_leaf.bounds_max[i] = static_cast<float>(leaf.maxs[i]);
-    }
-    if (leaf.visibility_offset >= 0 &&
-        static_cast<std::size_t>(leaf.visibility_offset) <
-            level.visibility.compressed_pvs.size()) {
-      output_leaf.compressed_pvs_offset =
-          static_cast<std::size_t>(leaf.visibility_offset);
-    }
-    for (std::uint16_t i = 0; i < leaf.marksurface_count; ++i) {
-      const std::size_t marksurface_index =
-          static_cast<std::size_t>(leaf.first_marksurface) + i;
-      if (marksurface_index < map.marksurfaces.size()) {
-        output_leaf.surface_indices.push_back(
-            map.marksurfaces[marksurface_index]);
-      }
-    }
-    level.visibility.leaves.push_back(std::move(output_leaf));
-  }
-
   stellar::assets::MeshAsset mesh{};
   mesh.name = "worldspawn";
   mesh.source_uri = level.source_uri;
@@ -275,6 +263,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
   }
 
+  std::vector<std::optional<std::size_t>> face_to_surface(map.faces.size());
   const std::size_t model_count = map.models.empty() ? 1 : map.models.size();
   for (std::size_t model_index = 0; model_index < model_count; ++model_index) {
     const Model model =
@@ -358,6 +347,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       }
       const std::size_t primitive_index = mesh.primitives.size();
       mesh.primitives.push_back(std::move(primitive));
+      const std::size_t surface_index = level.geometry.surfaces.size();
+      face_to_surface[static_cast<std::size_t>(face_index)] = surface_index;
       level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
           .name = "face_" + std::to_string(face_index),
           .mesh_index = 0,
@@ -380,6 +371,63 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
   }
   if (!collision.meshes.empty()) {
     level.level_collision = std::move(collision);
+  }
+
+  level.visibility.cluster_count = map.leaves.size();
+  for (const Leaf &leaf : map.leaves) {
+    stellar::assets::LevelLeaf output_leaf{};
+    output_leaf.contents = leaf.contents;
+    for (std::size_t i = 0; i < 3; ++i) {
+      output_leaf.bounds_min[i] = static_cast<float>(leaf.mins[i]);
+      output_leaf.bounds_max[i] = static_cast<float>(leaf.maxs[i]);
+    }
+    if (leaf.visibility_offset >= 0) {
+      const auto offset = static_cast<std::size_t>(leaf.visibility_offset);
+      if (offset < level.visibility.compressed_pvs.size()) {
+        output_leaf.compressed_pvs_offset = offset;
+      } else if (map.has_visibility) {
+        add_visibility_warning(report, level.source_uri,
+                               level.source_uri +
+                                   ": BSP leaf visibility offset is outside the visibility lump");
+        level.visibility.available = false;
+      }
+    }
+    for (std::uint16_t i = 0; i < leaf.marksurface_count; ++i) {
+      const std::size_t marksurface_index =
+          static_cast<std::size_t>(leaf.first_marksurface) + i;
+      if (marksurface_index >= map.marksurfaces.size()) {
+        add_visibility_warning(report, level.source_uri,
+                               level.source_uri +
+                                   ": BSP leaf marksurface range is outside the marksurface lump");
+        continue;
+      }
+      const std::size_t face_index = map.marksurfaces[marksurface_index];
+      if (face_index < face_to_surface.size() &&
+          face_to_surface[face_index].has_value()) {
+        output_leaf.surface_indices.push_back(*face_to_surface[face_index]);
+      } else {
+        add_visibility_warning(report, level.source_uri,
+                               level.source_uri +
+                                   ": BSP marksurface references a skipped or invalid face");
+      }
+    }
+    level.visibility.leaves.push_back(std::move(output_leaf));
+  }
+  if (level.visibility.available) {
+    for (const stellar::assets::LevelLeaf &leaf : level.visibility.leaves) {
+      if (!leaf.compressed_pvs_offset.has_value()) {
+        continue;
+      }
+      if (!stellar::assets::detail::decompress_level_pvs_bits(
+              level.visibility, *leaf.compressed_pvs_offset,
+              level.visibility.leaves.size())) {
+        add_visibility_warning(report, level.source_uri,
+                               level.source_uri +
+                                   ": BSP visibility PVS row is truncated or malformed");
+        level.visibility.available = false;
+        break;
+      }
+    }
   }
 
   bool has_player_spawn = false;

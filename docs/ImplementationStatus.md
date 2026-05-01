@@ -17,7 +17,7 @@ Planned phase status:
 
 - Phase 0 — Active handoff and `NEXT.md` lock-in: complete as of 2026-05-01.
 - Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: complete as of 2026-05-01.
-- Phase 2 — BSP PVS, leaf visibility, and render culling: not started.
+- Phase 2 — BSP PVS, leaf visibility, and render culling: complete as of 2026-05-01.
 - Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: not started.
 - Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: not started.
 - Phase 5 — BSP validation tooling and regression fixtures: not started.
@@ -45,6 +45,32 @@ ctest --test-dir build --output-on-failure
 
 Result: configure and build succeeded. Targeted BSP/runtime/collision tests passed 5/5, and full
 default CTest passed 31/31.
+
+Phase 2 completion notes:
+
+- Added source-neutral BSP leaf/PVS visibility helpers for leaf lookup, classic compressed PVS
+  decompression, and per-surface visibility masks with all-visible fallback behavior.
+- BSP import now maps leaf marksurfaces through constructed `LevelSurface` indices, preserves leaf
+  bounds/contents/PVS offsets, and diagnoses invalid marksurface or PVS data without changing
+  authoritative collision, movement, triggers, object colliders, or scripting.
+- `RenderLevel` can optionally accept a camera world position and cull static level surfaces through
+  BSP visibility data while falling back to the previous all-surface submission path when visibility
+  is unavailable or invalid.
+- Billboard submission remains after static level geometry, and rendering remains behind the shared
+  `GraphicsDevice` abstraction with no OpenGL/Vulkan-specific BSP API.
+- Added display-free `bsp_visibility` coverage plus render-level synthetic culling coverage.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_visibility|bsp_importer|render_level_upload|render_level_inspection|bsp_playable_world_smoke)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 2 suite passed 5/5, and full default CTest
+passed 32/32.
 
 Phase 0 completion notes:
 

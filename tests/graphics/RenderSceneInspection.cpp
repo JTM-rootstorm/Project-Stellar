@@ -57,6 +57,26 @@ stellar::assets::LevelAsset make_level_with_surfaces(
   return level;
 }
 
+void add_two_leaf_visibility(stellar::assets::LevelAsset &level) {
+  level.visibility.available = true;
+  level.visibility.cluster_count = 2;
+  level.visibility.compressed_pvs = {std::byte{0x01}, std::byte{0x03}};
+  level.visibility.leaves = {
+      stellar::assets::LevelLeaf{
+          .bounds_min = {-10.0F, -10.0F, -10.0F},
+          .bounds_max = {0.0F, 10.0F, 10.0F},
+          .surface_indices = {0},
+          .compressed_pvs_offset = 0,
+      },
+      stellar::assets::LevelLeaf{
+          .bounds_min = {0.0F, -10.0F, -10.0F},
+          .bounds_max = {10.0F, 10.0F, 10.0F},
+          .surface_indices = {1},
+          .compressed_pvs_offset = 1,
+      },
+  };
+}
+
 std::pair<stellar::graphics::RenderLevel *,
           stellar::graphics::testing::RecordingGraphicsDevice *>
 initialize_level(stellar::graphics::RenderLevel &render_level,
@@ -104,6 +124,36 @@ void verify_missing_material_uses_default(stellar::platform::Window &window) {
   assert(device->primitive_draw(0).material == device->material_handles[0]);
 }
 
+void verify_visibility_culls_static_surfaces(stellar::platform::Window &window) {
+  auto level = make_level_with_surfaces({make_primitive(0), make_primitive(1)},
+                                        {0, 1});
+  add_two_leaf_visibility(level);
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+  render_level.render(64, 64, kIdentity, kIdentity,
+                      std::array<float, 3>{-5.0F, 0.0F, 0.0F});
+
+  assert(device->draw_calls.size() == 1);
+  assert(device->primitive_draw(0).primitive_index == 0);
+}
+
+void verify_visibility_falls_back_when_camera_leaf_missing(
+    stellar::platform::Window &window) {
+  auto level = make_level_with_surfaces({make_primitive(0), make_primitive(1)},
+                                        {0, 1});
+  add_two_leaf_visibility(level);
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+  render_level.render(64, 64, kIdentity, kIdentity,
+                      std::array<float, 3>{50.0F, 0.0F, 0.0F});
+
+  assert(device->draw_calls.size() == 2);
+  assert(device->primitive_draw(0).primitive_index == 0);
+  assert(device->primitive_draw(1).primitive_index == 1);
+}
+
 void verify_billboard_quad_generation_sorting_and_fields() {
   stellar::graphics::BillboardView view;
   view.view = kIdentity;
@@ -145,7 +195,9 @@ void verify_billboard_quad_generation_sorting_and_fields() {
 
 void verify_billboards_submit_after_static_geometry(
     stellar::platform::Window &window) {
-  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  auto level = make_level_with_surfaces({make_primitive(0), make_primitive(1)},
+                                        {0, 1});
+  add_two_leaf_visibility(level);
   stellar::graphics::RenderLevel render_level;
   auto [_, device] = initialize_level(render_level, window, std::move(level));
 
@@ -164,7 +216,8 @@ void verify_billboards_submit_after_static_geometry(
   far_blend.texture = stellar::graphics::TextureHandle{222};
 
   const std::array sprites{near_blend, far_blend};
-  render_level.render(64, 64, kIdentity, kIdentity, view, sprites);
+  render_level.render(64, 64, kIdentity, kIdentity,
+                      std::array<float, 3>{-5.0F, 0.0F, 0.0F}, view, sprites);
 
   assert(device->draw_calls.size() == 3);
   assert(device->draw_calls[0].mesh == device->mesh_handles[0]);
@@ -223,6 +276,8 @@ int main() {
   stellar::platform::Window window;
   verify_surface_material_indices(window);
   verify_missing_material_uses_default(window);
+  verify_visibility_culls_static_surfaces(window);
+  verify_visibility_falls_back_when_camera_leaf_missing(window);
   verify_billboard_quad_generation_sorting_and_fields();
   verify_billboards_submit_after_static_geometry(window);
   verify_level_bounds_and_camera_fit();
