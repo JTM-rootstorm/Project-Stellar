@@ -100,6 +100,15 @@ struct Clipnode {
   std::array<std::int16_t, 2> children{};
 };
 
+struct Miptex {
+  std::string name;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::array<std::uint32_t, 4> offsets{};
+  std::vector<std::uint8_t> pixels;
+  bool has_embedded_pixels = false;
+};
+
 struct EntityKeyValue {
   std::string key;
   std::string value;
@@ -123,6 +132,7 @@ struct BspMap {
   std::vector<Model> models;
   std::vector<Clipnode> clipnodes;
   std::vector<std::string> texture_names;
+  std::vector<Miptex> textures;
   std::vector<std::byte> visibility_bytes;
   std::vector<std::byte> lighting_bytes;
   std::string entity_text;

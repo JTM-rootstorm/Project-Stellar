@@ -337,6 +337,16 @@ stellar_add_test_executable(stellar_bsp_visibility_test bsp_visibility
 )
 target_link_libraries(stellar_bsp_visibility_test PRIVATE stellar_import_bsp)
 
+stellar_add_test_executable(stellar_bsp_materials_test bsp_materials
+    tests/import/bsp/BspMaterials.cpp
+)
+target_link_libraries(stellar_bsp_materials_test PRIVATE stellar_import_bsp)
+
+stellar_add_test_executable(stellar_bsp_lightmaps_test bsp_lightmaps
+    tests/import/bsp/BspLightmaps.cpp
+)
+target_link_libraries(stellar_bsp_lightmaps_test PRIVATE stellar_import_bsp)
+
 stellar_add_physics_test(stellar_collision_world_test collision_world
     tests/physics/CollisionWorld.cpp
 )

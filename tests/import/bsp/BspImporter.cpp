@@ -355,7 +355,7 @@ void bsp_raw_lighting_and_visibility_lumps_import_without_renderer() {
   assert(result->asset.visibility.leaves[0].surface_indices.size() == 1);
   assert(result->asset.visibility.leaves[0].surface_indices[0] == 0);
   assert(result->asset.geometry.raw_lighting.size() == 3);
-  assert(result->asset.geometry.lightmaps.size() == 1);
+  assert(result->asset.geometry.lightmaps.empty());
 }
 
 } // namespace

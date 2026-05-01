@@ -159,8 +159,8 @@ void parse_clipnodes_into(BspMap &map, std::span<const std::byte> bytes,
 }
 
 [[nodiscard]] std::expected<void, stellar::platform::Error>
-parse_texture_names(BspMap &map, std::span<const std::byte> bytes,
-                    std::string_view source_uri) {
+parse_textures(BspMap &map, std::span<const std::byte> bytes,
+               std::string_view source_uri) {
   auto lump = lump_bytes(
       bytes, map.lumps[static_cast<std::size_t>(LumpIndex::kTextures)],
       source_uri, "textures");
@@ -181,6 +181,7 @@ parse_texture_names(BspMap &map, std::span<const std::byte> bytes,
         std::string(source_uri) + ": BSP texture directory is invalid"));
   }
   map.texture_names.resize(static_cast<std::size_t>(count));
+  map.textures.resize(static_cast<std::size_t>(count));
   for (std::int32_t i = 0; i < count; ++i) {
     const auto entry_offset =
         read_le<std::int32_t>(*lump, 4 + static_cast<std::size_t>(i) * 4);
@@ -188,14 +189,38 @@ parse_texture_names(BspMap &map, std::span<const std::byte> bytes,
       continue;
     }
     const std::uint64_t name_offset = static_cast<std::uint64_t>(entry_offset);
-    if (name_offset + 16 > lump->size()) {
+    constexpr std::uint64_t kMiptexHeaderSize = 40;
+    if (name_offset + kMiptexHeaderSize > lump->size()) {
       return std::unexpected(stellar::platform::Error(
           std::string(source_uri) + ": BSP texture entry is out of bounds"));
     }
-    const char *name =
-        reinterpret_cast<const char *>(lump->data() + name_offset);
-    map.texture_names[static_cast<std::size_t>(i)] =
-        std::string(name, strnlen(name, 16));
+    Miptex miptex{};
+    const char *name = reinterpret_cast<const char *>(lump->data() + name_offset);
+    miptex.name = std::string(name, strnlen(name, 16));
+    miptex.width = read_le<std::uint32_t>(*lump, name_offset + 16);
+    miptex.height = read_le<std::uint32_t>(*lump, name_offset + 20);
+    for (std::size_t level = 0; level < miptex.offsets.size(); ++level) {
+      miptex.offsets[level] = read_le<std::uint32_t>(*lump, name_offset + 24 + level * 4);
+    }
+    map.texture_names[static_cast<std::size_t>(i)] = miptex.name;
+
+    const std::uint64_t pixel_count =
+        static_cast<std::uint64_t>(miptex.width) * static_cast<std::uint64_t>(miptex.height);
+    if (miptex.width > 0 && miptex.height > 0 && miptex.offsets[0] > 0 &&
+        pixel_count <= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())) {
+      const std::uint64_t pixels_begin = name_offset + miptex.offsets[0];
+      const std::uint64_t pixels_end = pixels_begin + pixel_count;
+      if (pixels_begin <= lump->size() && pixels_end <= lump->size()) {
+        const auto begin = lump->begin() + static_cast<std::ptrdiff_t>(pixels_begin);
+        const auto end = lump->begin() + static_cast<std::ptrdiff_t>(pixels_end);
+        miptex.pixels.reserve(static_cast<std::size_t>(pixel_count));
+        for (auto iter = begin; iter != end; ++iter) {
+          miptex.pixels.push_back(std::to_integer<std::uint8_t>(*iter));
+        }
+        miptex.has_embedded_pixels = true;
+      }
+    }
+    map.textures[static_cast<std::size_t>(i)] = std::move(miptex);
   }
   return {};
 }
@@ -329,7 +354,7 @@ parse_bsp(std::span<const std::byte> bytes, std::string_view source_uri,
   if (!models) {
     return std::unexpected(models.error());
   }
-  auto textures = parse_texture_names(map, bytes, source_uri);
+  auto textures = parse_textures(map, bytes, source_uri);
   if (!textures) {
     return std::unexpected(textures.error());
   }

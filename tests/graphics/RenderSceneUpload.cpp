@@ -117,6 +117,13 @@ stellar::assets::LevelAsset make_level() {
       .format = stellar::assets::ImageFormat::kR8G8B8A8,
       .pixels = {255, 255, 255, 255},
   });
+  level.geometry.images.push_back(stellar::assets::ImageAsset{
+      .width = 2,
+      .height = 2,
+      .format = stellar::assets::ImageFormat::kR8G8B8A8,
+      .pixels = {255, 128, 128, 255, 128, 255, 128, 255,
+                 128, 128, 255, 255, 255, 255, 255, 255},
+  });
   level.geometry.samplers.push_back(stellar::assets::SamplerAsset{
       .name = "nearest_clamp",
       .mag_filter = stellar::assets::TextureFilter::kNearest,
@@ -130,14 +137,22 @@ stellar::assets::LevelAsset make_level() {
       .sampler_index = 0,
       .color_space = stellar::assets::TextureColorSpace::kSrgb,
   });
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 1,
+      .size = {2, 2},
+      .style = 0,
+      .source_name = "face_0",
+  });
   level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
       .name = "stone",
       .texture_index = 0,
+      .lightmap_index = 0,
       .source_name = "STONE1",
   });
   level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
       .name = "missing_texture",
       .texture_index = 99,
+      .lightmap_index = 99,
       .source_name = "MISSING",
   });
   level.geometry.meshes.push_back(stellar::assets::MeshAsset{
@@ -181,10 +196,13 @@ int main() {
   assert(mock_ptr->uploaded_meshes.size() == 1);
   assert(mock_ptr->uploaded_meshes[0].primitives.size() == 3);
   assert(mock_ptr->uploaded_meshes[0].primitives[0].has_colors);
-  assert(mock_ptr->uploaded_textures.size() == 1);
+  assert(mock_ptr->uploaded_textures.size() == 2);
   assert(mock_ptr->uploaded_textures[0].image.width == 4);
   assert(mock_ptr->uploaded_textures[0].color_space ==
          stellar::assets::TextureColorSpace::kSrgb);
+  assert(mock_ptr->uploaded_textures[1].image.width == 2);
+  assert(mock_ptr->uploaded_textures[1].color_space ==
+         stellar::assets::TextureColorSpace::kLinear);
   assert(mock_ptr->material_uploads.size() == 3);
   assert(mock_ptr->material_uploads[0].material.name ==
          "stellar_default_level_material");
@@ -192,10 +210,15 @@ int main() {
   assert(mock_ptr->material_uploads[1].base_color_texture.has_value());
   assert(mock_ptr->material_uploads[1].base_color_texture->sampler.wrap_s ==
          stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(mock_ptr->material_uploads[1].lightmap_texture.has_value());
+  assert(mock_ptr->material_uploads[1].lightmap_texture->texcoord_set == 1);
+  assert(mock_ptr->material_uploads[1].lightmap_texture->sampler.min_filter ==
+         stellar::assets::TextureFilter::kLinear);
   assert(mock_ptr->material_uploads[1].material.metallic_factor == 0.0F);
   assert(mock_ptr->material_uploads[1].material.unlit);
   assert(mock_ptr->material_uploads[2].material.name == "missing_texture");
   assert(!mock_ptr->material_uploads[2].base_color_texture.has_value());
+  assert(!mock_ptr->material_uploads[2].lightmap_texture.has_value());
 
   const std::array<float, 16> vp{2.0F, 0.0F, 0.0F, 0.0F, 0.0F, 2.0F,
                                  0.0F, 0.0F, 0.0F, 0.0F, 2.0F, 0.0F,
@@ -207,9 +230,9 @@ int main() {
   assert(mock_ptr->began_frame);
   assert(mock_ptr->drew_mesh);
   assert((mock_ptr->draw_order == std::vector<std::size_t>{0, 1, 2}));
-  assert(mock_ptr->draw_materials[0] == stellar::graphics::MaterialHandle{4});
-  assert(mock_ptr->draw_materials[1] == stellar::graphics::MaterialHandle{5});
-  assert(mock_ptr->draw_materials[2] == stellar::graphics::MaterialHandle{3});
+  assert(mock_ptr->draw_materials[0] == stellar::graphics::MaterialHandle{5});
+  assert(mock_ptr->draw_materials[1] == stellar::graphics::MaterialHandle{6});
+  assert(mock_ptr->draw_materials[2] == stellar::graphics::MaterialHandle{4});
   assert(mock_ptr->ended_frame);
 
   return 0;

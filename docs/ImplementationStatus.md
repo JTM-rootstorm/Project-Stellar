@@ -18,7 +18,7 @@ Planned phase status:
 - Phase 0 — Active handoff and `NEXT.md` lock-in: complete as of 2026-05-01.
 - Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: complete as of 2026-05-01.
 - Phase 2 — BSP PVS, leaf visibility, and render culling: complete as of 2026-05-01.
-- Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: not started.
+- Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: complete as of 2026-05-01.
 - Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: not started.
 - Phase 5 — BSP validation tooling and regression fixtures: not started.
 - Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: not started.
@@ -71,6 +71,35 @@ ctest --test-dir build --output-on-failure
 
 Result: configure and build succeeded. Focused Phase 2 suite passed 5/5, and full default CTest
 passed 32/32.
+
+Phase 3 completion notes:
+
+- Added BSP miptex metadata parsing, safe embedded miptex extraction into source-neutral
+  `ImageAsset`/`TextureAsset` records, and deterministic fallback materials for external or missing
+  WAD-backed textures.
+- BSP import now preserves texture source names, emits non-fatal missing-texture diagnostics for
+  external fallback, imports per-face lightmap image metadata from valid lighting offsets/styles,
+  assigns material lightmap indices, and populates secondary `uv1` coordinates where lightmap data is
+  available.
+- Invalid or out-of-range lighting offsets are diagnosed and fall back to unlit material behavior.
+- `RenderLevel` uploads represented base textures and lightmap textures through `GraphicsDevice`,
+  binds lightmaps as backend-neutral material texture bindings on texcoord set 1, and preserves
+  deterministic fallback behavior for missing resources.
+- External WAD decoding, palette-accurate miptex color, lightmap atlasing, and shader-side visible
+  lightmap modulation remain deferred; current support records/uploads stable source-neutral data
+  without full PBR or backend-specific APIs.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_materials|bsp_lightmaps|bsp_importer|render_level_upload|render_level_inspection)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 3 suite passed 5/5, and full default CTest
+passed 34/34.
 
 Phase 0 completion notes:
 

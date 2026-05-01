@@ -94,6 +94,29 @@ std::optional<MaterialTextureBinding> resolve_level_texture_binding(
                                 .texcoord_set = 0};
 }
 
+std::optional<MaterialTextureBinding> resolve_level_lightmap_binding(
+    std::size_t lightmap_index,
+    const stellar::assets::LevelGeometryAsset &geometry,
+    const std::vector<TextureHandle> &lightmap_texture_handles) {
+  if (lightmap_index >= geometry.lightmaps.size() ||
+      lightmap_index >= lightmap_texture_handles.size() ||
+      !lightmap_texture_handles[lightmap_index]) {
+    return std::nullopt;
+  }
+
+  stellar::assets::SamplerAsset sampler;
+  sampler.name = "level_lightmap_linear_clamp";
+  sampler.mag_filter = stellar::assets::TextureFilter::kLinear;
+  sampler.min_filter = stellar::assets::TextureFilter::kLinear;
+  sampler.wrap_s = stellar::assets::TextureWrapMode::kClampToEdge;
+  sampler.wrap_t = stellar::assets::TextureWrapMode::kClampToEdge;
+
+  return MaterialTextureBinding{
+      .texture = lightmap_texture_handles[lightmap_index],
+      .sampler = sampler,
+      .texcoord_set = 1};
+}
+
 stellar::assets::MaterialAsset material_asset_for_level_surface(
     const stellar::assets::LevelSurfaceMaterial &surface_material) {
   stellar::assets::MaterialAsset material;
@@ -214,6 +237,26 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
     owned_texture_handles_.push_back(*handle);
   }
 
+  lightmap_texture_handles_.resize(geometry.lightmaps.size());
+  for (std::size_t lightmap_index = 0;
+       lightmap_index < geometry.lightmaps.size(); ++lightmap_index) {
+    const auto &lightmap = geometry.lightmaps[lightmap_index];
+    if (lightmap.image_index >= geometry.images.size()) {
+      continue;
+    }
+
+    const auto &image = geometry.images[lightmap.image_index];
+    auto handle = device_->create_texture(TextureUpload{
+        .image = image,
+        .color_space = stellar::assets::TextureColorSpace::kLinear});
+    if (!handle) {
+      destroy();
+      return std::unexpected(handle.error());
+    }
+    lightmap_texture_handles_[lightmap_index] = *handle;
+    owned_texture_handles_.push_back(*handle);
+  }
+
   stellar::assets::MaterialAsset default_material;
   default_material.name = kDefaultLevelMaterialName;
   default_material.base_color_factor = {0.75F, 0.75F, 0.75F, 1.0F};
@@ -239,6 +282,10 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       };
       upload.base_color_texture = resolve_level_texture_binding(
           *surface_material.texture_index, geometry, texture_handles_);
+    }
+    if (surface_material.lightmap_index.has_value()) {
+      upload.lightmap_texture = resolve_level_lightmap_binding(
+          *surface_material.lightmap_index, geometry, lightmap_texture_handles_);
     }
 
     auto handle = device_->create_material(upload);
@@ -466,6 +513,7 @@ void RenderLevel::destroy() noexcept {
   default_material_ = {};
   material_handles_.clear();
   texture_handles_.clear();
+  lightmap_texture_handles_.clear();
   owned_texture_handles_.clear();
   mesh_handles_.clear();
   level_ = {};
