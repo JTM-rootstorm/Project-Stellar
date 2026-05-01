@@ -1,5 +1,37 @@
 # Project Stellar: Next Implementation Plans
 
+Branch target: `bsp-integration`
+
+## BSP Canonical Migration — Active
+
+The user has selected BSP maps as the canonical playable level format. This is a hard direction
+change: BSP replaces glTF as the active level pipeline rather than being added as an optional importer
+beside glTF.
+
+Active implementation entry points:
+
+- `Plans/NEXT.md`
+- `Plans/project_stellar_bsp_canonical_plan/00-MASTER-KILO-BSP-CANONICAL-PLAN.md`
+
+Required migration outcome:
+
+- BSP is the default and canonical playable level source.
+- glTF import, startup validation, CMake options, test fixtures, cgltf dependency, runtime
+  assumptions, and active docs are removed during this migration.
+- Existing server-authoritative movement, collision, Lua scripting, trigger, object-collider,
+  billboard sprite, and display-free validation boundaries are preserved.
+
+Phase BSP-0 is complete as of 2026-05-01:
+
+- Locked active branch direction to BSP maps as canonical playable level format.
+- Marked glTF functionality for removal rather than side-by-side support.
+- Replaced `Plans/NEXT.md` with the BSP migration handoff.
+- Updated active design/agent guidance so new work no longer follows glTF level assumptions.
+
+Validation: documentation review and active-reference search.
+
+## Historical collision-movement status
+
 Branch target: `collision-movement`
 
 Prepared for: an implementation AI agent such as Codex/Kilo/other code-writing agent.

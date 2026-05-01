@@ -17,7 +17,7 @@ Stellar Engine is a modular, cross-platform game framework for creating 2D sprit
 
 Agents must check the relevant project documents before making architecture or implementation assumptions.
 
-Precedence for the `collision-movement` branch:
+Precedence for the `bsp-integration` branch:
 
 1. `docs/ImplementationStatus.md` - current branch-facing implementation status and near-term priorities.
 2. Active implementation plans under `Plans/` - current handoff plans when referenced by `ImplementationStatus.md`.
@@ -28,24 +28,23 @@ When `docs/ImplementationStatus.md` conflicts with `docs/Design.md`, prefer `doc
 
 ## Current Branch Focus
 
-Current branch: `collision-movement`.
+Current branch: `bsp-integration`.
 
 `docs/ImplementationStatus.md` is the single current-work entry point for branch-facing status and
 near-term priorities. Consult it before starting implementation work. Active handoff notes may point
 to a current plan such as `Plans/NEXT.md`; older phase plans are historical unless explicitly named
 there.
 
-The earlier Phase 6A-D world-authoring slices are implemented first passes. Do **not** restart them
-as the active branch plan. The current cleanup direction is to remove phase-seam complexity without
-changing gameplay behavior, while preserving server authority, display-free validation, and existing
-public subsystem boundaries.
+The current active scope is migration to BSP maps as the canonical playable level format and removal
+of glTF functionality from active code, active build configuration, active tests, and active docs.
+Older glTF/collision phase plans are historical only and must not be restarted as active work.
 
 Lua scripting is core server-authoritative infrastructure for this branch. Do not add or preserve a
 normal build mode where gameplay scripting is absent, and keep Lua sandboxing mandatory.
 
-Avoid spending implementation slices on full PBR, morph targets, glTF cameras, glTF lights, dynamic
-rigid bodies, or third-party physics unless the user explicitly asks or a concrete asset requirement
-appears.
+Avoid spending implementation slices on full PBR, Source/VBSP, moving brush simulation,
+model/animation systems, dynamic rigid bodies, or third-party physics unless the user explicitly asks
+or a concrete asset requirement appears.
 
 ## Architecture
 
@@ -64,7 +63,7 @@ Key rules:
 - ECS/gameplay state must remain serializable and server-owned.
 - Rendering and audio must not become sources of gameplay truth.
 - OpenGL and Vulkan are runtime-selectable through the shared graphics abstraction.
-- Current renderer goal is lightweight material parity, not full glTF PBR compliance.
+- Current renderer goal is lightweight BSP surface/material and billboard parity, not full PBR.
 
 ## Coding Standards
 
@@ -85,7 +84,7 @@ Do not change these standards without explicit user approval. The project has be
 |-------|------|--------|-------|
 | @director | Technical Lead | Technical direction, routing, design compliance, conflict resolution, integration review | Cross-cutting decisions |
 | @carmack | Engine Subsystem Specialist | ECS, core systems, networking, server authority, build/dependency plumbing | include/stellar/{core,ecs,network,platform}/, src/{core,ecs,network,server,common,platform}/ |
-| @miyamoto | Graphics Subsystem Specialist | Graphics abstraction, OpenGL/Vulkan, glTF rendering, sprites, shaders, camera | include/stellar/graphics/, src/graphics/, assets/shaders/ |
+| @miyamoto | Graphics Subsystem Specialist | Graphics abstraction, OpenGL/Vulkan, BSP level rendering, sprites, shaders, camera | include/stellar/graphics/, src/graphics/, assets/shaders/ |
 | @suzuki | Audio Subsystem Specialist | miniaudio, audio interfaces, playback, spatial audio, no-op fallback paths | include/stellar/audio/, src/audio/ |
 | @kojima | Gameplay Systems Specialist | Entity archetypes, movement rules, collision responses, gameplay mechanics, tuning | include/stellar/core/archetypes/, src/ecs/systems/, src/server/game_logic/ |
 | @molyneux | Prototype Specialist | Isolated experiments, feasibility studies, proof-of-concepts | prototypes/, docs/prototypes/ |
@@ -145,11 +144,11 @@ When a specialist encounters cross-domain work, they must report the need to `@d
 | Networking, serialization, server loop | @carmack | @director | Validate all client input server-side |
 | Build system and shared infrastructure | @carmack | @director | Keep CMake changes focused |
 | OpenGL/Vulkan rendering | @miyamoto | @director | Preserve shared graphics abstraction |
-| glTF render import/materials/skin rendering | @miyamoto | @director | Current goal is lightweight parity, not full PBR |
-| Static collision data and collision queries | @carmack | @director | Coordinate with graphics/import data when glTF extraction is involved |
-| glTF collision extraction from scene nodes | @director coordinates @miyamoto + @carmack | @director | Cross-cutting Phase 6A work |
+| BSP level geometry import/rendering where applicable | @miyamoto | @director | Current goal is lightweight BSP surface/material and billboard parity, not full PBR |
+| Static collision data and collision queries | @carmack | @director | Coordinate with graphics/import data when BSP extraction is involved |
+| BSP level collision/entity metadata extraction | @director coordinates @miyamoto + @carmack | @director | Cross-cutting level import work |
 | Billboard sprites in 3D world space | @miyamoto | @director | Coordinate with gameplay/entity data through @director |
-| World metadata for spawns/triggers/game markers | @kojima | @director | Coordinate glTF extraction and ECS integration through @director |
+| World metadata for spawns/triggers/game markers | @kojima | @director | Coordinate BSP entity extraction and ECS integration through @director |
 | Audio interface, miniaudio, playback, listener updates | @suzuki | @director | Keep gameplay/audio trigger integration explicit |
 | Game logic, archetypes, mechanics, tuning | @kojima | @director | Server is authoritative |
 | Prototypes and feasibility experiments | @molyneux | @director | Keep prototypes isolated unless integration is approved |
@@ -199,7 +198,7 @@ Cross-subsystem work should be coordinated by `@director`.
 
 Examples:
 
-- glTF collision extraction requires graphics/import knowledge and engine collision data ownership.
+- BSP level collision/entity metadata extraction requires import, graphics, and engine collision data ownership.
 - Billboard sprites require graphics implementation plus gameplay/ECS data contracts.
 - Audio events require gameplay trigger points plus audio playback/listener behavior.
 - Client-server movement requires gameplay rules, ECS storage, networking, and authoritative validation.

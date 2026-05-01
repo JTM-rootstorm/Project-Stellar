@@ -1,31 +1,33 @@
 # Stellar Engine — Current Branch Handoff
 
-Branch target: `collision-movement`
+Branch target: `bsp-integration`
 
 ## Current entry point
 
-Use `docs/ImplementationStatus.md` as the current branch-facing source of truth. This file is a short
-handoff pointer for the next implementation agent.
+Use `docs/ImplementationStatus.md` as the current branch-facing source of truth. The active
+implementation plan is
+`Plans/project_stellar_bsp_canonical_plan/00-MASTER-KILO-BSP-CANONICAL-PLAN.md`.
 
-## Post-cleanup state
+## Active scope
 
-The earlier Phase 6A-D world-authoring work has first-pass implementations. Do not restart those
-plans as active work.
+The current active scope is migration to BSP maps as the canonical playable level format and removal
+of glTF functionality from active code, active build configuration, active tests, and active docs.
 
-The removable-complexity cleanup is complete and the detailed agent plan has been correctly archived
-at `Plans/Archived/ProjectStellar-RemovableComplexity-Cleanup-AgentPlan.md`. Treat that file as
-historical context, not the next active implementation plan.
+Older collision/glTF phase plans are historical context only and must not be restarted as active work.
 
-Current branch assumptions to preserve:
+## Invariants
 
-- Lua scripting is mandatory server-authoritative infrastructure.
-- Gameplay behavior, event ordering, and server-authority boundaries should remain stable.
-- Shared geometry helpers, sensor overlap tracking, and Lua hook dispatch are now common
-  infrastructure and should receive direct regression coverage.
-- New implementation slices should be introduced by updating this handoff and
-  `docs/ImplementationStatus.md` with the next active scope.
+- BSP is the canonical level source.
+- Lua scripting remains mandatory server-authoritative infrastructure.
+- Server authority, runtime collision state, triggers, object-collider sensors, and script command
+  validation remain native/server-owned.
+- Default tests remain display-free.
+- OpenGL/Vulkan remain runtime-selectable presentation backends.
+- No third-party physics, dynamic rigid bodies, Source/VBSP, full PBR, model/animation systems, or
+  glTF functionality are part of this migration.
 
-## Validation posture
+## NEXT.md lifecycle
 
-Prefer display-free tests by default. glTF scripted smokes remain gated by `STELLAR_ENABLE_GLTF`.
-OpenGL/Vulkan context tests remain opt-in.
+After the BSP migration is complete, archive the detailed BSP plan under `Plans/Archived/` and
+rewrite this file to the next active post-BSP scope. Do not leave this file pointing at completed
+migration work.
