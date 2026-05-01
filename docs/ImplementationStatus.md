@@ -1,6 +1,6 @@
 # Project Stellar: Next Implementation Plans
 
-Branch target: `collision-movement`
+Branch target: `lua-scripting`
 
 Prepared for: an implementation AI agent such as Codex/Kilo/other code-writing agent.
 
@@ -16,6 +16,101 @@ The branch already contains completion notes for the earlier Phase 6 world-autho
 Do **not** restart those phases from scratch. Treat them as implemented first passes and focus the next round on making the features coherent, usable at runtime, and harder to break.
 
 ## Current status
+
+Phase 10E and the overall Phase 10 Lua scripting slice are complete as of 2026-04-30:
+
+- Added dedicated display-free `scripted_playable_world_smoke` coverage for the authored glTF ->
+  collision validation -> metadata validation -> `RuntimeWorld` -> `ScriptedWorldSession` path.
+- The scripted smoke fixture includes visible render geometry, collision-only floor/walls,
+  `SPAWN_Player`, and `TRIGGER_DoorOpen` metadata with `stellar.script`/`stellar.table` extras.
+- The smoke test uses an in-memory `ScriptRegistry`, verifies trigger script binding import, loads
+  `scripts/door.lua`, emits `door_open_requested` only on the authoritative enter event, and checks
+  deterministic repeat snapshots and script outputs without requiring display, GPU, or graphics
+  context setup.
+- `docs/Design.md` now reflects the `lua-scripting` branch direction, server-authoritative Lua
+  scripting principles, dependency/build/test layout, and deferred-work alignment.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: all targeted tests passed (4/4) and full CTest passed (25/25). Build linked successfully;
+the vendored Lua `tmpnam` linker warning remains unchanged.
+
+Phase 10D is complete as of 2026-04-30:
+
+- Added opt-in `ScriptRegistry` and `ScriptedWorldSession` APIs under `stellar_scripting`.
+- `ScriptedWorldSession::create` wraps native `server::WorldSession`, scans current
+  `RuntimeWorld` trigger script metadata, loads each unique script id into `LuaRuntime` once, and
+  returns a deterministic `ScriptError` for missing script sources or load failures.
+- Scripted ticks advance the native authoritative session first, then invoke Phase 10C
+  `TriggerScriptSystem` callbacks and return a frame containing the native snapshot, script output
+  events, and script errors. `latest_snapshot()` returns cached authoritative state without
+  replaying script callbacks.
+- Lua remains isolated to `stellar_scripting`; no Lua dependency was introduced into
+  `stellar_server_core` or `stellar_world`.
+- Added display-free `scripted_world_session` tests for create/load, missing script id, snapshot and
+  script event output, deterministic repeatability, runtime script errors without crashes, and
+  latest snapshot access without callback replay.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(scripted_world_session|trigger_script|lua_runtime)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Phase 10B is complete as of 2026-04-30:
+
+- Added optional `WorldScriptBinding` metadata to authored world markers without introducing a Lua
+  dependency into import, world, or server core code.
+- glTF node `extras` now preserve existing `extras_json` behavior while narrowly extracting string
+  `stellar.script` and `stellar.table` values into marker script bindings; scripts are not executed
+  during import.
+- Runtime world assembly continues to copy world metadata wholesale, including script bindings.
+- Metadata validation now reports deterministic script binding diagnostics for empty script ids,
+  empty table names, path traversal/absolute path escapes, and script bindings on marker types that
+  do not yet have runtime invocation support.
+- Extended display-free metadata validation and glTF importer regression tests for script binding
+  extraction, validation, and RuntimeWorld copy behavior.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(world_metadata_validation|gltf_importer_regression|lua_runtime)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Phase 10A is complete as of 2026-04-30:
+
+- Added optional `STELLAR_ENABLE_LUA_SCRIPTING` support with a new `stellar_scripting` target
+  and vendored Lua 5.4.8 under `thirdparty/lua`.
+- Added RAII Lua runtime ownership, expected-style script errors, protected script loading/calls,
+  restricted standard library setup, `stellar.emit_event(name, fields)`, deterministic output
+  draining, bytecode rejection, and instruction budget enforcement.
+- Preserved the native server/world dependency boundary: Lua is linked only through
+  `stellar_scripting`, not through `stellar_world` or `stellar_server_core`.
+- Added display-free `lua_runtime` CTest coverage for construction, script load/call behavior,
+  missing function no-op policy, syntax/runtime errors, event ordering, sandbox restrictions,
+  primitive field validation, bytecode rejection, and budget failure behavior.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^lua_runtime$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
 
 Phase 9F is complete as of 2026-04-30:
 

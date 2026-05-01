@@ -16,6 +16,7 @@ pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 
 option(STELLAR_ENABLE_GLTF "Enable the glTF importer seam" OFF)
+option(STELLAR_ENABLE_LUA_SCRIPTING "Enable Lua scripting runtime" ON)
 option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
        "Build optional OpenGL context/readback smoke tests" OFF)
 option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS
@@ -24,6 +25,9 @@ option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS
 add_subdirectory(thirdparty/miniaudio)
 if(STELLAR_ENABLE_GLTF)
     add_subdirectory(thirdparty/cgltf)
+endif()
+if(STELLAR_ENABLE_LUA_SCRIPTING)
+    add_subdirectory(thirdparty/lua)
 endif()
 
 add_library(stellar_scene
@@ -84,6 +88,29 @@ target_link_libraries(stellar_server_core PUBLIC
     stellar_world
     stellar_physics
 )
+
+if(STELLAR_ENABLE_LUA_SCRIPTING)
+    add_library(stellar_scripting
+        src/scripting/LuaRuntime.cpp
+        src/scripting/ScriptRegistry.cpp
+        src/scripting/ScriptSandbox.cpp
+        src/scripting/ScriptedWorldSession.cpp
+        src/scripting/TriggerScriptSystem.cpp
+    )
+
+    target_include_directories(stellar_scripting PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_scripting PUBLIC
+        stellar_world
+        stellar_server_core
+    )
+
+    target_link_libraries(stellar_scripting PRIVATE
+        stellar_lua
+    )
+endif()
 
 if(STELLAR_ENABLE_GLTF)
     add_library(stellar_import_gltf
@@ -487,6 +514,50 @@ target_link_libraries(stellar_client_local_loopback_runtime_test PRIVATE
 
 add_test(NAME client_local_loopback_runtime COMMAND stellar_client_local_loopback_runtime_test)
 
+if(STELLAR_ENABLE_LUA_SCRIPTING)
+    add_executable(stellar_lua_runtime_test
+        tests/scripting/LuaRuntime.cpp
+    )
+
+    target_include_directories(stellar_lua_runtime_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_lua_runtime_test PRIVATE
+        stellar_scripting
+    )
+
+    add_test(NAME lua_runtime COMMAND stellar_lua_runtime_test)
+
+    add_executable(stellar_trigger_script_system_test
+        tests/scripting/TriggerScriptSystem.cpp
+    )
+
+    target_include_directories(stellar_trigger_script_system_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_trigger_script_system_test PRIVATE
+        stellar_scripting
+    )
+
+    add_test(NAME trigger_script COMMAND stellar_trigger_script_system_test)
+
+    add_executable(stellar_scripted_world_session_test
+        tests/scripting/ScriptedWorldSession.cpp
+    )
+
+    target_include_directories(stellar_scripted_world_session_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_scripted_world_session_test PRIVATE
+        stellar_scripting
+    )
+
+    add_test(NAME scripted_world_session COMMAND stellar_scripted_world_session_test)
+endif()
+
 add_executable(stellar-client
     src/client/main.cpp
     src/client/Application.cpp
@@ -530,6 +601,7 @@ if(STELLAR_ENABLE_GLTF)
 
     target_link_libraries(stellar_import_gltf_regression PRIVATE
         stellar_import_gltf
+        stellar_world
     )
 
     add_test(NAME gltf_importer_regression COMMAND stellar_import_gltf_regression)
@@ -549,6 +621,26 @@ if(STELLAR_ENABLE_GLTF)
     )
 
     add_test(NAME playable_world_smoke COMMAND stellar_playable_world_smoke_test)
+
+    if(STELLAR_ENABLE_LUA_SCRIPTING)
+        add_executable(stellar_scripted_playable_world_smoke_test
+            tests/integration/ScriptedPlayableWorldSmoke.cpp
+        )
+
+        target_include_directories(stellar_scripted_playable_world_smoke_test PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+        )
+
+        target_link_libraries(stellar_scripted_playable_world_smoke_test PRIVATE
+            stellar_import_gltf
+            stellar_world
+            stellar_server_core
+            stellar_scripting
+        )
+
+        add_test(NAME scripted_playable_world_smoke
+                 COMMAND stellar_scripted_playable_world_smoke_test)
+    endif()
 else()
     set_tests_properties(client_cli_asset_validation PROPERTIES
         WILL_FAIL TRUE

@@ -4,8 +4,8 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.4 (collision-movement branch alignment)  
-**Last Updated:** 2026-04-29
+**Version:** 0.1.5 (lua-scripting branch alignment)  
+**Last Updated:** 2026-04-30
 
 ---
 
@@ -20,6 +20,7 @@
 7. [Graphics Subsystem](#7-graphics-subsystem)
 8. [Audio Subsystem](#8-audio-subsystem)
 9. [Entity Component System](#9-entity-component-system)
+9.5. [Server-Authoritative Scripting](#95-server-authoritative-scripting)
 10. [Networking and Client-Server Model](#10-networking-and-client-server-model)
 11. [Build System and Dependencies](#11-build-system-and-dependencies)
 12. [Directory Structure](#12-directory-structure)
@@ -59,6 +60,9 @@ OpenGL/Vulkan material parity suitable for game content.
   abstraction.
 - **Display-free default validation:** default tests must not require a GPU, display, or
   OpenGL/Vulkan runtime context.
+- **Server-authoritative scripting:** gameplay scripts run on the authoritative runtime side and
+  emit validated events/commands through explicit C++ APIs; they do not directly mutate renderer,
+  audio, platform, OS, or raw C++ state.
 - **Documentation-driven public API:** public APIs require Doxygen `@brief` documentation.
 
 ### Technical Stack
@@ -72,6 +76,7 @@ OpenGL/Vulkan material parity suitable for game content.
 - **Windowing/input abstraction:** SDL2.
 - **Audio:** miniaudio-backed audio when audio implementation is in scope, with explicit
   no-op fallback behavior where needed.
+- **Scripting:** optional vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
 - **Networking:** local loopback for single-player, extensible toward remote multiplayer.
 
 ---
@@ -79,14 +84,14 @@ OpenGL/Vulkan material parity suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`collision-movement` branch, it is not the highest authority on current implementation
+`lua-scripting` branch, it is not the highest authority on current implementation
 status.
 
 Precedence for resolving conflicts:
 
 1. `docs/ImplementationStatus.md` — current branch-facing implementation status and
    near-term priorities.
-2. Active Phase 6 plans under `Plans/` — current implementation handoff plans when referenced
+2. Active plans under `Plans/` — current implementation handoff plans when referenced
    by `ImplementationStatus.md`.
 3. `docs/Design.md` — broad architecture and long-term design intent.
 4. `AGENTS.md` and `.kilo/agents/*.md` — coordination rules, ownership, and agent behavior.
@@ -100,42 +105,33 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `collision-movement`.
+Current branch: `lua-scripting`.
 
-Primary near-term goal: move from "glTF renders as a scene" toward "glTF can define playable
-static world geometry" for a 3D world with 2D billboard entities.
+Primary near-term goal: attach opt-in server-authoritative Lua scripting to the existing playable
+world seam. glTF world metadata may bind trigger markers to script IDs/tables, but import does not
+execute scripts. Runtime scripting wraps authoritative movement/session output and emits validated
+script output events after native trigger events.
 
-Recommended implementation order:
+Completed Phase 10 implementation order:
 
-1. **Phase 6A — Static Level Collision Extraction From glTF**
-   - Add backend-neutral static level collision data.
-   - Extract collision triangles from selected glTF nodes and meshes.
-   - Support initial node-name conventions such as `COL_*`, `Collision_*`, and a parent node
-     named exactly `Collision`.
-   - Transform collision triangles into scene/world space.
-   - Keep collision data independent of OpenGL and Vulkan.
-   - Keep tests display-free.
+1. **Phase 10A — Lua Runtime Foundation**
+   - Add `stellar_scripting`, vendored Lua 5.4.x, sandbox setup, protected calls, output event
+     buffering, bytecode rejection, and instruction budgeting.
+2. **Phase 10B — Script Binding Metadata**
+   - Extract `extras.stellar.script` and `extras.stellar.table` into backend-neutral world metadata
+     without executing scripts during import.
+3. **Phase 10C — Trigger Script Hooks**
+   - Invoke `on_trigger_enter`, `on_trigger_stay`, and `on_trigger_exit` from authoritative trigger
+     events after server movement resolves.
+4. **Phase 10D — Scripted Session Wrapper**
+   - Add `ScriptedWorldSession` as an opt-in wrapper around native `WorldSession`.
+5. **Phase 10E — Documentation and Playable Integration Smoke**
+   - Validate the authored glTF -> runtime world -> scripted authoritative trigger path in a
+     display-free integration smoke.
 
-2. **Phase 6B — Collision Queries And Minimal Movement Resolution**
-   - Add ray or segment queries against Phase 6A static collision data.
-   - Add ground probing.
-   - Add minimal sweep/slide movement over static collision.
-   - Do not introduce a full third-party physics engine in this slice.
-
-3. **Phase 6C — Billboard Sprite Rendering For Entities**
-   - Add backend-neutral 2D billboard sprite draw data in 3D world space.
-   - Preserve OpenGL/Vulkan behavior parity.
-   - Support alpha mask/blend behavior and deterministic sorting tests.
-   - Keep ECS/gameplay integration out of scope unless explicitly added.
-
-4. **Phase 6D — World Metadata From glTF Node Conventions**
-   - Extract player spawns, generic entity spawns, triggers, sprite markers, and optional portal
-     markers from glTF node conventions.
-   - Keep runtime spawning and trigger behavior separate from metadata extraction unless a later
-     plan explicitly adds them.
-
-Avoid spending the next implementation slices on full PBR, morph targets, glTF-authored cameras,
-or glTF-authored lights unless a concrete asset requirement appears.
+Avoid spending the next implementation slices on client-side scripting, renderer/audio scripting
+bindings, full PBR, morph targets, glTF-authored cameras, or glTF-authored lights unless a concrete
+requirement appears.
 
 ---
 
@@ -176,6 +172,8 @@ or glTF-authored lights unless a concrete asset requirement appears.
 - Process client input as requests, not trusted state.
 - Run deterministic gameplay systems where practical.
 - Own collision and movement decisions.
+- Run server-authoritative gameplay scripts after native validation/simulation seams, and treat
+  script output as validated requests/events rather than direct state mutation.
 - Validate game rules.
 - Produce world snapshots or state deltas for clients.
 - Keep gameplay state serializable and independent of renderer/audio backends.
@@ -628,6 +626,38 @@ physics or gameplay system expansion.
 
 ---
 
+## 9.5 Server-Authoritative Scripting
+
+**Primary ownership:** `@carmack` for runtime infrastructure and server authority seams, coordinated
+by `@director` when scripts need gameplay, rendering, audio, or tooling integration.
+
+Lua scripting is gameplay code and therefore runs on the authoritative server/runtime side. The
+initial implementation is intentionally narrow:
+
+- `stellar_scripting` is optional and owns the Lua dependency.
+- `stellar_world` and `stellar_server_core` do not link Lua directly.
+- Import extracts script bindings from world metadata but never executes scripts.
+- `RuntimeWorld` preserves authored script bindings on trigger markers.
+- `ScriptedWorldSession` wraps `server::WorldSession`, advances native movement first, then invokes
+  trigger callbacks from authoritative `MovementTriggerEvent` data.
+- Scripts receive plain event tables, not raw C++ pointers.
+- Scripts emit primitive output events through `stellar.emit_event`; native server/gameplay code must
+  validate and apply those outputs explicitly.
+- Runtime script errors become deterministic `ScriptError` diagnostics and do not crash the session.
+
+Supported initial hooks:
+
+```lua
+function Door.on_trigger_enter(event) end
+function Door.on_trigger_stay(event) end
+function Door.on_trigger_exit(event) end
+```
+
+Initial event fields include the authoritative trigger name and tick. Future entity/object scripting
+should be added only after ECS/runtime entity ownership and serialization contracts are concrete.
+
+---
+
 ## 10. Networking and Client-Server Model
 
 **Primary ownership:** `@carmack`, coordinated by `@director` for cross-subsystem integration.
@@ -697,6 +727,7 @@ dependencies.
 | Vulkan SDK | Vulkan backend | Optional runtime path and opt-in context tests |
 | OpenGL loader | OpenGL backend | Use the loader already selected by the project |
 | cgltf | glTF import | Compile only when glTF support is enabled |
+| Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` when enabled |
 | stb_image | Image decode | Used by importer image paths |
 | Test framework | Unit/integration tests | Keep default tests display-free |
 | Doxygen | API docs | Public API documentation |
@@ -709,6 +740,7 @@ Representative targets:
 - `stellar-server`
 - Shared engine/static libraries as organized by the current CMake layout.
 - `stellar_import_gltf` when `STELLAR_ENABLE_GLTF=ON`.
+- `stellar_scripting` when `STELLAR_ENABLE_LUA_SCRIPTING=ON`.
 - Display-free unit/regression tests.
 - Opt-in OpenGL/Vulkan context tests behind explicit CMake flags.
 
@@ -728,6 +760,18 @@ glTF-focused validation:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build --output-on-failure
+```
+
+Lua scripting and scripted playable-world validation:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+  -DSTELLAR_ENABLE_GLTF=ON \
+  -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build -j$(nproc)
+ctest --test-dir build \
+  -R '^(scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' \
+  --output-on-failure
 ```
 
 Opt-in Vulkan context validation when a Vulkan-capable environment is available:
@@ -780,7 +824,8 @@ Project-Stellar/
 │       ├── network/
 │       ├── physics/          # planned/Phase 6B direction if not already present
 │       ├── platform/
-│       └── scene/
+│       ├── scene/
+│       └── scripting/        # optional server-authoritative Lua wrapper APIs
 ├── src/
 │   ├── audio/
 │   ├── client/
@@ -795,16 +840,20 @@ Project-Stellar/
 │   ├── physics/              # planned/Phase 6B direction if not already present
 │   ├── platform/
 │   ├── scene/
-│   └── server/
+│   ├── server/
+│   └── scripting/            # Lua runtime, registry, trigger hooks, scripted session
 ├── tests/
 │   ├── graphics/
 │   ├── import/
 │   │   └── gltf/
 │   ├── physics/              # planned/Phase 6B tests if not already present
+│   ├── scripting/
+│   ├── integration/
 │   └── ...
 ├── assets/
 │   └── shaders/
 └── thirdparty/
+    └── lua/                  # vendored Lua when scripting is enabled
 ```
 
 Avoid adding public folders or top-level concepts that blur ownership unless an implementation plan
@@ -1033,7 +1082,20 @@ Phase 6B display-free tests should cover:
 - Ground probing.
 - Empty-world movement pass-through.
 
-### 16.6 Performance Testing
+### 16.6 Scripting Tests
+
+Scripting tests must remain display-free and deterministic by default. Coverage should include:
+
+- Lua runtime construction, sandbox restrictions, protected load/call behavior, bytecode rejection,
+  instruction budget failure, and deterministic output draining.
+- Trigger script callbacks for enter/stay/exit events using plain authoritative event data.
+- `ScriptedWorldSession` loading, missing-script diagnostics, runtime script errors, latest snapshot
+  access without callback replay, and deterministic repeatability.
+- Scripted playable-world smoke coverage that imports a generated glTF fixture, validates collision
+  and metadata, confirms trigger script binding, and verifies script output timing without display,
+  GPU, window, or graphics context requirements.
+
+### 16.7 Performance Testing
 
 Long-term performance benchmarks may cover:
 
@@ -1044,8 +1106,9 @@ Long-term performance benchmarks may cover:
 - Render scene submission cost.
 - Sprite/billboard batch throughput.
 
-Do not block current Phase 6 work on broad benchmark infrastructure unless a plan explicitly scopes
-it.
+Do not block current scripting work on broad benchmark infrastructure unless a plan explicitly scopes
+it. Scripting hot paths should remain measurable through explicit runtime budgets and deterministic
+regression tests before broader benchmark infrastructure is introduced.
 
 ---
 
@@ -1053,10 +1116,10 @@ it.
 
 ### 17.1 Active Near-Term Roadmap
 
-1. Phase 6A — static level collision extraction from glTF.
-2. Phase 6B — collision queries and minimal movement resolution.
-3. Phase 6C — billboard sprite rendering in 3D world space.
-4. Phase 6D — world metadata extraction from glTF node conventions.
+1. Preserve Phase 10's server-authoritative Lua seam while integrating future gameplay features.
+2. Expand scripted outputs only through validated native server/gameplay APIs.
+3. Add entity/object scripting after ECS/runtime entity ownership is concrete.
+4. Keep client-side presentation scripting deferred unless explicitly scoped.
 
 ### 17.2 Completed Recent Direction
 
@@ -1070,6 +1133,12 @@ Recent completed work includes:
 - `KHR_materials_unlit`.
 - Larger runtime skin palette cap of 256 joints per draw.
 - Explicit deferral of full PBR, morph targets, glTF cameras, and glTF lights.
+- Phase 6 playable world foundations: static collision extraction, collision queries/movement,
+  billboard sprite data, and world metadata extraction.
+- Phase 9 runtime playability seam: metadata validation, authoritative `WorldSession`, local
+  loopback, and playable-world smoke coverage.
+- Phase 10 Lua scripting seam: `stellar_scripting`, script binding metadata, trigger callbacks,
+  `ScriptedWorldSession`, and scripted playable-world smoke coverage.
 
 ### 17.3 Deferred Rendering Work
 
@@ -1092,11 +1161,11 @@ Deferred beyond active Phase 6 slices unless explicitly planned:
 - Full rigid body physics engine integration.
 - Dynamic collision objects.
 - Character capsule/stair-step controller polish beyond minimal movement.
-- Runtime trigger behavior.
 - Runtime ECS/server spawning directly from glTF metadata.
 - Navigation mesh/pathfinding.
 - Editor tooling.
-- Scripting.
+- Client-side scripting or presentation scripting.
+- Entity/object scripting beyond trigger hooks.
 
 ### 17.5 Deferred Asset Pipeline Work
 
@@ -1119,6 +1188,7 @@ Deferred unless scoped:
 | 2026-04-23 | 0.1.2 | TBD | Add miniaudio for 3D spatial audio, update build to support C and C++ |
 | 2026-04-24 | 0.1.3 | TBD | Replace SFML with SDL2 for windowing and input |
 | 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, current glTF support, and explicit deferred work |
+| 2026-04-30 | 0.1.5 | Kilo | Align design with `lua-scripting` branch status, Phase 10 server-authoritative Lua scripting, `stellar_scripting`, scripted session smoke coverage, dependency/build/test updates, and deferred client/entity scripting work |
 
 ---
 
@@ -1138,6 +1208,8 @@ Deferred unless scoped:
 - **Client prediction:** Optional future local simulation that must reconcile with server authority.
 - **Lightweight material parity:** OpenGL/Vulkan rendering of the engine's supported material subset
   without claiming full glTF PBR compliance.
+- **Server-authoritative scripting:** Gameplay scripts executed on the authoritative runtime side,
+  producing validated events or requests instead of directly mutating presentation or native state.
 
 ## Appendix B: Reference Materials
 

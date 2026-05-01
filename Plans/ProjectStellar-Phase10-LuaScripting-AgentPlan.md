@@ -459,6 +459,18 @@ lua_runtime
 - `stellar_server_core` does not link to Lua.
 - All public scripting APIs have Doxygen `@brief` comments.
 
+### Phase 10A completion notes
+
+Completed as of 2026-04-30:
+
+- Added `STELLAR_ENABLE_LUA_SCRIPTING`, vendored Lua 5.4.8 under `thirdparty/lua`, and the
+  opt-in `stellar_scripting` target.
+- Added `LuaRuntime`, `ScriptError`, `ScriptValue`, and `ScriptSandbox` APIs with RAII state
+  ownership, protected loading/calls, restricted libraries, bytecode rejection,
+  `stellar.emit_event`, deterministic output draining, and instruction budget enforcement.
+- Added display-free `lua_runtime` tests and validated both the narrow scripting CTest and the
+  full configured CTest suite.
+
 ---
 
 ## 6. Phase 10B — Script Binding Metadata
