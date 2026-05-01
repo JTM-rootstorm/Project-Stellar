@@ -64,6 +64,9 @@ struct WorldMetadataValidationConfig {
 
     /** @brief Report an error when an entity spawn marker has no archetype. */
     bool warn_empty_entity_archetypes = true;
+
+    /** @brief Report a warning when a script binding is attached to a non-trigger marker. */
+    bool warn_script_binding_unsupported_marker_types = true;
 };
 
 /** @brief Validate backend-neutral world metadata markers for runtime use. */

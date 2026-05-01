@@ -4,8 +4,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace stellar::world {
@@ -43,6 +45,84 @@ bool trigger_has_large_extent(const stellar::assets::WorldMarker& marker) noexce
         }
     }
     return false;
+}
+
+bool is_ascii_alpha(char value) noexcept {
+    return std::isalpha(static_cast<unsigned char>(value)) != 0;
+}
+
+bool path_segment_is_parent(std::string_view segment) noexcept {
+    return segment == "..";
+}
+
+void add_finding(WorldMetadataValidationReport& report,
+                 WorldMetadataValidationSeverity severity,
+                 std::string code,
+                 std::string message,
+                 std::size_t marker_index);
+
+bool script_id_has_path_escape(std::string_view script_id) noexcept {
+    if (script_id.empty()) {
+        return false;
+    }
+    if (script_id.front() == '/' || script_id.front() == '\\') {
+        return true;
+    }
+    if (script_id.size() >= 2 && is_ascii_alpha(script_id[0]) && script_id[1] == ':') {
+        return true;
+    }
+
+    std::size_t segment_begin = 0;
+    for (std::size_t index = 0; index <= script_id.size(); ++index) {
+        if (index == script_id.size() || script_id[index] == '/' || script_id[index] == '\\') {
+            if (path_segment_is_parent(script_id.substr(segment_begin, index - segment_begin))) {
+                return true;
+            }
+            segment_begin = index + 1;
+        }
+    }
+    return false;
+}
+
+void validate_script_binding(const stellar::assets::WorldMarker& marker,
+                             const WorldMetadataValidationConfig& config,
+                             WorldMetadataValidationReport& report,
+                             std::size_t marker_index) {
+    if (!marker.script.has_value()) {
+        return;
+    }
+
+    if (marker.script->script_id.empty()) {
+        add_finding(report,
+                    WorldMetadataValidationSeverity::kError,
+                    "script_binding_empty_script_id",
+                    "World metadata script binding has an empty script id",
+                    marker_index);
+    } else if (script_id_has_path_escape(marker.script->script_id)) {
+        add_finding(report,
+                    WorldMetadataValidationSeverity::kError,
+                    "script_binding_path_traversal",
+                    "World metadata script binding uses an absolute path or parent path escape",
+                    marker_index);
+    }
+
+    if (marker.script->table_name.empty()) {
+        add_finding(report,
+                    WorldMetadataValidationSeverity::kWarning,
+                    "script_binding_empty_table_name",
+                    "World metadata script binding has an empty Lua table name",
+                    marker_index);
+    }
+
+    if (config.warn_script_binding_unsupported_marker_types &&
+        marker.type != stellar::assets::WorldMarkerType::kTrigger) {
+        add_finding(report,
+                    WorldMetadataValidationSeverity::kWarning,
+                    "script_binding_unsupported_marker_type",
+                    "World metadata script binding is attached to a marker type without runtime "
+                    "script invocation support",
+                    marker_index);
+    }
 }
 
 void add_finding(WorldMetadataValidationReport& report,
@@ -108,6 +188,8 @@ WorldMetadataValidationReport validate_world_metadata(
                         "not parse",
                         marker_index);
         }
+
+        validate_script_binding(marker, config, report, marker_index);
 
         switch (marker.type) {
             case stellar::assets::WorldMarkerType::kPlayerSpawn:

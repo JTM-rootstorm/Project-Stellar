@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "stellar/import/gltf/Loader.hpp"
+#include "stellar/world/RuntimeWorld.hpp"
 
 namespace {
 
@@ -1085,7 +1086,9 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
                     "    { \"name\": \"SPAWN_Imp\", \"translation\": [2, 0, 0], "
                     "\"rotation\": [0, 0, 0.70710678, 0.70710678] },\n"
                     "    { \"name\": \"TRIGGER_DoorOpen\", \"translation\": [0, 4, 0], "
-                    "\"scale\": [-2, 3, 4], \"extras\": { \"once\": true } },\n"
+                    "\"scale\": [-2, 3, 4], \"extras\": { \"once\": true, "
+                    "\"stellar\": { \"script\": \"scripts/door.lua\", "
+                    "\"table\": \"Door\" } } },\n"
                     "    { \"name\": \"SPRITE_Torch\", \"translation\": [0, 0, 6], "
                     "\"extras\": { \"texture\": \"torch.png\" } },\n"
                     "    { \"name\": \"PORTAL_North\", \"translation\": [0, 0, 8] },\n"
@@ -1129,6 +1132,7 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
                       "expected parent+child player marker position") &&
            check_vec4(player->rotation, {0.0f, 0.0f, 0.0f, 1.0f},
                       "expected default player marker rotation") &&
+           check(!player->script.has_value(), "expected player marker without extras to be scriptless") &&
            check(imp->archetype == "Imp", "expected entity spawn archetype") &&
            check_vec3(imp->position, {7.0f, 0.0f, 0.0f},
                       "expected entity marker position") &&
@@ -1140,6 +1144,15 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
                       "expected absolute trigger marker scale") &&
            check(trigger->extras_json.find("once") != std::string::npos,
                  "expected raw trigger extras preservation") &&
+           check(trigger->script.has_value(), "expected trigger script binding") &&
+           check(trigger->script->script_id == "scripts/door.lua",
+                 "expected trigger script id extraction") &&
+           check(trigger->script->table_name == "Door",
+                 "expected trigger script table extraction") &&
+           check(stellar::world::build_runtime_world(*scene)
+                     .world_metadata.markers[2]
+                     .script.has_value(),
+                 "expected runtime world to copy trigger script binding") &&
            check_vec3(sprite->position, {5.0f, 0.0f, 6.0f},
                       "expected sprite marker position") &&
            check(sprite->extras_json.find("torch.png") != std::string::npos,
