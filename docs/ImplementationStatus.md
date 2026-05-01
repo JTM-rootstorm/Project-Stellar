@@ -18,7 +18,7 @@ Active phases:
 - Phase PN-1 — Live scripted authoritative runtime integration: complete as of 2026-05-01.
 - Phase PN-2 — Authoritative gameplay snapshot presentation: complete as of 2026-05-01.
 - Phase PN-3 — Snapshot/delta/event transport contracts: complete as of 2026-05-01.
-- Phase PN-4 — Local/remote transport bridge: pending.
+- Phase PN-4 — Local/remote transport bridge: complete as of 2026-05-01.
 - Phase PN-5 — HUD/audio/toolchain polish: pending.
 - Phase PN-6 — Final docs, validation, and handoff: pending.
 
@@ -130,6 +130,30 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused PN-3 targets built, focused PN-3 CTest passed 4/4, and full
 default CTest passed 44/44 on 2026-05-01.
+
+Phase PN-4 completion notes:
+
+- Added a transport-neutral `ClientTransport`/`ServerTransport` seam with in-memory loopback endpoints
+  that preserve reliable FIFO packet order and carry opaque encoded message payloads.
+- Added a local authoritative server bridge that decodes client movement command requests, keeps the
+  configured local server player slot authoritative, ticks plain or scripted sessions, and emits encoded
+  full snapshots, structural deltas, and server-approved gameplay events over the same local transport.
+- Added a client world receiver that accepts full snapshots, applies deltas to its current baseline,
+  exposes the latest authoritative snapshot, queues gameplay events for presentation, and rejects
+  malformed packets without prediction or reconciliation.
+- Remote sockets remain deferred; the implemented bridge is in-memory/local and transport-neutral.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_loopback_transport_test stellar_client_world_receiver_test stellar_snapshot_codec_test stellar_snapshot_delta_test -j$(nproc)
+ctest --test-dir build -R '^(loopback_transport|client_world_receiver|snapshot_codec|snapshot_delta)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused PN-4 targets built, focused PN-4 CTest passed 4/4, and full
+default CTest passed 46/46 on 2026-05-01.
 
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 

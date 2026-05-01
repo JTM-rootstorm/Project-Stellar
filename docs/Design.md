@@ -756,6 +756,10 @@ Current contract direction for this branch:
   `NetworkWorldSnapshot`, `NetworkGameplayEntity`, `GameplayEvent`, and `SnapshotDelta`. The current
   binary `SnapshotCodec` is local/transport-neutral and intentionally does not open remote sockets,
   add prediction, or add reconciliation.
+- The PN-4 bridge adds in-memory/local `ClientTransport` and `ServerTransport` endpoints plus a local
+  authoritative server adapter and client receiver over those contracts. Client commands remain
+  requests; the bridge overwrites authority with the configured server player slot, emits snapshots,
+  deltas, and server-approved events, and keeps real remote sockets deferred.
 
 ---
 

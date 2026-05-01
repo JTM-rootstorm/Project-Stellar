@@ -139,6 +139,7 @@ target_link_libraries(stellar_scripting PRIVATE
 )
 
 add_library(stellar_network
+    src/network/LoopbackTransport.cpp
     src/network/Messages.cpp
     src/network/SnapshotCodec.cpp
     src/network/SnapshotDelta.cpp
@@ -185,6 +186,8 @@ target_link_libraries(stellar_platform PUBLIC
 )
 
 add_library(stellar_client_runtime
+    src/client/ClientWorldReceiver.cpp
+    src/client/LocalServerBridge.cpp
     src/client/MovementInputMapper.cpp
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
@@ -200,6 +203,7 @@ target_link_libraries(stellar_client_runtime PUBLIC
     stellar_platform
     stellar_server_core
     stellar_scripting
+    stellar_network
     stellar_graphics
 )
 
@@ -431,6 +435,10 @@ stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test clien
     tests/client/LocalLoopbackRuntime.cpp
 )
 
+stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_receiver
+    tests/client/ClientWorldReceiver.cpp
+)
+
 stellar_add_scripting_test(stellar_lua_runtime_test lua_runtime
     tests/scripting/LuaRuntime.cpp
 )
@@ -455,6 +463,11 @@ stellar_add_test_executable(stellar_snapshot_codec_test snapshot_codec
     tests/network/SnapshotCodec.cpp
 )
 target_link_libraries(stellar_snapshot_codec_test PRIVATE stellar_network)
+
+stellar_add_test_executable(stellar_loopback_transport_test loopback_transport
+    tests/network/LoopbackTransport.cpp
+)
+target_link_libraries(stellar_loopback_transport_test PRIVATE stellar_network)
 
 stellar_add_test_executable(stellar_snapshot_delta_test snapshot_delta
     tests/network/SnapshotDelta.cpp

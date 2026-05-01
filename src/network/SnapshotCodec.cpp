@@ -10,6 +10,7 @@ namespace stellar::network {
 namespace {
 
 constexpr std::uint32_t kSnapshotMagic = 0x53504E33U;
+constexpr std::uint32_t kCommandMagic = 0x434D4E33U;
 constexpr std::uint32_t kEventMagic = 0x45564E33U;
 constexpr std::uint32_t kDeltaMagic = 0x444C4E33U;
 constexpr std::uint16_t kCodecVersion = 1;
@@ -320,6 +321,44 @@ template <std::size_t Count>
     return player;
 }
 
+[[nodiscard]] std::expected<void, CodecError> write_movement_command(
+    Writer& writer,
+    const stellar::server::MovementCommand& movement) {
+    TRY_VOID(write_float_array(writer, movement.wish_direction));
+    TRY_VOID(writer.write_bool(movement.jump));
+    return {};
+}
+
+[[nodiscard]] std::expected<stellar::server::MovementCommand, CodecError> read_movement_command(
+    Reader& reader) {
+    stellar::server::MovementCommand movement{};
+    TRY_VALUE(wish_direction, read_float_array<3>(reader));
+    TRY_VALUE(jump, reader.read_bool());
+    movement.wish_direction = wish_direction;
+    movement.jump = jump;
+    return movement;
+}
+
+[[nodiscard]] std::expected<void, CodecError> write_command_body(
+    Writer& writer,
+    const NetworkPlayerCommand& command) {
+    TRY_VOID(writer.write_u32(command.player_id));
+    TRY_VOID(writer.write_u64(command.command_sequence));
+    TRY_VOID(write_movement_command(writer, command.movement));
+    return {};
+}
+
+[[nodiscard]] std::expected<NetworkPlayerCommand, CodecError> read_command_body(Reader& reader) {
+    NetworkPlayerCommand command{};
+    TRY_VALUE(player_id, reader.read_u32());
+    TRY_VALUE(command_sequence, reader.read_u64());
+    TRY_VALUE(movement, read_movement_command(reader));
+    command.player_id = player_id;
+    command.command_sequence = command_sequence;
+    command.movement = movement;
+    return command;
+}
+
 [[nodiscard]] std::expected<void, CodecError> write_entity(Writer& writer,
                                                            const NetworkGameplayEntity& entity) {
     TRY_VOID(writer.write_u32(entity.id));
@@ -510,6 +549,44 @@ template <std::size_t Count>
 #undef TRY_VOID
 
 } // namespace
+
+std::expected<std::vector<std::uint8_t>, CodecError> encode_player_command(
+    const NetworkPlayerCommand& command,
+    CodecLimits limits) {
+    Writer writer{limits};
+#define TRY_ENCODE(expr)    \
+    do {                    \
+        auto _result = expr; \
+        if (!_result) {     \
+            return std::unexpected(_result.error()); \
+        }                   \
+    } while (false)
+    TRY_ENCODE(write_header(writer, kCommandMagic));
+    TRY_ENCODE(write_command_body(writer, command));
+    return writer.take_bytes();
+#undef TRY_ENCODE
+}
+
+std::expected<NetworkPlayerCommand, CodecError> decode_player_command(
+    const std::vector<std::uint8_t>& bytes,
+    CodecLimits limits) {
+    Reader reader{bytes, limits};
+#define TRY_DECODE_VOID(expr) \
+    do {                      \
+        auto _result = expr;   \
+        if (!_result) {       \
+            return std::unexpected(_result.error()); \
+        }                     \
+    } while (false)
+    TRY_DECODE_VOID(read_header(reader, kCommandMagic));
+    auto command = read_command_body(reader);
+    if (!command) {
+        return std::unexpected(command.error());
+    }
+    TRY_DECODE_VOID(require_finished(reader));
+    return *command;
+#undef TRY_DECODE_VOID
+}
 
 std::expected<std::vector<std::uint8_t>, CodecError> encode_snapshot(
     const NetworkWorldSnapshot& snapshot,

@@ -34,6 +34,16 @@ struct CodecLimits {
     const NetworkWorldSnapshot& snapshot,
     CodecLimits limits = {});
 
+/** @brief Encode a client movement command request into deterministic little-endian bytes. */
+[[nodiscard]] std::expected<std::vector<std::uint8_t>, CodecError> encode_player_command(
+    const NetworkPlayerCommand& command,
+    CodecLimits limits = {});
+
+/** @brief Decode a client movement command request from deterministic little-endian bytes. */
+[[nodiscard]] std::expected<NetworkPlayerCommand, CodecError> decode_player_command(
+    const std::vector<std::uint8_t>& bytes,
+    CodecLimits limits = {});
+
 /** @brief Decode an authoritative network snapshot from deterministic little-endian bytes. */
 [[nodiscard]] std::expected<NetworkWorldSnapshot, CodecError> decode_snapshot(
     const std::vector<std::uint8_t>& bytes,
