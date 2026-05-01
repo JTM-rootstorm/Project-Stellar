@@ -16,7 +16,7 @@ Active phases:
 
 - Phase PN-0 — Plan archival and follow-up handoff: complete as of 2026-05-01.
 - Phase PN-1 — Live scripted authoritative runtime integration: complete as of 2026-05-01.
-- Phase PN-2 — Authoritative gameplay snapshot presentation: pending.
+- Phase PN-2 — Authoritative gameplay snapshot presentation: complete as of 2026-05-01.
 - Phase PN-3 — Snapshot/delta/event transport contracts: pending.
 - Phase PN-4 — Local/remote transport bridge: pending.
 - Phase PN-5 — HUD/audio/toolchain polish: pending.
@@ -74,6 +74,35 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, `stellar-client` built, focused PN-1 targets built, focused PN-1 CTest
 passed 10/10, and full default CTest passed 41/41 on 2026-05-01.
+
+Phase PN-2 completion notes:
+
+- Added a client-side presentation adapter that converts server-owned `WorldSnapshot` /
+  `GameplayWorldSnapshot` data into backend-neutral `graphics::BillboardSprite` draw data without GPU
+  handles or gameplay ownership in authoritative snapshots.
+- Active sprite entities and active pickup entities now present as color-only billboards; inactive or
+  collected pickups are filtered, trigger/object-collider/player entities remain hidden by default, and
+  deterministic door/gate debug markers are available only through an explicit presentation flag.
+- `LevelRenderer` now retains backend-neutral `LevelPresentationState`, derives `BillboardView` from
+  the active `LevelRenderState`, and submits gameplay billboards after static level geometry through
+  the existing `RenderLevel` abstraction for OpenGL/Vulkan parity.
+- The live client frame loop feeds presentation state after authoritative loopback runtime updates and
+  clears presentation state for no-runtime/no-map fallback frames.
+- Display-free tests cover snapshot conversion behavior, inactive filtering, debug marker gating,
+  finite defaults, billboard view derivation, retained-state clearing, and static-then-billboard draw
+  ordering.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_player_presentation_test stellar_render_level_inspection_test stellar_graphics_backend_selection_test stellar_gameplay_presentation_test stellar-client -j$(nproc)
+ctest --test-dir build -R '^(player_presentation|render_level_inspection|graphics_backend_selection|gameplay_presentation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused PN-2 targets built, focused PN-2 CTest passed 4/4, and full
+default CTest passed 42/42 on 2026-05-01.
 
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 

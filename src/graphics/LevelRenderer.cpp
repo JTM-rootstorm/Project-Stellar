@@ -138,8 +138,8 @@ LevelCameraFit fit_camera_to_bounds(const LevelBounds &bounds,
 }
 
 LevelRenderState compute_level_render_state(const LevelRenderView &view,
-                                            GraphicsBackend backend,
-                                            float aspect_ratio) noexcept {
+                                             GraphicsBackend backend,
+                                             float aspect_ratio) noexcept {
   const float safe_aspect =
       std::isfinite(aspect_ratio) && aspect_ratio > 0.0F ? aspect_ratio : 1.0F;
   const float safe_fov = std::isfinite(view.vertical_fov_degrees) &&
@@ -183,6 +183,20 @@ LevelRenderState compute_level_render_state(const LevelRenderView &view,
     state.camera_world_position = {eye.x, eye.y, eye.z};
   }
   return state;
+}
+
+BillboardView compute_billboard_view(const LevelRenderState &state) noexcept {
+  const glm::mat4 view_matrix = glm::make_mat4(state.view.data());
+  const glm::mat4 inverse_view = glm::inverse(view_matrix);
+
+  BillboardView billboard_view;
+  billboard_view.view_projection = state.view_projection;
+  billboard_view.view = state.view;
+  billboard_view.camera_right = {inverse_view[0][0], inverse_view[0][1],
+                                 inverse_view[0][2]};
+  billboard_view.camera_up = {inverse_view[1][0], inverse_view[1][1],
+                              inverse_view[1][2]};
+  return billboard_view;
 }
 
 LevelRenderer::LevelRenderer(
@@ -269,8 +283,16 @@ void LevelRenderer::render(float /*elapsed_seconds*/, float /*delta_seconds*/,
 
   const LevelRenderState state =
       compute_level_render_state(view, backend_, aspect);
+  if (presentation_state_.sprites.empty()) {
+    level_.render(width, height, state.view_projection, state.view,
+                  state.camera_world_position);
+    return;
+  }
+
+  const BillboardView billboard_view = compute_billboard_view(state);
   level_.render(width, height, state.view_projection, state.view,
-                state.camera_world_position);
+                state.camera_world_position, billboard_view,
+                presentation_state_.sprites);
 }
 
 void LevelRenderer::set_render_view(LevelRenderView view) noexcept {
@@ -278,5 +300,17 @@ void LevelRenderer::set_render_view(LevelRenderView view) noexcept {
 }
 
 void LevelRenderer::clear_render_view() noexcept { render_view_.reset(); }
+
+void LevelRenderer::set_presentation_state(LevelPresentationState state) noexcept {
+  presentation_state_ = std::move(state);
+}
+
+void LevelRenderer::clear_presentation_state() noexcept {
+  presentation_state_.sprites.clear();
+}
+
+const LevelPresentationState &LevelRenderer::presentation_state() const noexcept {
+  return presentation_state_;
+}
 
 } // namespace stellar::graphics

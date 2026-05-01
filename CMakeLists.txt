@@ -173,6 +173,7 @@ add_library(stellar_client_runtime
     src/client/MovementInputMapper.cpp
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
+    src/client/GameplayPresentation.cpp
     src/client/ScriptRegistryLoader.cpp
 )
 
@@ -184,6 +185,7 @@ target_link_libraries(stellar_client_runtime PUBLIC
     stellar_platform
     stellar_server_core
     stellar_scripting
+    stellar_graphics
 )
 
 add_library(stellar_graphics
@@ -404,6 +406,10 @@ stellar_add_client_runtime_test(stellar_client_movement_input_mapper_test client
 
 stellar_add_client_runtime_test(stellar_player_presentation_test player_presentation
     tests/client/PlayerPresentation.cpp
+)
+
+stellar_add_client_runtime_test(stellar_gameplay_presentation_test gameplay_presentation
+    tests/client/GameplayPresentation.cpp
 )
 
 stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test client_local_loopback_runtime

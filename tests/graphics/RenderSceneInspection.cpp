@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "RecordingGraphicsDevice.hpp"
@@ -288,6 +289,34 @@ void verify_level_render_state_can_disable_culling_for_fallback() {
   assert(state.view_projection[0] != 0.0F);
 }
 
+void verify_billboard_view_is_derived_from_render_state() {
+  stellar::graphics::LevelRenderView view;
+  view.eye = {0.0F, 0.0F, 8.0F};
+  view.target = {0.0F, 0.0F, 0.0F};
+  view.up = {0.0F, 1.0F, 0.0F};
+
+  const auto state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
+  const auto billboard_view = stellar::graphics::compute_billboard_view(state);
+
+  assert(billboard_view.view == state.view);
+  assert(billboard_view.view_projection == state.view_projection);
+  assert(billboard_view.camera_right[0] > 0.99F);
+  assert(billboard_view.camera_up[1] > 0.99F);
+}
+
+void verify_level_renderer_retains_and_clears_presentation_state() {
+  stellar::graphics::LevelRenderer renderer;
+  stellar::graphics::LevelPresentationState state;
+  state.sprites.push_back(stellar::graphics::BillboardSprite{});
+
+  renderer.set_presentation_state(std::move(state));
+  assert(renderer.presentation_state().sprites.size() == 1);
+
+  renderer.clear_presentation_state();
+  assert(renderer.presentation_state().sprites.empty());
+}
+
 void verify_debug_cube_winding_matches_normals() {
   const auto mesh = stellar::graphics::create_debug_cube_mesh();
   assert(mesh.has_value());
@@ -312,6 +341,8 @@ int main() {
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();
   verify_level_render_state_can_disable_culling_for_fallback();
+  verify_billboard_view_is_derived_from_render_state();
+  verify_level_renderer_retains_and_clears_presentation_state();
   verify_debug_cube_winding_matches_normals();
   return 0;
 }

@@ -1,5 +1,6 @@
 #include "stellar/client/Application.hpp"
 
+#include "stellar/client/GameplayPresentation.hpp"
 #include "stellar/client/PlayerPresentation.hpp"
 #include "stellar/graphics/LevelRenderer.hpp"
 #include "stellar/platform/Input.hpp"
@@ -81,17 +82,20 @@ std::expected<void, stellar::platform::Error> Application::run() {
     if (runtime->local_loopback_runtime) {
       [[maybe_unused]] const LocalLoopbackFrameResult loopback_frame =
           runtime->local_loopback_runtime->update(input, delta_seconds);
+      const auto& snapshot = runtime->local_loopback_runtime->latest_snapshot();
       const auto player_state = make_player_presentation_state(
-          runtime->local_loopback_runtime->latest_snapshot(),
-          stellar::server::WorldSessionConfig{}.local_player_id);
+          snapshot, stellar::server::WorldSessionConfig{}.local_player_id);
       if (player_state.has_value()) {
         renderer->set_render_view(
             make_level_render_view(make_player_camera_frame(*player_state)));
       } else {
         renderer->clear_render_view();
       }
+      renderer->set_presentation_state(stellar::graphics::LevelPresentationState{
+          .sprites = make_gameplay_presentation_frame(snapshot).sprites});
     } else {
       renderer->clear_render_view();
+      renderer->clear_presentation_state();
     }
 
     renderer->render(elapsed_seconds, delta_seconds, kWindowWidth,

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <expected>
 #include <optional>
+#include <vector>
 
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
@@ -87,6 +88,14 @@ struct LevelRenderState {
   std::optional<std::array<float, 3>> camera_world_position;
 };
 
+/**
+ * @brief Backend-neutral presentation data submitted after static level geometry.
+ */
+struct LevelPresentationState {
+  /** @brief Gameplay and presentation billboards for the current rendered frame. */
+  std::vector<BillboardSprite> sprites;
+};
+
 /** @brief Compute aggregate world-space bounds for static level geometry. */
 [[nodiscard]] LevelBounds
 compute_level_bounds(const stellar::assets::LevelAsset &level) noexcept;
@@ -99,6 +108,10 @@ compute_level_bounds(const stellar::assets::LevelAsset &level) noexcept;
 /** @brief Compute backend-neutral render state from a world-space level view. */
 [[nodiscard]] LevelRenderState compute_level_render_state(
     const LevelRenderView &view, GraphicsBackend backend, float aspect_ratio) noexcept;
+
+/** @brief Compute billboard camera data from an already-resolved level render state. */
+[[nodiscard]] BillboardView
+compute_billboard_view(const LevelRenderState &state) noexcept;
 
 /**
  * @brief Generic static level renderer with a debug cube fallback.
@@ -145,6 +158,15 @@ public:
   /** @brief Return to the automatic bounds-fit fallback camera. */
   void clear_render_view() noexcept;
 
+  /** @brief Replace the retained presentation state used by subsequent render calls. */
+  void set_presentation_state(LevelPresentationState state) noexcept;
+
+  /** @brief Clear retained presentation data for no-map or missing-runtime fallback frames. */
+  void clear_presentation_state() noexcept;
+
+  /** @brief Inspect retained presentation data without mutating renderer state. */
+  [[nodiscard]] const LevelPresentationState &presentation_state() const noexcept;
+
 private:
   [[nodiscard]] static std::expected<stellar::assets::MeshAsset,
                                      stellar::platform::Error>
@@ -155,6 +177,7 @@ private:
   GraphicsBackend backend_ = GraphicsBackend::kOpenGL;
   std::optional<stellar::assets::LevelAsset> source_level_;
   std::optional<LevelRenderView> render_view_;
+  LevelPresentationState presentation_state_;
   LevelBounds level_bounds_;
   RenderLevel level_;
 };
