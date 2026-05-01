@@ -1,6 +1,6 @@
 #include "stellar/client/ApplicationConfig.hpp"
 
-#include "stellar/import/bsp/Loader.hpp"
+#include "stellar/import/bsp/Validation.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 #include <algorithm>
@@ -29,12 +29,23 @@ validate_application_config(const ApplicationConfig &config) {
         " (expected .bsp)"));
   }
 
-  auto loaded_level = stellar::import::bsp::load_level(*config.map_path);
-  if (!loaded_level) {
-    return std::unexpected(loaded_level.error());
+  auto map_validation = stellar::import::bsp::validate_level(*config.map_path);
+  if (!map_validation) {
+    return std::unexpected(map_validation.error());
+  }
+  validation.map_validation_report = map_validation->report;
+  if (!map_validation->valid || !map_validation->loaded_level.has_value()) {
+    for (const auto &diagnostic : map_validation->report.diagnostics) {
+      if (diagnostic.severity ==
+          stellar::import::bsp::DiagnosticSeverity::kError) {
+        return std::unexpected(stellar::platform::Error(diagnostic.message));
+      }
+    }
+    return std::unexpected(stellar::platform::Error(
+        "BSP map validation failed for --map: " + *config.map_path));
   }
 
-  validation.level = std::move(*loaded_level);
+  validation.level = std::move(map_validation->loaded_level->asset);
   validation.runtime_world_diagnostics =
       stellar::world::build_runtime_world(*validation.level).diagnostics;
   return validation;

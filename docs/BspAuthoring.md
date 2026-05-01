@@ -117,14 +117,35 @@ Scripts may later request validated enable/disable changes by collision mesh nam
 
 ## Validation commands
 
+Map validation is display-free and does not create a window, graphics context, renderer resources, or load external WAD files by default. Use either client validation form:
+
 ```bash
-cmake -S . -B build-phase4-kojima -DCMAKE_BUILD_TYPE=Debug
-cmake --build build-phase4-kojima -j$(nproc)
-ctest --test-dir build-phase4-kojima -R '^(bsp_entity_authoring|bsp_importer|world_metadata_validation|bsp_playable_world_smoke|scripted_world_session)$' --output-on-failure
+stellar-client --validate-config --map path/to/map.bsp
+stellar-client --validate-map path/to/map.bsp
+```
+
+Both commands import the BSP, build the source-neutral runtime world, and fail for fatal validation errors such as unsupported BSP versions, malformed lump bounds, invalid model/face references that prevent import, or rejected script path escapes. Warning diagnostics do not fail validation by default.
+
+Common diagnostics:
+
+- `kLumpOutOfBounds` / `kMalformedLumpSize`: BSP binary structure is corrupt or uses unexpected lump sizes.
+- `kInvalidFaceReference` / `kDegenerateFacePolygon`: a face cannot resolve enough valid edges/vertices to form a polygon; affected faces are skipped.
+- `kInvalidVisibilityData`: PVS offsets, decompression rows, or marksurface references are invalid; visibility falls back to all surfaces.
+- `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external or missing; validation uses deterministic fallback materials and does not require WAD files.
+- `kInvalidLightingData`: a face light offset or inferred lightmap byte range is outside the lighting lump; the face falls back to unlit material behavior.
+- `kMissingPlayerSpawn`: no `info_player_start` or `info_player_deathmatch` marker exists; import succeeds but gameplay startup may need an explicit spawn policy.
+- `kUnsupportedEntityKey`: malformed authoring values such as `origin`, `stellar.extents`, `stellar.size`, `stellar.once`, or `stellar.enabled` were ignored.
+- `kScriptPathEscape`: script ids are absolute, drive-letter based, or contain `..`; validation fails to preserve Lua sandbox boundaries.
+- `kNoCollisionTriangles`: imported collision extraction produced no triangles; this is currently a warning for maps or tests with an explicit no-collision policy.
+
+```bash
+cmake -S . -B build-phase5-carmack -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-phase5-carmack -j$(nproc)
+ctest --test-dir build-phase5-carmack -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
 ```
 
 For broad confidence, also run:
 
 ```bash
-ctest --test-dir build-phase4-kojima --output-on-failure
+ctest --test-dir build-phase5-carmack --output-on-failure
 ```

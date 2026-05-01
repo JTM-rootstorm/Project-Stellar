@@ -21,6 +21,16 @@ parse_application_config(int argc, char *argv[]) {
       continue;
     }
 
+    if (std::strcmp(argv[i], "--validate-map") == 0) {
+      if (i + 1 >= argc) {
+        return std::unexpected(
+            stellar::platform::Error("--validate-map requires a path"));
+      }
+      config.validate_only = true;
+      config.map_path = std::string(argv[++i]);
+      continue;
+    }
+
     if (std::strcmp(argv[i], "--map") == 0) {
       if (i + 1 >= argc) {
         return std::unexpected(

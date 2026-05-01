@@ -139,6 +139,7 @@ target_link_libraries(stellar_scripting PRIVATE
 
 add_library(stellar_import_bsp
     src/import/bsp/Loader.cpp
+    src/import/bsp/Validation.cpp
     src/import/bsp/BspParser.cpp
     src/import/bsp/BspEntities.cpp
     src/import/bsp/BspLevelBuilder.cpp
@@ -352,6 +353,15 @@ stellar_add_test_executable(stellar_bsp_lightmaps_test bsp_lightmaps
 )
 target_link_libraries(stellar_bsp_lightmaps_test PRIVATE stellar_import_bsp)
 
+stellar_add_test_executable(stellar_bsp_validation_test bsp_validation
+    tests/import/bsp/BspValidation.cpp
+)
+target_include_directories(stellar_bsp_validation_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+    ${CMAKE_SOURCE_DIR}/tests/import/bsp
+)
+target_link_libraries(stellar_bsp_validation_test PRIVATE stellar_import_bsp)
+
 stellar_add_physics_test(stellar_collision_world_test collision_world
     tests/physics/CollisionWorld.cpp
 )
@@ -439,16 +449,37 @@ target_include_directories(stellar_bsp_fixture_writer PRIVATE
 set(STELLAR_CLI_BSP_FIXTURE
     ${CMAKE_BINARY_DIR}/tests/fixtures/bsp/client_cli_map_validation.bsp
 )
+set(STELLAR_CLI_BAD_BSP_FIXTURE
+    ${CMAKE_BINARY_DIR}/tests/fixtures/bsp/client_cli_bad_map_validation.bsp
+)
 
 add_test(NAME bsp_fixture_writer
     COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE}
 )
 set_tests_properties(bsp_fixture_writer PROPERTIES FIXTURES_SETUP bsp_cli_fixture)
 
+add_test(NAME bsp_bad_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BAD_BSP_FIXTURE} invalid_script_path
+)
+set_tests_properties(bsp_bad_fixture_writer PROPERTIES FIXTURES_SETUP bsp_bad_cli_fixture)
+
 add_test(NAME client_cli_map_validation
     COMMAND stellar-client --validate-config --map ${STELLAR_CLI_BSP_FIXTURE}
 )
 set_tests_properties(client_cli_map_validation PROPERTIES FIXTURES_REQUIRED bsp_cli_fixture)
+
+add_test(NAME client_cli_validate_map
+    COMMAND stellar-client --validate-map ${STELLAR_CLI_BSP_FIXTURE}
+)
+set_tests_properties(client_cli_validate_map PROPERTIES FIXTURES_REQUIRED bsp_cli_fixture)
+
+add_test(NAME client_cli_map_validation_rejects_bad_map
+    COMMAND stellar-client --validate-map ${STELLAR_CLI_BAD_BSP_FIXTURE}
+)
+set_tests_properties(client_cli_map_validation_rejects_bad_map PROPERTIES
+    FIXTURES_REQUIRED bsp_bad_cli_fixture
+    WILL_FAIL TRUE
+)
 
 add_executable(stellar_bsp_playable_world_smoke_test
     tests/integration/BspPlayableWorldSmoke.cpp
@@ -468,3 +499,18 @@ add_test(NAME bsp_playable_world_smoke COMMAND stellar_bsp_playable_world_smoke_
 add_test(NAME bsp_scripted_playable_world_smoke COMMAND stellar_bsp_playable_world_smoke_test)
 add_test(NAME bsp_scripted_collision_smoke COMMAND stellar_bsp_playable_world_smoke_test)
 add_test(NAME bsp_scripted_object_collider_smoke COMMAND stellar_bsp_playable_world_smoke_test)
+
+add_executable(stellar_bsp_authoring_smoke_test
+    tests/integration/BspAuthoringSmoke.cpp
+)
+
+target_include_directories(stellar_bsp_authoring_smoke_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+)
+
+target_link_libraries(stellar_bsp_authoring_smoke_test PRIVATE
+    stellar_client_config
+)
+
+add_test(NAME bsp_authoring_smoke COMMAND stellar_bsp_authoring_smoke_test)

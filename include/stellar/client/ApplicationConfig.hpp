@@ -6,6 +6,7 @@
 
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/graphics/GraphicsBackend.hpp"
+#include "stellar/import/bsp/Diagnostics.hpp"
 #include "stellar/platform/Error.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
@@ -41,6 +42,9 @@ struct ApplicationValidation {
    */
   std::optional<stellar::world::RuntimeWorldDiagnostics>
       runtime_world_diagnostics;
+
+  /** @brief Optional display-free BSP validation diagnostics for configured map. */
+  std::optional<stellar::import::bsp::ImportReport> map_validation_report;
 };
 
 /**

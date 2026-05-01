@@ -515,6 +515,14 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       const Face &face = map.faces[static_cast<std::size_t>(face_index)];
       const std::vector<Vec3> polygon = face_vertices(map, face);
       if (polygon.size() < 3) {
+        add_warning(report,
+                    face.edge_count < 3 ? DiagnosticCode::kDegenerateFacePolygon
+                                        : DiagnosticCode::kInvalidFaceReference,
+                    level.source_uri,
+                    level.source_uri +
+                        ": BSP face cannot form a valid polygon from its references",
+                    static_cast<std::size_t>(LumpIndex::kFaces),
+                    static_cast<std::size_t>(face_index));
         continue;
       }
       const std::string texture = texture_name_for(map, face);

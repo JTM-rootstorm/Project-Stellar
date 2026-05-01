@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 
 int main() {
   const auto root =
@@ -21,6 +22,8 @@ int main() {
 
   assert(result.has_value());
   assert(result->level.has_value());
+  assert(result->map_validation_report.has_value());
+  assert(!result->map_validation_report->has_errors);
   assert(result->runtime_world_diagnostics.has_value());
   assert(result->runtime_world_diagnostics->has_collision);
   assert(result->runtime_world_diagnostics->marker_count == 5);
@@ -33,6 +36,18 @@ int main() {
   assert(!unsupported.has_value());
   assert(unsupported.error().message.find("Unsupported map extension") !=
          std::string::npos);
+
+  const auto bad_script_path = root / "bad_script.bsp";
+  const auto bad_script =
+      stellar::tests::fixtures::build_bsp_invalid_script_path_fixture();
+  {
+    std::ofstream file(bad_script_path, std::ios::binary);
+    file.write(reinterpret_cast<const char *>(bad_script.data()),
+               static_cast<std::streamsize>(bad_script.size()));
+  }
+  config.map_path = bad_script_path.string();
+  const auto invalid_map = stellar::client::validate_application_config(config);
+  assert(!invalid_map.has_value());
 
   return 0;
 }

@@ -22,6 +22,7 @@ enum class DiagnosticSeverity {
 enum class DiagnosticCode {
     kUnsupportedVersion,
     kLumpOutOfBounds,
+    kMalformedLumpSize,
     kMalformedEntityText,
     kMissingWorldspawn,
     kMissingPlayerSpawn,
@@ -32,6 +33,15 @@ enum class DiagnosticCode {
     kInvalidVisibilityData,
     kInvalidLightingData,
     kUnsupportedEntityKey,
+    kNoWorldspawnGeometry,
+    kNoCollisionTriangles,
+    kDegenerateFacePolygon,
+    kDuplicateCollisionMeshName,
+    kEmptyCollisionMeshName,
+    kMaterialFallbackUsed,
+    kObjectColliderMissingVolume,
+    kTriggerMissingVolume,
+    kScriptPathEscape,
 };
 
 /**

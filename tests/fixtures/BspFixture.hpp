@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace stellar::tests::fixtures {
@@ -190,9 +191,112 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
   return bytes;
 }
 
-inline void write_bsp_fixture(const std::filesystem::path &path) {
+inline void set_bsp_entities(std::vector<std::byte> &bytes,
+                             std::string_view entities) {
+  const std::size_t entity_offset = bytes.size();
+  bytes.insert(bytes.end(), reinterpret_cast<const std::byte *>(entities.data()),
+               reinterpret_cast<const std::byte *>(entities.data() + entities.size()));
+  set_bsp_lump(bytes, stellar::import::bsp::detail::LumpIndex::kEntities,
+               entity_offset, entities.size());
+}
+
+inline std::vector<std::byte> build_bsp_minimal_valid_fixture() {
+  return build_bsp_playable_fixture();
+}
+
+inline std::vector<std::byte> build_bsp_pvs_fixture() {
+  using stellar::import::bsp::detail::LumpIndex;
+  auto bytes = build_bsp_playable_fixture();
+
+  const std::size_t visibility_offset = bytes.size();
+  append_bsp_value<std::uint8_t>(bytes, 0x01U);
+  set_bsp_lump(bytes, LumpIndex::kVisibility, visibility_offset, 1);
+
+  const std::size_t marksurface_offset = bytes.size();
+  append_bsp_value<std::uint16_t>(bytes, 0);
+  set_bsp_lump(bytes, LumpIndex::kMarksurfaces, marksurface_offset, 2);
+
+  const std::size_t leaf_offset = bytes.size();
+  append_bsp_value<std::int32_t>(bytes, 0);
+  append_bsp_value<std::int32_t>(bytes, 0);
+  append_bsp_value<std::int16_t>(bytes, -4);
+  append_bsp_value<std::int16_t>(bytes, -4);
+  append_bsp_value<std::int16_t>(bytes, -4);
+  append_bsp_value<std::int16_t>(bytes, 4);
+  append_bsp_value<std::int16_t>(bytes, 4);
+  append_bsp_value<std::int16_t>(bytes, 4);
+  append_bsp_value<std::uint16_t>(bytes, 0);
+  append_bsp_value<std::uint16_t>(bytes, 1);
+  append_bsp_value<std::uint8_t>(bytes, 0);
+  append_bsp_value<std::uint8_t>(bytes, 0);
+  append_bsp_value<std::uint8_t>(bytes, 0);
+  append_bsp_value<std::uint8_t>(bytes, 0);
+  set_bsp_lump(bytes, LumpIndex::kLeaves, leaf_offset, 28);
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_malformed_lump_bounds_fixture() {
+  using stellar::import::bsp::detail::LumpIndex;
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_lump(bytes, LumpIndex::kVertices, bytes.size() + 64, 12);
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_invalid_face_reference_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  std::int32_t face_lump_offset = 0;
+  std::memcpy(&face_lump_offset,
+              bytes.data() + bsp_lump_header_offset(
+                                 stellar::import::bsp::detail::LumpIndex::kFaces),
+              sizeof(face_lump_offset));
+  const std::size_t face_offset = static_cast<std::size_t>(face_lump_offset);
+  patch_bsp_i32(bytes, face_offset + 4, 1000);
+  patch_bsp_i32(bytes, face_offset + 20 + 4, 1000);
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_invalid_entity_vector_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n\"origin\" \"bad 0 0\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_invalid_script_path_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n\"origin\" \"0 0 0\"\n}\n"
+                   "{\n\"classname\" \"trigger_stellar\"\n\"targetname\" \"Bad\"\n"
+                   "\"origin\" \"0 0 0\"\n\"stellar.extents\" \"1 1 1\"\n"
+                   "\"stellar.script\" \"../escape.lua\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_missing_player_spawn_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_entities(bytes, "{\n\"classname\" \"worldspawn\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_named_bsp_fixture(std::string_view name) {
+  if (name == "malformed_lump_bounds") {
+    return build_bsp_malformed_lump_bounds_fixture();
+  }
+  if (name == "invalid_script_path") {
+    return build_bsp_invalid_script_path_fixture();
+  }
+  if (name == "pvs") {
+    return build_bsp_pvs_fixture();
+  }
+  return build_bsp_playable_fixture();
+}
+
+inline void write_bsp_fixture(const std::filesystem::path &path,
+                              std::string_view name = "playable") {
   std::filesystem::create_directories(path.parent_path());
-  const auto bytes = build_bsp_playable_fixture();
+  const auto bytes = build_named_bsp_fixture(name);
   std::ofstream file(path, std::ios::binary);
   file.write(reinterpret_cast<const char *>(bytes.data()),
              static_cast<std::streamsize>(bytes.size()));

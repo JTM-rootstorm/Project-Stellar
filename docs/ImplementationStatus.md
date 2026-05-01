@@ -20,7 +20,7 @@ Planned phase status:
 - Phase 2 — BSP PVS, leaf visibility, and render culling: complete as of 2026-05-01.
 - Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: complete as of 2026-05-01.
 - Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: complete as of 2026-05-01.
-- Phase 5 — BSP validation tooling and regression fixtures: not started.
+- Phase 5 — BSP validation tooling and regression fixtures: complete as of 2026-05-01.
 - Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: not started.
 
 Phase 1 completion notes:
@@ -126,6 +126,34 @@ ctest --test-dir build-phase4-kojima --output-on-failure
 
 Result: configure and build succeeded. Focused Phase 4 suite passed 5/5, and full default CTest
 passed 35/35.
+
+Phase 5 completion notes:
+
+- Added a display-free BSP validation API that preserves existing load APIs while returning
+  deterministic structured diagnostics, including fatal parse failures as error-severity report
+  entries.
+- Validation now covers binary/lump failures, invalid face polygon references, PVS and marksurface
+  warnings, material fallback and lightmap diagnostics, entity authoring warnings, script path escape
+  rejection, missing spawn warnings, and no-collision policy warnings without renderer or WAD
+  requirements.
+- Extended client validation with `--validate-map` alongside `--validate-config --map`; both paths
+  validate maps headlessly before any window or graphics context is created.
+- Expanded generated BSP fixtures and regression coverage for valid maps, PVS, textures/lightmaps,
+  malformed lump bounds, invalid face references, malformed entity vectors, script path escapes,
+  missing player spawn, no-collision policy, and authoring/client smoke behavior.
+- Updated BSP authoring docs with validation command examples and common diagnostic explanations.
+
+Validation run:
+
+```bash
+cmake -S . -B build-phase5-carmack -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-phase5-carmack -j$(nproc)
+ctest --test-dir build-phase5-carmack -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
+ctest --test-dir build-phase5-carmack --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 5 suite passed 6/6, and full default CTest
+passed 40/40.
 
 Phase 0 completion notes:
 
