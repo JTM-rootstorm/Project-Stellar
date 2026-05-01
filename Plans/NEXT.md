@@ -5,6 +5,8 @@ Branch target: `bsp-gameplay-loop`
 ## Current entry point
 
 Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
+Use `Plans/BspGameplayLoop-AgentPlan.md` as the active implementation handoff and
+`Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` as the detailed master plan.
 
 Branch start policy:
 
@@ -15,6 +17,7 @@ Branch start policy:
 Active next scope:
 
 - Gameplay loop expansion over BSP maps.
+- Current phase plan: `Plans/BspGameplayLoop-AgentPlan.md`.
 
 Archived completed plans:
 
@@ -35,6 +38,9 @@ Focus areas:
 - Player presentation from authoritative snapshots.
 - Sprite, animation, and interaction loop.
 - Item pickup and scripted doors/gates using the existing Lua command path.
+
+Branch gameplay units are now explicitly locked for implementation planning: 1 Stellar gameplay
+world unit equals 1 inch, Y is up, and BSP authored coordinates import without scale conversion.
 
 ## Invariants
 

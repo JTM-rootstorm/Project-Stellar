@@ -2,6 +2,11 @@
 
 BSP maps are Stellar's canonical playable level source. Entity keys are imported as backend-neutral world metadata for the authoritative runtime; import never executes scripts and never creates renderer, audio, ECS, or gameplay state directly.
 
+Gameplay authoring uses inch-scale coordinates on the active `bsp-gameplay-loop` branch: 1 Stellar
+gameplay world unit equals 1 inch, Y is up, and BSP coordinates are imported 1:1 without hidden scale
+conversion. A 72 inch tall player capsule should usually be spawned with its center 36 inches above
+the floor.
+
 ## Minimal workflow
 
 1. Build a classic BSP29/BSP30-style map in a Quake/GoldSrc-compatible editor or toolchain.

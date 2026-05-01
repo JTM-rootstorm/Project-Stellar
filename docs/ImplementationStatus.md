@@ -18,12 +18,42 @@ Initial focus areas:
 - Sprite, animation, and interaction loop.
 - Item pickup and scripted doors/gates using the existing Lua command path.
 
+Active implementation plan:
+
+- `Plans/BspGameplayLoop-AgentPlan.md` — concise active agent handoff.
+- `Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed master plan.
+
+Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is up, BSP authored
+coordinates import without scale conversion, and player capsule center spawns should be half the
+capsule height above the floor.
+
 Near-term implementation should continue to use `Plans/NEXT.md` as the short branch handoff and this
 file as the source of truth for completion notes. Archived phase plans under `Plans/Archived/` are
 historical context unless this file explicitly names one as active.
 
 Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
 renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.
+
+## BSP Gameplay Loop — Active Phase Status
+
+- Phase 0 — Active gameplay-loop handoff lock-in: complete as of 2026-05-01.
+- Phase 1 — Inch-based world scale and gameplay tuning: not started.
+- Phase 2 — Procedural developer textures for inch-scale BSP authoring: not started.
+- Phase 3 — Load the configured BSP map into the live client path: not started.
+- Phase 4 — Authoritative player camera drives level rendering: not started.
+- Phase 5 — Minimal ECS/entity spawn from BSP metadata: not started.
+- Phase 6 — Single-room controllable player loop: not started.
+- Phase 7 — First interaction loop, pickup and scripted door/gate: not started.
+- Phase 8 — Final branch hardening and documentation: not started.
+
+Phase 0 completion notes:
+
+- Added `Plans/BspGameplayLoop-AgentPlan.md` as the concise active handoff derived from the detailed
+  master plan.
+- Updated `Plans/NEXT.md`, `docs/ImplementationStatus.md`, `docs/Design.md`, and
+  `docs/BspAuthoring.md` to point agents at the gameplay-loop plan and record the inch-scale unit
+  policy.
+- No source behavior changes were introduced.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

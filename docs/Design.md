@@ -115,6 +115,13 @@ Completed BSP hardening added actionable diagnostics, source-neutral PVS and lig
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
 deterministic headless validation.
 
+The active BSP gameplay-loop plan is `Plans/BspGameplayLoop-AgentPlan.md`, with the detailed master
+handoff retained at `Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md`.
+
+Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
+world unit equals 1 inch, Y is up, and BSP authored coordinates import without hidden scale
+conversion. Player spawn centers should be authored half the capsule height above the floor.
+
 BSP entity metadata binds triggers, object-collider sensors, sprite markers, spawns, and script
 IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative
 movement/session output, emits primitive script events, and applies only native-validated
