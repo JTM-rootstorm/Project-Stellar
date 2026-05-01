@@ -19,6 +19,10 @@ namespace {
 
 constexpr float kDefaultFovDegrees = 45.0F;
 
+float finite_or_zero(float value) noexcept {
+  return std::isfinite(value) ? value : 0.0F;
+}
+
 std::array<float, 16> to_array(const glm::mat4 &matrix) noexcept {
   std::array<float, 16> result{};
   const float *data = &matrix[0][0];
@@ -109,8 +113,8 @@ compute_level_bounds(const stellar::assets::LevelAsset &level) noexcept {
 }
 
 LevelCameraFit fit_camera_to_bounds(const LevelBounds &bounds,
-                                    float vertical_fov_degrees,
-                                    float aspect_ratio) noexcept {
+                                     float vertical_fov_degrees,
+                                     float aspect_ratio) noexcept {
   const float safe_aspect =
       std::isfinite(aspect_ratio) && aspect_ratio > 0.0F ? aspect_ratio : 1.0F;
   const float safe_fov =
@@ -131,6 +135,54 @@ LevelCameraFit fit_camera_to_bounds(const LevelBounds &bounds,
   fit.near_plane = std::max(0.01F, distance - radius * 2.0F);
   fit.far_plane = std::max(fit.near_plane + 1.0F, distance + radius * 2.0F);
   return fit;
+}
+
+LevelRenderState compute_level_render_state(const LevelRenderView &view,
+                                            GraphicsBackend backend,
+                                            float aspect_ratio) noexcept {
+  const float safe_aspect =
+      std::isfinite(aspect_ratio) && aspect_ratio > 0.0F ? aspect_ratio : 1.0F;
+  const float safe_fov = std::isfinite(view.vertical_fov_degrees) &&
+                                 view.vertical_fov_degrees > 1.0F
+                             ? view.vertical_fov_degrees
+                             : kDefaultFovDegrees;
+  const float safe_near =
+      std::isfinite(view.near_plane) && view.near_plane > 0.0F
+          ? std::max(view.near_plane, 0.01F)
+          : 0.1F;
+  const float safe_far =
+      std::isfinite(view.far_plane) && view.far_plane > safe_near
+          ? view.far_plane
+          : safe_near + 1.0F;
+
+  const glm::vec3 eye(finite_or_zero(view.eye[0]),
+                      finite_or_zero(view.eye[1]),
+                      finite_or_zero(view.eye[2]));
+  glm::vec3 target(finite_or_zero(view.target[0]),
+                   finite_or_zero(view.target[1]),
+                   finite_or_zero(view.target[2]));
+  glm::vec3 up(finite_or_zero(view.up[0]), finite_or_zero(view.up[1]),
+               finite_or_zero(view.up[2]));
+  if (!std::isfinite(target.x) || !std::isfinite(target.y) ||
+      !std::isfinite(target.z) || glm::length(target - eye) < 0.0001F) {
+    target = eye + glm::vec3(0.0F, 0.0F, -1.0F);
+  }
+  if (!std::isfinite(up.x) || !std::isfinite(up.y) || !std::isfinite(up.z) ||
+      glm::length(up) < 0.0001F) {
+    up = glm::vec3(0.0F, 1.0F, 0.0F);
+  }
+
+  const glm::mat4 projection = make_projection_for_backend(
+      backend, safe_fov, safe_aspect, safe_near, safe_far);
+  const glm::mat4 view_matrix = glm::lookAt(eye, target, up);
+
+  LevelRenderState state;
+  state.view_projection = to_array(projection * view_matrix);
+  state.view = to_array(view_matrix);
+  if (view.visibility_culling) {
+    state.camera_world_position = {eye.x, eye.y, eye.z};
+  }
+  return state;
 }
 
 LevelRenderer::LevelRenderer(
@@ -198,21 +250,33 @@ LevelRenderer::initialize(stellar::platform::Window &window) {
 }
 
 void LevelRenderer::render(float /*elapsed_seconds*/, float /*delta_seconds*/,
-                           int width, int height) noexcept {
+                            int width, int height) noexcept {
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
-                 : 1.0F;
-  const LevelCameraFit camera =
-      fit_camera_to_bounds(level_bounds_, kDefaultFovDegrees, aspect);
-  const glm::mat4 projection =
-      make_projection_for_backend(backend_, kDefaultFovDegrees, aspect,
-                                  camera.near_plane, camera.far_plane);
-  const glm::mat4 view = glm::lookAt(
-      glm::vec3(camera.eye[0], camera.eye[1], camera.eye[2]),
-      glm::vec3(camera.target[0], camera.target[1], camera.target[2]),
-      glm::vec3(0.0F, 1.0F, 0.0F));
+                  : 1.0F;
+  LevelRenderView view;
+  if (render_view_.has_value()) {
+    view = *render_view_;
+  } else {
+    const LevelCameraFit camera =
+        fit_camera_to_bounds(level_bounds_, kDefaultFovDegrees, aspect);
+    view.eye = camera.eye;
+    view.target = camera.target;
+    view.near_plane = camera.near_plane;
+    view.far_plane = camera.far_plane;
+    view.visibility_culling = false;
+  }
 
-  level_.render(width, height, to_array(projection * view), to_array(view));
+  const LevelRenderState state =
+      compute_level_render_state(view, backend_, aspect);
+  level_.render(width, height, state.view_projection, state.view,
+                state.camera_world_position);
 }
+
+void LevelRenderer::set_render_view(LevelRenderView view) noexcept {
+  render_view_ = view;
+}
+
+void LevelRenderer::clear_render_view() noexcept { render_view_.reset(); }
 
 } // namespace stellar::graphics

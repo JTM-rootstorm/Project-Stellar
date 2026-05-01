@@ -259,6 +259,35 @@ void verify_level_bounds_and_camera_fit() {
   assert(empty_bounds.radius == 1.0F);
 }
 
+void verify_level_render_state_uses_override_camera_for_culling() {
+  stellar::graphics::LevelRenderView view;
+  view.eye = {10.0F, 20.0F, 30.0F};
+  view.target = {10.0F, 20.0F, 29.0F};
+  view.near_plane = 0.25F;
+  view.far_plane = 512.0F;
+
+  const auto state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kOpenGL, 16.0F / 9.0F);
+
+  assert(state.camera_world_position.has_value());
+  assert(*state.camera_world_position == view.eye);
+  assert(state.view[12] != 0.0F || state.view[13] != 0.0F ||
+         state.view[14] != 0.0F);
+}
+
+void verify_level_render_state_can_disable_culling_for_fallback() {
+  stellar::graphics::LevelRenderView view;
+  view.eye = {0.0F, 0.0F, 8.0F};
+  view.target = {0.0F, 0.0F, 0.0F};
+  view.visibility_culling = false;
+
+  const auto state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kOpenGL, 0.0F);
+
+  assert(!state.camera_world_position.has_value());
+  assert(state.view_projection[0] != 0.0F);
+}
+
 void verify_debug_cube_winding_matches_normals() {
   const auto mesh = stellar::graphics::create_debug_cube_mesh();
   assert(mesh.has_value());
@@ -281,6 +310,8 @@ int main() {
   verify_billboard_quad_generation_sorting_and_fields();
   verify_billboards_submit_after_static_geometry(window);
   verify_level_bounds_and_camera_fit();
+  verify_level_render_state_uses_override_camera_for_culling();
+  verify_level_render_state_can_disable_culling_for_fallback();
   verify_debug_cube_winding_matches_normals();
   return 0;
 }

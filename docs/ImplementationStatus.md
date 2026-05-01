@@ -40,7 +40,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 - Phase 1 — Inch-based world scale and gameplay tuning: complete as of 2026-05-01.
 - Phase 2 — Procedural developer textures for inch-scale BSP authoring: complete as of 2026-05-01.
 - Phase 3 — Load the configured BSP map into the live client path: complete as of 2026-05-01.
-- Phase 4 — Authoritative player camera drives level rendering: not started.
+- Phase 4 — Authoritative player camera drives level rendering: complete as of 2026-05-01.
 - Phase 5 — Minimal ECS/entity spawn from BSP metadata: complete as of 2026-05-01.
 - Phase 6 — Single-room controllable player loop: not started.
 - Phase 7 — First interaction loop, pickup and scripted door/gate: not started.
@@ -123,6 +123,29 @@ ctest --test-dir build -R '^(client_map_validation_smoke|client_cli_map_validati
 ```
 
 Result: configure/build and focused Phase 3 CTest passed on 2026-05-01.
+
+Phase 4 completion notes:
+
+- Added a backend-neutral graphics-facing `LevelRenderView`/`LevelRenderState` path so the client can
+  drive BSP rendering from authoritative player presentation without making `stellar_graphics` depend
+  on `stellar_client`.
+- `LevelRenderer` now supports a focused `set_render_view`/`clear_render_view` API; live client frames
+  process input, advance `LocalLoopbackRuntime`, extract the local authoritative player snapshot,
+  build a `PlayerCameraFrame`, and convert it into level render state before drawing.
+- Player-camera frames pass the camera world position through to `RenderLevel` for optional BSP/PVS
+  visibility culling. The automatic bounds-fit camera remains the fallback for no-map or missing
+  player-presentation state and does not force visibility culling.
+- Display-free render inspection coverage now exercises camera override state, fallback culling
+  disablement, and existing camera-position visibility culling behavior.
+
+Validation run:
+
+```bash
+cmake --build build --target stellar_player_presentation_test stellar_render_level_inspection_test stellar_graphics_backend_selection_test stellar-client -j$(nproc)
+ctest --test-dir build -R '^(player_presentation|render_level_inspection|graphics_backend_selection)$' --output-on-failure
+```
+
+Result: focused Phase 4 build targets and CTest regex passed on 2026-05-01.
 
 Phase 5 completion notes:
 
