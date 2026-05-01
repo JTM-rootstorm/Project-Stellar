@@ -43,8 +43,8 @@ RuntimeCollisionState RuntimeCollisionState::from_world(const RuntimeWorld& worl
     const stellar::assets::LevelCollisionAsset* collision = nullptr;
     if (world.collision_world.has_value()) {
         collision = &world.collision_world->asset();
-    } else if (world.scene_asset != nullptr && world.scene_asset->level_collision.has_value()) {
-        collision = &world.scene_asset->level_collision.value();
+    } else if (world.level_asset != nullptr && world.level_asset->level_collision.has_value()) {
+        collision = &world.level_asset->level_collision.value();
     }
 
     if (collision == nullptr) {

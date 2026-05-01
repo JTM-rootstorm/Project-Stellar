@@ -127,7 +127,7 @@ void verify_empty_trigger_system_returns_no_events() {
 }
 
 void verify_runtime_world_helper_uses_copied_metadata() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.push_back(
         make_marker(stellar::assets::WorldMarkerType::kTrigger, "Runtime"));
     const auto world = stellar::world::build_runtime_world(scene);

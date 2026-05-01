@@ -290,21 +290,6 @@ int main() {
         return 1;
     }
 
-    const std::array<float, 16> skin_matrix{1.0F, 0.0F, 0.0F, 0.0F,
-                                            0.0F, 1.0F, 0.0F, 0.0F,
-                                            0.0F, 0.0F, 1.0F, 0.0F,
-                                            0.1F, 0.0F, 0.0F, 1.0F};
-    const std::array<std::array<float, 16>, 1> one_joint_palette{skin_matrix};
-    std::vector<std::array<float, 16>> full_skin_palette(128, kIdentity4);
-    full_skin_palette[127] = skin_matrix;
-    std::vector<std::array<float, 16>> over_limit_skin_palette(
-        stellar::graphics::kMaxSkinPaletteJoints + 1, kIdentity4);
-    const std::span<const std::array<float, 16>> one_joint_span{one_joint_palette.data(),
-                                                               one_joint_palette.size()};
-    const std::span<const std::array<float, 16>> full_skin_span{full_skin_palette.data(),
-                                                               full_skin_palette.size()};
-    const std::span<const std::array<float, 16>> over_limit_skin_span{
-        over_limit_skin_palette.data(), over_limit_skin_palette.size()};
 
     const stellar::graphics::MeshPrimitiveDrawCommand commands[] = {
         {.primitive_index = 0, .material = *fallback_material},
@@ -316,10 +301,6 @@ int main() {
         {.primitive_index = 0, .material = *double_sided_blend_material},
         {.primitive_index = 1, .material = *unlit_material},
         {.primitive_index = 3, .material = *fallback_material},
-        {.primitive_index = 3, .material = *fallback_material, .skin_joint_matrices = one_joint_span},
-        {.primitive_index = 4, .material = *fallback_material, .skin_joint_matrices = full_skin_span},
-        {.primitive_index = 4, .material = *fallback_material, .skin_joint_matrices = one_joint_span},
-        {.primitive_index = 3, .material = *fallback_material, .skin_joint_matrices = over_limit_skin_span},
     };
 
     for (int frame = 0; frame < 3; ++frame) {

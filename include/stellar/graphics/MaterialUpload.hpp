@@ -25,6 +25,8 @@ struct MaterialTextureBinding {
 struct MaterialUpload {
     stellar::assets::MaterialAsset material;
     std::optional<MaterialTextureBinding> base_color_texture;
+    /** @brief Optional static level lightmap sampled from secondary UVs. */
+    std::optional<MaterialTextureBinding> lightmap_texture;
     std::optional<MaterialTextureBinding> normal_texture;
     std::optional<MaterialTextureBinding> metallic_roughness_texture;
     std::optional<MaterialTextureBinding> occlusion_texture;

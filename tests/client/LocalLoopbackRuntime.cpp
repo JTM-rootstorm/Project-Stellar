@@ -56,17 +56,17 @@ stellar::assets::WorldMarker trigger_marker(std::string name, Vec3 position, Vec
     return marker;
 }
 
-stellar::assets::SceneAsset scene_with_markers(
+stellar::assets::LevelAsset scene_with_markers(
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.assign(markers.begin(), markers.end());
     return scene;
 }
 
-stellar::assets::SceneAsset scene_with_collision_and_markers(
+stellar::assets::LevelAsset scene_with_collision_and_markers(
     std::initializer_list<stellar::assets::CollisionTriangle> triangles,
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene = scene_with_markers(markers);
+    stellar::assets::LevelAsset scene = scene_with_markers(markers);
     stellar::assets::CollisionMesh mesh;
     mesh.name = "collision";
     mesh.triangles.assign(triangles.begin(), triangles.end());

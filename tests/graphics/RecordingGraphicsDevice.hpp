@@ -13,7 +13,6 @@ namespace stellar::graphics::testing {
 struct RecordedPrimitiveDraw {
     std::size_t primitive_index = 0;
     MaterialHandle material;
-    std::vector<std::array<float, 16>> skin_joint_matrices;
 };
 
 struct RecordedDrawCall {
@@ -69,8 +68,6 @@ public:
             RecordedPrimitiveDraw recorded;
             recorded.primitive_index = command.primitive_index;
             recorded.material = command.material;
-            recorded.skin_joint_matrices.assign(command.skin_joint_matrices.begin(),
-                                                command.skin_joint_matrices.end());
             call.commands.push_back(std::move(recorded));
         }
         draw_calls.push_back(std::move(call));

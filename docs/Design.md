@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.7 (object collider scripting branch alignment)  
+**Version:** 0.2.1 (BSP hardening alignment)  
 **Last Updated:** 2026-05-01
 
 ---
@@ -36,15 +36,15 @@
 ## 1. Project Overview
 
 Stellar Engine is a modular, cross-platform game framework for creating games that use
-3D world or level geometry with 2D billboard entities, objects, pickups, projectiles,
-and props. The engine uses a client-server architecture: game logic and authoritative
-state live on the server, while the client handles rendering, audio, input capture,
-and presentation.
+3D BSP level geometry with 2D billboard entities, objects, pickups, projectiles, and props.
+The engine uses a client-server architecture: game logic and authoritative state live on the
+server, while the client handles rendering, audio, input capture, and presentation.
 
-The current engine direction is not to become a general-purpose glTF viewer or a full
-physically based renderer. glTF is used as a practical authored scene and level source
-format for the engine's world representation. The current rendering target is lightweight
-OpenGL/Vulkan material parity suitable for game content.
+The current engine direction is not to become a full physically based renderer. BSP maps are
+the canonical playable level source, and active runtime, server, client validation, and rendering
+paths use BSP-backed, source-neutral `LevelAsset` data.
+The rendering target is lightweight OpenGL/Vulkan BSP surface/material and billboard parity
+suitable for game content.
 
 ### Key Design Principles
 
@@ -71,7 +71,7 @@ OpenGL/Vulkan material parity suitable for game content.
 - **Build:** CMake 3.20+.
 - **Rendering:** OpenGL 4.5+ and Vulkan 1.2+, selected at runtime.
 - **World style:** 3D static world geometry with 2D billboard entities and props.
-- **Asset format:** glTF `.gltf` and `.glb` for runtime scene import and authored world data.
+- **Asset format:** BSP maps are the canonical playable level format.
 - **Math:** GLM.
 - **Windowing/input abstraction:** SDL2.
 - **Audio:** miniaudio-backed audio when audio implementation is in scope, with explicit
@@ -84,8 +84,7 @@ OpenGL/Vulkan material parity suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`collision-movement` branch, it is not the highest authority on current implementation
-status.
+`bsp-integration` branch, it is not the highest authority on current implementation status.
 
 Precedence for resolving conflicts:
 
@@ -105,70 +104,25 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `collision-movement`.
+Current branch: `bsp-integration`.
 
-Primary near-term goal: make imported static collision and authored sensor object colliders usable by
-gameplay scripts while preserving server authority. glTF world metadata may bind trigger and
-`COLLIDER_<Name>` markers to script IDs/tables, but import does not execute scripts. Runtime
-scripting wraps authoritative movement/session output, emits primitive script events, and applies
-only native-validated collision/object-collider commands to server-owned runtime state.
+Primary near-term goal: expand the gameplay loop over BSP maps while preserving server authority.
+Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
+contracts, optional presentation-only render culling, BSP entity authoring conventions, and
+deterministic headless validation.
 
-Completed Phase 10 implementation order:
+BSP entity metadata binds triggers, object-collider sensors, sprite markers, spawns, and script
+IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative
+movement/session output, emits primitive script events, and applies only native-validated
+collision/object-collider commands to server-owned runtime state.
 
-1. **Phase 10A — Lua Runtime Foundation**
-   - Add `stellar_scripting`, vendored Lua 5.4.x, sandbox setup, protected calls, output event
-     buffering, bytecode rejection, and instruction budgeting.
-2. **Phase 10B — Script Binding Metadata**
-   - Extract `extras.stellar.script` and `extras.stellar.table` into backend-neutral world metadata
-     without executing scripts during import.
-3. **Phase 10C — Trigger Script Hooks**
-   - Invoke `on_trigger_enter`, `on_trigger_stay`, and `on_trigger_exit` from authoritative trigger
-     events after server movement resolves.
-4. **Phase 10D — Scripted Session Wrapper**
-   - Add `ScriptedWorldSession` as the script-capable wrapper around native `WorldSession`.
-5. **Phase 10E — Documentation and Playable Integration Smoke**
-   - Validate the authored glTF -> runtime world -> scripted authoritative trigger path in a
-     display-free integration smoke.
-
-Completed Phase 11 implementation order:
-
-1. **Phase 11A — Capsule-Aware Trigger Overlap**
-   - Align trigger enter/stay/exit checks with the authoritative character capsule.
-2. **Phase 11B — Runtime Collision State Overlay**
-   - Add server-owned enable/disable state for named imported static collision meshes without
-     mutating imported assets.
-3. **Phase 11C — Filtered Collision Queries and Movement Integration**
-   - Route raycasts, ground probes, low-level movement, character movement, and `WorldSession`
-     through collision mesh filters.
-4. **Phase 11D — Validated Script Collision Commands**
-   - Apply `collision.set_mesh_enabled` script output events through native validation after script
-     callbacks, affecting subsequent authoritative ticks.
-5. **Phase 11E — Kinematic Object Collider Registry**
-   - Add a backend-neutral deterministic overlap registry foundation without rigid bodies or ECS
-     ownership.
-6. **Phase 11F — Scripted Collision Smoke and Documentation**
-    - Validate a display-free trigger script that disables a named collision blocker.
-
-Completed Phase 12 implementation order:
-
-1. **Phase 12A — Object Collider Lifecycle Semantics**
-   - Harden live enable/disable, upsert, removal, preserving-overlap replacement, and deterministic
-     synchronous exit behavior for sensor object colliders.
-2. **Phase 12B — WorldSession Object Collider Events**
-   - Build runtime object colliders from `RuntimeWorld` metadata and emit authoritative
-     post-movement enter/stay/exit events in `WorldSnapshot`.
-3. **Phase 12C — Authored Object Collider Metadata**
-   - Import `COLLIDER_<Name>` markers as sensor AABB object colliders with deterministic validation.
-4. **Phase 12D — Object Collider Lua Hooks and Commands**
-   - Invoke `on_object_collider_enter/stay/exit` hooks and validate/apply
-     `object_collider.set_enabled` script output events by collider id.
-5. **Phase 12E — Scripted Object Collider Smoke and Documentation**
-   - Validate the authored glTF -> runtime world -> authoritative movement -> Lua hook -> native
-     command path without requiring display, GPU, renderer, network, or third-party physics.
+Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
+and retired importer removal are complete historical implementation steps. Their completion notes
+live in `docs/ImplementationStatus.md` and archived plans rather than defining the active scope here.
 
 Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
-client-side scripting, renderer/audio scripting bindings, full PBR, morph targets, glTF-authored
-cameras, or glTF-authored lights unless a concrete requirement appears.
+client-side scripting, renderer/audio scripting bindings, full PBR, Source/VBSP, moving brush
+simulation, or model/animation systems unless a concrete requirement appears.
 
 ---
 
@@ -199,7 +153,7 @@ cameras, or glTF-authored lights unless a concrete requirement appears.
 - Select OpenGL or Vulkan at runtime through the graphics abstraction.
 - Receive world snapshots or render commands from the server.
 - Interpolate presentation state when appropriate.
-- Render static level geometry, skinned/static glTF scenes, billboard sprites, and UI.
+- Render static BSP level geometry, billboard sprites, and UI.
 - Capture input and forward it to the server.
 - Play local presentation audio based on server-approved events or presentation state.
 
@@ -307,8 +261,7 @@ struct LevelCollisionAsset {
 } // namespace stellar::assets
 ```
 
-This model may be represented as `std::optional<LevelCollisionAsset>` on `SceneAsset` or as an
-always-present `LevelCollisionAsset` where an empty mesh list means no collision.
+This model is represented on source-neutral `LevelAsset` data. An empty mesh list means no collision.
 
 Imported static collision remains immutable asset data. Runtime gameplay that needs to open doors,
 gates, traps, or one-way blockers uses a server-owned collision-state overlay keyed by authored
@@ -341,114 +294,74 @@ engine integration in this collision-state path.
 collision/world metadata work is usually `@carmack`, coordinated by `@director` when work crosses
 graphics/import/gameplay boundaries.
 
-### 6.1 glTF Support Status
+### 6.1 BSP Support Status
 
-Implemented on the current branch:
+BSP maps are the canonical playable level format for the active branch. The migration introduces a
+source-neutral `LevelAsset` contract and a mandatory importer for the classic Quake/GoldSrc BSP
+family.
 
-- `.gltf` and `.glb` importer coverage through generated fixtures.
-- Static glTF mesh import for triangle primitives.
-- Bounds, tangents, UV0/UV1, vertex colors, textures, samplers, and materials.
-- Runtime scene loading through the client asset path.
-- Base color, normal, metallic-roughness, occlusion, emissive, alpha mask/blend, double-sided
-  material state, UV routing, vertex color modulation, and conservative tangent generation.
-- `KHR_texture_transform` for supported material texture slots.
-- `KHR_materials_unlit`.
-- Skin and animation asset import.
-- Runtime animation evaluation and scene pose generation.
-- GPU skinning in both OpenGL and Vulkan.
-- Shared runtime skin palette cap of 256 joints per draw.
+Initial BSP support targets:
 
-The current renderer targets lightweight material parity. It does not claim full glTF
-metallic-roughness PBR compliance.
+- BSP29 and BSP30-style headers, lump tables, geometry, texture names, entities, visibility, and
+  lighting data where available.
+- Static world geometry represented as backend-neutral mesh primitives.
+- Static collision represented as named triangle collision meshes and optional BSP hull data.
+- Entity key/value metadata for player spawns, generic spawns, triggers, sprite markers,
+  object-collider sensors, and script bindings.
+- Display-free importer, runtime, server, scripting, and graphics submission tests.
 
-### 6.2 Required and Optional glTF Extensions
+### 6.2 BSP Entity and Metadata Conventions
 
-Supported required extensions currently accepted:
+BSP entity key/value data is preserved in order and mapped to source-neutral world metadata.
+The current authoring guide and key reference live in `docs/BspAuthoring.md`.
 
-- `KHR_texture_transform`
-- `KHR_materials_unlit`
+Initial mappings:
 
-Policy:
+- `info_player_start` creates a player spawn marker.
+- `info_player_deathmatch` may create a player or entity spawn marker.
+- `info_stellar_spawn` creates a generic entity spawn marker.
+- `trigger_multiple`, `trigger_once`, and `trigger_stellar` create trigger markers.
+- `env_sprite`, `stellar_sprite`, and entities with `stellar.sprite` create sprite markers.
+- `stellar_object_collider` and entities with `stellar.collider=object` create sensor-style object
+  collider markers.
+- Brush entities such as `func_wall`, `func_door`, and `func_button` may contribute named static
+  collision meshes, while moving brush simulation remains deferred.
 
-- Unknown or unsupported `extensionsRequired` entries should fail clearly and include the extension
-  name in the error.
-- Optional unsupported data should degrade predictably without creating runtime state that implies
-  support.
-- New required-extension support should only be accepted after importer support and both render
-  backends can represent and render the feature consistently.
-- Static collision extraction is an engine node-convention/import policy, not a glTF extension.
+Script bindings use BSP entity keys such as `stellar.script`, `_stellar_script`, `stellar.table`, and
+`_stellar_table`. Import preserves bindings as metadata only; the authoritative scripting layer loads
+and invokes them later. For object colliders, native runtime collider ids are assigned
+deterministically from metadata marker order and are used for validated commands rather than
+name-based mutation.
 
-### 6.3 Current glTF Deferrals
+Brush-backed trigger/object-collider markers derive bounds from `model="*N"`; point-authored
+volumes use `origin` plus `stellar.extents`. Sprite script bindings are unsupported and diagnosed.
+
+### 6.3 BSP Deferrals
 
 Intentionally deferred unless a concrete requirement appears:
 
-- Full metallic-roughness PBR and full glTF viewer-style visual fidelity.
-- Morph target deformation and animation `weights` channels.
-- glTF-authored cameras and lights.
-- Broad extension coverage beyond the supported material extensions listed above.
-- Deterministic GPU readback validation for rendered pixel output.
-- Full physics engine integration.
+- Source/VBSP support.
+- Full external WAD/material library tooling beyond minimal fallback material behavior.
+- Moving brush simulation.
 - Dynamic rigid bodies.
 - Navigation mesh/pathfinding.
-- Solid or moving object-collider blockers; current `COLLIDER_<Name>` markers are sensor volumes only.
-- ECS/server spawning directly from glTF metadata.
-
-### 6.4 glTF Collision Node Conventions
-
-Initial Phase 6A collision conventions:
-
-- Node names starting with `COL_` are collision-only.
-- Node names starting with `Collision_` are collision-only.
-- A node named exactly `Collision` marks descendant mesh nodes as collision-only.
-- Node names starting with `COLLIDER_` are authored metadata sensors, not static triangle
-  collision meshes.
-
-Collision-only means triangles are extracted into backend-neutral collision data. Renderer behavior
-should not be changed by Phase 6A unless the existing import/render path already supports doing so
-without broad renderer churn.
-
-### 6.5 World Metadata Node Conventions
-
-Initial Phase 6D metadata conventions:
-
-- `SPAWN_Player` creates a player spawn marker.
-- `SPAWN_<Archetype>` creates a generic entity spawn marker.
-- `TRIGGER_<Name>` creates a trigger marker.
-- `SPRITE_<Name>` creates a sprite placement marker.
-- `PORTAL_<Name>` may be parsed if trivial, but runtime behavior remains deferred.
-- `COLLIDER_<Name>` creates a sensor-style object collider metadata marker for gameplay
-  overlaps; it is not a solid blocker and does not create static triangle collision.
-
-Transform interpretation:
-
-- Node world translation is marker position.
-- Node world rotation is marker orientation if available.
-- Node scale may be used for trigger volume extents.
-- For `COLLIDER_<Name>`, world translation is the AABB center, absolute world scale is the
-  AABB half extents, and rotation is ignored by the initial authored object-collider path.
-
-Optional `extras` support may preserve raw JSON text if available through the importer without adding
-a new parser solely for this phase.
-
-Script bindings on `TRIGGER_<Name>` and `COLLIDER_<Name>` markers may use
-`extras.stellar.script` and `extras.stellar.table`. Import preserves the binding as metadata only;
-the authoritative scripting layer loads and invokes it later. For object colliders, native runtime
-collider ids are assigned deterministically from metadata marker order and are used for validated
-commands rather than name-based mutation.
+- Full PBR.
+- 3D model/skinning/animation systems.
+- Client-side gameplay scripting.
 
 ---
 
 ## 7. Graphics Subsystem
 
 **Primary ownership:** `@miyamoto`, coordinated by `@director` for cross-subsystem changes.  
-**Responsibility:** graphics abstraction, OpenGL/Vulkan backends, render scene upload, shader paths,
-materials, cameras, glTF rendering, billboard sprite rendering, and graphics tests.
+**Responsibility:** graphics abstraction, OpenGL/Vulkan backends, level geometry upload, shader paths,
+materials, cameras, BSP level rendering, billboard sprite rendering, and graphics tests.
 
 ### 7.1 Graphics Abstraction
 
 Graphics backends are hidden behind a shared interface. OpenGL and Vulkan must remain
-runtime-selectable and should receive the same backend-neutral scene, material, texture, skinning,
-and sprite data.
+runtime-selectable and should receive the same backend-neutral level geometry, material, texture, and
+sprite data.
 
 Representative direction:
 
@@ -465,7 +378,7 @@ public:
     virtual void begin_frame() noexcept = 0;
     virtual void end_frame() noexcept = 0;
 
-    // Mesh, texture, material, scene, and future billboard APIs remain backend-neutral.
+    // Mesh, texture, material, level, and billboard APIs remain backend-neutral.
 };
 
 } // namespace stellar::graphics
@@ -479,7 +392,7 @@ draw commands should log, skip, or return an error from fallible setup/upload pa
 Current branch status:
 
 - OpenGL and Vulkan are runtime-selectable through the shared abstraction.
-- OpenGL is render-capable for the current lightweight glTF path.
+- OpenGL is render-capable for the current lightweight level path.
 - Vulkan is not an upload-only or no-op backend. It initializes, creates swapchain resources,
   records draw commands, submits frames, presents, handles resize/recreate paths, and has opt-in
   context smoke coverage.
@@ -487,24 +400,21 @@ Current branch status:
 - Default tests remain display-free.
 - GPU/display-dependent OpenGL and Vulkan context tests remain opt-in.
 
-### 7.3 Lightweight Material Parity
+### 7.3 Lightweight BSP Material Parity
 
-The current target is OpenGL/Vulkan parity for a lightweight material model, including:
+The current target is OpenGL/Vulkan parity for lightweight BSP surface/material rendering, including:
 
 - Base color factor and texture.
 - Vertex color modulation.
 - Normal maps when tangents are available.
-- Metallic-roughness texture and scalar factors as lightweight shader inputs.
-- Occlusion texture and strength as lightweight shader inputs.
 - Emissive texture and factor.
 - Alpha opaque, mask, and blend behavior.
 - Double-sided material/culling behavior.
-- `KHR_texture_transform` on supported texture slots.
-- `KHR_materials_unlit`.
-- Static and skinned mesh rendering.
-- Shared skin palette behavior with a conservative runtime cap of 256 joints per draw.
+- BSP texture/material name preservation.
+- Placeholder/default materials when texture decode or external material lookup is incomplete.
+- Static level mesh rendering.
 
-Do not describe this as full glTF PBR. Full PBR requires future decisions around image-based
+Do not describe this as full PBR. Full PBR requires future decisions around image-based
 lighting, environment maps, tone mapping, color management, physically based BRDF parity, and
 deterministic validation strategy.
 
@@ -524,8 +434,8 @@ Preferred behavior:
 - Display-free tests validate draw data, sorting, alpha classification, and preservation of size,
   color, and texture handles.
 
-Sprite atlas packing, sprite sheet animation, particles, ECS integration, and glTF-authored sprite
-spawn behavior are not part of Phase 6C unless explicitly added by a later plan.
+Sprite atlas packing, sprite sheet animation, particles, and ECS integration are deferred unless
+explicitly added by a later plan.
 
 ### 7.5 Camera System
 
@@ -537,8 +447,8 @@ Current long-term camera goals:
 - Camera basis export for billboard generation.
 - Bounds/framing utilities for rendering tests and tools.
 
-glTF-authored cameras are currently deferred. Runtime camera selection should remain engine-owned
-until a future plan explicitly adds imported camera support.
+BSP-authored camera behavior is not part of the active migration. Runtime camera selection should
+remain engine-owned until a future plan explicitly adds imported camera support.
 
 ---
 
@@ -805,7 +715,6 @@ dependencies.
 | miniaudio | Audio | Client-side playback and spatial audio |
 | Vulkan SDK | Vulkan backend | Optional runtime path and opt-in context tests |
 | OpenGL loader | OpenGL backend | Use the loader already selected by the project |
-| cgltf | glTF import | Compile only when glTF support is enabled |
 | Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` |
 | stb_image | Image decode | Used by importer image paths |
 | Test framework | Unit/integration tests | Keep default tests display-free |
@@ -818,7 +727,7 @@ Representative targets:
 - `stellar-client`
 - `stellar-server`
 - Shared engine/static libraries as organized by the current CMake layout.
-- `stellar_import_gltf` when `STELLAR_ENABLE_GLTF=ON`.
+- `stellar_import_bsp` in the default build.
 - `stellar_scripting` in the default build.
 - Display-free unit/regression tests.
 - Opt-in OpenGL/Vulkan context tests behind explicit CMake flags.
@@ -833,22 +742,21 @@ cmake --build build -j$(nproc)
 ctest --test-dir build --output-on-failure
 ```
 
-glTF-focused validation:
+BSP-focused validation:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
-ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
 ```
 
 Lua scripting and scripted playable-world validation:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
-  -DSTELLAR_ENABLE_GLTF=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 ctest --test-dir build \
-  -R '^(scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' \
+  -R '^(bsp_scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' \
   --output-on-failure
 ```
 
@@ -857,7 +765,6 @@ Opt-in Vulkan context validation when a Vulkan-capable environment is available:
 ```bash
 cmake -S . -B build-vulkan-tests \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DSTELLAR_ENABLE_GLTF=ON \
   -DSTELLAR_ENABLE_VULKAN_CONTEXT_TESTS=ON
 cmake --build build-vulkan-tests --target stellar_vulkan_context_smoke_test -j$(nproc)
 ctest --test-dir build-vulkan-tests -R '^vulkan_context_smoke$' --output-on-failure
@@ -887,7 +794,7 @@ Project-Stellar/
 │   ├── Phase6A-LevelCollisionExtraction.md
 │   ├── Phase6B-CollisionQueriesAndMovement.md
 │   ├── Phase6C-BillboardSpriteRendering.md
-│   └── Phase6D-WorldMetadataFromGltf.md
+│   └── Phase6D-WorldMetadataFromPreBspImporter.md
 ├── docs/
 │   ├── Design.md
 │   └── ImplementationStatus.md
@@ -902,7 +809,6 @@ Project-Stellar/
 │       ├── network/
 │       ├── physics/          # planned/Phase 6B direction if not already present
 │       ├── platform/
-│       ├── scene/
 │       └── scripting/        # core server-authoritative Lua wrapper APIs
 ├── src/
 │   ├── audio/
@@ -913,17 +819,16 @@ Project-Stellar/
 │   │   ├── opengl/
 │   │   └── vulkan/
 │   ├── import/
-│   │   └── gltf/
+│   │   └── bsp/
 │   ├── network/
 │   ├── physics/              # planned/Phase 6B direction if not already present
 │   ├── platform/
-│   ├── scene/
 │   ├── server/
 │   └── scripting/            # Lua runtime, registry, trigger hooks, scripted session
 ├── tests/
 │   ├── graphics/
 │   ├── import/
-│   │   └── gltf/
+│   │   └── bsp/
 │   ├── physics/              # planned/Phase 6B tests if not already present
 │   ├── scripting/
 │   ├── integration/
@@ -951,7 +856,8 @@ integration review. Cross-subsystem work should be coordinated by `@director`.
 
 Examples of cross-subsystem work:
 
-- glTF collision extraction, because it touches importer/scene assets and engine collision data.
+- BSP level collision/entity metadata extraction, because it touches importer, renderer-facing level
+  assets, and engine collision data.
 - Billboard sprites, because rendering must align with gameplay/entity data contracts.
 - World metadata extraction, because importer conventions must feed gameplay/world systems.
 - Client-server movement, because gameplay rules, ECS storage, networking, and authority overlap.
@@ -961,7 +867,7 @@ Examples of cross-subsystem work:
 | Agent | Primary Domain |
 | --- | --- |
 | `@carmack` | ECS, core systems, networking, server authority, build/dependency plumbing, static collision/query infrastructure |
-| `@miyamoto` | Graphics abstraction, OpenGL/Vulkan, glTF rendering, sprites, shaders, camera |
+| `@miyamoto` | Graphics abstraction, OpenGL/Vulkan, BSP level rendering, sprites, shaders, camera |
 | `@suzuki` | Audio interfaces, miniaudio, playback, spatial audio, no-op fallback paths |
 | `@kojima` | Entity archetypes, movement rules, collision responses, gameplay mechanics, tuning |
 | `@molyneux` | Isolated experiments, prototypes, feasibility studies |
@@ -1011,7 +917,7 @@ to `@director`.
 
 - Fallible initialization, import, upload, and setup paths should return `std::expected`.
 - Error messages should include enough operation-specific context for debugging.
-- Unknown required glTF extensions should fail with the extension name in the error.
+- Unknown or unsupported BSP versions should fail with the version number in the error.
 - Frame paths should recover or safely no-op on recoverable backend errors.
 - Do not throw exceptions as normal control flow.
 
@@ -1100,10 +1006,9 @@ Representative coverage:
 - ECS entity lifecycle and component storage.
 - Serialization and packet handling.
 - Math utilities.
-- glTF importer regression tests.
+- BSP importer regression tests.
 - Asset model validation.
-- Animation runtime and pose evaluation.
-- Render scene upload/inspection with recording or mock graphics devices.
+- Level render upload/inspection with recording or mock graphics devices.
 - Collision extraction tests.
 - Collision query and movement tests.
 - Backend selection behavior.
@@ -1112,15 +1017,12 @@ Representative coverage:
 
 Importer tests should cover:
 
-- `.gltf` and `.glb`.
-- External and embedded buffers/images.
-- Data URI buffers/images.
-- Materials, samplers, textures, texture transforms, and unlit materials.
-- Bounds, tangents, UV routing, vertex colors.
-- Skin and animation asset import.
-- Unsupported extension behavior.
-- Phase 6 collision node conventions.
-- Phase 6 world metadata conventions.
+- BSP29/BSP30 version handling.
+- Header and lump bounds validation.
+- Geometry, face triangulation, texture/material name preservation, and bounds.
+- Static collision mesh extraction.
+- Entity key/value parsing and metadata mapping.
+- Trigger, object-collider, sprite, spawn, and script binding conventions.
 
 ### 16.4 Graphics Tests
 
@@ -1130,22 +1032,21 @@ Default graphics tests should use recording/mock devices to inspect backend-neut
 - Alpha mask/blend grouping.
 - Double-sided state.
 - Texture/material binding data.
-- Skin pose forwarding.
-- Large scene submission.
-- Future billboard sprite sorting and draw data.
+- Surface material preservation.
+- Large level submission.
+- Billboard sprite sorting and draw data.
 
 OpenGL/Vulkan context tests remain opt-in and should be used for smoke coverage, not default CI.
 
 ### 16.5 Collision and Movement Tests
 
-Phase 6A display-free tests should cover:
+BSP collision display-free tests should cover:
 
-- Empty scenes.
-- `COL_*` nodes.
-- `Collision_*` nodes.
-- Parent `Collision` node descendant extraction.
-- Ordinary render mesh exclusion.
-- Node transform application.
+- Empty levels.
+- Worldspawn collision meshes.
+- Named brush/entity collision meshes.
+- Duplicate collision mesh names.
+- BSP face triangle extraction.
 - Collision bounds.
 - Triangle normals.
 
@@ -1169,7 +1070,7 @@ Scripting tests must remain display-free and deterministic by default. Coverage 
 - Trigger script callbacks for enter/stay/exit events using plain authoritative event data.
 - `ScriptedWorldSession` loading, missing-script diagnostics, runtime script errors, latest snapshot
   access without callback replay, and deterministic repeatability.
-- Scripted playable-world smoke coverage that imports a generated glTF fixture, validates collision
+- Scripted playable-world smoke coverage that imports a generated BSP fixture, validates collision
   and metadata, confirms trigger script binding, and verifies script output timing without display,
   GPU, window, or graphics context requirements.
 
@@ -1194,10 +1095,9 @@ regression tests before broader benchmark infrastructure is introduced.
 
 ### 17.1 Active Near-Term Roadmap
 
-1. Preserve Phase 11's server-authoritative runtime collision state while integrating future
-   gameplay features.
-2. Expand scripted outputs only through validated native server/gameplay APIs.
-3. Add entity/object scripting after ECS/runtime entity ownership is concrete.
+1. Complete the BSP canonical level format migration and remove obsolete active importer paths.
+2. Preserve server-authoritative runtime collision state while integrating BSP gameplay metadata.
+3. Expand scripted outputs only through validated native server/gameplay APIs.
 4. Keep client-side presentation scripting, dynamic rigid bodies, and third-party physics deferred
    unless explicitly scoped.
 
@@ -1205,14 +1105,13 @@ regression tests before broader benchmark infrastructure is introduced.
 
 Recent completed work includes:
 
-- glTF importer decomposition into focused translation units.
 - Vulkan skinned draw support.
 - Vulkan resize/recreate/resource-lifetime hardening.
 - Vulkan parity smoke matrix and Phase 5E completion.
 - `KHR_texture_transform`.
 - `KHR_materials_unlit`.
 - Larger runtime skin palette cap of 256 joints per draw.
-- Explicit deferral of full PBR, morph targets, glTF cameras, and glTF lights.
+- Explicit deferral of full PBR, model/animation systems, imported cameras, and imported lights.
 - Phase 6 playable world foundations: static collision extraction, collision queries/movement,
   billboard sprite data, and world metadata extraction.
 - Phase 9 runtime playability seam: metadata validation, authoritative `WorldSession`, local
@@ -1231,10 +1130,8 @@ Deferred unless future requirements justify it:
 - Image-based lighting and environment maps.
 - Tone mapping and color-management policy.
 - Deterministic GPU readback validation.
-- Morph target deformation.
-- glTF animation `weights` channels.
-- glTF-authored cameras and lights.
-- Broad glTF extension support.
+- Model/skinning/animation systems.
+- Imported cameras and lights.
 - DirectX, Metal, or WebAssembly backends.
 
 ### 17.4 Deferred Gameplay and World Work
@@ -1245,7 +1142,7 @@ Deferred beyond active Phase 6 slices unless explicitly planned:
 - Dynamic collision objects.
 - Dynamic rigid body collision objects.
 - Character capsule/stair-step controller polish beyond current authoritative movement.
-- Runtime ECS/server spawning directly from glTF metadata.
+- Runtime ECS/server spawning directly from imported metadata.
 - Navigation mesh/pathfinding.
 - Editor tooling.
 - Client-side scripting or presentation scripting.
@@ -1271,9 +1168,10 @@ Deferred unless scoped:
 | 2026-04-23 | 0.1.1 | TBD | Replace SDL2 with SFML for windowing and input |
 | 2026-04-23 | 0.1.2 | TBD | Add miniaudio for 3D spatial audio, update build to support C and C++ |
 | 2026-04-24 | 0.1.3 | TBD | Replace SFML with SDL2 for windowing and input |
-| 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, current glTF support, and explicit deferred work |
+| 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, then-current importer support, and explicit deferred work |
 | 2026-04-30 | 0.1.5 | Kilo | Align design with `lua-scripting` branch status, Phase 10 server-authoritative Lua scripting, `stellar_scripting`, scripted session smoke coverage, dependency/build/test updates, and deferred client/entity scripting work |
 | 2026-04-30 | 0.1.6 | Kilo | Align design with Phase 11 scripted collision behavior: runtime collision state, filtered authoritative movement, native script collision commands, object collider registry foundation, and scripted collision smoke coverage |
+| 2026-05-01 | 0.2.0 | Kilo | Lock active design direction to BSP maps as the canonical playable level format and begin migration from scene-shaped assets to `LevelAsset` |
 
 ---
 
@@ -1292,7 +1190,7 @@ Deferred unless scoped:
 - **Interpolation:** Presentation-side smoothing between received snapshots.
 - **Client prediction:** Optional future local simulation that must reconcile with server authority.
 - **Lightweight material parity:** OpenGL/Vulkan rendering of the engine's supported material subset
-  without claiming full glTF PBR compliance.
+  without claiming full PBR compliance.
 - **Server-authoritative scripting:** Gameplay scripts executed on the authoritative runtime side,
   producing validated events or requests instead of directly mutating presentation or native state.
 
@@ -1302,5 +1200,4 @@ Deferred unless scoped:
 - EnTT documentation and ECS design references.
 - Vulkan Tutorial and Vulkan specification materials.
 - OpenGL 4.5 specification materials.
-- Khronos glTF 2.0 specification and extension registry.
 - miniaudio documentation.

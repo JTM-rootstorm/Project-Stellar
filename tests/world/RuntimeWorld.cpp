@@ -23,10 +23,10 @@ stellar::assets::WorldMarker make_marker(stellar::assets::WorldMarkerType type,
 }
 
 void verify_empty_scene_builds_empty_runtime_world() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
 
-    assert(world.scene_asset == &scene);
+    assert(world.level_asset == &scene);
     assert(!world.collision_world.has_value());
     assert(!world.diagnostics.has_collision);
     assert(world.diagnostics.collision_mesh_count == 0);
@@ -40,7 +40,7 @@ void verify_empty_scene_builds_empty_runtime_world() {
 }
 
 void verify_scene_without_collision_leaves_collision_world_empty() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.push_back(
         make_marker(stellar::assets::WorldMarkerType::kPlayerSpawn, "Player"));
 
@@ -53,7 +53,7 @@ void verify_scene_without_collision_leaves_collision_world_empty() {
 }
 
 void verify_scene_with_collision_creates_collision_world() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     stellar::assets::CollisionMesh mesh;
     mesh.name = "COL_floor";
     mesh.triangles = {make_triangle(), make_triangle()};
@@ -71,7 +71,7 @@ void verify_scene_with_collision_creates_collision_world() {
 }
 
 void verify_empty_collision_asset_does_not_create_collision_world() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.level_collision = stellar::assets::LevelCollisionAsset{};
     scene.world_metadata.markers.push_back(
         make_marker(stellar::assets::WorldMarkerType::kPlayerSpawn, "Player"));
@@ -86,7 +86,7 @@ void verify_empty_collision_asset_does_not_create_collision_world() {
 }
 
 void verify_marker_helpers_and_diagnostics() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers = {
         make_marker(stellar::assets::WorldMarkerType::kPlayerSpawn, "Player"),
         make_marker(stellar::assets::WorldMarkerType::kEntitySpawn, "EnemyA", "Imp"),
@@ -135,7 +135,7 @@ void verify_marker_helpers_and_diagnostics() {
 }
 
 void verify_metadata_is_copied_for_stable_lookup() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.push_back(
         make_marker(stellar::assets::WorldMarkerType::kPlayerSpawn, "OriginalPlayer"));
 

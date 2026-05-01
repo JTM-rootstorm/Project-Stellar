@@ -54,17 +54,17 @@ stellar::assets::WorldMarker trigger_marker(std::string name, Vec3 position, Vec
     return marker;
 }
 
-stellar::assets::SceneAsset scene_with_markers(
+stellar::assets::LevelAsset scene_with_markers(
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.assign(markers.begin(), markers.end());
     return scene;
 }
 
-stellar::assets::SceneAsset scene_with_collision_and_markers(
+stellar::assets::LevelAsset scene_with_collision_and_markers(
     std::initializer_list<stellar::assets::CollisionTriangle> triangles,
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene = scene_with_markers(markers);
+    stellar::assets::LevelAsset scene = scene_with_markers(markers);
     stellar::assets::CollisionMesh mesh;
     mesh.name = "collision";
     mesh.triangles.assign(triangles.begin(), triangles.end());
@@ -72,11 +72,11 @@ stellar::assets::SceneAsset scene_with_collision_and_markers(
     return scene;
 }
 
-stellar::assets::SceneAsset scene_with_named_collision_meshes(
+stellar::assets::LevelAsset scene_with_named_collision_meshes(
     std::string wall_name,
     float wall_x,
     Vec3 spawn_position) {
-    stellar::assets::SceneAsset scene = scene_with_markers({player_spawn(spawn_position)});
+    stellar::assets::LevelAsset scene = scene_with_markers({player_spawn(spawn_position)});
     stellar::assets::CollisionMesh wall;
     wall.name = std::move(wall_name);
     wall.triangles = {wall_x_triangle_a(wall_x), wall_x_triangle_b(wall_x)};
@@ -172,7 +172,7 @@ void session_initial_snapshot_uses_player_spawn() {
 }
 
 void session_defaults_to_origin_without_player_spawn() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     const stellar::server::WorldSession session(world, test_session_config());
 

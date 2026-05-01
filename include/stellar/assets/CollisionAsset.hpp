@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,7 @@ struct CollisionTriangle {
  * @brief Named set of static collision triangles and world-space bounds.
  */
 struct CollisionMesh {
-    /** @brief Collision mesh name from the source node or mesh. */
+    /** @brief Collision mesh name from the source level model, entity, or mesh. */
     std::string name;
 
     /** @brief World-space collision triangles. */
@@ -41,11 +42,45 @@ struct CollisionMesh {
 };
 
 /**
- * @brief Backend-neutral static level collision data extracted from a scene.
+ * @brief Plane equation used by optional source collision hulls.
+ */
+struct CollisionPlane {
+    /** @brief Plane normal. */
+    std::array<float, 3> normal{};
+
+    /** @brief Plane distance from the origin. */
+    float distance = 0.0F;
+};
+
+/**
+ * @brief Optional convex collision hull preserved from a source level model or entity.
+ */
+struct CollisionHull {
+    /** @brief Hull name from the source level model or entity. */
+    std::string name;
+
+    /** @brief Planes defining the convex hull. */
+    std::vector<CollisionPlane> planes;
+
+    /** @brief World-space axis-aligned bounds minimum. */
+    std::array<float, 3> bounds_min{};
+
+    /** @brief World-space axis-aligned bounds maximum. */
+    std::array<float, 3> bounds_max{};
+
+    /** @brief Source format contents flags preserved for diagnostics and later import use. */
+    std::uint32_t source_contents = 0;
+};
+
+/**
+ * @brief Backend-neutral static level collision data for a playable level.
  */
 struct LevelCollisionAsset {
-    /** @brief Collision meshes extracted from collision-marked scene nodes. */
+    /** @brief Source-neutral static triangle collision meshes. */
     std::vector<CollisionMesh> meshes;
+
+    /** @brief Optional source collision hulls for later query paths. */
+    std::vector<CollisionHull> hulls;
 
     /** @brief Aggregate world-space bounds minimum for all collision meshes. */
     std::array<float, 3> bounds_min{};

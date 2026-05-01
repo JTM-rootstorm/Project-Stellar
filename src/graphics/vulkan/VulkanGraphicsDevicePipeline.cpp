@@ -681,8 +681,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_pipel
         .offset = 0,
         .size = sizeof(VulkanDrawPushConstants),
     };
-    const VkDescriptorSetLayout set_layouts[] = {material_descriptor_set_layout_,
-                                                 skin_draw_descriptor_set_layout_};
+    const VkDescriptorSetLayout set_layouts[] = {material_descriptor_set_layout_};
     const VkPipelineLayoutCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = std::size(set_layouts),
@@ -767,18 +766,6 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_graph
             .binding = 0,
             .format = VK_FORMAT_R32G32B32A32_SFLOAT,
             .offset = offsetof(stellar::assets::StaticVertex, color),
-        },
-        VkVertexInputAttributeDescription{
-            .location = 6,
-            .binding = 0,
-            .format = VK_FORMAT_R16G16B16A16_UINT,
-            .offset = offsetof(stellar::assets::StaticVertex, joints0),
-        },
-        VkVertexInputAttributeDescription{
-            .location = 7,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-            .offset = offsetof(stellar::assets::StaticVertex, weights0),
         },
     };
     const VkPipelineVertexInputStateCreateInfo vertex_input_info{

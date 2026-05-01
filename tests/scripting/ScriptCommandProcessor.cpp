@@ -35,9 +35,9 @@ stellar::assets::WorldMarker player_spawn(Vec3 position) {
     return marker;
 }
 
-stellar::assets::SceneAsset scene_with_meshes(
+stellar::assets::LevelAsset scene_with_meshes(
     std::initializer_list<stellar::assets::CollisionMesh> meshes) {
-    stellar::assets::SceneAsset scene{};
+    stellar::assets::LevelAsset scene{};
     scene.world_metadata.markers = {player_spawn({0.0F, 0.0F, 0.0F})};
     scene.level_collision = stellar::assets::LevelCollisionAsset{};
     scene.level_collision->meshes.assign(meshes.begin(), meshes.end());
@@ -83,8 +83,8 @@ stellar::assets::WorldMarker object_collider_marker(std::string name) {
     return marker;
 }
 
-stellar::assets::SceneAsset scene_with_object_collider() {
-    stellar::assets::SceneAsset scene{};
+stellar::assets::LevelAsset scene_with_object_collider() {
+    stellar::assets::LevelAsset scene{};
     scene.world_metadata.markers = {player_spawn({0.0F, 0.0F, 0.0F}),
                                     object_collider_marker("Pickup")};
     return scene;

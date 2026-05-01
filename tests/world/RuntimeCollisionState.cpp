@@ -23,14 +23,14 @@ stellar::assets::CollisionMesh make_mesh(std::string_view name) {
 }
 
 stellar::world::RuntimeWorld make_world(std::initializer_list<stellar::assets::CollisionMesh> meshes,
-                                        stellar::assets::SceneAsset& scene) {
+                                        stellar::assets::LevelAsset& scene) {
     scene.level_collision = stellar::assets::LevelCollisionAsset{};
     scene.level_collision->meshes.assign(meshes.begin(), meshes.end());
     return stellar::world::build_runtime_world(scene);
 }
 
 void empty_world_has_empty_collision_state() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -43,7 +43,7 @@ void empty_world_has_empty_collision_state() {
 }
 
 void all_collision_meshes_enabled_by_default() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh("COL_floor"), make_mesh("COL_wall")}, scene);
     const auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -53,7 +53,7 @@ void all_collision_meshes_enabled_by_default() {
 }
 
 void set_mesh_enabled_disables_named_mesh() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh("COL_floor"), make_mesh("COL_wall")}, scene);
     auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -65,7 +65,7 @@ void set_mesh_enabled_disables_named_mesh() {
 }
 
 void set_mesh_enabled_enables_named_mesh() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh("COL_floor")}, scene);
     auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -78,7 +78,7 @@ void set_mesh_enabled_enables_named_mesh() {
 }
 
 void unknown_mesh_name_reports_deterministic_not_found() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh("COL_floor")}, scene);
     auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -93,7 +93,7 @@ void unknown_mesh_name_reports_deterministic_not_found() {
 }
 
 void duplicate_mesh_names_toggle_together() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world(
         {make_mesh("Door"), make_mesh("Floor"), make_mesh("Door")}, scene);
     auto state = stellar::world::RuntimeCollisionState::from_world(world);
@@ -111,7 +111,7 @@ void duplicate_mesh_names_toggle_together() {
 }
 
 void empty_mesh_names_warn_and_are_not_targetable() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh(""), make_mesh("Named")}, scene);
     auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -126,7 +126,7 @@ void empty_mesh_names_warn_and_are_not_targetable() {
 }
 
 void mesh_iteration_order_is_deterministic() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh("B"), make_mesh(""), make_mesh("A")}, scene);
     const auto state = stellar::world::RuntimeCollisionState::from_world(world);
 
@@ -144,7 +144,7 @@ void mesh_iteration_order_is_deterministic() {
 }
 
 void diagnostics_are_deterministic_for_empty_and_duplicate_names() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world(
         {make_mesh("Door"), make_mesh(""), make_mesh("Door"), make_mesh("Gate"),
          make_mesh("Gate")},
@@ -161,7 +161,7 @@ void diagnostics_are_deterministic_for_empty_and_duplicate_names() {
 }
 
 void runtime_world_lifetime_requirements_remain_unchanged() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     const auto world = make_world({make_mesh("Original")}, scene);
     const auto state = stellar::world::RuntimeCollisionState::from_world(world);
 

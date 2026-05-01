@@ -1,31 +1,40 @@
-# Stellar Engine — Current Branch Handoff
+# Stellar Engine - Current Branch Handoff
 
-Branch target: `collision-movement`
+Branch target: `bsp-integration`
 
 ## Current entry point
 
-Use `docs/ImplementationStatus.md` as the current branch-facing source of truth. This file is a short
-handoff pointer for the next implementation agent.
+Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
 
-## Post-cleanup state
+Active next scope:
 
-The earlier Phase 6A-D world-authoring work has first-pass implementations. Do not restart those
-plans as active work.
+- Gameplay loop expansion over BSP maps.
 
-The removable-complexity cleanup is complete and the detailed agent plan has been correctly archived
-at `Plans/Archived/ProjectStellar-RemovableComplexity-Cleanup-AgentPlan.md`. Treat that file as
-historical context, not the next active implementation plan.
+Archived completed plans:
 
-Current branch assumptions to preserve:
+- BSP hardening: `Plans/Archived/project_stellar_bsp_hardening_plan/`
+- BSP canonical migration: `Plans/Archived/project_stellar_bsp_canonical_plan/`
 
-- Lua scripting is mandatory server-authoritative infrastructure.
-- Gameplay behavior, event ordering, and server-authority boundaries should remain stable.
-- Shared geometry helpers, sensor overlap tracking, and Lua hook dispatch are now common
-  infrastructure and should receive direct regression coverage.
-- New implementation slices should be introduced by updating this handoff and
-  `docs/ImplementationStatus.md` with the next active scope.
+## Active scope
 
-## Validation posture
+BSP maps are the canonical playable level format. The next implementation scope is gameplay loop
+expansion over BSP maps, building on the existing BSP metadata, server-authoritative runtime world,
+client presentation, and sandboxed Lua command path.
 
-Prefer display-free tests by default. glTF scripted smokes remain gated by `STELLAR_ENABLE_GLTF`.
-OpenGL/Vulkan context tests remain opt-in.
+Focus areas:
+
+- ECS/entity spawn from BSP metadata.
+- Player presentation from authoritative snapshots.
+- Sprite, animation, and interaction loop.
+- Item pickup and scripted doors/gates using the existing Lua command path.
+
+## Invariants
+
+- BSP remains the canonical playable level format.
+- Server authority remains mandatory.
+- Lua scripting remains mandatory and sandboxed.
+- Runtime collision, movement, triggers, object colliders, and scripting remain backend-neutral.
+- Default tests remain display-free.
+- OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
+- Do not add Source/VBSP, dynamic rigid bodies, full PBR, client-side gameplay scripting, or retired
+  importer functionality unless explicitly requested.
