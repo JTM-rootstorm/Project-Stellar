@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.3 (BSP presentation/networking polish active)  
+**Version:** 0.2.4 (BSP presentation/networking polish complete)  
 **Last Updated:** 2026-05-01
 
 ---
@@ -77,7 +77,8 @@ suitable for game content.
 - **Audio:** miniaudio-backed audio when audio implementation is in scope, with explicit
   no-op fallback behavior where needed.
 - **Scripting:** mandatory vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
-- **Networking:** local loopback for single-player, extensible toward remote multiplayer.
+- **Networking:** local loopback and an in-memory transport bridge for single-player/local testing,
+  with remote socket transport deferred.
 
 ---
 
@@ -106,8 +107,9 @@ deferred.
 
 Current branch: `bsp-gameplay-loop`.
 
-Primary near-term goal: presentation and networking polish over the completed BSP gameplay loop while
-preserving server authority. This branch starts from updated `main` after `collision-movement` merges.
+Primary near-term status: BSP presentation/networking polish over the completed BSP gameplay loop is
+complete while preserving server authority. This branch starts from updated `main` after
+`collision-movement` merges.
 Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
 and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
 
@@ -115,11 +117,11 @@ Completed BSP hardening added actionable diagnostics, source-neutral PVS and lig
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
 deterministic headless validation.
 
-The BSP gameplay-loop branch has completed its selected Phases 0-8. Completion notes live in
-`docs/ImplementationStatus.md`, and the completed gameplay-loop plans are archived under
-`Plans/Archived/bsp_gameplay_loop/`. The current active follow-up plans are
-`Plans/BspPresentationNetworkingPolish-AgentPlan.md` and
-`Plans/ProjectStellar-BSP-PresentationNetworkingPolish-AgentPlan.md`.
+The BSP gameplay-loop branch has completed its selected Phases 0-8, and BSP presentation/networking
+polish PN-0 through PN-6 is also complete. Completion notes live in `docs/ImplementationStatus.md`.
+The completed gameplay-loop plans are archived under `Plans/Archived/bsp_gameplay_loop/`, and the
+completed presentation/networking polish plans are archived under
+`Plans/Archived/bsp_presentation_networking_polish/`.
 
 Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
 world unit equals 1 inch, Y is up, and BSP authored coordinates import without hidden scale
@@ -138,19 +140,21 @@ The live single-player client path can load a configured BSP map, keep the valid
 alive for `RuntimeWorld`, instantiate local loopback authoritative runtime state, advance movement from
 captured input, and render the level from the authoritative player presentation camera. The no-map
 debug fallback remains a presentation-only fallback.
-The current follow-up requires the live client to use the same server-authoritative scripted runtime as
-display-free tests when a loaded BSP map declares trigger or object-collider script bindings. Script
-sources are loaded for authoritative runtime execution only; no client-side gameplay scripting or
-renderer/audio script binding is permitted.
+The live client uses the same server-authoritative scripted runtime as display-free tests when a loaded
+BSP map declares trigger or object-collider script bindings. Script sources are loaded for
+authoritative runtime execution only; no client-side gameplay scripting or renderer/audio script
+binding is permitted.
 Pickup object-collider enters are collected through a native `gameplay.collect_pickup` command emitted
 by the authoritative object-collider script system, so pickup active/inactive state and collider
 disablement remain server-owned. Scripted doors/gates are static named collision meshes toggled by
 sandboxed Lua output events such as `collision.set_mesh_enabled`; accepted commands also update
 server gameplay metadata (`open`/`active`) for presentation snapshots.
-Follow-up presentation work may convert authoritative gameplay snapshots into client-side billboards,
-HUD data, or audio requests, but those systems remain disposable presentation caches and never mutate
-server gameplay truth. Snapshot, delta, and event contracts should remain deterministic, serializable,
-and server-authored so the local loopback path can evolve into remote transport later.
+Authoritative gameplay snapshots are converted into client-side billboards, HUD data, or audio
+requests, but those systems remain disposable presentation caches/routes and never mutate server
+gameplay truth. Snapshot, delta, and event contracts are deterministic, serializable, and
+server-authored. The implemented bridge is local/in-memory and exercises remote-ready contracts;
+remote socket transport, real multiplayer lifecycle, interpolation, prediction, and reconciliation
+remain deferred until explicitly scoped.
 
 Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
 and retired importer removal are complete historical implementation steps. Their completion notes
@@ -228,7 +232,7 @@ platform infrastructure, and static collision/query infrastructure.
 #### Client Application
 
 - Initialize platform, window, graphics backend, audio, input, and client asset paths.
-- Connect to local or remote server.
+- Connect to a local authoritative runtime or future remote server transport.
 - Receive and present server-owned state.
 - Submit graphics work through the shared abstraction.
 - Keep presentation behavior separate from server authority.
@@ -332,11 +336,11 @@ graphics/import/gameplay boundaries.
 
 ### 6.1 BSP Support Status
 
-BSP maps are the canonical playable level format for the active branch. The migration introduces a
+BSP maps are the canonical playable level format for the active branch. The migration introduced a
 source-neutral `LevelAsset` contract and a mandatory importer for the classic Quake/GoldSrc BSP
 family.
 
-Initial BSP support targets:
+Current BSP support covers:
 
 - BSP29 and BSP30-style headers, lump tables, geometry, texture names, entities, visibility, and
   lighting data where available.
@@ -363,9 +367,12 @@ Initial mappings:
 - Brush entities such as `func_wall`, `func_door`, and `func_button` may contribute named static
   collision meshes, while moving brush simulation remains deferred.
 
-Script bindings use BSP entity keys such as `stellar.script`, `_stellar_script`, `stellar.table`, and
-`_stellar_table`. Import preserves bindings as metadata only; the authoritative scripting layer loads
-and invokes them later. For object colliders, native runtime collider ids are assigned
+Script bindings use BSP entity keys such as `stellar.script`, importer-supported aliases such as
+`_stellar_script`, `stellar.table`, and `_stellar_table`. Dotted Stellar keys must reach the compiled
+BSP as dotted keys or importer-supported aliases; underscore FGD field names are editor-facing
+placeholders unless the editor/toolchain remaps them before export. Import preserves bindings as
+metadata only; the authoritative scripting layer loads and invokes them later. For object colliders,
+native runtime collider ids are assigned
 deterministically from metadata marker order and are used for validated commands rather than
 name-based mutation.
 
@@ -456,7 +463,7 @@ deterministic validation strategy.
 
 ### 7.4 Sprite and Billboard Rendering Direction
 
-Phase 6C adds support for 2D billboard sprites in 3D world space.
+The current renderer supports 2D billboard sprites in 3D world space through backend-neutral draw data.
 
 Preferred behavior:
 
@@ -499,10 +506,11 @@ and no-op fallback paths where appropriate.
 Audio should be implemented through an interface that keeps gameplay/server logic separate from
 presentation playback. The client owns playback; gameplay/server systems should produce validated
 events or state that the client can present.
-The current presentation polish includes a narrow `AudioEventRouter` that maps server-approved
-`GameplayEvent` records to one-shot sound ids and can target an explicit no-op sink for headless or
-missing-device paths. Missing local sound assets are presentation diagnostics only and do not affect
-authoritative gameplay.
+The current presentation polish includes a narrow `AudioEventRouter` that maps pickup/door events and
+optional script-error diagnostics from server-approved `GameplayEvent` records to one-shot sound ids.
+It targets an abstract request sink; production has `NoOpAudioRequestSink`, while fake sinks are
+test-only. Missing sound diagnostics are sink-contract/test-fake behavior and do not imply production
+miniaudio playback or local asset loading yet. Audio never affects authoritative gameplay.
 
 ### 8.2 miniaudio Target
 
@@ -719,10 +727,11 @@ Potential protocol split:
 - Reliable transport for connection setup, critical events, chat, or other ordered messages.
 
 Exact protocol choices remain implementation details until a networking plan scopes them.
-The active BSP presentation/networking polish plan scopes transport-ready snapshot, delta, and event
-contracts before real remote sockets. Local loopback should be able to exercise the same
-client-input/server-snapshot message contract planned for future remote play, while prediction and
-reconciliation remain deferred until explicitly scoped.
+The completed BSP presentation/networking polish work added remote-ready snapshot, delta, and event
+contracts before real remote sockets. The local in-memory transport bridge exercises the same
+client-input/server-snapshot message contract planned for future remote play, while remote socket
+transport, real multiplayer lifecycle, prediction, interpolation, and reconciliation remain deferred
+until explicitly scoped.
 
 ### 10.2 Message Categories
 
@@ -747,7 +756,7 @@ Long-term goals:
 - Client prediction only when explicitly scoped and reconciled.
 - Validation of all client input on the server.
 
-Current contract direction for this branch:
+Current contract behavior for this branch:
 
 - Client input commands are requests and are validated by the authoritative runtime.
 - Server-owned `WorldSnapshot` and `GameplayWorldSnapshot` data are the source for client
@@ -756,11 +765,11 @@ Current contract direction for this branch:
   gameplay authority.
 - Snapshot baselines, structural deltas, and event records should use deterministic serialization with
   bounded strings/vectors and finite numeric data.
-- The PN-3 transport contracts live in `stellar::network` as `NetworkPlayerCommand`,
+- The transport contracts live in `stellar::network` as `NetworkPlayerCommand`,
   `NetworkWorldSnapshot`, `NetworkGameplayEntity`, `GameplayEvent`, and `SnapshotDelta`. The current
   binary `SnapshotCodec` is local/transport-neutral and intentionally does not open remote sockets,
   add prediction, or add reconciliation.
-- The PN-4 bridge adds in-memory/local `ClientTransport` and `ServerTransport` endpoints plus a local
+- The local bridge adds in-memory/local `ClientTransport` and `ServerTransport` endpoints plus a local
   authoritative server adapter and client receiver over those contracts. Client commands remain
   requests; the bridge overwrites authority with the configured server player slot, emits snapshots,
   deltas, and server-approved events, and keeps real remote sockets deferred.
@@ -1167,16 +1176,18 @@ regression tests before broader benchmark infrastructure is introduced.
 
 ## 17. Roadmap and Deferred Work
 
-### 17.1 Active Near-Term Roadmap
+### 17.1 Recommended Next Options
 
-1. Integrate live scripted authoritative runtime execution for script-bound BSP maps.
-2. Present authoritative gameplay snapshots for sprites, pickups, and door/gate state without moving
-   gameplay authority into the renderer, audio, or HUD.
-3. Add transport-ready snapshot, delta, and server-approved event contracts before remote sockets.
-4. Add an in-memory/local transport bridge over the same input/snapshot contract planned for future
-   remote play.
-5. Keep client-side gameplay scripting, prediction/reconciliation, dynamic rigid bodies, moving brush
-   simulation, Source/VBSP, and third-party physics deferred unless explicitly scoped.
+The BSP presentation/networking polish roadmap is complete and archived. Recommended next scopes are:
+
+1. Remote socket transport and real multiplayer connection/session lifecycle over the existing
+   remote-ready contracts.
+2. Client interpolation, prediction, and reconciliation against authoritative snapshots.
+3. Sprite atlas packing and sprite sheet animation for richer billboard presentation.
+4. Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
+5. miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
+6. BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
+   Stellar BSP keys.
 
 ### 17.2 Completed Recent Direction
 
@@ -1201,6 +1212,10 @@ Recent completed work includes:
 - BSP canonical migration, BSP authoring/presentation hardening, and BSP gameplay-loop Phases 0-8:
   inch-scale BSP client runtime loading, authoritative player camera rendering, metadata-driven
   gameplay world snapshots, pickup collection, and scripted door/gate collision toggling.
+- BSP presentation/networking polish PN-0 through PN-6: live scripted authoritative local runtime for
+  script-bound BSP maps, non-authoritative gameplay snapshot presentation, deterministic
+  snapshot/delta/event contracts, local in-memory transport bridge, HUD/audio presentation routes, and
+  BSP authoring/toolchain documentation polish.
 
 ### 17.3 Deferred Rendering Work
 
@@ -1253,6 +1268,7 @@ Deferred unless scoped:
 | 2026-04-30 | 0.1.6 | Kilo | Align design with Phase 11 scripted collision behavior: runtime collision state, filtered authoritative movement, native script collision commands, object collider registry foundation, and scripted collision smoke coverage |
 | 2026-05-01 | 0.2.0 | Kilo | Lock active design direction to BSP maps as the canonical playable level format and begin migration from scene-shaped assets to `LevelAsset` |
 | 2026-05-01 | 0.2.1 | Kilo | Adopt inch-scale gameplay defaults for world units, player capsule, movement simulation, and debug camera presentation |
+| 2026-05-01 | 0.2.4 | Kilo | Mark BSP presentation/networking polish complete; document local transport bridge, remote deferrals, presentation-only HUD/audio routes, and FGD remapping constraints |
 
 ---
 

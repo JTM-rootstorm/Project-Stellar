@@ -1,3 +1,10 @@
+// Stellar BSP authoring helper.
+//
+// These underscore field names are editor-facing placeholders for editors that cannot expose dotted
+// keys directly. The compiled BSP must contain dotted Stellar keys such as `stellar.script` or
+// importer-supported aliases such as `_stellar_script`. Configure the editor/export toolchain to
+// remap these fields before BSP export; plain keys such as `stellar_script` are not importer aliases.
+
 @PointClass base(Targetname, Angles) = info_player_start : "Stellar player start"
 [
     targetname(string) : "Name"
@@ -8,16 +15,16 @@
 [
     archetype(string) : "Server-side archetype id"
     origin(string) : "Origin"
-    stellar_script(string) : "Authoritative Lua script id (serialized as stellar.script)"
-    stellar_table(string) : "Lua table name (serialized as stellar.table)"
+    stellar_script(string) : "Authoritative Lua script id (remap to stellar.script)"
+    stellar_table(string) : "Lua table name (remap to stellar.table)"
 ]
 
 @SolidClass base(Targetname) = trigger_stellar : "Stellar authoritative trigger volume"
 [
-    stellar_script(string) : "Authoritative Lua script id (serialized as stellar.script)"
-    stellar_table(string) : "Lua table name (serialized as stellar.table)"
-    stellar_extents(string) : "Point-trigger extents fallback, x y z (serialized as stellar.extents)"
-    stellar_once(choices) : "Fire once (serialized as stellar.once)" : 0 =
+    stellar_script(string) : "Authoritative Lua script id (remap to stellar.script)"
+    stellar_table(string) : "Lua table name (remap to stellar.table)"
+    stellar_extents(string) : "Point-trigger extents fallback, x y z (remap to stellar.extents)"
+    stellar_once(choices) : "Fire once (remap to stellar.once)" : 0 =
     [
         0 : "false"
         1 : "true"
@@ -27,10 +34,10 @@
 @PointClass base(Targetname) = stellar_sprite : "Stellar presentation sprite marker"
 [
     origin(string) : "Origin"
-    stellar_sprite(string) : "Sprite id (serialized as stellar.sprite)"
-    stellar_texture(string) : "Texture asset id (serialized as stellar.texture)"
-    stellar_size(string) : "Billboard size, width height (serialized as stellar.size)"
-    stellar_alpha(choices) : "Alpha mode (serialized as stellar.alpha)" : "blend" =
+    stellar_sprite(string) : "Sprite id (remap to stellar.sprite)"
+    stellar_texture(string) : "Texture asset id (remap to stellar.texture)"
+    stellar_size(string) : "Billboard size, width height (remap to stellar.size)"
+    stellar_alpha(choices) : "Alpha mode (remap to stellar.alpha)" : "blend" =
     [
         "opaque" : "opaque"
         "blend" : "blend"
@@ -41,14 +48,14 @@
 @SolidClass base(Targetname) = stellar_object_collider : "Stellar server-side object sensor"
 [
     archetype(string) : "Gameplay archetype such as pickup or item_health"
-    stellar_collider(choices) : "Collider type (serialized as stellar.collider)" : "object" =
+    stellar_collider(choices) : "Collider type (remap to stellar.collider)" : "object" =
     [
         "object" : "object"
     ]
-    stellar_script(string) : "Authoritative Lua script id (serialized as stellar.script)"
-    stellar_table(string) : "Lua table name (serialized as stellar.table)"
-    stellar_extents(string) : "Point-collider extents fallback, x y z (serialized as stellar.extents)"
-    stellar_enabled(choices) : "Initially enabled (serialized as stellar.enabled)" : 1 =
+    stellar_script(string) : "Authoritative Lua script id (remap to stellar.script)"
+    stellar_table(string) : "Lua table name (remap to stellar.table)"
+    stellar_extents(string) : "Point-collider extents fallback, x y z (remap to stellar.extents)"
+    stellar_enabled(choices) : "Initially enabled (remap to stellar.enabled)" : 1 =
     [
         0 : "false"
         1 : "true"
@@ -57,7 +64,7 @@
 
 @SolidClass base(Targetname) = func_wall : "Stellar static collision brush"
 [
-    stellar_collision(choices) : "Collision extraction behavior (serialized as stellar.collision)" :
+    stellar_collision(choices) : "Collision extraction behavior (remap to stellar.collision)" :
         "static" =
     [
         "static" : "static"

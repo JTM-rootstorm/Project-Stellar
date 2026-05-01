@@ -2,33 +2,31 @@
 
 Branch target: `bsp-gameplay-loop`
 
-## Active Follow-up Scope — BSP Presentation and Networking Polish
+## Completed Follow-up Scope — BSP Presentation and Networking Polish
 
-Status: active / in progress.
+Status: complete as of 2026-05-01.
 
 This run builds on the completed BSP gameplay-loop branch. The completed gameplay-loop plan package
-was archived under `Plans/Archived/bsp_gameplay_loop/`. Use
-`Plans/BspPresentationNetworkingPolish-AgentPlan.md` as the concise active handoff and
-`Plans/ProjectStellar-BSP-PresentationNetworkingPolish-AgentPlan.md` as the detailed implementation
-plan.
+was archived under `Plans/Archived/bsp_gameplay_loop/`. The completed presentation/networking polish
+plan package is archived under `Plans/Archived/bsp_presentation_networking_polish/`.
 
-Active phases:
+Completed phases:
 
 - Phase PN-0 — Plan archival and follow-up handoff: complete as of 2026-05-01.
 - Phase PN-1 — Live scripted authoritative runtime integration: complete as of 2026-05-01.
 - Phase PN-2 — Authoritative gameplay snapshot presentation: complete as of 2026-05-01.
 - Phase PN-3 — Snapshot/delta/event transport contracts: complete as of 2026-05-01.
-- Phase PN-4 — Local/remote transport bridge: complete as of 2026-05-01.
+- Phase PN-4 — Local transport bridge and remote-ready contracts: complete as of 2026-05-01.
 - Phase PN-5 — HUD/audio/toolchain polish: complete as of 2026-05-01.
-- Phase PN-6 — Final docs, validation, and handoff: pending.
+- Phase PN-6 — Final docs, validation, and handoff: complete as of 2026-05-01.
 
 Phase PN-0 completion notes:
 
 - Moved the completed BSP gameplay-loop handoff plans from root `Plans/` into
   `Plans/Archived/bsp_gameplay_loop/` without content changes.
-- Added new active follow-up handoff files for BSP presentation and networking polish.
-- Updated `Plans/NEXT.md`, `docs/Design.md`, and `docs/BspAuthoring.md` so the current active scope is
-  scripted live-runtime integration, authoritative gameplay snapshot presentation, transport-ready
+- Added new follow-up handoff files for BSP presentation and networking polish.
+- Updated `Plans/NEXT.md`, `docs/Design.md`, and `docs/BspAuthoring.md` so the then-current PN scope
+  was scripted live-runtime integration, authoritative gameplay snapshot presentation, remote-ready
   snapshot/delta/event contracts, local bridge work, and presentation polish over completed BSP
   gameplay-loop foundations.
 - No source or build behavior changes were introduced.
@@ -41,10 +39,10 @@ git diff -- Plans docs
 git grep -n 'BspGameplayLoop-AgentPlan\|ProjectStellar-BSP-GameplayLoop-AgentPlan' -- Plans docs ':!Plans/Archived/**'
 ```
 
-Result: documentation-only Phase PN-0 completed on 2026-05-01. The active grep is expected to return
-only historical/archive references in `docs/ImplementationStatus.md`, `Plans/NEXT.md`, and active PN
-plan text; the old gameplay-loop files are no longer root-level active handoffs. Validation was limited
-to repository inspection because no code changed.
+Result: documentation-only Phase PN-0 completed on 2026-05-01. The active grep was expected to return
+only historical/archive references in `docs/ImplementationStatus.md`, `Plans/NEXT.md`, and PN plan
+text; the old gameplay-loop files are no longer root-level active handoffs. Validation was limited to
+repository inspection because no code changed.
 
 Phase PN-1 completion notes:
 
@@ -106,9 +104,9 @@ default CTest passed 42/42 on 2026-05-01.
 
 Phase PN-3 completion notes:
 
-- Added `stellar_network` transport contracts for client input commands, deterministic authoritative
-  `NetworkWorldSnapshot` state, gameplay entities, server-approved `GameplayEvent` records, and
-  structural `SnapshotDelta` baselines/targets.
+- Added `stellar_network` remote-ready transport contracts for client input commands, deterministic
+  authoritative `NetworkWorldSnapshot` state, gameplay entities, server-approved `GameplayEvent`
+  records, and structural `SnapshotDelta` baselines/targets.
 - Server `WorldSnapshot` conversion preserves players and server-owned gameplay entities with stable
   id ordering; script command/error conversion emits pickup, door-state, script-command, and
   script-error presentation approvals without adding client authority.
@@ -133,8 +131,8 @@ default CTest passed 44/44 on 2026-05-01.
 
 Phase PN-4 completion notes:
 
-- Added a transport-neutral `ClientTransport`/`ServerTransport` seam with in-memory loopback endpoints
-  that preserve reliable FIFO packet order and carry opaque encoded message payloads.
+- Added a transport-neutral `ClientTransport`/`ServerTransport` seam with in-memory local loopback
+  endpoints that preserve reliable FIFO packet order and carry opaque encoded message payloads.
 - Added a local authoritative server bridge that decodes client movement command requests, keeps the
   configured local server player slot authoritative, ticks plain or scripted sessions, and emits encoded
   full snapshots, structural deltas, and server-approved gameplay events over the same local transport.
@@ -160,10 +158,12 @@ Phase PN-5 completion notes:
 - Added a client HUD presentation cache driven only by server-approved gameplay events, including
   pickup messages, door-state messages, script diagnostics, bounded history, and deterministic reset
   behavior.
-- Added an audio event router with no-op and fake sink implementations over server-approved gameplay
-  events so pickup/door/script approvals can be observed without making audio a gameplay authority.
+- Added an audio event router with an abstract request sink, production `NoOpAudioRequestSink`, and
+  test-only fake sink over server-approved gameplay events so pickup/door plus optional script-error
+  diagnostics/audio can be observed without making audio a gameplay authority.
 - Added BSP FGD/toolchain helper coverage and updated `docs/BspAuthoring.md` authoring guidance for
-  the PN-5 pickup/door presentation path.
+  the PN-5 pickup/door presentation path, including the requirement that dotted Stellar keys reach BSP
+  as dotted keys or importer-supported aliases.
 
 Validation run:
 
@@ -176,6 +176,63 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, full debug build succeeded, focused PN-5 CTest passed 5/5, and full
 default CTest passed 48/48 on 2026-05-01.
+
+Phase PN-6 completion notes:
+
+- Marked BSP presentation/networking polish complete and archived the completed PN plan package under
+  `Plans/Archived/bsp_presentation_networking_polish/`.
+- Updated `Plans/NEXT.md` to point at post-PN options instead of presenting PN first slices as active
+  work.
+- Updated `docs/Design.md` to describe current live scripted authoritative local runtime behavior,
+  non-authoritative gameplay snapshot presentation, deterministic snapshot/delta/event contracts, and
+  the local in-memory transport bridge without claiming remote sockets or real multiplayer lifecycle.
+- Tightened HUD/audio documentation so HUD and audio remain presentation caches/routes only. Production
+  audio feedback currently has an abstract sink plus `NoOpAudioRequestSink`; fake sinks are test-only,
+  miniaudio playback/assets/spatial audio remain deferred, and missing sound diagnostics belong to the
+  sink contract/test fake rather than a production local asset implementation.
+- Clarified BSP authoring/tooling guidance so dotted Stellar keys such as `stellar.script` must reach
+  BSP entity text unchanged or through importer-supported aliases; underscore FGD field names are
+  editor-facing placeholders unless the editor/toolchain remaps them before export.
+
+Final PN-6 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|render_level|runtime_world|client_|player_presentation|gameplay_presentation|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|snapshot_|loopback_transport|client_world_receiver|world_metadata_validation|collision_validation|character_controller|hud_presentation|audio_event_router)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'client-side gameplay scripting\|client gameplay script\|renderer-owned gameplay\|audio-owned gameplay' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+git grep -n 'BspGameplayLoop-AgentPlan\|ProjectStellar-BSP-GameplayLoop-AgentPlan' -- Plans docs ':!Plans/Archived/**'
+```
+
+Result: final validation passed on 2026-05-01. Configure succeeded, full debug build completed with
+`ninja: no work to do`, full default CTest passed 48/48, and focused PN/BSP/runtime/render/client/
+snapshot/HUD/audio CTest passed 38/38.
+
+Audit interpretation:
+
+- Retired importer search returned only documentation/audit-command references in
+  `Plans/kilo_bsp_gameplay_followup_plans/07-Phase-PN6-Final-Docs-Validation.md` and
+  `docs/ImplementationStatus.md`; no active source, build, or runtime implementation references were
+  found.
+- Authority-violation wording search returned only explicit prohibitions/deferrals in
+  `docs/BspAuthoring.md`, `docs/Design.md`, and `docs/ImplementationStatus.md`, plus the documented
+  audit command; no active implementation or authority violation was found.
+- Old BSP gameplay-loop plan filename search returned historical PN source-plan references,
+  documented audit commands, and archived-plan references in `docs/ImplementationStatus.md`; no
+  root-level active handoff to the completed gameplay-loop plan remains.
+
+Known deferred post-PN items:
+
+- Remote socket transport and real multiplayer connection/session lifecycle.
+- Client prediction, reconciliation, and interpolation.
+- Richer HUD rendering, UI, inventory presentation, and VFX.
+- miniaudio playback integration, local audio assets, and spatial audio/listener updates.
+- Sprite atlas packing and sprite sheet animation.
+- BSP editor/export remapping automation for dotted Stellar keys and FGD placeholder fields.
+- Moving brushes, dynamic bodies, Source/VBSP, full PBR, model/animation systems, and client-side
+  gameplay scripting remain out of scope unless explicitly requested.
 
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 
@@ -203,9 +260,9 @@ Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is u
 coordinates import without scale conversion, and player capsule center spawns should be half the
 capsule height above the floor.
 
-Follow-up implementation should use `Plans/NEXT.md` for the active presentation/networking polish
-scope and this file as the source of truth for branch completion notes. Archived phase plans under
-`Plans/Archived/` are historical context unless this file explicitly names one as active.
+Follow-up implementation should use `Plans/NEXT.md` for the next recommended post-PN options and this
+file as the source of truth for branch completion notes. Archived phase plans under `Plans/Archived/`
+are historical context unless this file explicitly names one as active.
 
 Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
 renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.

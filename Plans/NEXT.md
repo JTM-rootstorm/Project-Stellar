@@ -4,29 +4,33 @@ Branch target: `bsp-gameplay-loop`
 
 ## Current entry point
 
-Use `Plans/BspPresentationNetworkingPolish-AgentPlan.md` for the concise active handoff and
-`Plans/ProjectStellar-BSP-PresentationNetworkingPolish-AgentPlan.md` for the detailed implementation
-plan.
+`docs/ImplementationStatus.md` is the source of truth for completed branch status. The BSP
+presentation/networking polish plan package is complete and archived at
+`Plans/Archived/bsp_presentation_networking_polish/`.
 
 ## Completed historical scope
 
-The previous BSP gameplay-loop plan package is complete and archived at:
-`Plans/Archived/bsp_gameplay_loop/`
+Completed plan packages:
+
+- BSP gameplay loop: `Plans/Archived/bsp_gameplay_loop/`.
+- BSP presentation/networking polish: `Plans/Archived/bsp_presentation_networking_polish/`.
 
 Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, BSP
-hardening, or BSP gameplay-loop foundation work.
+hardening, BSP gameplay-loop foundation work, or BSP presentation/networking polish work.
 
-## Active recommended scope
+## Recommended Next Options
 
-Presentation and networking polish over the completed BSP gameplay loop.
+BSP presentation/networking polish is complete and archived. Select one next scope explicitly before
+implementation starts:
 
-First slices:
-
-- Live scripted authoritative runtime integration for the client loop.
-- Gameplay snapshot presentation for sprites, pickups, and door/gate state.
-- Snapshot/delta/event contracts.
-- Local/remote transport bridge.
-- HUD/audio/toolchain polish.
+- Remote socket transport and real multiplayer connection/session lifecycle over the existing
+  remote-ready contracts.
+- Client interpolation, prediction, and reconciliation against authoritative snapshots.
+- Sprite atlas packing and sprite sheet animation for richer billboard presentation.
+- Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
+- miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
+- BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
+  Stellar BSP keys.
 
 ## Invariants
 
@@ -39,4 +43,5 @@ First slices:
 - OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
 - Do not add Source/VBSP, dynamic rigid bodies, moving brush simulation, full PBR, client-side
-  gameplay scripting, or retired importer functionality unless explicitly requested.
+  gameplay scripting, model/animation systems, or retired importer functionality unless explicitly
+  requested.

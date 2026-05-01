@@ -16,10 +16,11 @@ capsule center 36 inches above the floor.
 4. Run the display-free validation commands below before using the map in runtime tests.
 
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD
-definitions, or equivalent editor mechanisms that preserve keys exactly. A small Quake-style helper
-definition file is available at `tools/bsp/stellar_entities.fgd`; some editors require mapping dotted
-Stellar keys such as `stellar.script` from underscore-named FGD fields such as `stellar_script` before
-export.
+definitions, or equivalent editor mechanisms that preserve keys exactly. Dotted Stellar keys such as
+`stellar.script` must reach the compiled BSP entity text as dotted keys or as importer-supported aliases
+such as `_stellar_script`. A small Quake-style helper definition file is available at
+`tools/bsp/stellar_entities.fgd`; its underscore field names are editor-facing placeholders unless the
+editor/toolchain remaps them to dotted keys or supported aliases before export.
 
 For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
 on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
@@ -56,7 +57,8 @@ world inch; changing editor texture scale changes the visible inch marks accordi
 | Object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"` or `origin` + `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
 | Static collision brush | `func_wall`, `func_door`, `func_button`, `trigger_*` | `model="*N"` | `targetname`, `stellar.collision=static|sensor|none` | Contributes named static collision where collision extraction supports it. Moving brush simulation is deferred. |
 
-Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation is enabled, including unsupported keys.
+Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation
+is enabled, including unsupported keys.
 
 ## Value formats
 
@@ -64,6 +66,11 @@ Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when r
 - `stellar.size` is two floats: `"width height"`.
 - Boolean-like values accept only `1`, `0`, `true`, `false`, `yes`, and `no`.
 - Script ids must be asset-relative identifiers or paths. Absolute paths, drive-letter paths, and `..` parent escapes are rejected.
+- Dotted key aliases currently supported by the importer include `_stellar_script`, `_stellar_table`,
+  `_stellar_extents`, `_stellar_once`, `_stellar_sprite`, `_stellar_texture`, `_stellar_size`,
+  `_stellar_alpha`, `_stellar_collider`, `_stellar_enabled`, and `_stellar_collision`. Plain
+  underscore FGD names such as `stellar_script` are not importer aliases unless remapped by the
+  editor/toolchain before BSP export.
 
 Malformed vectors and booleans produce import diagnostics. Import does not run Lua.
 
@@ -87,9 +94,11 @@ not own gameplay truth.
 The current HUD feedback layer is a client-side presentation cache only. It can count unique
 server-approved pickup events and retain bounded recent event messages for future text rendering, but
 gameplay systems never read HUD state and reset it for each new map/session.
-The current audio feedback layer routes server-approved pickup and door/gate events to presentation
-one-shot sound ids (`pickup`, `door_open`, `door_close`) through an explicit sink/no-op interface;
-missing local sound assets are diagnostics only and do not fail gameplay.
+The current audio feedback layer routes server-approved pickup and door/gate events, plus optional
+script-error diagnostics, to presentation one-shot sound ids (`pickup`, `door_open`, `door_close`,
+`script_error`) through an abstract sink. Production has a `NoOpAudioRequestSink`; fake sinks and
+missing-sound diagnostics are test/sink-contract behavior, not a production miniaudio or local asset
+implementation.
 
 ## Examples
 
