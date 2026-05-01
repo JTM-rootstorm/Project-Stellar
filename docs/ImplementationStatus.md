@@ -50,6 +50,26 @@ ctest --test-dir build --output-on-failure
 Result: default configure and build succeeded. Targeted Phase BSP-1 suite passed 7/7, and full
 default CTest passed 26/26.
 
+Phase BSP-2 is complete as of 2026-05-01:
+
+- Added mandatory `stellar_import_bsp` loader for the classic BSP29/BSP30 family.
+- Added safe lump parsing, entity key/value parsing, and BSP-to-`LevelAsset` conversion.
+- Built static geometry, named collision meshes, world metadata markers, and script bindings from BSP data.
+- Added display-free BSP parser/importer regression tests using generated binary fixtures.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_|runtime_world|collision_world|world_metadata_validation|collision_validation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. The phase-plan targeted command completed
+successfully for the matching runtime/collision tests; a corrected CTest regex also ran the new
+`bsp_importer` test for 5/5 targeted passes. Full default CTest passed 27/27.
+
 ## Historical collision-movement status
 
 Branch target: `collision-movement`

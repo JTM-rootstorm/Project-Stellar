@@ -198,6 +198,21 @@ if(STELLAR_ENABLE_GLTF)
     target_compile_definitions(stellar_import_gltf PRIVATE STELLAR_ENABLE_GLTF=1)
 endif()
 
+add_library(stellar_import_bsp
+    src/import/bsp/Loader.cpp
+    src/import/bsp/BspParser.cpp
+    src/import/bsp/BspEntities.cpp
+    src/import/bsp/BspLevelBuilder.cpp
+)
+
+target_include_directories(stellar_import_bsp PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_import_bsp PUBLIC
+    stellar_assets
+)
+
 add_library(stellar_platform
     src/platform/Window.cpp
     src/platform/Input.cpp
@@ -377,6 +392,11 @@ stellar_add_test_executable(stellar_animation_runtime_test animation_runtime
     tests/scene/AnimationRuntime.cpp
 )
 target_link_libraries(stellar_animation_runtime_test PRIVATE stellar_scene)
+
+stellar_add_test_executable(stellar_import_bsp_test bsp_importer
+    tests/import/bsp/BspImporter.cpp
+)
+target_link_libraries(stellar_import_bsp_test PRIVATE stellar_import_bsp)
 
 stellar_add_physics_test(stellar_collision_world_test collision_world
     tests/physics/CollisionWorld.cpp
