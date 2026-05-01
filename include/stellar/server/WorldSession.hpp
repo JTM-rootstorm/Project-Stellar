@@ -2,10 +2,12 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
 
+#include "stellar/server/GameplayWorld.hpp"
 #include "stellar/server/MovementSimulation.hpp"
 #include "stellar/server/MovementTriggerIntegration.hpp"
 #include "stellar/world/ObjectCollider.hpp"
@@ -101,6 +103,9 @@ struct WorldSnapshot {
 
     /** @brief Object-collider events produced by the tick that emitted this snapshot. */
     std::vector<ObjectColliderEvent> object_collider_events;
+
+    /** @brief Display-free server-owned gameplay entity snapshot. */
+    GameplayWorldSnapshot gameplay_world;
 };
 
 /** @brief Deterministic config for a local authoritative world session. */
@@ -130,6 +135,12 @@ public:
 
     /** @brief Return current authoritative state without ticking or replaying trigger events. */
     [[nodiscard]] WorldSnapshot snapshot() const;
+
+    /** @brief Return current server-owned gameplay entity world without presentation handles. */
+    [[nodiscard]] GameplayWorldSnapshot gameplay_snapshot() const;
+
+    /** @brief Return the entity id bound to a local player slot, if that player was spawned. */
+    [[nodiscard]] std::optional<EntityId> entity_for_player(PlayerId player_id) const noexcept;
 
     /** @brief Advance one authoritative tick using the local player's command if present. */
     [[nodiscard]] WorldSnapshot tick(std::span<const PlayerCommand> commands) noexcept;
@@ -176,6 +187,7 @@ private:
     const stellar::world::RuntimeWorld* world_ = nullptr;
     WorldSessionConfig config_{};
     MovementState player_state_{};
+    GameplayWorld gameplay_world_{};
     MovementTriggerTracker trigger_tracker_{};
     stellar::world::ObjectColliderSystem object_collider_system_{};
     stellar::world::RuntimeCollisionState collision_state_{};

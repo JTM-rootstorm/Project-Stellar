@@ -84,6 +84,7 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
     world_ = &world;
     config_ = config;
     player_state_ = make_spawn_movement_state(world);
+    gameplay_world_.reset_from_world(world, config_.local_player_id);
     trigger_tracker_.reset_from_world(world);
     object_collider_system_.set_colliders(stellar::world::build_object_colliders(world));
     collision_state_ = stellar::world::RuntimeCollisionState::from_world(world);
@@ -92,6 +93,14 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
 
 WorldSnapshot WorldSession::snapshot() const {
     return make_snapshot();
+}
+
+GameplayWorldSnapshot WorldSession::gameplay_snapshot() const {
+    return gameplay_world_.snapshot();
+}
+
+std::optional<EntityId> WorldSession::entity_for_player(PlayerId player_id) const noexcept {
+    return gameplay_world_.entity_for_player(player_id);
 }
 
 WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexcept {
@@ -168,6 +177,7 @@ WorldSnapshot WorldSession::make_snapshot(
                                                .grounded = player_state_.grounded});
     snapshot.trigger_events = std::move(trigger_events);
     snapshot.object_collider_events = std::move(object_collider_events);
+    snapshot.gameplay_world = gameplay_world_.snapshot();
     return snapshot;
 }
 

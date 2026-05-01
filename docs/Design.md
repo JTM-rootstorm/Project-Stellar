@@ -591,6 +591,15 @@ Long-term archetypes include:
 The active branch should prioritize collision/world geometry and metadata foundations before broad
 gameplay systems.
 
+For the BSP gameplay-loop branch, `server::GameplayWorld` is the minimal server-owned entity model
+used before a full ECS rewrite. It allocates deterministic `EntityId` values in spawn order, binds the
+configured local `PlayerId` to the first player spawn entity when available, and exposes display-free
+snapshots containing plain transform plus inert metadata components. Spawn/import does not execute
+scripts and never stores renderer, texture, audio, or backend handles. Current metadata-driven entity
+kinds cover player, sprite marker, pickup candidate, door/gate, trigger, and object-collider records;
+presentation systems may bind sprite ids later from copied metadata while the server remains the source
+of gameplay truth.
+
 ### 9.4 Systems
 
 Long-term gameplay systems include:

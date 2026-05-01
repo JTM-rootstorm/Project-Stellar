@@ -41,7 +41,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 - Phase 2 — Procedural developer textures for inch-scale BSP authoring: complete as of 2026-05-01.
 - Phase 3 — Load the configured BSP map into the live client path: complete as of 2026-05-01.
 - Phase 4 — Authoritative player camera drives level rendering: not started.
-- Phase 5 — Minimal ECS/entity spawn from BSP metadata: not started.
+- Phase 5 — Minimal ECS/entity spawn from BSP metadata: complete as of 2026-05-01.
 - Phase 6 — Single-room controllable player loop: not started.
 - Phase 7 — First interaction loop, pickup and scripted door/gate: not started.
 - Phase 8 — Final branch hardening and documentation: not started.
@@ -123,6 +123,29 @@ ctest --test-dir build -R '^(client_map_validation_smoke|client_cli_map_validati
 ```
 
 Result: configure/build and focused Phase 3 CTest passed on 2026-05-01.
+
+Phase 5 completion notes:
+
+- Added a minimal `server::GameplayWorld` entity model without a full ECS rewrite: deterministic
+  `EntityId` allocation, `EntityKind`, transform data, inert metadata, player/entity bindings, and
+  display-free snapshot/query APIs.
+- `WorldSession` now owns the spawned gameplay world, binds the configured local `PlayerId` to the
+  first player spawn marker when available, and preserves existing movement/player snapshot behavior.
+- Gameplay entity spawn covers player spawn markers, sprite markers with copied sprite/alpha/size
+  metadata, pickup candidates from object-collider or `info_stellar_spawn`-style entity markers with
+  pickup/item archetypes, trigger/object-collider markers, and door/gate metadata from trigger/entity
+  markers or named collision meshes.
+- Spawn/import remains server-owned and inert: no renderer handles, audio handles, or script execution
+  are introduced during metadata import or gameplay-world assembly.
+
+Validation run:
+
+```bash
+cmake --build build --target stellar_server_gameplay_world_test stellar_server_world_session_test stellar_runtime_world_test stellar_world_metadata_validation_test -j$(nproc)
+ctest --test-dir build -R '^(server_gameplay_world|server_world_session|runtime_world|world_metadata_validation)$' --output-on-failure
+```
+
+Result: focused Phase 5 build targets and CTest regex passed on 2026-05-01.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

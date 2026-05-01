@@ -99,6 +99,7 @@ target_link_libraries(stellar_world PUBLIC
 )
 
 add_library(stellar_server_core
+    src/server/GameplayWorld.cpp
     src/server/MovementSimulation.cpp
     src/server/MovementTriggerIntegration.cpp
     src/server/WorldSession.cpp
@@ -269,6 +270,10 @@ stellar_add_server_test(stellar_movement_trigger_integration_test movement_trigg
 
 stellar_add_server_test(stellar_server_world_session_test server_world_session
     tests/server/WorldSession.cpp
+)
+
+stellar_add_server_test(stellar_server_gameplay_world_test server_gameplay_world
+    tests/server/GameplayWorld.cpp
 )
 
 stellar_add_graphics_test(stellar_render_level_upload_test render_level_upload
