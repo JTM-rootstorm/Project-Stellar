@@ -38,9 +38,27 @@ bool trigger_has_empty_extent(const stellar::assets::WorldMarker& marker) noexce
     return false;
 }
 
+bool marker_has_empty_extent(const stellar::assets::WorldMarker& marker) noexcept {
+    for (float extent : marker.scale) {
+        if (std::fabs(extent) <= kNearZeroExtent) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool trigger_has_large_extent(const stellar::assets::WorldMarker& marker) noexcept {
     for (float extent : marker.scale) {
         if (std::fabs(extent) > kWorldMetadataValidationLargeTriggerExtentThreshold) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool object_collider_has_large_extent(const stellar::assets::WorldMarker& marker) noexcept {
+    for (float extent : marker.scale) {
+        if (std::fabs(extent) > kWorldMetadataValidationLargeObjectColliderExtentThreshold) {
             return true;
         }
     }
@@ -115,7 +133,8 @@ void validate_script_binding(const stellar::assets::WorldMarker& marker,
     }
 
     if (config.warn_script_binding_unsupported_marker_types &&
-        marker.type != stellar::assets::WorldMarkerType::kTrigger) {
+        marker.type != stellar::assets::WorldMarkerType::kTrigger &&
+        marker.type != stellar::assets::WorldMarkerType::kObjectCollider) {
         add_finding(report,
                     WorldMetadataValidationSeverity::kWarning,
                     "script_binding_unsupported_marker_type",
@@ -154,6 +173,7 @@ WorldMetadataValidationReport validate_world_metadata(
     std::size_t player_spawn_count = 0;
     std::unordered_map<std::string, std::size_t> first_trigger_name_indices;
     std::unordered_map<std::string, std::size_t> first_sprite_name_indices;
+    std::unordered_map<std::string, std::size_t> first_object_collider_name_indices;
 
     for (std::size_t marker_index = 0; marker_index < metadata.markers.size(); ++marker_index) {
         const auto& marker = metadata.markers[marker_index];
@@ -277,8 +297,45 @@ WorldMetadataValidationReport validate_world_metadata(
                 add_finding(report,
                             WorldMetadataValidationSeverity::kWarning,
                             "portal_runtime_deferred",
-                            "Portal marker is present, but portal runtime behavior is deferred",
-                            marker_index);
+                             "Portal marker is present, but portal runtime behavior is deferred",
+                             marker_index);
+                break;
+            case stellar::assets::WorldMarkerType::kObjectCollider:
+                if (marker.name.empty()) {
+                    add_finding(report,
+                                WorldMetadataValidationSeverity::kWarning,
+                                "empty_object_collider_name",
+                                "Object collider marker has an empty name",
+                                marker_index);
+                } else {
+                    const auto [it, inserted] =
+                        first_object_collider_name_indices.emplace(marker.name, marker_index);
+                    if (!inserted) {
+                        add_finding(report,
+                                    WorldMetadataValidationSeverity::kWarning,
+                                    "duplicate_object_collider_name",
+                                    "Object collider marker name duplicates an earlier object "
+                                    "collider: " +
+                                        marker.name,
+                                    marker_index);
+                        (void)it;
+                    }
+                }
+                if (config.warn_empty_object_collider_extents && marker_has_empty_extent(marker)) {
+                    add_finding(report,
+                                WorldMetadataValidationSeverity::kWarning,
+                                "empty_object_collider_extents",
+                                "Object collider marker has zero or empty AABB extents",
+                                marker_index);
+                }
+                if (object_collider_has_large_extent(marker)) {
+                    add_finding(report,
+                                WorldMetadataValidationSeverity::kWarning,
+                                "large_object_collider_extents",
+                                "Object collider marker extents exceed the documented 100000 "
+                                "world-unit threshold",
+                                marker_index);
+                }
                 break;
         }
     }

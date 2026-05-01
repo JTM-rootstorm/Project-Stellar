@@ -74,6 +74,28 @@ stellar::scripting::ScriptOutputEvent set_mesh_event(std::string mesh_name, bool
         .fields = {string_field("mesh", std::move(mesh_name)), bool_field("enabled", enabled)}};
 }
 
+stellar::assets::WorldMarker object_collider_marker(std::string name) {
+    stellar::assets::WorldMarker marker{};
+    marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
+    marker.name = std::move(name);
+    marker.position = {0.0F, 0.0F, 0.0F};
+    marker.scale = {1.0F, 1.0F, 1.0F};
+    return marker;
+}
+
+stellar::assets::SceneAsset scene_with_object_collider() {
+    stellar::assets::SceneAsset scene{};
+    scene.world_metadata.markers = {player_spawn({0.0F, 0.0F, 0.0F}),
+                                    object_collider_marker("Pickup")};
+    return scene;
+}
+
+stellar::scripting::ScriptOutputEvent set_object_collider_event(double id, bool enabled) {
+    return stellar::scripting::ScriptOutputEvent{
+        .name = "object_collider.set_enabled",
+        .fields = {number_field("id", id), bool_field("enabled", enabled)}};
+}
+
 void collision_set_mesh_enabled_valid_event_applies() {
     const auto scene = scene_with_meshes({mesh("DoorBlocker")});
     const auto world = stellar::world::build_runtime_world(scene);
@@ -168,6 +190,93 @@ void multiple_events_apply_in_deterministic_order() {
     assert(application.results[2].applied);
 }
 
+void object_collider_set_enabled_valid_event_applies() {
+    const auto scene = scene_with_object_collider();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+
+    const auto event = set_object_collider_event(2.0, false);
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(application.results[0].event_name == "object_collider.set_enabled");
+    assert(application.results[0].applied);
+    assert(application.results[0].code == "applied");
+}
+
+void object_collider_set_enabled_missing_id_reports_invalid_field() {
+    const auto scene = scene_with_object_collider();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    const stellar::scripting::ScriptOutputEvent event{.name = "object_collider.set_enabled",
+                                                      .fields = {bool_field("enabled", false)}};
+
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(!application.results[0].applied);
+    assert(application.results[0].code == "invalid_field");
+    assert(application.results[0].message.find("id") != std::string::npos);
+}
+
+void object_collider_set_enabled_non_integer_id_reports_invalid_field() {
+    const auto scene = scene_with_object_collider();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    const auto event = set_object_collider_event(2.5, false);
+
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(!application.results[0].applied);
+    assert(application.results[0].code == "invalid_field");
+}
+
+void object_collider_set_enabled_non_boolean_enabled_reports_invalid_field() {
+    const auto scene = scene_with_object_collider();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    const stellar::scripting::ScriptOutputEvent event{
+        .name = "object_collider.set_enabled",
+        .fields = {number_field("id", 2.0), number_field("enabled", 0.0)}};
+
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(!application.results[0].applied);
+    assert(application.results[0].code == "invalid_field");
+    assert(application.results[0].message.find("enabled") != std::string::npos);
+}
+
+void object_collider_set_enabled_unknown_id_reports_not_found() {
+    const auto scene = scene_with_object_collider();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    const auto event = set_object_collider_event(99.0, false);
+
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(!application.results[0].applied);
+    assert(application.results[0].code == "not_found");
+}
+
+void object_collider_disable_while_overlapped_surfaces_sync_exit_in_command_result() {
+    const auto scene = scene_with_object_collider();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    (void)session.tick({});
+    const auto event = set_object_collider_event(2.0, false);
+
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(application.results[0].applied);
+    assert(application.results[0].object_collider_events.size() == 1);
+    assert(application.results[0].object_collider_events[0].exited);
+    assert(application.results[0].object_collider_events[0].collider_id == 2);
+}
+
 } // namespace
 
 int main() {
@@ -177,5 +286,11 @@ int main() {
     unknown_collision_mesh_reports_not_found();
     unsupported_event_reports_by_policy();
     multiple_events_apply_in_deterministic_order();
+    object_collider_set_enabled_valid_event_applies();
+    object_collider_set_enabled_missing_id_reports_invalid_field();
+    object_collider_set_enabled_non_integer_id_reports_invalid_field();
+    object_collider_set_enabled_non_boolean_enabled_reports_invalid_field();
+    object_collider_set_enabled_unknown_id_reports_not_found();
+    object_collider_disable_while_overlapped_surfaces_sync_exit_in_command_result();
     return EXIT_SUCCESS;
 }

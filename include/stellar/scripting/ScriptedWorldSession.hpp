@@ -6,6 +6,7 @@
 
 #include "stellar/server/WorldSession.hpp"
 #include "stellar/scripting/LuaRuntime.hpp"
+#include "stellar/scripting/ObjectColliderScriptSystem.hpp"
 #include "stellar/scripting/ScriptCommandProcessor.hpp"
 #include "stellar/scripting/ScriptError.hpp"
 #include "stellar/scripting/ScriptRegistry.hpp"
@@ -69,6 +70,7 @@ private:
     LuaRuntime runtime_;
     stellar::server::WorldSession session_;
     TriggerScriptSystem trigger_scripts_;
+    ObjectColliderScriptSystem object_collider_scripts_;
     stellar::server::WorldSnapshot latest_snapshot_{};
 };
 

@@ -98,6 +98,7 @@ if(STELLAR_ENABLE_LUA_SCRIPTING)
         src/scripting/ScriptRegistry.cpp
         src/scripting/ScriptSandbox.cpp
         src/scripting/ScriptedWorldSession.cpp
+        src/scripting/ObjectColliderScriptSystem.cpp
         src/scripting/TriggerScriptSystem.cpp
     )
 
@@ -574,6 +575,20 @@ if(STELLAR_ENABLE_LUA_SCRIPTING)
 
     add_test(NAME trigger_script COMMAND stellar_trigger_script_system_test)
 
+    add_executable(stellar_object_collider_script_system_test
+        tests/scripting/ObjectColliderScriptSystem.cpp
+    )
+
+    target_include_directories(stellar_object_collider_script_system_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_object_collider_script_system_test PRIVATE
+        stellar_scripting
+    )
+
+    add_test(NAME object_collider_script COMMAND stellar_object_collider_script_system_test)
+
     add_executable(stellar_script_command_processor_test
         tests/scripting/ScriptCommandProcessor.cpp
     )
@@ -703,6 +718,24 @@ if(STELLAR_ENABLE_GLTF)
 
         add_test(NAME scripted_collision_smoke
                  COMMAND stellar_scripted_collision_smoke_test)
+
+        add_executable(stellar_scripted_object_collider_smoke_test
+            tests/integration/ScriptedObjectColliderSmoke.cpp
+        )
+
+        target_include_directories(stellar_scripted_object_collider_smoke_test PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+        )
+
+        target_link_libraries(stellar_scripted_object_collider_smoke_test PRIVATE
+            stellar_import_gltf
+            stellar_world
+            stellar_server_core
+            stellar_scripting
+        )
+
+        add_test(NAME scripted_object_collider_smoke
+                 COMMAND stellar_scripted_object_collider_smoke_test)
     endif()
 else()
     set_tests_properties(client_cli_asset_validation PROPERTIES

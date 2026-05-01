@@ -333,6 +333,11 @@ std::optional<stellar::assets::WorldMarker> marker_from_node_name(std::string_vi
         marker.type = stellar::assets::WorldMarkerType::kPortal;
         return marker.name.empty() ? std::nullopt : std::optional(marker);
     }
+    if (starts_with(node_name, "COLLIDER_")) {
+        marker.name = std::string(node_name.substr(9));
+        marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
+        return marker.name.empty() ? std::nullopt : std::optional(marker);
+    }
     return std::nullopt;
 }
 

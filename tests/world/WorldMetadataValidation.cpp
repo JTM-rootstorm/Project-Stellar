@@ -163,6 +163,66 @@ void portal_marker_warns_runtime_deferred() {
     assert(has_code(report, "portal_runtime_deferred"));
 }
 
+void object_collider_authoring_findings_are_reported() {
+    auto metadata = metadata_with_player_spawn();
+    auto unnamed = make_marker(stellar::assets::WorldMarkerType::kObjectCollider);
+    unnamed.scale = {1.0F, 0.0F, 1.0F};
+    auto first = make_marker(stellar::assets::WorldMarkerType::kObjectCollider, "Pickup");
+    first.scale = {1.0F, 2.0F, 3.0F};
+    auto duplicate = make_marker(stellar::assets::WorldMarkerType::kObjectCollider, "Pickup");
+    duplicate.scale = {100001.0F, 1.0F, 1.0F};
+    duplicate.script = stellar::assets::WorldScriptBinding{.script_id = "scripts/pickup.lua",
+                                                           .table_name = "Pickup"};
+    metadata.markers.push_back(unnamed);
+    metadata.markers.push_back(first);
+    metadata.markers.push_back(duplicate);
+
+    const auto report = stellar::world::validate_world_metadata(metadata);
+
+    assert(!report.has_errors);
+    assert(has_code(report, "empty_object_collider_name"));
+    assert(has_code(report, "empty_object_collider_extents"));
+    assert(has_code(report, "duplicate_object_collider_name"));
+    assert(has_code(report, "large_object_collider_extents"));
+    assert(!has_code(report, "script_binding_unsupported_marker_type"));
+    assert(find_code(report, "duplicate_object_collider_name")->marker_index == 3);
+}
+
+void object_collider_script_binding_is_supported_after_phase_12d() {
+    auto metadata = metadata_with_player_spawn();
+    auto collider = make_marker(stellar::assets::WorldMarkerType::kObjectCollider, "Pickup");
+    collider.script = stellar::assets::WorldScriptBinding{.script_id = "scripts/pickup.lua",
+                                                          .table_name = "Pickup"};
+    metadata.markers.push_back(collider);
+
+    const auto report = stellar::world::validate_world_metadata(metadata);
+
+    assert(!report.has_errors);
+    assert(!has_code(report, "script_binding_unsupported_marker_type"));
+}
+
+void sprite_or_portal_script_binding_still_warns_unsupported() {
+    auto metadata = metadata_with_player_spawn();
+    auto sprite = make_marker(stellar::assets::WorldMarkerType::kSprite, "Sprite");
+    sprite.script = stellar::assets::WorldScriptBinding{.script_id = "scripts/sprite.lua",
+                                                        .table_name = "Sprite"};
+    auto portal = make_marker(stellar::assets::WorldMarkerType::kPortal, "Portal");
+    portal.script = stellar::assets::WorldScriptBinding{.script_id = "scripts/portal.lua",
+                                                        .table_name = "Portal"};
+    metadata.markers.push_back(sprite);
+    metadata.markers.push_back(portal);
+
+    const auto report = stellar::world::validate_world_metadata(metadata);
+
+    std::size_t unsupported_count = 0;
+    for (const auto& finding : report.findings) {
+        if (finding.code == "script_binding_unsupported_marker_type") {
+            ++unsupported_count;
+        }
+    }
+    assert(unsupported_count == 2);
+}
+
 void script_binding_reports_empty_script_id_as_error() {
     auto metadata = metadata_with_player_spawn();
     auto trigger = make_marker(stellar::assets::WorldMarkerType::kTrigger, "Door");
@@ -286,6 +346,9 @@ int main() {
     trigger_zero_extents_warn_under_policy();
     sprite_empty_name_reports_finding();
     portal_marker_warns_runtime_deferred();
+    object_collider_authoring_findings_are_reported();
+    object_collider_script_binding_is_supported_after_phase_12d();
+    sprite_or_portal_script_binding_still_warns_unsupported();
     script_binding_reports_empty_script_id_as_error();
     script_binding_reports_empty_table_name_as_warning();
     script_binding_reports_path_escape_as_error();

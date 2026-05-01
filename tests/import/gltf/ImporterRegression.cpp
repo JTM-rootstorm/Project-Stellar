@@ -977,9 +977,13 @@ bool run_phase7a_convention_separation_fixture(const std::filesystem::path& root
                     "    { \"name\": \"SPRITE_Torch\", \"mesh\": 0 },\n"
                     "    { \"name\": \"COL_floor\", \"mesh\": 0 },\n"
                     "    { \"name\": \"Collision\", \"children\": [6] },\n"
-                    "    { \"name\": \"collision_child\", \"mesh\": 0 }\n"
+                    "    { \"name\": \"collision_child\", \"mesh\": 0 },\n"
+                    "    { \"name\": \"COLLIDER_Pickup\", \"mesh\": 0, "
+                    "\"translation\": [2, 3, 4], \"scale\": [-1, 2, 3], "
+                    "\"extras\": { \"stellar\": { \"script\": \"scripts/pickup.lua\", "
+                    "\"table\": \"Pickup\" } } }\n"
                     "  ],\n"
-                    "  \"scenes\": [{ \"nodes\": [0, 1, 2, 3, 4, 5] }],\n"
+                    "  \"scenes\": [{ \"nodes\": [0, 1, 2, 3, 4, 5, 7] }],\n"
                     "  \"scene\": 0\n"
                     "}\n");
 
@@ -1004,13 +1008,22 @@ bool run_phase7a_convention_separation_fixture(const std::filesystem::path& root
         !check(find_collision_mesh(*scene->level_collision, "TRIGGER_Use") == nullptr,
                "expected TRIGGER_* mesh not to become collision") ||
         !check(find_collision_mesh(*scene->level_collision, "SPRITE_Torch") == nullptr,
-               "expected SPRITE_* mesh not to become collision") ||
+                "expected SPRITE_* mesh not to become collision") ||
+        !check(find_collision_mesh(*scene->level_collision, "COLLIDER_Pickup") == nullptr,
+                "expected COLLIDER_* mesh not to become static collision") ||
         !check(find_collision_mesh(*scene->level_collision, "ordinary_render") == nullptr,
-               "expected ordinary render mesh not to become collision")) {
+                "expected ordinary render mesh not to become collision")) {
         return false;
     }
-    if (!check(scene->world_metadata.markers.size() == 3,
+    if (!check(scene->world_metadata.markers.size() == 4,
                "expected only metadata conventions to create world markers")) {
+        return false;
+    }
+
+    const auto* collider = find_marker(scene->world_metadata,
+                                       stellar::assets::WorldMarkerType::kObjectCollider,
+                                       "Pickup");
+    if (!check(collider != nullptr, "expected COLLIDER_* object collider marker")) {
         return false;
     }
 
@@ -1025,16 +1038,27 @@ bool run_phase7a_convention_separation_fixture(const std::filesystem::path& root
            check(scene->nodes[4].mesh_instances.empty(),
                  "expected COL_* node to be render-filtered") &&
            check(scene->nodes[6].mesh_instances.empty(),
-                 "expected Collision descendant node to be render-filtered") &&
+                  "expected Collision descendant node to be render-filtered") &&
+           check(scene->nodes[7].mesh_instances.size() == 1,
+                 "expected COLLIDER_* node not to be render-filtered as static collision") &&
            check(find_marker(scene->world_metadata, stellar::assets::WorldMarkerType::kPlayerSpawn,
-                             "Player") != nullptr,
+                              "Player") != nullptr,
                  "expected player spawn marker") &&
            check(find_marker(scene->world_metadata, stellar::assets::WorldMarkerType::kTrigger,
                              "Use") != nullptr,
                  "expected trigger marker") &&
            check(find_marker(scene->world_metadata, stellar::assets::WorldMarkerType::kSprite,
-                             "Torch") != nullptr,
-                 "expected sprite marker");
+                              "Torch") != nullptr,
+                 "expected sprite marker") &&
+           check_vec3(collider->position, {2.0f, 3.0f, 4.0f},
+                      "expected COLLIDER marker position") &&
+           check_vec3(collider->scale, {1.0f, 2.0f, 3.0f},
+                      "expected COLLIDER marker absolute scale as AABB half extents") &&
+           check(collider->script.has_value(), "expected COLLIDER marker script binding preserved") &&
+           check(collider->script->script_id == "scripts/pickup.lua",
+                 "expected COLLIDER marker script id extraction") &&
+           check(collider->script->table_name == "Pickup",
+                 "expected COLLIDER marker script table extraction");
 }
 
 const stellar::assets::WorldMarker* find_marker(
@@ -1081,7 +1105,7 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
                     "  \"asset\": { \"version\": \"2.0\" },\n"
                     "  \"nodes\": [\n"
                     "    { \"name\": \"Root\", \"translation\": [5, 0, 0], "
-                    "\"children\": [1, 2, 3, 4, 5, 6, 7] },\n"
+                    "\"children\": [1, 2, 3, 4, 5, 6, 7, 8] },\n"
                     "    { \"name\": \"SPAWN_Player\", \"translation\": [1, 2, 3] },\n"
                     "    { \"name\": \"SPAWN_Imp\", \"translation\": [2, 0, 0], "
                     "\"rotation\": [0, 0, 0.70710678, 0.70710678] },\n"
@@ -1093,7 +1117,9 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
                     "\"extras\": { \"texture\": \"torch.png\" } },\n"
                     "    { \"name\": \"PORTAL_North\", \"translation\": [0, 0, 8] },\n"
                     "    { \"name\": \"ordinary_render\", \"translation\": [100, 0, 0] },\n"
-                    "    { \"name\": \"COL_floor\", \"translation\": [0, 100, 0] }\n"
+                    "    { \"name\": \"COL_floor\", \"translation\": [0, 100, 0] },\n"
+                    "    { \"name\": \"COLLIDER_Key\", \"translation\": [0, 10, 0], "
+                    "\"scale\": [0.5, 1.5, 2.5] }\n"
                     "  ],\n"
                     "  \"scenes\": [{ \"nodes\": [0] }],\n"
                     "  \"scene\": 0\n"
@@ -1106,7 +1132,7 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
     }
 
     const auto& metadata = scene->world_metadata;
-    if (!check(metadata.markers.size() == 5, "expected five world metadata markers")) {
+    if (!check(metadata.markers.size() == 6, "expected six world metadata markers")) {
         return false;
     }
 
@@ -1119,12 +1145,15 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
     const auto* sprite = find_marker(metadata, stellar::assets::WorldMarkerType::kSprite,
                                      "Torch");
     const auto* portal = find_marker(metadata, stellar::assets::WorldMarkerType::kPortal,
-                                     "North");
+                                      "North");
+    const auto* collider = find_marker(metadata, stellar::assets::WorldMarkerType::kObjectCollider,
+                                       "Key");
     if (!check(player != nullptr, "expected player spawn marker") ||
         !check(imp != nullptr, "expected entity spawn marker") ||
         !check(trigger != nullptr, "expected trigger marker") ||
         !check(sprite != nullptr, "expected sprite marker") ||
-        !check(portal != nullptr, "expected portal marker")) {
+        !check(portal != nullptr, "expected portal marker") ||
+        !check(collider != nullptr, "expected object collider marker")) {
         return false;
     }
 
@@ -1158,7 +1187,11 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
            check(sprite->extras_json.find("torch.png") != std::string::npos,
                  "expected raw sprite extras preservation") &&
            check_vec3(portal->position, {5.0f, 0.0f, 8.0f},
-                      "expected portal marker position");
+                       "expected portal marker position") &&
+           check_vec3(collider->position, {5.0f, 10.0f, 0.0f},
+                      "expected object collider marker position") &&
+           check_vec3(collider->scale, {0.5f, 1.5f, 2.5f},
+                      "expected object collider marker AABB half extents");
 }
 
 bool expect_load_failure(const std::filesystem::path& path, std::string_view json,

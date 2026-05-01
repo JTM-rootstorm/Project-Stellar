@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
+#include <vector>
+
 #include "stellar/client/MovementInputMapper.hpp"
 #include "stellar/platform/Input.hpp"
 #include "stellar/server/WorldSession.hpp"
@@ -40,6 +44,26 @@ public:
 
     /** @brief Return the latest authoritative state snapshot without replaying frame events. */
     [[nodiscard]] const stellar::server::WorldSnapshot& latest_snapshot() const noexcept;
+
+    /** @brief Hard-reset authoritative object colliders and clear all object overlap state. */
+    void set_object_colliders(std::span<const stellar::world::ObjectCollider> colliders);
+
+    /** @brief Replace colliders by id and synchronously return any removed/disabled exits. */
+    [[nodiscard]] std::vector<stellar::server::ObjectColliderEvent>
+    replace_object_colliders_preserving_overlaps(
+        std::span<const stellar::world::ObjectCollider> colliders) noexcept;
+
+    /** @brief Enable or disable one collider and synchronously return mutation exits only. */
+    [[nodiscard]] stellar::server::ObjectColliderMutationResult set_object_collider_enabled(
+        std::uint32_t collider_id, bool enabled) noexcept;
+
+    /** @brief Insert or replace one collider and synchronously return mutation exits only. */
+    [[nodiscard]] stellar::server::ObjectColliderMutationResult upsert_object_collider(
+        const stellar::world::ObjectCollider& collider) noexcept;
+
+    /** @brief Remove one collider and synchronously return mutation exits only. */
+    [[nodiscard]] stellar::server::ObjectColliderMutationResult remove_object_collider(
+        std::uint32_t collider_id) noexcept;
 
     /** @brief Submit client input and advance the authoritative local server by fixed ticks. */
     [[nodiscard]] LocalLoopbackFrameResult update(const stellar::platform::Input& input,

@@ -31,6 +31,9 @@ struct RuntimeWorldDiagnostics {
     /** @brief Number of imported sprite markers exposed for later render binding. */
     std::size_t sprite_marker_count = 0;
 
+    /** @brief Number of imported object collider markers exposed for gameplay sensors. */
+    std::size_t object_collider_marker_count = 0;
+
     /** @brief True when a player spawn marker is discoverable. */
     bool has_player_spawn = false;
 

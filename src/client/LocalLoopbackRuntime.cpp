@@ -29,6 +29,41 @@ const stellar::server::WorldSnapshot& LocalLoopbackRuntime::latest_snapshot() co
     return latest_snapshot_;
 }
 
+void LocalLoopbackRuntime::set_object_colliders(
+    std::span<const stellar::world::ObjectCollider> colliders) {
+    session_.set_object_colliders(colliders);
+    latest_snapshot_ = session_.snapshot();
+}
+
+std::vector<stellar::server::ObjectColliderEvent>
+LocalLoopbackRuntime::replace_object_colliders_preserving_overlaps(
+    std::span<const stellar::world::ObjectCollider> colliders) noexcept {
+    const auto events = session_.replace_object_colliders_preserving_overlaps(colliders);
+    latest_snapshot_ = session_.snapshot();
+    return events;
+}
+
+stellar::server::ObjectColliderMutationResult LocalLoopbackRuntime::set_object_collider_enabled(
+    std::uint32_t collider_id, bool enabled) noexcept {
+    auto result = session_.set_object_collider_enabled(collider_id, enabled);
+    latest_snapshot_ = session_.snapshot();
+    return result;
+}
+
+stellar::server::ObjectColliderMutationResult LocalLoopbackRuntime::upsert_object_collider(
+    const stellar::world::ObjectCollider& collider) noexcept {
+    auto result = session_.upsert_object_collider(collider);
+    latest_snapshot_ = session_.snapshot();
+    return result;
+}
+
+stellar::server::ObjectColliderMutationResult LocalLoopbackRuntime::remove_object_collider(
+    std::uint32_t collider_id) noexcept {
+    auto result = session_.remove_object_collider(collider_id);
+    latest_snapshot_ = session_.snapshot();
+    return result;
+}
+
 LocalLoopbackFrameResult LocalLoopbackRuntime::update(const stellar::platform::Input& input,
                                                       float delta_seconds) noexcept {
     LocalLoopbackFrameResult result;
@@ -44,11 +79,15 @@ LocalLoopbackFrameResult LocalLoopbackRuntime::update(const stellar::platform::I
                                                  .movement = movement};
     const std::array<stellar::server::PlayerCommand, 1> commands{command};
     std::vector<stellar::server::MovementTriggerEvent> frame_events;
+    std::vector<stellar::server::ObjectColliderEvent> frame_object_events;
 
     while (accumulated_seconds_ >= fixed_dt && result.ticks_run < max_ticks) {
         stellar::server::WorldSnapshot tick_snapshot = session_.tick(commands);
         frame_events.insert(frame_events.end(), tick_snapshot.trigger_events.begin(),
                             tick_snapshot.trigger_events.end());
+        frame_object_events.insert(frame_object_events.end(),
+                                   tick_snapshot.object_collider_events.begin(),
+                                   tick_snapshot.object_collider_events.end());
         accumulated_seconds_ -= fixed_dt;
         ++result.ticks_run;
     }
@@ -61,6 +100,7 @@ LocalLoopbackFrameResult LocalLoopbackRuntime::update(const stellar::platform::I
     latest_snapshot_ = session_.snapshot();
     result.snapshot = latest_snapshot_;
     result.snapshot.trigger_events = std::move(frame_events);
+    result.snapshot.object_collider_events = std::move(frame_object_events);
     return result;
 }
 

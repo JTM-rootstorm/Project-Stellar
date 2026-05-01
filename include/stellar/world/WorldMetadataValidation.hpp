@@ -18,6 +18,9 @@ inline constexpr std::size_t kWorldMetadataValidationInvalidIndex =
 /** @brief Trigger extents larger than this world-unit threshold are authoring warnings. */
 inline constexpr float kWorldMetadataValidationLargeTriggerExtentThreshold = 100000.0F;
 
+/** @brief Object-collider extents larger than this world-unit threshold are authoring warnings. */
+inline constexpr float kWorldMetadataValidationLargeObjectColliderExtentThreshold = 100000.0F;
+
 /** @brief Severity for authored world metadata validation messages. */
 enum class WorldMetadataValidationSeverity {
     kWarning,
@@ -58,6 +61,9 @@ struct WorldMetadataValidationConfig {
 
     /** @brief Report a warning when a trigger marker has zero or empty extents. */
     bool warn_empty_trigger_extents = true;
+
+    /** @brief Report a warning when an object collider marker has zero or empty extents. */
+    bool warn_empty_object_collider_extents = true;
 
     /** @brief Report a warning when a sprite marker name is empty. */
     bool warn_empty_sprite_names = true;

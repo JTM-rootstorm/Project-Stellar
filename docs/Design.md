@@ -4,8 +4,8 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.1.6 (collision scripting branch alignment)  
-**Last Updated:** 2026-04-30
+**Version:** 0.1.7 (object collider scripting branch alignment)  
+**Last Updated:** 2026-05-01
 
 ---
 
@@ -107,11 +107,11 @@ deferred.
 
 Current branch: `collision-movement`.
 
-Primary near-term goal: make imported static collision usable by authored gameplay and scripts while
-preserving server authority. glTF world metadata may bind trigger markers to script IDs/tables, but
-import does not execute scripts. Runtime scripting wraps authoritative movement/session output,
-emits primitive script events, and applies only native-validated collision commands to server-owned
-runtime state.
+Primary near-term goal: make imported static collision and authored sensor object colliders usable by
+gameplay scripts while preserving server authority. glTF world metadata may bind trigger and
+`COLLIDER_<Name>` markers to script IDs/tables, but import does not execute scripts. Runtime
+scripting wraps authoritative movement/session output, emits primitive script events, and applies
+only native-validated collision/object-collider commands to server-owned runtime state.
 
 Completed Phase 10 implementation order:
 
@@ -147,7 +147,24 @@ Completed Phase 11 implementation order:
    - Add a backend-neutral deterministic overlap registry foundation without rigid bodies or ECS
      ownership.
 6. **Phase 11F — Scripted Collision Smoke and Documentation**
-   - Validate a display-free trigger script that disables a named collision blocker.
+    - Validate a display-free trigger script that disables a named collision blocker.
+
+Completed Phase 12 implementation order:
+
+1. **Phase 12A — Object Collider Lifecycle Semantics**
+   - Harden live enable/disable, upsert, removal, preserving-overlap replacement, and deterministic
+     synchronous exit behavior for sensor object colliders.
+2. **Phase 12B — WorldSession Object Collider Events**
+   - Build runtime object colliders from `RuntimeWorld` metadata and emit authoritative
+     post-movement enter/stay/exit events in `WorldSnapshot`.
+3. **Phase 12C — Authored Object Collider Metadata**
+   - Import `COLLIDER_<Name>` markers as sensor AABB object colliders with deterministic validation.
+4. **Phase 12D — Object Collider Lua Hooks and Commands**
+   - Invoke `on_object_collider_enter/stay/exit` hooks and validate/apply
+     `object_collider.set_enabled` script output events by collider id.
+5. **Phase 12E — Scripted Object Collider Smoke and Documentation**
+   - Validate the authored glTF -> runtime world -> authoritative movement -> Lua hook -> native
+     command path without requiring display, GPU, renderer, network, or third-party physics.
 
 Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
 client-side scripting, renderer/audio scripting bindings, full PBR, morph targets, glTF-authored
@@ -373,7 +390,7 @@ Intentionally deferred unless a concrete requirement appears:
 - Full physics engine integration.
 - Dynamic rigid bodies.
 - Navigation mesh/pathfinding.
-- Runtime trigger behavior beyond authoritative capsule overlap and scripted collision commands.
+- Solid or moving object-collider blockers; current `COLLIDER_<Name>` markers are sensor volumes only.
 - ECS/server spawning directly from glTF metadata.
 
 ### 6.4 glTF Collision Node Conventions
@@ -383,6 +400,8 @@ Initial Phase 6A collision conventions:
 - Node names starting with `COL_` are collision-only.
 - Node names starting with `Collision_` are collision-only.
 - A node named exactly `Collision` marks descendant mesh nodes as collision-only.
+- Node names starting with `COLLIDER_` are authored metadata sensors, not static triangle
+  collision meshes.
 
 Collision-only means triangles are extracted into backend-neutral collision data. Renderer behavior
 should not be changed by Phase 6A unless the existing import/render path already supports doing so
@@ -397,15 +416,25 @@ Initial Phase 6D metadata conventions:
 - `TRIGGER_<Name>` creates a trigger marker.
 - `SPRITE_<Name>` creates a sprite placement marker.
 - `PORTAL_<Name>` may be parsed if trivial, but runtime behavior remains deferred.
+- `COLLIDER_<Name>` creates a sensor-style object collider metadata marker for gameplay
+  overlaps; it is not a solid blocker and does not create static triangle collision.
 
 Transform interpretation:
 
 - Node world translation is marker position.
 - Node world rotation is marker orientation if available.
 - Node scale may be used for trigger volume extents.
+- For `COLLIDER_<Name>`, world translation is the AABB center, absolute world scale is the
+  AABB half extents, and rotation is ignored by the initial authored object-collider path.
 
 Optional `extras` support may preserve raw JSON text if available through the importer without adding
 a new parser solely for this phase.
+
+Script bindings on `TRIGGER_<Name>` and `COLLIDER_<Name>` markers may use
+`extras.stellar.script` and `extras.stellar.table`. Import preserves the binding as metadata only;
+the authoritative scripting layer loads and invokes it later. For object colliders, native runtime
+collider ids are assigned deterministically from metadata marker order and are used for validated
+commands rather than name-based mutation.
 
 ---
 
@@ -665,17 +694,23 @@ initial implementation is intentionally narrow:
 - `stellar_scripting` is optional and owns the Lua dependency.
 - `stellar_world` and `stellar_server_core` do not link Lua directly.
 - Import extracts script bindings from world metadata but never executes scripts.
-- `RuntimeWorld` preserves authored script bindings on trigger markers.
+- `RuntimeWorld` preserves authored script bindings on trigger and object-collider markers.
 - `ScriptedWorldSession` wraps `server::WorldSession`, advances native movement first, then invokes
-  trigger callbacks from authoritative `MovementTriggerEvent` data.
+  trigger callbacks from authoritative `MovementTriggerEvent` data followed by object-collider
+  callbacks from authoritative `WorldSnapshot::object_collider_events` data.
 - Scripts receive plain event tables, not raw C++ pointers.
 - Scripts emit primitive output events through `stellar.emit_event`; native server/gameplay code must
   validate and apply those outputs explicitly.
 - The initial native command vocabulary supports `collision.set_mesh_enabled` with `mesh` and
   `enabled` fields. The command processor validates fields and applies approved changes through
   `server::WorldSession`, not through Lua-owned state.
+- The object-collider command vocabulary supports `object_collider.set_enabled` with finite
+  integer-like `id` and boolean `enabled` fields. Native code validates the id and applies approved
+  changes through `server::WorldSession`; disabling an overlapped collider surfaces its deterministic
+  exit synchronously on the command result rather than replaying it on later snapshot ticks.
 - Script-emitted collision commands are processed after native movement and trigger callbacks for
-  the completed tick. Collision state changes affect subsequent authoritative ticks.
+  the completed tick. Object-collider commands are processed after object-collider callbacks for the
+  completed tick. State changes affect subsequent authoritative ticks.
 - Runtime script errors become deterministic `ScriptError` diagnostics and do not crash the session.
 
 Supported initial hooks:
@@ -684,14 +719,19 @@ Supported initial hooks:
 function Door.on_trigger_enter(event) end
 function Door.on_trigger_stay(event) end
 function Door.on_trigger_exit(event) end
+
+function PickupGem.on_object_collider_enter(event) end
+function PickupGem.on_object_collider_stay(event) end
+function PickupGem.on_object_collider_exit(event) end
 ```
 
-Initial event fields include the authoritative trigger name and tick. Future entity/object scripting
-should be added only after ECS/runtime entity ownership and serialization contracts are concrete.
+Initial event fields include authoritative trigger or collider names, object collider ids, player id,
+and tick. Lua receives plain values and emits primitive requests/events; it does not directly mutate
+C++ state or access raw engine pointers.
 
-Backend-neutral object collider overlap support may exist as a plain runtime data registry, but it is
-not a rigid body system and does not imply script callbacks or ECS ownership until those contracts are
-explicitly scoped.
+Backend-neutral object collider overlap support is a plain runtime sensor registry. It is not a rigid
+body system, does not block movement, and does not imply ECS ownership, network replication, renderer
+debug views, or moving/solid blockers until those contracts are explicitly scoped.
 
 ---
 

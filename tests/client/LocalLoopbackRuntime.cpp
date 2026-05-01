@@ -129,6 +129,31 @@ void assert_same_snapshot(const stellar::server::WorldSnapshot& a,
         assert(a.trigger_events[i].stayed == b.trigger_events[i].stayed);
         assert(a.trigger_events[i].exited == b.trigger_events[i].exited);
     }
+    assert(a.object_collider_events.size() == b.object_collider_events.size());
+    for (std::size_t i = 0; i < a.object_collider_events.size(); ++i) {
+        assert(a.object_collider_events[i].player_id == b.object_collider_events[i].player_id);
+        assert(a.object_collider_events[i].collider_id == b.object_collider_events[i].collider_id);
+        assert(a.object_collider_events[i].name == b.object_collider_events[i].name);
+        assert(a.object_collider_events[i].archetype == b.object_collider_events[i].archetype);
+        assert(a.object_collider_events[i].entered == b.object_collider_events[i].entered);
+        assert(a.object_collider_events[i].stayed == b.object_collider_events[i].stayed);
+        assert(a.object_collider_events[i].exited == b.object_collider_events[i].exited);
+    }
+}
+
+stellar::world::ObjectCollider sphere_collider(std::uint32_t id,
+                                               std::string name,
+                                               std::string archetype,
+                                               Vec3 center,
+                                               float radius = 0.25F) {
+    return stellar::world::ObjectCollider{
+        .id = id,
+        .name = std::move(name),
+        .archetype = std::move(archetype),
+        .shape = {.type = stellar::world::ObjectColliderShapeType::kSphere,
+                  .center = center,
+                  .radius = radius},
+        .enabled = true};
 }
 
 void initial_snapshot_matches_spawn() {
@@ -230,6 +255,45 @@ void trigger_events_are_forwarded_in_frame_result() {
     assert(result.snapshot.trigger_events[0].trigger_name == "Gate");
     assert(result.snapshot.trigger_events[0].entered);
     assert(runtime.latest_snapshot().trigger_events.empty());
+    assert(runtime.latest_snapshot().object_collider_events.empty());
+}
+
+void object_collider_events_are_forwarded_in_frame_result() {
+    const auto scene = scene_with_markers({player_spawn({-2.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::client::LocalLoopbackRuntime runtime(world, test_runtime_config(6));
+    const std::array colliders{sphere_collider(20, "Pickup", "coin", {0.0F, 0.0F, 0.0F})};
+    runtime.set_object_colliders(colliders);
+
+    const auto result = runtime.update(input_with_key(SDL_SCANCODE_D), 0.2F);
+
+    assert(result.ticks_run == 2);
+    assert(result.snapshot.object_collider_events.size() == 1);
+    assert(result.snapshot.object_collider_events[0].player_id == 6);
+    assert(result.snapshot.object_collider_events[0].collider_id == 20);
+    assert(result.snapshot.object_collider_events[0].name == "Pickup");
+    assert(result.snapshot.object_collider_events[0].archetype == "coin");
+    assert(result.snapshot.object_collider_events[0].entered);
+    assert(runtime.latest_snapshot().object_collider_events.empty());
+}
+
+void loopback_object_collider_mutations_return_exits() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::client::LocalLoopbackRuntime runtime(world, test_runtime_config(9));
+    const stellar::platform::Input input;
+    const std::array colliders{sphere_collider(21, "Hazard", "fire", {0.0F, 0.0F, 0.0F})};
+    runtime.set_object_colliders(colliders);
+    assert(runtime.update(input, 0.1F).snapshot.object_collider_events[0].entered);
+
+    const auto disabled = runtime.set_object_collider_enabled(21, false);
+
+    assert(disabled.applied);
+    assert(disabled.object_collider_events.size() == 1);
+    assert(disabled.object_collider_events[0].player_id == 9);
+    assert(disabled.object_collider_events[0].collider_id == 21);
+    assert(disabled.object_collider_events[0].exited);
+    assert(runtime.latest_snapshot().object_collider_events.empty());
 }
 
 void latest_snapshot_updates_after_ticks() {
@@ -288,6 +352,8 @@ int main() {
     large_delta_clamps_ticks_per_frame();
     loopback_uses_authoritative_collision();
     trigger_events_are_forwarded_in_frame_result();
+    object_collider_events_are_forwarded_in_frame_result();
+    loopback_object_collider_mutations_return_exits();
     latest_snapshot_updates_after_ticks();
     missing_collision_world_still_ticks_deterministically();
     same_input_sequence_same_snapshots();

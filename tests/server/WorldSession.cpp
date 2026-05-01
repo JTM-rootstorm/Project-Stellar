@@ -128,6 +128,32 @@ void assert_same_snapshot(const stellar::server::WorldSnapshot& a,
         assert(a.trigger_events[i].stayed == b.trigger_events[i].stayed);
         assert(a.trigger_events[i].exited == b.trigger_events[i].exited);
     }
+    assert(a.object_collider_events.size() == b.object_collider_events.size());
+    for (std::size_t i = 0; i < a.object_collider_events.size(); ++i) {
+        assert(a.object_collider_events[i].player_id == b.object_collider_events[i].player_id);
+        assert(a.object_collider_events[i].collider_id == b.object_collider_events[i].collider_id);
+        assert(a.object_collider_events[i].name == b.object_collider_events[i].name);
+        assert(a.object_collider_events[i].archetype == b.object_collider_events[i].archetype);
+        assert(a.object_collider_events[i].entered == b.object_collider_events[i].entered);
+        assert(a.object_collider_events[i].stayed == b.object_collider_events[i].stayed);
+        assert(a.object_collider_events[i].exited == b.object_collider_events[i].exited);
+    }
+}
+
+stellar::world::ObjectCollider sphere_collider(std::uint32_t id,
+                                               std::string name,
+                                               std::string archetype,
+                                               Vec3 center,
+                                               float radius = 0.25F,
+                                               bool enabled = true) {
+    return stellar::world::ObjectCollider{
+        .id = id,
+        .name = std::move(name),
+        .archetype = std::move(archetype),
+        .shape = {.type = stellar::world::ObjectColliderShapeType::kSphere,
+                  .center = center,
+                  .radius = radius},
+        .enabled = enabled};
 }
 
 void session_initial_snapshot_uses_player_spawn() {
@@ -256,6 +282,95 @@ void snapshot_does_not_replay_previous_trigger_events() {
     assert(tick_snapshot.trigger_events[0].entered);
     assert(pure_snapshot.tick == tick_snapshot.tick);
     assert(pure_snapshot.trigger_events.empty());
+    assert(pure_snapshot.object_collider_events.empty());
+}
+
+void object_collider_enter_stay_exit_events_follow_authoritative_player() {
+    const auto scene = scene_with_markers({player_spawn({-2.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config(4));
+    const std::vector<stellar::server::PlayerCommand> move_right{
+        {.player_id = 4, .movement = {.wish_direction = {1.0F, 0.0F, 0.0F}}}};
+    const std::array colliders{sphere_collider(10, "Pickup", "coin", {0.0F, 0.0F, 0.0F})};
+    session.set_object_colliders(colliders);
+
+    assert(session.tick(move_right).object_collider_events.empty());
+    const auto enter = session.tick(move_right);
+    const auto stay = session.tick({});
+    const auto exit = session.tick(move_right);
+
+    assert(enter.object_collider_events.size() == 1);
+    assert(enter.object_collider_events[0].player_id == 4);
+    assert(enter.object_collider_events[0].collider_id == 10);
+    assert(enter.object_collider_events[0].name == "Pickup");
+    assert(enter.object_collider_events[0].archetype == "coin");
+    assert(enter.object_collider_events[0].entered);
+    assert(!enter.object_collider_events[0].stayed);
+    assert(!enter.object_collider_events[0].exited);
+    assert(stay.object_collider_events.size() == 1);
+    assert(!stay.object_collider_events[0].entered);
+    assert(stay.object_collider_events[0].stayed);
+    assert(!stay.object_collider_events[0].exited);
+    assert(exit.object_collider_events.size() == 1);
+    assert(!exit.object_collider_events[0].entered);
+    assert(!exit.object_collider_events[0].stayed);
+    assert(exit.object_collider_events[0].exited);
+}
+
+void snapshot_does_not_replay_previous_object_collider_events() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+    const std::array colliders{sphere_collider(11, "StartPickup", "coin", {0.0F, 0.0F, 0.0F})};
+    session.set_object_colliders(colliders);
+
+    const auto tick_snapshot = session.tick({});
+    const auto pure_snapshot = session.snapshot();
+
+    assert(tick_snapshot.object_collider_events.size() == 1);
+    assert(tick_snapshot.object_collider_events[0].entered);
+    assert(pure_snapshot.tick == tick_snapshot.tick);
+    assert(pure_snapshot.object_collider_events.empty());
+}
+
+void object_collider_mutations_return_synchronous_exit_events() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config(8));
+    const std::array colliders{sphere_collider(12, "Hazard", "fire", {0.0F, 0.0F, 0.0F})};
+    session.set_object_colliders(colliders);
+    assert(session.tick({}).object_collider_events[0].entered);
+
+    const auto disabled = session.set_object_collider_enabled(12, false);
+    const auto pure_snapshot = session.snapshot();
+
+    assert(disabled.applied);
+    assert(disabled.object_collider_events.size() == 1);
+    assert(disabled.object_collider_events[0].player_id == 8);
+    assert(disabled.object_collider_events[0].collider_id == 12);
+    assert(disabled.object_collider_events[0].name == "Hazard");
+    assert(disabled.object_collider_events[0].archetype == "fire");
+    assert(disabled.object_collider_events[0].exited);
+    assert(pure_snapshot.object_collider_events.empty());
+    assert(session.tick({}).object_collider_events.empty());
+}
+
+void object_collider_replace_preserving_overlaps_returns_removed_exits() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+    const std::array initial{sphere_collider(13, "Key", "pickup", {0.0F, 0.0F, 0.0F})};
+    const std::array replacement{sphere_collider(14, "Other", "pickup", {3.0F, 0.0F, 0.0F})};
+    session.set_object_colliders(initial);
+    assert(session.tick({}).object_collider_events[0].entered);
+
+    const auto exits = session.replace_object_colliders_preserving_overlaps(replacement);
+
+    assert(exits.size() == 1);
+    assert(exits[0].collider_id == 13);
+    assert(exits[0].name == "Key");
+    assert(exits[0].archetype == "pickup");
+    assert(exits[0].exited);
 }
 
 void reset_reinitializes_spawn_state_tick_and_trigger_tracker() {
@@ -370,6 +485,10 @@ int main() {
     wall_collision_is_authoritative_in_snapshot();
     trigger_enter_stay_exit_events_are_reported_once_per_tick();
     snapshot_does_not_replay_previous_trigger_events();
+    object_collider_enter_stay_exit_events_follow_authoritative_player();
+    snapshot_does_not_replay_previous_object_collider_events();
+    object_collider_mutations_return_synchronous_exit_events();
+    object_collider_replace_preserving_overlaps_returns_removed_exits();
     reset_reinitializes_spawn_state_tick_and_trigger_tracker();
     same_inputs_produce_same_snapshots();
     world_session_disabled_mesh_affects_next_tick();

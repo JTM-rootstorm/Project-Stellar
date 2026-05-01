@@ -57,6 +57,8 @@ RuntimeWorld build_runtime_world(const stellar::assets::SceneAsset& scene) {
     world.diagnostics.marker_count = world.world_metadata.markers.size();
     world.diagnostics.sprite_marker_count =
         count_marker_type(world.world_metadata, stellar::assets::WorldMarkerType::kSprite);
+    world.diagnostics.object_collider_marker_count =
+        count_marker_type(world.world_metadata, stellar::assets::WorldMarkerType::kObjectCollider);
     world.diagnostics.has_player_spawn =
         has_marker_type(world.world_metadata, stellar::assets::WorldMarkerType::kPlayerSpawn);
 

@@ -1,9 +1,13 @@
 #include "stellar/world/ObjectCollider.hpp"
 
+#include "stellar/world/RuntimeWorld.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <string>
 #include <utility>
 
 namespace stellar::world {
@@ -189,6 +193,39 @@ bool current_overlap(const TriggerCapsule& player_capsule, const ObjectCollider&
     return false;
 }
 
+ObjectColliderOverlapEvent make_exit_event(std::uint32_t collider_id, const std::string& name) {
+    return {.collider_id = collider_id,
+            .name = name,
+            .entered = false,
+            .stayed = false,
+            .exited = true};
+}
+
+std::size_t collider_id_count(std::span<const ObjectCollider> colliders,
+                              std::uint32_t collider_id) noexcept {
+    std::size_t count = 0;
+    for (const ObjectCollider& collider : colliders) {
+        if (collider.id == collider_id) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::size_t first_collider_index(std::span<const ObjectCollider> colliders,
+                                 std::uint32_t collider_id) noexcept {
+    for (std::size_t i = 0; i < colliders.size(); ++i) {
+        if (colliders[i].id == collider_id) {
+            return i;
+        }
+    }
+    return colliders.size();
+}
+
+bool id_seen_before(std::span<const std::uint32_t> ids, std::uint32_t id) noexcept {
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
 } // namespace
 
 bool capsule_overlaps_object_sphere(const TriggerCapsule& capsule,
@@ -289,38 +326,279 @@ bool capsule_overlaps_object_capsule(const TriggerCapsule& capsule,
     return segment_segment_distance_squared(lhs, rhs) <= radius_sum * radius_sum;
 }
 
+std::vector<ObjectCollider> build_object_colliders(
+    const stellar::assets::WorldMetadataAsset& metadata) {
+    std::vector<ObjectCollider> colliders;
+    colliders.reserve(metadata.markers.size());
+    for (std::size_t marker_index = 0; marker_index < metadata.markers.size(); ++marker_index) {
+        const auto& marker = metadata.markers[marker_index];
+        if (marker.type != stellar::assets::WorldMarkerType::kObjectCollider) {
+            continue;
+        }
+
+        ObjectCollider collider;
+        collider.id = static_cast<std::uint32_t>(marker_index + 1U);
+        collider.name = marker.name;
+        collider.archetype = marker.archetype;
+        collider.shape.type = ObjectColliderShapeType::kAabb;
+        collider.shape.center = marker.position;
+        collider.shape.half_extents = {std::abs(marker.scale[0]), std::abs(marker.scale[1]),
+                                       std::abs(marker.scale[2])};
+        colliders.push_back(std::move(collider));
+    }
+    return colliders;
+}
+
+std::vector<ObjectCollider> build_object_colliders(const RuntimeWorld& world) {
+    return build_object_colliders(world.world_metadata);
+}
+
 void ObjectColliderSystem::set_colliders(std::span<const ObjectCollider> colliders) {
     colliders_.assign(colliders.begin(), colliders.end());
-    previous_overlaps_.assign(colliders_.size(), false);
+    overlap_history_.clear();
+}
+
+std::vector<ObjectColliderOverlapEvent> ObjectColliderSystem::replace_colliders_preserving_overlaps(
+    std::span<const ObjectCollider> colliders) noexcept {
+    const auto old_history = overlap_history_;
+
+    std::vector<ObjectColliderOverlapEvent> exits;
+    for (const OverlapHistoryEntry& old_entry : old_history) {
+        if (!old_entry.overlapping) {
+            continue;
+        }
+        const std::size_t new_index = first_collider_index(colliders, old_entry.collider_id);
+        if (new_index == colliders.size() || !colliders[new_index].enabled) {
+            exits.push_back(make_exit_event(old_entry.collider_id, old_entry.name));
+        }
+    }
+
+    colliders_.assign(colliders.begin(), colliders.end());
+    overlap_history_.clear();
+    std::vector<std::uint32_t> seen_ids;
+    seen_ids.reserve(colliders_.size());
+    for (const ObjectCollider& collider : colliders_) {
+        if (id_seen_before(seen_ids, collider.id)) {
+            continue;
+        }
+        seen_ids.push_back(collider.id);
+
+        bool old_overlapping = false;
+        for (const OverlapHistoryEntry& old_entry : old_history) {
+            if (old_entry.collider_id == collider.id) {
+                old_overlapping = old_entry.overlapping;
+                break;
+            }
+        }
+        overlap_history_.push_back({.collider_id = collider.id,
+                                    .name = collider.name,
+                                    .overlapping = old_overlapping && collider.enabled});
+    }
+    return exits;
+}
+
+ObjectColliderMutationResult ObjectColliderSystem::set_collider_enabled(
+    std::uint32_t collider_id, bool enabled) noexcept {
+    const std::size_t count = collider_id_count(colliders_, collider_id);
+    if (count == 0) {
+        return {
+            .applied = false, .code = "not_found", .message = "Object collider id was not found."};
+    }
+    if (count > 1) {
+        return {.applied = false,
+                .code = "duplicate_collider_id",
+                .message = "Object collider id is not unique; mutation was rejected."};
+    }
+
+    const std::size_t index = first_collider_index(colliders_, collider_id);
+    ObjectCollider& collider = colliders_[index];
+    ObjectColliderMutationResult result{.applied = true,
+                                        .code = "applied",
+                                        .message = "Object collider enabled state was applied."};
+    if (collider.enabled == enabled) {
+        return result;
+    }
+
+    collider.enabled = enabled;
+    for (OverlapHistoryEntry& entry : overlap_history_) {
+        if (entry.collider_id == collider_id) {
+            if (!enabled && entry.overlapping) {
+                result.exit_events.push_back(make_exit_event(collider_id, entry.name));
+                entry.overlapping = false;
+            }
+            entry.name = collider.name;
+            return result;
+        }
+    }
+    overlap_history_.push_back(
+        {.collider_id = collider_id, .name = collider.name, .overlapping = false});
+    return result;
+}
+
+ObjectColliderMutationResult ObjectColliderSystem::upsert_collider(
+    const ObjectCollider& collider) noexcept {
+    const std::size_t count = collider_id_count(colliders_, collider.id);
+    if (count > 1) {
+        return {.applied = false,
+                .code = "duplicate_collider_id",
+                .message = "Object collider id is not unique; mutation was rejected."};
+    }
+
+    ObjectColliderMutationResult result{.applied = true,
+                                        .code = "applied",
+                                        .message = "Object collider was upserted."};
+    if (count == 0) {
+        colliders_.push_back(collider);
+        overlap_history_.push_back(
+            {.collider_id = collider.id, .name = collider.name, .overlapping = false});
+        return result;
+    }
+
+    const std::size_t index = first_collider_index(colliders_, collider.id);
+    std::string previous_name = colliders_[index].name;
+    bool was_overlapping = false;
+    for (OverlapHistoryEntry& entry : overlap_history_) {
+        if (entry.collider_id == collider.id) {
+            previous_name = entry.name;
+            was_overlapping = entry.overlapping;
+            entry.name = collider.name;
+            entry.overlapping = entry.overlapping && collider.enabled;
+            break;
+        }
+    }
+    colliders_[index] = collider;
+    if (!collider.enabled && was_overlapping) {
+        result.exit_events.push_back(make_exit_event(collider.id, previous_name));
+    }
+    return result;
+}
+
+ObjectColliderMutationResult ObjectColliderSystem::remove_collider(
+    std::uint32_t collider_id) noexcept {
+    const std::size_t count = collider_id_count(colliders_, collider_id);
+    if (count == 0) {
+        return {
+            .applied = false, .code = "not_found", .message = "Object collider id was not found."};
+    }
+    if (count > 1) {
+        return {.applied = false,
+                .code = "duplicate_collider_id",
+                .message = "Object collider id is not unique; mutation was rejected."};
+    }
+
+    ObjectColliderMutationResult result{.applied = true,
+                                        .code = "applied",
+                                        .message = "Object collider was removed."};
+    const std::size_t index = first_collider_index(colliders_, collider_id);
+    colliders_.erase(colliders_.begin() + static_cast<std::ptrdiff_t>(index));
+    for (auto it = overlap_history_.begin(); it != overlap_history_.end(); ++it) {
+        if (it->collider_id == collider_id) {
+            if (it->overlapping) {
+                result.exit_events.push_back(make_exit_event(collider_id, it->name));
+            }
+            overlap_history_.erase(it);
+            return result;
+        }
+    }
+    return result;
 }
 
 std::vector<ObjectColliderOverlapEvent> ObjectColliderSystem::update_player_capsule(
     const TriggerCapsule& player_capsule) noexcept {
-    if (previous_overlaps_.size() != colliders_.size()) {
-        previous_overlaps_.assign(colliders_.size(), false);
-    }
-
     std::vector<ObjectColliderOverlapEvent> events;
-    for (std::size_t i = 0; i < colliders_.size(); ++i) {
-        const bool current = current_overlap(player_capsule, colliders_[i]);
-        const bool previous = previous_overlaps_[i];
+    std::vector<OverlapHistoryEntry> next_history;
+    next_history.reserve(colliders_.size());
+    std::vector<std::uint32_t> seen_ids;
+    seen_ids.reserve(colliders_.size());
+
+    for (const ObjectCollider& collider : colliders_) {
+        if (id_seen_before(seen_ids, collider.id)) {
+            continue;
+        }
+        seen_ids.push_back(collider.id);
+
+        bool previous = false;
+        for (const OverlapHistoryEntry& entry : overlap_history_) {
+            if (entry.collider_id == collider.id) {
+                previous = entry.overlapping;
+                break;
+            }
+        }
+
+        const bool current = current_overlap(player_capsule, collider);
 
         ObjectColliderOverlapEvent event;
-        event.collider_id = colliders_[i].id;
-        event.name = colliders_[i].name;
+        event.collider_id = collider.id;
+        event.name = collider.name;
         event.entered = current && !previous;
         event.stayed = current && previous;
         event.exited = !current && previous;
         if (event.entered || event.stayed || event.exited) {
             events.push_back(std::move(event));
         }
-        previous_overlaps_[i] = current;
+        next_history.push_back(
+            {.collider_id = collider.id, .name = collider.name, .overlapping = current});
     }
+    overlap_history_ = std::move(next_history);
     return events;
 }
 
 const std::vector<ObjectCollider>& ObjectColliderSystem::colliders() const noexcept {
     return colliders_;
+}
+
+std::vector<ObjectColliderDiagnostic> ObjectColliderSystem::diagnostics() const {
+    std::vector<ObjectColliderDiagnostic> diagnostics;
+    std::vector<std::uint32_t> seen_ids;
+    seen_ids.reserve(colliders_.size());
+
+    for (std::size_t i = 0; i < colliders_.size(); ++i) {
+        const ObjectCollider& collider = colliders_[i];
+        if (id_seen_before(seen_ids, collider.id)) {
+            diagnostics.push_back({.severity = ObjectColliderDiagnosticSeverity::kError,
+                                   .code = "duplicate_collider_id",
+                                   .message = "Object collider id duplicates an earlier collider.",
+                                   .collider_id = collider.id,
+                                   .collider_index = i});
+        } else {
+            seen_ids.push_back(collider.id);
+        }
+
+        if (!is_finite(collider.shape.center)) {
+            diagnostics.push_back({.severity = ObjectColliderDiagnosticSeverity::kError,
+                                   .code = "non_finite_center",
+                                   .message = "Object collider shape center contains non-finite "
+                                              "data.",
+                                   .collider_id = collider.id,
+                                   .collider_index = i});
+        }
+        if (!std::isfinite(collider.shape.radius) || collider.shape.radius < 0.0F) {
+            diagnostics.push_back({.severity = ObjectColliderDiagnosticSeverity::kWarning,
+                                   .code = "invalid_radius",
+                                   .message = "Object collider radius will sanitize to zero.",
+                                   .collider_id = collider.id,
+                                   .collider_index = i});
+        }
+        if (collider.shape.type == ObjectColliderShapeType::kAabb &&
+            !is_finite(collider.shape.half_extents)) {
+            diagnostics.push_back({.severity = ObjectColliderDiagnosticSeverity::kWarning,
+                                   .code = "non_finite_half_extents",
+                                   .message = "Object collider AABB half extents contain "
+                                              "non-finite data.",
+                                   .collider_id = collider.id,
+                                   .collider_index = i});
+        }
+        if (collider.shape.type == ObjectColliderShapeType::kCapsule &&
+            (!std::isfinite(collider.shape.height) || collider.shape.height < 0.0F)) {
+            diagnostics.push_back({.severity = ObjectColliderDiagnosticSeverity::kWarning,
+                                   .code = "invalid_height",
+                                   .message = "Object collider capsule height will sanitize.",
+                                   .collider_id = collider.id,
+                                   .collider_index = i});
+        }
+    }
+
+    return diagnostics;
 }
 
 } // namespace stellar::world

@@ -33,6 +33,7 @@ void verify_empty_scene_builds_empty_runtime_world() {
     assert(world.diagnostics.collision_triangle_count == 0);
     assert(world.diagnostics.marker_count == 0);
     assert(world.diagnostics.sprite_marker_count == 0);
+    assert(world.diagnostics.object_collider_marker_count == 0);
     assert(!world.diagnostics.has_player_spawn);
     assert(stellar::world::find_player_spawn(world) == nullptr);
     assert(!world.diagnostics.warnings.empty());
@@ -94,6 +95,7 @@ void verify_marker_helpers_and_diagnostics() {
         make_marker(stellar::assets::WorldMarkerType::kTrigger, "Checkpoint"),
         make_marker(stellar::assets::WorldMarkerType::kSprite, "Torch"),
         make_marker(stellar::assets::WorldMarkerType::kSprite, "Banner"),
+        make_marker(stellar::assets::WorldMarkerType::kObjectCollider, "Pickup"),
     };
 
     const auto world = stellar::world::build_runtime_world(scene);
@@ -121,8 +123,14 @@ void verify_marker_helpers_and_diagnostics() {
         world, stellar::assets::WorldMarkerType::kPortal);
     assert(portals.empty());
 
-    assert(world.diagnostics.marker_count == 7);
+    const auto colliders = stellar::world::find_markers_by_type(
+        world, stellar::assets::WorldMarkerType::kObjectCollider);
+    assert(colliders.size() == 1);
+    assert(colliders[0]->name == "Pickup");
+
+    assert(world.diagnostics.marker_count == 8);
     assert(world.diagnostics.sprite_marker_count == 2);
+    assert(world.diagnostics.object_collider_marker_count == 1);
     assert(world.diagnostics.has_player_spawn);
 }
 

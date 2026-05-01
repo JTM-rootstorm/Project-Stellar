@@ -17,6 +17,71 @@ Do **not** restart those phases from scratch. Treat them as implemented first pa
 
 ## Current status
 
+Phase 12E scripted object-collider smoke and documentation is complete as of 2026-05-01:
+
+- Added display-free `scripted_object_collider_smoke` coverage with a generated glTF fixture that
+  imports `COLLIDER_PickupGem`, builds deterministic runtime AABB object-collider data, enters it
+  through authoritative `WorldSession` movement, invokes the bound Lua object-collider hook, emits
+  `object_collider.set_enabled` plus `gameplay.pickup_collected`, applies the validated native
+  disable command, and proves later ticks do not emit stay for the disabled collider.
+- The smoke asserts Phase 12D synchronous exit policy: disabling an overlapped object collider emits
+  the exit on the command result, not as a later snapshot/hook replay.
+- Added CMake target `stellar_scripted_object_collider_smoke_test` and CTest name
+  `scripted_object_collider_smoke` under the existing glTF + Lua enabled gates.
+- Updated `docs/Design.md` for `COLLIDER_<Name>` object-collider authoring, sensor-only semantics,
+  server-authoritative Lua hooks/commands, and deferred solid moving blockers.
+
+Phase 12A-D authoritative object-collider integration is complete as of 2026-05-01:
+
+- Phase 12A hardened `ObjectColliderSystem` lifecycle semantics with deterministic live
+  enable/disable, upsert, remove, preserving-overlap replacement, duplicate-id diagnostics, and
+  synchronous exit results for disabled/removed previously-overlapped colliders.
+- Phase 12B integrated object-collider events into `WorldSession` snapshots using authoritative
+  post-movement capsule overlap checks, runtime-world collider construction on reset, and explicit
+  mutation APIs for script/native command application.
+- Phase 12C added authored `COLLIDER_<Name>` metadata import and validation for sensor-style AABB
+  runtime colliders, separate from `COL_*` static triangle collision extraction.
+- Phase 12D added `ObjectColliderScriptSystem`, object-collider Lua hook loading/invocation, and
+  native validation/application for `object_collider.set_enabled` by finite integer-like collider id.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake --build build --target stellar_scripted_object_collider_smoke_test stellar_object_collider_test stellar_server_world_session_test stellar_scripted_world_session_test stellar_script_command_processor_test stellar_import_gltf_regression stellar_world_metadata_validation_test -j$(nproc)
+ctest --test-dir build -R '^(scripted_object_collider_smoke|object_collider|server_world_session|scripted_world_session|script_command_processor|gltf_importer_regression|world_metadata_validation)$' --output-on-failure
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+Result: targeted Phase 12E suite passed (7/7) and full CTest passed (31/31). Build linked
+successfully; the vendored Lua `tmpnam` linker warning remains unchanged.
+
+Phase 12D authoritative object-collider scripting is complete as of 2026-05-01:
+
+- Added `ObjectColliderScriptSystem` with deterministic Lua hooks for
+  `on_object_collider_enter`, `on_object_collider_stay`, and `on_object_collider_exit` using
+  authoritative `WorldSnapshot` object-collider events.
+- `ScriptedWorldSession` now loads unique trigger and object-collider scripts once, then processes
+  native movement, trigger events, object-collider events, trigger script callbacks,
+  object-collider script callbacks, and native command validation/application in that order.
+- Added native validation/application for `stellar.emit_event("object_collider.set_enabled", ...)`
+  by finite integer-like `uint32_t` id only; invalid fields are rejected, unknown ids report
+  `not_found`, and disable-while-overlapped exits are surfaced synchronously on the command result.
+- Metadata validation now treats script bindings on object-collider markers as supported while
+  keeping sprite, portal, player spawn, and entity-spawn script bindings unsupported.
+
+Phase 12C authored object-collider metadata is complete as of 2026-05-01:
+
+- Added `WorldMarkerType::kObjectCollider` and glTF `COLLIDER_<Name>` metadata import for
+  sensor-style AABB object colliders; `COLLIDER_*` remains separate from static `COL_*` triangle
+  collision extraction.
+- Added builder helpers that convert copied world metadata into deterministic nonzero-id runtime
+  AABB object colliders in metadata marker order.
+- Extended metadata validation with deterministic object-collider name, duplicate-name, empty extent,
+  large extent, and unsupported script-binding diagnostics. Lua hooks, solid collision, oriented
+  boxes, ECS spawning, rendering, and networking remain deferred.
+
 Phase 11A-F collision scripting slice is complete as of 2026-04-30:
 
 - Added capsule-aware trigger overlap so authoritative trigger events use the same vertical capsule

@@ -34,6 +34,23 @@ stellar::assets::WorldMarker trigger_marker(std::string name,
     return marker;
 }
 
+stellar::assets::WorldMarker object_collider_marker(std::string name,
+                                                    Vec3 position,
+                                                    Vec3 scale,
+                                                    std::string archetype,
+                                                    std::string script_id,
+                                                    std::string table_name) {
+    stellar::assets::WorldMarker marker{};
+    marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
+    marker.name = std::move(name);
+    marker.position = position;
+    marker.scale = scale;
+    marker.archetype = std::move(archetype);
+    marker.script =
+        stellar::assets::WorldScriptBinding{std::move(script_id), std::move(table_name)};
+    return marker;
+}
+
 stellar::assets::CollisionTriangle triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 normal) {
     return stellar::assets::CollisionTriangle{.a = a, .b = b, .c = c, .normal = normal};
 }
@@ -89,6 +106,16 @@ stellar::scripting::ScriptRegistry registry_with(std::string script_id, std::str
     return registry;
 }
 
+stellar::scripting::ScriptRegistry registry_with(std::string first_id,
+                                                 std::string first_source,
+                                                 std::string second_id,
+                                                 std::string second_source) {
+    stellar::scripting::ScriptRegistry registry{};
+    registry.set_script(std::move(first_id), std::move(first_source));
+    registry.set_script(std::move(second_id), std::move(second_source));
+    return registry;
+}
+
 const stellar::scripting::ScriptField* find_field(
     const stellar::scripting::ScriptOutputEvent& event,
     const std::string& key) {
@@ -141,6 +168,7 @@ void assert_same_frame(const stellar::scripting::ScriptedWorldFrame& a,
     assert(a.snapshot.tick == b.snapshot.tick);
     assert(a.snapshot.players.size() == b.snapshot.players.size());
     assert(a.snapshot.trigger_events.size() == b.snapshot.trigger_events.size());
+    assert(a.snapshot.object_collider_events.size() == b.snapshot.object_collider_events.size());
     assert(a.script_errors.size() == b.script_errors.size());
     assert(a.script_events.size() == b.script_events.size());
     assert(a.command_results.size() == b.command_results.size());
@@ -428,6 +456,123 @@ void repeat_run_produces_same_script_events_and_command_results() {
     assert_same_frame(first->tick({}), second->tick({}));
 }
 
+void scripted_object_collider_enter_can_disable_own_collider() {
+    const auto scene = scene_with_markers({
+        player_spawn({0.0F, 0.0F, 0.0F}),
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+                               "gem", "Gem"),
+    });
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "gem",
+        "Gem = {}\n"
+        "function Gem.on_object_collider_enter(event)\n"
+        "  stellar.emit_event('object_collider.set_enabled', "
+        "{id = event.collider_id, enabled = false, name = event.collider_name})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+
+    const auto frame = session->tick({});
+
+    assert(frame.snapshot.object_collider_events.size() == 1);
+    assert(frame.snapshot.object_collider_events[0].entered);
+    assert(frame.script_errors.empty());
+    assert(frame.script_events.size() == 1);
+    assert(frame.script_events[0].name == "object_collider.set_enabled");
+    assert(frame.command_results.size() == 1);
+    assert(frame.command_results[0].applied);
+    assert(frame.command_results[0].code == "applied");
+    assert(frame.command_results[0].object_collider_events.size() == 1);
+    assert(frame.command_results[0].object_collider_events[0].exited);
+
+    const auto next = session->tick({});
+    assert(next.snapshot.object_collider_events.empty());
+    assert(next.script_events.empty());
+}
+
+void latest_snapshot_does_not_replay_object_collider_scripts() {
+    const auto scene = scene_with_markers({
+        player_spawn({0.0F, 0.0F, 0.0F}),
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+                               "gem", "Gem"),
+    });
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "gem",
+        "count = 0\n"
+        "Gem = {}\n"
+        "function Gem.on_object_collider_enter(event)\n"
+        "  count = count + 1\n"
+        "  stellar.emit_event('object_counted', {count = count})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+
+    const auto frame = session->tick({});
+    const auto& latest_a = session->latest_snapshot();
+    const auto& latest_b = session->latest_snapshot();
+
+    assert(frame.script_events.size() == 1);
+    assert(number_field(frame.script_events[0], "count") == 1.0);
+    assert(latest_a.tick == frame.snapshot.tick);
+    assert(latest_b.object_collider_events.size() == frame.snapshot.object_collider_events.size());
+}
+
+void repeat_run_produces_same_object_script_events_and_command_results() {
+    const auto scene = scene_with_markers({
+        player_spawn({0.0F, 0.0F, 0.0F}),
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+                               "gem", "Gem"),
+    });
+    const auto world = stellar::world::build_runtime_world(scene);
+    const char* source =
+        "Gem = {}\n"
+        "function Gem.on_object_collider_enter(event)\n"
+        "  stellar.emit_event('object_collider.set_enabled', "
+        "{id = event.collider_id, enabled = false, tick = event.tick})\n"
+        "end\n";
+    auto first = stellar::scripting::ScriptedWorldSession::create(
+        world, test_session_config(), registry_with("gem", source));
+    auto second = stellar::scripting::ScriptedWorldSession::create(
+        world, test_session_config(), registry_with("gem", source));
+    assert(first.has_value());
+    assert(second.has_value());
+
+    assert_same_frame(first->tick({}), second->tick({}));
+    assert_same_frame(first->tick({}), second->tick({}));
+}
+
+void trigger_scripts_and_object_collider_scripts_have_documented_order() {
+    const auto scene = scene_with_markers({
+        player_spawn({0.0F, 0.0F, 0.0F}),
+        trigger_marker("Gate", {0.0F, 0.0F, 0.0F}, {0.5F, 0.5F, 0.5F}, "gate", "Gate"),
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+                               "gem", "Gem"),
+    });
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto registry = registry_with(
+        "gate",
+        "Gate = {}\n"
+        "function Gate.on_trigger_enter(event) stellar.emit_event('trigger_first', {}) end\n",
+        "gem",
+        "Gem = {}\n"
+        "function Gem.on_object_collider_enter(event) stellar.emit_event('object_second', {}) end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+
+    const auto frame = session->tick({});
+
+    assert(frame.snapshot.trigger_events.size() == 1);
+    assert(frame.snapshot.object_collider_events.size() == 1);
+    assert(frame.script_events.size() == 2);
+    assert(frame.script_events[0].name == "trigger_first");
+    assert(frame.script_events[1].name == "object_second");
+}
+
 } // namespace
 
 int main() {
@@ -442,5 +587,9 @@ int main() {
     scripted_invalid_collision_command_does_not_crash();
     latest_snapshot_does_not_reapply_commands();
     repeat_run_produces_same_script_events_and_command_results();
+    scripted_object_collider_enter_can_disable_own_collider();
+    latest_snapshot_does_not_replay_object_collider_scripts();
+    repeat_run_produces_same_object_script_events_and_command_results();
+    trigger_scripts_and_object_collider_scripts_have_documented_order();
     return EXIT_SUCCESS;
 }
