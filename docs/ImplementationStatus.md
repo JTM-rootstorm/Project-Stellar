@@ -19,7 +19,7 @@ Active phases:
 - Phase PN-2 — Authoritative gameplay snapshot presentation: complete as of 2026-05-01.
 - Phase PN-3 — Snapshot/delta/event transport contracts: complete as of 2026-05-01.
 - Phase PN-4 — Local/remote transport bridge: complete as of 2026-05-01.
-- Phase PN-5 — HUD/audio/toolchain polish: pending.
+- Phase PN-5 — HUD/audio/toolchain polish: complete as of 2026-05-01.
 - Phase PN-6 — Final docs, validation, and handoff: pending.
 
 Phase PN-0 completion notes:
@@ -154,6 +154,28 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused PN-4 targets built, focused PN-4 CTest passed 4/4, and full
 default CTest passed 46/46 on 2026-05-01.
+
+Phase PN-5 completion notes:
+
+- Added a client HUD presentation cache driven only by server-approved gameplay events, including
+  pickup messages, door-state messages, script diagnostics, bounded history, and deterministic reset
+  behavior.
+- Added an audio event router with no-op and fake sink implementations over server-approved gameplay
+  events so pickup/door/script approvals can be observed without making audio a gameplay authority.
+- Added BSP FGD/toolchain helper coverage and updated `docs/BspAuthoring.md` authoring guidance for
+  the PN-5 pickup/door presentation path.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(hud_presentation|audio_event_router|client_world_receiver|gameplay_presentation|bsp_authoring_smoke)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, full debug build succeeded, focused PN-5 CTest passed 5/5, and full
+default CTest passed 48/48 on 2026-05-01.
 
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 

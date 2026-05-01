@@ -1,0 +1,67 @@
+@PointClass base(Targetname, Angles) = info_player_start : "Stellar player start"
+[
+    targetname(string) : "Name"
+    origin(string) : "Origin" : "0 36 0"
+]
+
+@PointClass base(Targetname) = info_stellar_spawn : "Stellar generic spawn metadata"
+[
+    archetype(string) : "Server-side archetype id"
+    origin(string) : "Origin"
+    stellar_script(string) : "Authoritative Lua script id (serialized as stellar.script)"
+    stellar_table(string) : "Lua table name (serialized as stellar.table)"
+]
+
+@SolidClass base(Targetname) = trigger_stellar : "Stellar authoritative trigger volume"
+[
+    stellar_script(string) : "Authoritative Lua script id (serialized as stellar.script)"
+    stellar_table(string) : "Lua table name (serialized as stellar.table)"
+    stellar_extents(string) : "Point-trigger extents fallback, x y z (serialized as stellar.extents)"
+    stellar_once(choices) : "Fire once (serialized as stellar.once)" : 0 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@PointClass base(Targetname) = stellar_sprite : "Stellar presentation sprite marker"
+[
+    origin(string) : "Origin"
+    stellar_sprite(string) : "Sprite id (serialized as stellar.sprite)"
+    stellar_texture(string) : "Texture asset id (serialized as stellar.texture)"
+    stellar_size(string) : "Billboard size, width height (serialized as stellar.size)"
+    stellar_alpha(choices) : "Alpha mode (serialized as stellar.alpha)" : "blend" =
+    [
+        "opaque" : "opaque"
+        "blend" : "blend"
+        "masked" : "masked"
+    ]
+]
+
+@SolidClass base(Targetname) = stellar_object_collider : "Stellar server-side object sensor"
+[
+    archetype(string) : "Gameplay archetype such as pickup or item_health"
+    stellar_collider(choices) : "Collider type (serialized as stellar.collider)" : "object" =
+    [
+        "object" : "object"
+    ]
+    stellar_script(string) : "Authoritative Lua script id (serialized as stellar.script)"
+    stellar_table(string) : "Lua table name (serialized as stellar.table)"
+    stellar_extents(string) : "Point-collider extents fallback, x y z (serialized as stellar.extents)"
+    stellar_enabled(choices) : "Initially enabled (serialized as stellar.enabled)" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@SolidClass base(Targetname) = func_wall : "Stellar static collision brush"
+[
+    stellar_collision(choices) : "Collision extraction behavior (serialized as stellar.collision)" :
+        "static" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]

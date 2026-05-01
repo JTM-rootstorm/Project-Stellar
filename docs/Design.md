@@ -499,6 +499,10 @@ and no-op fallback paths where appropriate.
 Audio should be implemented through an interface that keeps gameplay/server logic separate from
 presentation playback. The client owns playback; gameplay/server systems should produce validated
 events or state that the client can present.
+The current presentation polish includes a narrow `AudioEventRouter` that maps server-approved
+`GameplayEvent` records to one-shot sound ids and can target an explicit no-op sink for headless or
+missing-device paths. Missing local sound assets are presentation diagnostics only and do not affect
+authoritative gameplay.
 
 ### 8.2 miniaudio Target
 

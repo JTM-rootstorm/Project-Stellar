@@ -154,6 +154,18 @@ target_link_libraries(stellar_network PUBLIC
     stellar_scripting
 )
 
+add_library(stellar_audio
+    src/audio/AudioEventRouter.cpp
+)
+
+target_include_directories(stellar_audio PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_audio PUBLIC
+    stellar_network
+)
+
 add_library(stellar_import_bsp
     src/import/bsp/Loader.cpp
     src/import/bsp/Validation.cpp
@@ -187,6 +199,7 @@ target_link_libraries(stellar_platform PUBLIC
 
 add_library(stellar_client_runtime
     src/client/ClientWorldReceiver.cpp
+    src/client/HudPresentation.cpp
     src/client/LocalServerBridge.cpp
     src/client/MovementInputMapper.cpp
     src/client/LocalLoopbackRuntime.cpp
@@ -438,6 +451,15 @@ stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test clien
 stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_receiver
     tests/client/ClientWorldReceiver.cpp
 )
+
+stellar_add_client_runtime_test(stellar_hud_presentation_test hud_presentation
+    tests/client/HudPresentation.cpp
+)
+
+stellar_add_test_executable(stellar_audio_event_router_test audio_event_router
+    tests/audio/AudioEventRouter.cpp
+)
+target_link_libraries(stellar_audio_event_router_test PRIVATE stellar_audio)
 
 stellar_add_scripting_test(stellar_lua_runtime_test lua_runtime
     tests/scripting/LuaRuntime.cpp

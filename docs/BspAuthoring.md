@@ -15,7 +15,11 @@ capsule center 36 inches above the floor.
 3. Compile/export the `.bsp`.
 4. Run the display-free validation commands below before using the map in runtime tests.
 
-The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD definitions, or equivalent editor mechanisms that preserve keys exactly.
+The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD
+definitions, or equivalent editor mechanisms that preserve keys exactly. A small Quake-style helper
+definition file is available at `tools/bsp/stellar_entities.fgd`; some editors require mapping dotted
+Stellar keys such as `stellar.script` from underscore-named FGD fields such as `stellar_script` before
+export.
 
 For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
 on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
@@ -79,6 +83,13 @@ Collected pickups become inactive in authoritative gameplay state before the cli
 scripted doors/gates mirror validated collision-command results into server gameplay metadata before
 presentation observes open/closed state. Client scripts, renderer state, audio state, and HUD state do
 not own gameplay truth.
+
+The current HUD feedback layer is a client-side presentation cache only. It can count unique
+server-approved pickup events and retain bounded recent event messages for future text rendering, but
+gameplay systems never read HUD state and reset it for each new map/session.
+The current audio feedback layer routes server-approved pickup and door/gate events to presentation
+one-shot sound ids (`pickup`, `door_open`, `door_close`) through an explicit sink/no-op interface;
+missing local sound assets are diagnostics only and do not fail gameplay.
 
 ## Examples
 

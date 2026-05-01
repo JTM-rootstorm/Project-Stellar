@@ -33,6 +33,17 @@ constexpr std::string_view kSetObjectColliderEnabledEvent = "object_collider.set
     return {};
 }
 
+[[nodiscard]] bool read_bool_field(const stellar::scripting::ScriptOutputEvent& event,
+                                   std::string_view name,
+                                   bool fallback) noexcept {
+    for (const stellar::scripting::ScriptField& field : event.fields) {
+        if (field.key == name && field.type == stellar::scripting::ScriptValueType::kBoolean) {
+            return field.bool_value;
+        }
+    }
+    return fallback;
+}
+
 } // namespace
 
 NetworkGameplayEntity make_network_entity(const stellar::server::GameplayEntity& entity) {
@@ -104,6 +115,8 @@ std::vector<GameplayEvent> make_gameplay_events(
             if (event.code.empty()) {
                 event.code = result.code;
             }
+            const bool collision_enabled = read_bool_field(script_event, "enabled", true);
+            event.message = collision_enabled ? "Door closed" : "Door opened";
         } else if (script_event.name == kSetObjectColliderEnabledEvent) {
             event.kind = GameplayEventKind::kScriptCommandApplied;
             event.entity_id = read_uint32_field(script_event, "id");
