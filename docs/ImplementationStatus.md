@@ -1,57 +1,416 @@
-# Stellar Engine Implementation Status
+# Project Stellar: Implementation Status
 
-_Last updated: 2026-04-28_
+Branch target: `bsp-gameplay-loop`
 
-This document is the current, branch-facing status reference for implemented engine behavior. Historical roadmap files under `Plans/` and `.kilo/plans/` are archival and may contain stale intermediate phase descriptions.
+## Active Scope — Gameplay Loop Expansion over BSP Maps
 
-## Rendering backend status
+This branch begins after `collision-movement` merges to `main`. Treat collision, movement,
+trigger, object-collider, Lua scripting, BSP canonical migration, BSP rendering, and BSP hardening as
+completed foundations, not as active work to restart.
 
-- OpenGL and Vulkan are runtime-selectable through the shared graphics abstraction.
-- OpenGL is render-capable for the current lightweight glTF path.
-- Vulkan is no longer an upload-only or no-op backend on this branch. It initializes, creates swapchain resources, records draw commands, submits frames, presents, and has opt-in context smoke coverage.
-- Default tests remain display-free; GPU/display-dependent OpenGL and Vulkan context tests are opt-in.
-- The current renderer targets lightweight material parity across OpenGL and Vulkan, not full glTF PBR compliance.
+The next implementation scope is gameplay loop expansion over BSP maps while preserving server
+authority and display-free default validation.
 
-## glTF support status
+Initial focus areas:
 
-Implemented on this branch:
+- ECS/entity spawn from BSP metadata.
+- Player presentation from authoritative snapshots.
+- Sprite, animation, and interaction loop.
+- Item pickup and scripted doors/gates using the existing Lua command path.
 
-- Static glTF mesh import for triangle primitives, bounds, tangents, UV0/UV1, vertex colors, textures, samplers, and materials.
-- `.gltf` and `.glb` importer coverage through generated fixtures.
-- Runtime scene loading through the client asset path.
-- Base color, normal, metallic-roughness, occlusion, emissive, alpha mask/blend, double-sided materials, UV routing, vertex color modulation, and conservative tangent generation.
-- `KHR_texture_transform` for supported material texture slots.
-- `KHR_materials_unlit`.
-- Skin and animation asset import, runtime animation evaluation, scene pose generation, and GPU skinning.
-- Shared OpenGL/Vulkan skin palette behavior with a conservative runtime cap of 256 joints per draw.
-- Vulkan material, alpha/culling, texture, skinning, resize/recreate, and resource lifetime hardening sufficient for the current lightweight parity target.
+Near-term implementation should continue to use `Plans/NEXT.md` as the short branch handoff and this
+file as the source of truth for completion notes. Archived phase plans under `Plans/Archived/` are
+historical context unless this file explicitly names one as active.
 
-Unsupported or intentionally deferred:
+Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
+renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.
 
-- Full metallic-roughness PBR. The current shading model is intentionally lightweight.
-- Morph target deformation and animation `weights` channels.
-- glTF-authored cameras and lights. The Phase 5F decision-gate work has treated these as deferred rather than implemented; the current asset model has no camera or light asset storage.
-- Broad glTF extension coverage beyond the supported material extensions listed above.
-- Deterministic GPU readback validation for rendered pixel output.
+## BSP Authoring and Presentation Hardening — Complete
 
-## Extension policy
+BSP authoring and presentation hardening is complete as of 2026-05-01:
 
-- Supported required extensions are accepted only after importer and both render backends can represent and render them consistently.
-- Unknown or unsupported `extensionsRequired` entries should fail clearly with the extension name in the error.
-- Optional unsupported data should degrade predictably without creating partial runtime state that implies support.
-- The current required-extension allowlist is limited to `KHR_texture_transform` and `KHR_materials_unlit`.
+- Added structured BSP import, authoring, and validation diagnostics.
+- Added BSP leaf/PVS visibility data and optional presentation-only culling.
+- Added BSP lightmap metadata, material/texture import, and deterministic fallback behavior.
+- Documented and validated BSP entity authoring conventions for spawns, triggers, sprites, object
+  colliders, static collision brushes, and script metadata.
+- Added generated BSP fixtures plus display-free/headless validation coverage, including client map
+  validation before window or graphics context creation.
+- Archived the completed hardening plan at
+  `Plans/Archived/project_stellar_bsp_hardening_plan/`.
+- `Plans/NEXT.md` now points to gameplay loop expansion over BSP maps as the next active scope.
 
-## Recommended next status-aligned work
+Final phase status:
 
-The previous recommended next step, the authored cameras/lights decision gate, has already been completed as a deferral in the Phase 5F archive. There is no longer a single pre-approved next glTF implementation slice in the current docs.
+- Phase 0 — Active handoff and `NEXT.md` lock-in: complete as of 2026-05-01.
+- Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: complete as of 2026-05-01.
+- Phase 2 — BSP PVS, leaf visibility, and render culling: complete as of 2026-05-01.
+- Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: complete as of 2026-05-01.
+- Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: complete as of 2026-05-01.
+- Phase 5 — BSP validation tooling and regression fixtures: complete as of 2026-05-01.
+- Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: complete as of
+  2026-05-01.
 
-If continuing glTF implementation, pick the next slice from an actual asset or product requirement rather than reopening a completed decision gate. Practical candidates are:
+Final validation run:
 
-1. **Authored cameras**, if imported scenes should drive the viewer camera. This would require a backend-neutral camera asset model, camera import, node camera references, and client/viewer selection.
-2. **Morph targets**, if assets need facial animation or animated morph weights. This would require mesh morph target storage, animation `weights` channel support, render submission changes, and OpenGL/Vulkan shader parity.
-3. **`KHR_lights_punctual` or fuller PBR**, only if the renderer direction expands beyond the current lightweight material model.
-4. **Asset compatibility pass**, using representative external Blender/glTF assets to identify the next real blocker before expanding the runtime model.
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|render_level|runtime_world|client_map_validation|client_cli_map_validation|world_metadata_validation|collision_validation|scripted_world_session|bsp_playable_world_smoke)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+```
 
-## Notes for documentation readers
+Result: final validation passed on 2026-05-01. Configure/build succeeded, full default CTest passed
+40/40, and focused BSP/runtime/render/client/script validation passed 22/22. Active retired-importer
+reference search returned only this documented validation command outside archived plans and ignored
+build outputs; no active retired-importer functionality remains.
 
-`docs/Design.md` remains the broad architecture/design document. When it conflicts with this file on current implementation status, prefer this file for the `glTF-vulkan` branch status.
+Known deferred post-hardening items:
+
+- Gameplay loop expansion over BSP maps.
+- BSP toolchain/editor workflow polish.
+- Networking/snapshot expansion.
+- Source/VBSP, moving brush simulation, dynamic rigid bodies, full PBR, model/animation systems,
+  and client-side gameplay scripting remain out of scope unless explicitly requested.
+
+Phase 1 completion notes:
+
+- Added structured BSP import diagnostics and additive load-with-report APIs while preserving the
+  existing `std::expected<LevelAsset, Error>` load path for fatal parse errors.
+- Expanded source-neutral `LevelAsset` visibility/lightmap contracts with classic BSP leaf records,
+  compressed PVS bytes, raw lighting bytes, and minimal lightmap metadata placeholders.
+- Parser internals now retain nodes, leaves, marksurfaces, visibility bytes, and lighting bytes for
+  later PVS/lightmap hardening without adding renderer handles or gameplay authority.
+- Added display-free importer coverage for non-fatal missing player spawn warnings, fatal unexpected
+  errors, no-vis placeholders, and raw visibility/lighting lumps.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_importer|runtime_world|collision_world|world_metadata_validation|collision_validation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded. Targeted BSP/runtime/collision tests passed 5/5, and full
+default CTest passed 31/31.
+
+Phase 2 completion notes:
+
+- Added source-neutral BSP leaf/PVS visibility helpers for leaf lookup, classic compressed PVS
+  decompression, and per-surface visibility masks with all-visible fallback behavior.
+- BSP import now maps leaf marksurfaces through constructed `LevelSurface` indices, preserves leaf
+  bounds/contents/PVS offsets, and diagnoses invalid marksurface or PVS data without changing
+  authoritative collision, movement, triggers, object colliders, or scripting.
+- `RenderLevel` can optionally accept a camera world position and cull static level surfaces through
+  BSP visibility data while falling back to the previous all-surface submission path when visibility
+  is unavailable or invalid.
+- Billboard submission remains after static level geometry, and rendering remains behind the shared
+  `GraphicsDevice` abstraction with no OpenGL/Vulkan-specific BSP API.
+- Added display-free `bsp_visibility` coverage plus render-level synthetic culling coverage.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_visibility|bsp_importer|render_level_upload|render_level_inspection|bsp_playable_world_smoke)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 2 suite passed 5/5, and full default CTest
+passed 32/32.
+
+Phase 3 completion notes:
+
+- Added BSP miptex metadata parsing, safe embedded miptex extraction into source-neutral
+  `ImageAsset`/`TextureAsset` records, and deterministic fallback materials for external or missing
+  WAD-backed textures.
+- BSP import now preserves texture source names, emits non-fatal missing-texture diagnostics for
+  external fallback, imports per-face lightmap image metadata from valid lighting offsets/styles,
+  assigns material lightmap indices, and populates secondary `uv1` coordinates where lightmap data is
+  available.
+- Invalid or out-of-range lighting offsets are diagnosed and fall back to unlit material behavior.
+- `RenderLevel` uploads represented base textures and lightmap textures through `GraphicsDevice`,
+  binds lightmaps as backend-neutral material texture bindings on texcoord set 1, and preserves
+  deterministic fallback behavior for missing resources.
+- External WAD decoding, palette-accurate miptex color, lightmap atlasing, and shader-side visible
+  lightmap modulation remain deferred; current support records/uploads stable source-neutral data
+  without full PBR or backend-specific APIs.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_materials|bsp_lightmaps|bsp_importer|render_level_upload|render_level_inspection)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 3 suite passed 5/5, and full default CTest
+passed 34/34.
+
+Phase 4 completion notes:
+
+- Added `docs/BspAuthoring.md` with concrete BSP entity key conventions for player spawns,
+  gameplay spawns, trigger volumes, sprite billboards, object-collider sensors, and static collision
+  brush entities.
+- BSP import now validates deterministic vector and bool-like authoring fields, preserves raw entity
+  key/value metadata, derives brush-model bounds for trigger/object-collider markers, supports
+  `origin` + `stellar.extents` fallback volumes, and keeps script path escape checks fatal.
+- Sprite script bindings remain unsupported and are ignored with diagnostics instead of creating
+  client-side or presentation-owned gameplay behavior.
+- Added display-free `bsp_entity_authoring` coverage for documented conventions, malformed
+  vectors/booleans, script path rejection, brush bounds, fallback volumes, and sprite script
+  diagnostics.
+
+Validation run:
+
+```bash
+cmake -S . -B build-phase4-kojima -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-phase4-kojima -j$(nproc)
+ctest --test-dir build-phase4-kojima -R '^(bsp_entity_authoring|bsp_importer|world_metadata_validation|bsp_playable_world_smoke|scripted_world_session)$' --output-on-failure
+ctest --test-dir build-phase4-kojima --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 4 suite passed 5/5, and full default CTest
+passed 35/35.
+
+Phase 5 completion notes:
+
+- Added a display-free BSP validation API that preserves existing load APIs while returning
+  deterministic structured diagnostics, including fatal parse failures as error-severity report
+  entries.
+- Validation now covers binary/lump failures, invalid face polygon references, PVS and marksurface
+  warnings, material fallback and lightmap diagnostics, entity authoring warnings, script path escape
+  rejection, missing spawn warnings, and no-collision policy warnings without renderer or WAD
+  requirements.
+- Extended client validation with `--validate-map` alongside `--validate-config --map`; both paths
+  validate maps headlessly before any window or graphics context is created.
+- Expanded generated BSP fixtures and regression coverage for valid maps, PVS, textures/lightmaps,
+  malformed lump bounds, invalid face references, malformed entity vectors, script path escapes,
+  missing player spawn, no-collision policy, and authoring/client smoke behavior.
+- Updated BSP authoring docs with validation command examples and common diagnostic explanations.
+
+Validation run:
+
+```bash
+cmake -S . -B build-phase5-carmack -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-phase5-carmack -j$(nproc)
+ctest --test-dir build-phase5-carmack -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
+ctest --test-dir build-phase5-carmack --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 5 suite passed 6/6, and full default CTest
+passed 40/40.
+
+Phase 0 completion notes:
+
+- Locked `Plans/NEXT.md` to the BSP hardening plan package as the active implementation entry point.
+- Recorded this hardening work as the current active branch scope without restarting BSP migration.
+- Updated `docs/Design.md` to describe current BSP hardening rather than the completed migration as
+  the near-term goal.
+- No source or build behavior changes were introduced.
+
+## BSP Canonical Migration — Complete
+
+BSP canonical migration is complete as of 2026-05-01:
+
+- BSP maps are now the canonical playable level format.
+- Retired importer functionality, parser dependency, feature gates, startup paths, tests, and active
+  docs have been removed.
+- Runtime world assembly, static collision, server-authoritative movement, triggers,
+  object-collider sensors, Lua hooks, client map validation, and level rendering operate from
+  BSP-backed `LevelAsset` data.
+- `Plans/NEXT.md` now points to BSP authoring and presentation hardening as the next recommended
+  active scope.
+- The completed migration plan is archived at
+  `Plans/Archived/project_stellar_bsp_canonical_plan/`.
+
+Final validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|runtime_world|collision_world|character_controller|server_world_session|scripted_world_session|bsp_playable_world_smoke|bsp_scripted_collision_smoke|bsp_scripted_object_collider_smoke|billboard|render_level)' --output-on-failure
+```
+
+Result: configure/build succeeded, full CTest passed 31/31, and focused BSP/runtime/render/script
+CTest passed 13/13.
+
+Active retired-importer reference search: no active hits. `git grep` was used because `rg` is
+unavailable in this environment.
+
+Known deferred post-BSP items:
+
+- BSP PVS/leaf visibility culling hardening.
+- BSP lightmap presentation.
+- External texture/WAD/material resolver polish.
+- BSP editor/toolchain and map-authoring documentation.
+- Sprite/entity authoring conventions.
+- Gameplay loop expansion.
+
+## BSP Canonical Migration — Phase Notes
+
+The user selected BSP maps as the canonical playable level format. BSP replaces the retired
+pre-BSP model-import path as the active level pipeline rather than being kept beside it.
+
+Archived implementation entry points:
+
+- `Plans/NEXT.md`
+- `Plans/Archived/project_stellar_bsp_canonical_plan/00-MASTER-KILO-BSP-CANONICAL-PLAN.md`
+
+Required migration outcome:
+
+- BSP is the default and canonical playable level source.
+- Retired importer code, startup validation, CMake options, fixtures, parser dependency, runtime
+  assumptions, and active docs are removed during this migration.
+- Existing server-authoritative movement, collision, Lua scripting, trigger, object-collider,
+  billboard sprite, and display-free validation boundaries are preserved.
+
+Phase BSP-0 is complete as of 2026-05-01:
+
+- Locked active branch direction to BSP maps as canonical playable level format.
+- Marked retired importer functionality for removal rather than side-by-side support.
+- Replaced `Plans/NEXT.md` with the BSP migration handoff.
+- Updated active design/agent guidance so new work no longer follows retired level assumptions.
+
+Validation: documentation review and active-reference search.
+
+Phase BSP-1 is complete as of 2026-05-01:
+
+- Added source-neutral `LevelAsset` as the canonical runtime level input.
+- Moved runtime world assembly off the retired scene-asset contract.
+- Preserved existing backend-neutral collision, trigger, object-collider, scripting, and
+  server-authority seams.
+- Updated synthetic display-free tests to construct runtime worlds from `LevelAsset`.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(runtime_world|collision_world|character_controller|trigger_system|object_collider|server_world_session|scripted_world_session)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. Targeted Phase BSP-1 suite passed 7/7, and full
+default CTest passed 26/26.
+
+Phase BSP-2 is complete as of 2026-05-01:
+
+- Added mandatory `stellar_import_bsp` loader for the classic BSP29/BSP30 family.
+- Added safe lump parsing, entity key/value parsing, and BSP-to-`LevelAsset` conversion.
+- Built static geometry, named collision meshes, world metadata markers, and script bindings from
+  BSP data.
+- Added display-free BSP parser/importer regression tests using generated binary fixtures.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_|runtime_world|collision_world|world_metadata_validation|collision_validation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. The phase-plan targeted command completed
+successfully for the matching runtime/collision tests; a corrected CTest regex also ran the new
+`bsp_importer` test for 5/5 targeted passes. Full default CTest passed 27/27.
+
+Phase BSP-3 is complete as of 2026-05-01:
+
+- Runtime world assembly consumes source-neutral BSP-backed `LevelAsset` data and exposes object
+  collider marker lookup alongside existing spawn, trigger, and sprite marker helpers.
+- Server movement, static collision filters, triggers, object-collider sensors, and Lua script hooks
+  are covered from generated BSP metadata through authoritative `ScriptedWorldSession` ticks.
+- Client startup validation now uses `--map`/`map_path`, loads `.bsp` maps through
+  `stellar_import_bsp`, and no longer has a retired importer feature-gate validation failure path.
+- Added display-free BSP playable-world/scripted integration smoke coverage plus BSP-backed client
+  map validation and CLI validation tests.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_|playable_world_smoke|scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke|server_world_session|scripted_world_session|client_map_validation_smoke|client_cli_map_validation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. The phase-plan targeted command passed 9/9 selected
+tests in this CTest regex mode, including server/session, scripted session, client map validation,
+CLI map validation, and BSP-backed playable/scripted smoke aliases. A corrected CTest regex also ran
+`bsp_importer` and `bsp_playable_world_smoke` for 11/11 targeted passes. Full default CTest passed
+33/33.
+
+Phase BSP-4 is complete as of 2026-05-01:
+
+- Refactored active graphics presentation to consume BSP/`LevelAsset` static geometry through
+  `RenderLevel`/`LevelRenderer` instead of retired scene data.
+- Preserved OpenGL/Vulkan backend parity through the shared `GraphicsDevice` abstraction; no
+  BSP-specific raw backend API was added.
+- Preserved billboard sprite rendering after static level geometry and updated display-free
+  upload/submission tests for BSP geometry, default material fallback, surface material indices,
+  and billboard ordering.
+- Removed active renderer assumptions around scene graph pose, skinning, animation, and PBR-style
+  materials; retained temporary compatibility aliases for old `RenderScene`/`SceneRenderer` names
+  while active APIs are LevelAsset-focused.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(render_level|render_scene|billboard|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build -R '^(render_level_.*|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. The phase-plan targeted regex matched and passed
+`graphics_backend_selection`; the corrected graphics regex ran `render_level_upload`,
+`render_level_inspection`, and `graphics_backend_selection` for 3/3 passes. Full default CTest passed
+33/33.
+
+Phase BSP-5 is complete as of 2026-05-01:
+
+- Removed the retired model-importer code path, parser dependency, feature gate, fixtures, and
+  integration tests from active source, build configuration, and default validation.
+- Removed retired scene, skin, animation asset/runtime types and active graphics draw plumbing that
+  only served the retired model path.
+- Kept BSP-backed level import/runtime/render tests and renamed scripted integration smoke
+  registrations to BSP names.
+- Cleaned active docs and agent guidance so BSP is the canonical level format and the retired model
+  importer is no longer an active feature.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure and build succeeded; full CTest passed 31/31.
+
+Active retired-importer reference search: no active hits. `git grep` was used because `rg` is
+unavailable in this environment.
+
+## Historical Context
+
+Earlier collision, movement, billboard, metadata, Lua scripting, trigger, and object-collider work
+remains useful historical context, but it is not the active branch plan. The active branch direction
+is now BSP-first level import, runtime assembly, server-authoritative gameplay seams, and rendering.
+
+Preserve these invariants in follow-up work:
+
+- Server authority remains mandatory.
+- Lua scripting remains mandatory and sandboxed.
+- Default tests remain display-free.
+- OpenGL and Vulkan remain runtime-selectable through shared abstractions.
+- Source/VBSP, moving brush simulation, third-party physics, dynamic rigid bodies, full PBR,
+  model/animation systems, and client-side gameplay scripting remain out of scope unless explicitly
+  requested.

@@ -1,0 +1,65 @@
+#include "stellar/server/MovementTriggerIntegration.hpp"
+
+#include <utility>
+
+namespace stellar::server {
+namespace {
+
+[[nodiscard]] MovementTriggerEvent to_movement_trigger_event(
+    stellar::world::TriggerOverlap overlap) {
+    return {.trigger_name = std::move(overlap.name),
+            .entered = overlap.entered,
+            .stayed = overlap.stayed,
+            .exited = overlap.exited};
+}
+
+} // namespace
+
+void MovementTriggerTracker::reset_from_world(const stellar::world::RuntimeWorld& world) {
+    const auto triggers = stellar::world::build_trigger_volumes(world);
+    trigger_system_.set_triggers(triggers);
+}
+
+std::vector<MovementTriggerEvent> MovementTriggerTracker::update(
+    std::array<float, 3> position,
+    const stellar::physics::CharacterControllerConfig& character) noexcept {
+    const stellar::world::TriggerCapsule capsule{.center = position,
+                                                 .up = {0.0F, 1.0F, 0.0F},
+                                                 .radius = character.radius,
+                                                 .height = character.height};
+    const auto overlaps = trigger_system_.update_capsule(capsule);
+    std::vector<MovementTriggerEvent> events;
+    events.reserve(overlaps.size());
+    for (auto overlap : overlaps) {
+        events.push_back(to_movement_trigger_event(std::move(overlap)));
+    }
+    return events;
+}
+
+MovementTriggerTickResult simulate_movement_tick_and_update_triggers(
+    const stellar::world::RuntimeWorld& world,
+    const MovementState& previous,
+    const MovementCommand& command,
+    const MovementSimulationConfig& config,
+    MovementTriggerTracker& tracker) noexcept {
+    return simulate_movement_tick_and_update_triggers(world, previous, command, config, nullptr,
+                                                      tracker);
+}
+
+MovementTriggerTickResult simulate_movement_tick_and_update_triggers(
+    const stellar::world::RuntimeWorld& world,
+    const MovementState& previous,
+    const MovementCommand& command,
+    const MovementSimulationConfig& config,
+    const stellar::world::RuntimeCollisionState* collision_state,
+    MovementTriggerTracker& tracker) noexcept {
+    MovementTriggerTickResult result;
+    result.movement = simulate_movement_tick(world, previous, command, config, collision_state);
+    const SanitizedMovementSimulationConfig sanitized_config =
+        sanitize_movement_simulation_config(config);
+    result.trigger_events = tracker.update(result.movement.state.position,
+                                           sanitized_config.value.character);
+    return result;
+}
+
+} // namespace stellar::server

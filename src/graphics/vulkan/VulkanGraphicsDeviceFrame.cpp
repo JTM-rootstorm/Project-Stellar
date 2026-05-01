@@ -5,6 +5,7 @@
 #include <limits>
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 
 namespace stellar::graphics::vulkan {
 
@@ -58,17 +59,26 @@ VkExtent2D VulkanGraphicsDevice::current_window_extent_or_pending_rebuild(int wi
                                                                           int height) noexcept {
     (void)width;
     (void)height;
-    int window_width = 0;
-    int window_height = 0;
+
+    int drawable_width = 0;
+    int drawable_height = 0;
+
     if (window_ != nullptr) {
-        SDL_GetWindowSize(window_, &window_width, &window_height);
+        SDL_Vulkan_GetDrawableSize(window_, &drawable_width, &drawable_height);
+
+        // Conservative fallback for unusual platforms/drivers.
+        if (drawable_width <= 0 || drawable_height <= 0) {
+            SDL_GetWindowSize(window_, &drawable_width, &drawable_height);
+        }
     }
-    if (window_width <= 0 || window_height <= 0) {
+
+    if (drawable_width <= 0 || drawable_height <= 0) {
         mark_swapchain_rebuild_pending();
         return VkExtent2D{0, 0};
     }
-    return VkExtent2D{sanitize_dimension(window_width, swapchain_extent_.width),
-                      sanitize_dimension(window_height, swapchain_extent_.height)};
+
+    return VkExtent2D{sanitize_dimension(drawable_width, swapchain_extent_.width),
+                      sanitize_dimension(drawable_height, swapchain_extent_.height)};
 }
 
 bool VulkanGraphicsDevice::recreate_swapchain_from_window_extent() noexcept {
@@ -177,7 +187,6 @@ void VulkanGraphicsDevice::begin_frame(int width, int height) noexcept {
         reset_frame_state_after_failed_recording();
         return;
     }
-    frame.skin_draw_upload_cursor = 0;
 
     const VkCommandBufferBeginInfo command_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -238,18 +247,6 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
             continue;
         }
 
-        const bool use_skinning = primitive.has_skinning && !command.skin_joint_matrices.empty();
-        if (command.skin_joint_matrices.size() > kMaxSkinPaletteJoints) {
-            log_vulkan_message(
-                "Vulkan skin joint count exceeds 256-joint runtime cap; skipping skinned primitive");
-            continue;
-        }
-        if (use_skinning && command.skin_joint_matrices.size() <= primitive.max_joint_index) {
-            log_vulkan_message(
-                "Vulkan skin joint palette is smaller than primitive joint indices; "
-                "skipping skinned primitive");
-            continue;
-        }
 
         const auto material_it = materials_.find(command.material.value);
         const MaterialRecord* material = material_it != materials_.end() ? &material_it->second
@@ -327,17 +324,6 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         if (descriptor_set == VK_NULL_HANDLE) {
             continue;
         }
-        auto skin_draw_descriptor_set = upload_skin_draw_uniform(
-            frames_[current_frame_index_], transforms, command.skin_joint_matrices, use_skinning);
-        if (!skin_draw_descriptor_set) {
-            log_vulkan_message(skin_draw_descriptor_set.error().message);
-            continue;
-        }
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-        const VkDescriptorSet vertex_descriptor_set = *skin_draw_descriptor_set;
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_layout_, 1, 1, &vertex_descriptor_set, 0, nullptr);
         vkCmdPushConstants(command_buffer, pipeline_layout_,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                            sizeof(VulkanDrawPushConstants), &push_constants);
@@ -418,8 +404,16 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     };
     result = vkQueuePresentKHR(graphics_queue_, &present_info);
     frame_in_progress_ = false;
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        log_vulkan_message(vulkan_error("vkQueuePresentKHR", result).message);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        log_vulkan_message("Vulkan swapchain is out of date; scheduling swapchain rebuild");
+        mark_swapchain_rebuild_pending();
+        current_frame_index_ = (current_frame_index_ + 1) % frames_.size();
+        return;
+    }
+
+    if (result == VK_SUBOPTIMAL_KHR) {
+        log_vulkan_message("Vulkan swapchain is suboptimal; scheduling swapchain rebuild");
         mark_swapchain_rebuild_pending();
         current_frame_index_ = (current_frame_index_ + 1) % frames_.size();
         return;
