@@ -7,21 +7,23 @@ Branch target: `collision-movement`
 Use `docs/ImplementationStatus.md` as the current branch-facing source of truth. This file is a short
 handoff pointer for the next implementation agent.
 
-## Active cleanup direction
+## Post-cleanup state
 
 The earlier Phase 6A-D world-authoring work has first-pass implementations. Do not restart those
 plans as active work.
 
-Near-term work is the removable-complexity cleanup described by
-`Plans/ProjectStellar-RemovableComplexity-Cleanup-AgentPlan.md`:
+The removable-complexity cleanup is complete and the detailed agent plan has been correctly archived
+at `Plans/Archived/ProjectStellar-RemovableComplexity-Cleanup-AgentPlan.md`. Treat that file as
+historical context, not the next active implementation plan.
 
-- Treat Lua scripting as mandatory server-authoritative infrastructure.
-- Remove stale optional Lua build/documentation paths.
-- Reduce duplicated low-level geometry helpers.
-- Share internal sensor overlap transition tracking while keeping trigger and object-collider public
-  concepts separate.
-- Share internal Lua hook dispatch while preserving trigger/object-collider context-specific systems.
-- Keep gameplay behavior, event ordering, and server-authority boundaries unchanged.
+Current branch assumptions to preserve:
+
+- Lua scripting is mandatory server-authoritative infrastructure.
+- Gameplay behavior, event ordering, and server-authority boundaries should remain stable.
+- Shared geometry helpers, sensor overlap tracking, and Lua hook dispatch are now common
+  infrastructure and should receive direct regression coverage.
+- New implementation slices should be introduced by updating this handoff and
+  `docs/ImplementationStatus.md` with the next active scope.
 
 ## Validation posture
 
