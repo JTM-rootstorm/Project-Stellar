@@ -15,7 +15,192 @@ The branch already contains completion notes for the earlier Phase 6 world-autho
 
 Do **not** restart those phases from scratch. Treat them as implemented first passes and focus the next round on making the features coherent, usable at runtime, and harder to break.
 
+## Cleanup Direction
+
+Near-term active work is removable phase-seam complexity cleanup, with
+`Plans/ProjectStellar-RemovableComplexity-Cleanup-AgentPlan.md` and the short handoff in
+`Plans/NEXT.md` as the current implementation guide. The cleanup is behavior-preserving: no gameplay
+behavior changes, no server-authority boundary collapse, no third-party physics engine, and no
+display-free test removal are expected.
+
+Lua scripting is now core server-authoritative engine infrastructure, not an optional feature. The
+default build should include vendored Lua, `stellar_scripting`, and scripting unit tests; glTF scripted
+integration smokes remain gated by `STELLAR_ENABLE_GLTF` because glTF import is still optional.
+
 ## Current status
+
+Phase H removable-complexity cleanup final integration is complete as of 2026-05-01:
+
+- Repo-wide stale-option review found no retired Lua scripting CMake-option references in source,
+  root CMake, or active docs. Remaining matches are historical/plan task text plus one generated
+  stale cache entry under `build-vulkan-tests/`.
+- `restricted_sandbox` is no longer a normal `LuaRuntimeConfig` field. Remaining source matches are
+  the expected `install_restricted_sandbox` implementation/call sites; remaining docs/plan matches are
+  historical or completion notes.
+- Duplicate-review findings:
+  - Shared scalar/vector/AABB helpers now live in `stellar::math::Geometry3`; remaining collision
+    triangle, BVH, sweep, and capsule details are algorithm-specific.
+  - Shared sensor enter/stay/exit bookkeeping now lives in `SensorOverlapTracker`; remaining loops are
+    API/sample adaptation for triggers and object colliders.
+  - Shared Lua hook table validation, protected-call error collection, and output draining now live in
+    `ScriptHookDispatcher`; remaining script-system code is phase mapping and context construction.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=OFF
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+cmake -S . -B build-gltf -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
+cmake --build build-gltf -j$(nproc)
+ctest --test-dir build-gltf --output-on-failure
+```
+
+Result: default glTF-disabled CTest passed 26/26, and glTF-enabled CTest passed 31/31. Build linked
+successfully; the vendored Lua `tmpnam` linker warning remains unchanged.
+
+Phase G removable-complexity cleanup is complete as of 2026-05-01:
+
+- Added small root-CMake helpers for repeated display-free test executable registration while preserving
+  target names, CTest names, optional graphics context gates, glTF optional gates, mandatory Lua, and
+  existing link boundaries.
+- Converted repeated world, server, physics, scripting, graphics, client-runtime, and glTF integration
+  test boilerplate to helper calls; left tests with unusual include/link requirements explicit.
+- Kept glTF scripted smokes gated by `STELLAR_ENABLE_GLTF` only.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=OFF
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+cmake -S . -B build-gltf -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
+cmake --build build-gltf -j$(nproc)
+ctest --test-dir build-gltf --output-on-failure
+```
+
+Result: cached `build` initially remained glTF-enabled and passed 31/31 with the requested configure
+command; after explicitly restoring the default glTF-disabled cache, default CTest passed 26/26. The
+glTF-enabled suite passed 31/31. Build linked successfully; the vendored Lua `tmpnam` linker warning
+remains unchanged.
+
+Phase F removable-complexity cleanup is complete as of 2026-05-01:
+
+- Removed `LuaRuntimeConfig::restricted_sandbox` from the normal runtime policy surface.
+- `LuaRuntime` now always installs the restricted sandbox during construction; gameplay scripts cannot
+  opt into unrestricted standard libraries through normal runtime configuration.
+- Preserved `instruction_budget`, bytecode rejection, `stellar.emit_event`, protected calls, and
+  deterministic script output event ordering.
+- Updated display-free Lua runtime coverage to assert restricted sandbox behavior is always active.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_lua_runtime_test stellar_scripted_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(lua_runtime|scripted_world_session)$' --output-on-failure
+```
+
+Result: targeted Phase F Lua sandbox suite passed (2/2). Build linked successfully; the vendored Lua
+`tmpnam` linker warning remains unchanged.
+
+Phase E removable-complexity cleanup is complete as of 2026-05-01:
+
+- Added a shared internal `ScriptHookDispatcher` for Lua table-hook validation,
+  protected-call error collection, and per-call output-event draining.
+- Refactored `TriggerScriptSystem` and `ObjectColliderScriptSystem` to keep their separate public
+  APIs, phase-to-hook mappings, and context field construction while sharing the duplicated dispatch
+  mechanics.
+- Preserved callback order, output-event order, missing-table diagnostics, missing-function no-op
+  behavior, and existing protected-call error flow.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_trigger_script_system_test stellar_object_collider_script_system_test stellar_scripted_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(trigger_script|object_collider_script|scripted_world_session)$' --output-on-failure
+cmake -S . -B build-gltf -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
+cmake --build build-gltf --target stellar_scripted_playable_world_smoke_test stellar_scripted_collision_smoke_test stellar_scripted_object_collider_smoke_test -j$(nproc)
+ctest --test-dir build-gltf -R '^(scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke)$' --output-on-failure
+```
+
+Result: targeted Phase E scripting suite passed (3/3) and glTF scripted smoke suite passed (3/3).
+Build linked successfully; the vendored Lua `tmpnam` linker warning remains unchanged.
+
+Phase D removable-complexity cleanup is complete as of 2026-05-01:
+
+- Added a shared `SensorOverlapTracker` for deterministic sensor enter/stay/exit bookkeeping.
+- Refactored `TriggerSystem` and `ObjectColliderSystem` to delegate previous/current overlap
+  transitions to the shared tracker while preserving separate trigger and object-collider APIs.
+- Preserved deterministic trigger ordering, object-collider duplicate-id rejection, and synchronous
+  exit events for disabled/removed overlapped object colliders.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_trigger_system_test stellar_object_collider_test stellar_server_world_session_test stellar_scripted_object_collider_smoke_test -j$(nproc)
+ctest --test-dir build -R '^(trigger_system|object_collider|server_world_session|scripted_object_collider_smoke)$' --output-on-failure
+```
+
+Result: targeted Phase D suite passed (4/4). Build linked successfully; the vendored Lua `tmpnam`
+linker warning remains unchanged.
+
+Phase C removable-complexity cleanup is complete as of 2026-05-01:
+
+- Added backend-neutral `stellar::math::Geometry3` helpers for shared three-component vectors,
+  finite checks, vector arithmetic, sanitization, AABBs, segments, and point-distance queries.
+- Refactored duplicated low-level helpers in `CollisionWorld`, `CharacterController`,
+  `TriggerSystem`, and `ObjectCollider` without moving BVH, sweep/slide, triangle, or
+  subsystem-specific capsule logic.
+- Intentional remaining duplication is local to algorithm-specific collision, trigger, and
+  object-collider code.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_collision_world_test stellar_character_controller_test stellar_trigger_system_test stellar_object_collider_test -j$(nproc)
+ctest --test-dir build -R '^(collision_world|character_controller|trigger_system|object_collider)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: targeted Phase C suite passed (4/4), and full default CTest passed 31/31 in the then-current
+cache configuration. No movement/collision behavior changes were observed.
+
+Phase B removable-complexity cleanup is complete as of 2026-05-01:
+
+- Removed the optional Lua build mode. The default build now always includes vendored Lua,
+  `stellar_scripting`, and the display-free scripting unit tests.
+- glTF scripted integration smokes remain gated only by `STELLAR_ENABLE_GLTF`, because glTF import is
+  still optional while Lua scripting is core server-authoritative infrastructure.
+- Preserved the server-authority/link boundary: Lua is linked through `stellar_scripting`, not through
+  `stellar_world` or `stellar_server_core`.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_lua_runtime_test stellar_trigger_script_system_test stellar_object_collider_script_system_test stellar_script_command_processor_test stellar_scripted_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(lua_runtime|trigger_script|object_collider_script|script_command_processor|scripted_world_session)$' --output-on-failure
+```
+
+Result: targeted Phase B Lua/scripting suite passed (5/5). Build linked successfully; the vendored Lua
+`tmpnam` linker warning remains unchanged.
+
+Phase A removable-complexity cleanup is complete as of 2026-05-01:
+
+- Updated `AGENTS.md` so active branch guidance no longer sends agents to restart Phase 6A-D work.
+- Added `Plans/NEXT.md` as a short active handoff pointer back to `docs/ImplementationStatus.md` and
+  the removable-complexity cleanup plan.
+- Added the cleanup direction section above: Lua is mandatory, cleanup is behavior-preserving, and
+  glTF scripted smokes remain glTF-gated.
+
+Validation run: documentation diff review only; no code build was required for Phase A.
 
 Phase 12E scripted object-collider smoke and documentation is complete as of 2026-05-01:
 
@@ -27,7 +212,8 @@ Phase 12E scripted object-collider smoke and documentation is complete as of 202
 - The smoke asserts Phase 12D synchronous exit policy: disabling an overlapped object collider emits
   the exit on the command result, not as a later snapshot/hook replay.
 - Added CMake target `stellar_scripted_object_collider_smoke_test` and CTest name
-  `scripted_object_collider_smoke` under the existing glTF + Lua enabled gates.
+  `scripted_object_collider_smoke` under the then-existing glTF + Lua enabled gates. Lua is now
+  mandatory, so only the glTF gate remains for this smoke.
 - Updated `docs/Design.md` for `COLLIDER_<Name>` object-collider authoring, sensor-only semantics,
   server-authoritative Lua hooks/commands, and deferred solid moving blockers.
 
@@ -47,7 +233,7 @@ Phase 12A-D authoritative object-collider integration is complete as of 2026-05-
 Validation run:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build --target stellar_scripted_object_collider_smoke_test stellar_object_collider_test stellar_server_world_session_test stellar_scripted_world_session_test stellar_script_command_processor_test stellar_import_gltf_regression stellar_world_metadata_validation_test -j$(nproc)
 ctest --test-dir build -R '^(scripted_object_collider_smoke|object_collider|server_world_session|scripted_world_session|script_command_processor|gltf_importer_regression|world_metadata_validation)$' --output-on-failure
 cmake --build build -j$(nproc)
@@ -104,7 +290,7 @@ Phase 11A-F collision scripting slice is complete as of 2026-04-30:
 Validation run:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build --output-on-failure
 ```
@@ -128,7 +314,7 @@ Phase 10E and the overall Phase 10 Lua scripting slice are complete as of 2026-0
 Validation run:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build -R '^(scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' --output-on-failure
 ctest --test-dir build --output-on-failure
@@ -156,7 +342,7 @@ Phase 10D is complete as of 2026-04-30:
 Validation run:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build -R '^(scripted_world_session|trigger_script|lua_runtime)$' --output-on-failure
 ctest --test-dir build --output-on-failure
@@ -179,7 +365,7 @@ Phase 10B is complete as of 2026-04-30:
 Validation run:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build -R '^(world_metadata_validation|gltf_importer_regression|lua_runtime)$' --output-on-failure
 ctest --test-dir build --output-on-failure
@@ -187,8 +373,8 @@ ctest --test-dir build --output-on-failure
 
 Phase 10A is complete as of 2026-04-30:
 
-- Added optional `STELLAR_ENABLE_LUA_SCRIPTING` support with a new `stellar_scripting` target
-  and vendored Lua 5.4.8 under `thirdparty/lua`.
+- Added mandatory Lua scripting support with a new `stellar_scripting` target and vendored Lua 5.4.8
+  under `thirdparty/lua`.
 - Added RAII Lua runtime ownership, expected-style script errors, protected script loading/calls,
   restricted standard library setup, `stellar.emit_event(name, fields)`, deterministic output
   draining, bytecode rejection, and instruction budget enforcement.
@@ -201,7 +387,7 @@ Phase 10A is complete as of 2026-04-30:
 Validation run:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 ctest --test-dir build -R '^lua_runtime$' --output-on-failure
 ctest --test-dir build --output-on-failure

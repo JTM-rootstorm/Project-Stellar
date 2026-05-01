@@ -1,5 +1,6 @@
 #include "stellar/world/ObjectCollider.hpp"
 
+#include "stellar/math/Geometry3.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 #include <algorithm>
@@ -13,54 +14,19 @@
 namespace stellar::world {
 namespace {
 
-bool is_finite(float value) noexcept {
-    return std::isfinite(value);
-}
-
-bool is_finite(std::array<float, 3> value) noexcept {
-    return is_finite(value[0]) && is_finite(value[1]) && is_finite(value[2]);
-}
-
-float sanitized_radius(float radius) noexcept {
-    if (!std::isfinite(radius) || radius < 0.0F) {
-        return 0.0F;
-    }
-    return radius;
-}
-
-float sanitized_half_extent(float value) noexcept {
-    if (!std::isfinite(value)) {
-        return 0.0F;
-    }
-    return std::abs(value);
-}
-
-float sanitized_height(float height, float radius) noexcept {
-    if (!std::isfinite(height) || height < 0.0F) {
-        return 2.0F * radius;
-    }
-    return std::max(height, 2.0F * radius);
-}
-
-float length_squared(std::array<float, 3> value) noexcept {
-    return value[0] * value[0] + value[1] * value[1] + value[2] * value[2];
-}
-
-std::array<float, 3> add(std::array<float, 3> lhs, std::array<float, 3> rhs) noexcept {
-    return {lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2]};
-}
-
-std::array<float, 3> sub(std::array<float, 3> lhs, std::array<float, 3> rhs) noexcept {
-    return {lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]};
-}
-
-std::array<float, 3> mul(std::array<float, 3> value, float scale) noexcept {
-    return {value[0] * scale, value[1] * scale, value[2] * scale};
-}
-
-float dot(std::array<float, 3> lhs, std::array<float, 3> rhs) noexcept {
-    return lhs[0] * rhs[0] + lhs[1] * rhs[1] + lhs[2] * rhs[2];
-}
+using stellar::math::Aabb3;
+using stellar::math::Segment3;
+using stellar::math::add;
+using stellar::math::dot;
+using stellar::math::is_finite;
+using stellar::math::length_squared;
+using stellar::math::mul;
+using stellar::math::point_aabb_distance_squared;
+using stellar::math::point_segment_distance_squared;
+using stellar::math::sanitized_capsule_height;
+using stellar::math::sanitized_half_extent;
+using stellar::math::sanitized_radius;
+using stellar::math::sub;
 
 std::array<float, 3> normalized_or_world_y(std::array<float, 3> value) noexcept {
     if (!is_finite(value)) {
@@ -74,8 +40,7 @@ std::array<float, 3> normalized_or_world_y(std::array<float, 3> value) noexcept 
 }
 
 struct Segment {
-    std::array<float, 3> start{};
-    std::array<float, 3> end{};
+    Segment3 segment{};
     float radius = 0.0F;
     bool valid = false;
 };
@@ -85,12 +50,14 @@ Segment capsule_segment(const TriggerCapsule& capsule) noexcept {
         return {};
     }
     const float radius = sanitized_radius(capsule.radius);
-    const float height = sanitized_height(capsule.height, radius);
+    const float height = sanitized_capsule_height(capsule.height, radius);
     const auto up = normalized_or_world_y(capsule.up);
     const float half_segment_length = std::max(0.0F, (height - 2.0F * radius) * 0.5F);
     const auto start = sub(capsule.center, mul(up, half_segment_length));
     const auto end = add(capsule.center, mul(up, half_segment_length));
-    return {.start = start, .end = end, .radius = radius, .valid = is_finite(start) && is_finite(end)};
+    return {.segment = {.start = start, .end = end},
+            .radius = radius,
+            .valid = is_finite(start) && is_finite(end)};
 }
 
 Segment vertical_shape_capsule_segment(const ObjectColliderShape& shape) noexcept {
@@ -98,28 +65,20 @@ Segment vertical_shape_capsule_segment(const ObjectColliderShape& shape) noexcep
         return {};
     }
     const float radius = sanitized_radius(shape.radius);
-    const float height = sanitized_height(shape.height, radius);
+    const float height = sanitized_capsule_height(shape.height, radius);
     const float half_segment_length = std::max(0.0F, (height - 2.0F * radius) * 0.5F);
     const std::array<float, 3> offset{0.0F, half_segment_length, 0.0F};
     const auto start = sub(shape.center, offset);
     const auto end = add(shape.center, offset);
-    return {.start = start, .end = end, .radius = radius, .valid = is_finite(start) && is_finite(end)};
-}
-
-float point_segment_distance_squared(std::array<float, 3> point, const Segment& segment) noexcept {
-    const auto ab = sub(segment.end, segment.start);
-    const float ab_len_sq = length_squared(ab);
-    if (ab_len_sq <= 0.0F) {
-        return length_squared(sub(point, segment.start));
-    }
-    const float t = std::clamp(dot(sub(point, segment.start), ab) / ab_len_sq, 0.0F, 1.0F);
-    return length_squared(sub(point, add(segment.start, mul(ab, t))));
+    return {.segment = {.start = start, .end = end},
+            .radius = radius,
+            .valid = is_finite(start) && is_finite(end)};
 }
 
 float segment_segment_distance_squared(const Segment& lhs, const Segment& rhs) noexcept {
-    const auto d1 = sub(lhs.end, lhs.start);
-    const auto d2 = sub(rhs.end, rhs.start);
-    const auto r = sub(lhs.start, rhs.start);
+    const auto d1 = sub(lhs.segment.end, lhs.segment.start);
+    const auto d2 = sub(rhs.segment.end, rhs.segment.start);
+    const auto r = sub(lhs.segment.start, rhs.segment.start);
     const float a = dot(d1, d1);
     const float e = dot(d2, d2);
     const float f = dot(d2, r);
@@ -127,7 +86,7 @@ float segment_segment_distance_squared(const Segment& lhs, const Segment& rhs) n
     float s = 0.0F;
     float t = 0.0F;
     if (a <= 0.0F && e <= 0.0F) {
-        return length_squared(sub(lhs.start, rhs.start));
+        return length_squared(sub(lhs.segment.start, rhs.segment.start));
     }
     if (a <= 0.0F) {
         t = std::clamp(f / e, 0.0F, 1.0F);
@@ -151,23 +110,8 @@ float segment_segment_distance_squared(const Segment& lhs, const Segment& rhs) n
             }
         }
     }
-    return length_squared(sub(add(lhs.start, mul(d1, s)), add(rhs.start, mul(d2, t))));
-}
-
-float point_aabb_distance_squared(std::array<float, 3> point,
-                                  std::array<float, 3> min_values,
-                                  std::array<float, 3> max_values) noexcept {
-    float distance_squared = 0.0F;
-    for (std::size_t axis = 0; axis < 3; ++axis) {
-        float delta = 0.0F;
-        if (point[axis] < min_values[axis]) {
-            delta = min_values[axis] - point[axis];
-        } else if (point[axis] > max_values[axis]) {
-            delta = point[axis] - max_values[axis];
-        }
-        distance_squared += delta * delta;
-    }
-    return distance_squared;
+    return length_squared(
+        sub(add(lhs.segment.start, mul(d1, s)), add(rhs.segment.start, mul(d2, t))));
 }
 
 bool add_candidate(float value, std::array<float, 8>& candidates, std::size_t& count) noexcept {
@@ -201,6 +145,25 @@ ObjectColliderOverlapEvent make_exit_event(std::uint32_t collider_id, const std:
             .exited = true};
 }
 
+ObjectColliderOverlapEvent to_object_collider_event(
+    const SensorOverlapTransition& transition) {
+    return {.collider_id = transition.id,
+            .name = transition.name,
+            .entered = transition.entered,
+            .stayed = transition.stayed,
+            .exited = transition.exited};
+}
+
+std::vector<ObjectColliderOverlapEvent> to_object_collider_events(
+    std::vector<SensorOverlapTransition> transitions) {
+    std::vector<ObjectColliderOverlapEvent> events;
+    events.reserve(transitions.size());
+    for (const SensorOverlapTransition& transition : transitions) {
+        events.push_back(to_object_collider_event(transition));
+    }
+    return events;
+}
+
 std::size_t collider_id_count(std::span<const ObjectCollider> colliders,
                               std::uint32_t collider_id) noexcept {
     std::size_t count = 0;
@@ -226,6 +189,27 @@ bool id_seen_before(std::span<const std::uint32_t> ids, std::uint32_t id) noexce
     return std::find(ids.begin(), ids.end(), id) != ids.end();
 }
 
+std::vector<SensorOverlapSample> build_collider_samples(
+    std::span<const ObjectCollider> colliders,
+    const auto& is_currently_overlapping) {
+    std::vector<SensorOverlapSample> samples;
+    samples.reserve(colliders.size());
+    std::vector<std::uint32_t> seen_ids;
+    seen_ids.reserve(colliders.size());
+
+    for (const ObjectCollider& collider : colliders) {
+        if (id_seen_before(seen_ids, collider.id)) {
+            continue;
+        }
+        seen_ids.push_back(collider.id);
+        samples.push_back({.id = collider.id,
+                           .name = collider.name,
+                           .currently_overlapping = is_currently_overlapping(collider)});
+    }
+
+    return samples;
+}
+
 } // namespace
 
 bool capsule_overlaps_object_sphere(const TriggerCapsule& capsule,
@@ -235,7 +219,7 @@ bool capsule_overlaps_object_sphere(const TriggerCapsule& capsule,
         return false;
     }
     const float radius_sum = segment.radius + sanitized_radius(sphere.radius);
-    return point_segment_distance_squared(sphere.center, segment) <= radius_sum * radius_sum;
+    return point_segment_distance_squared(sphere.center, segment.segment) <= radius_sum * radius_sum;
 }
 
 bool capsule_overlaps_object_aabb(const TriggerCapsule& capsule,
@@ -256,17 +240,17 @@ bool capsule_overlaps_object_aabb(const TriggerCapsule& capsule,
         return false;
     }
 
-    const auto direction = sub(segment.end, segment.start);
+    const auto direction = sub(segment.segment.end, segment.segment.start);
     std::array<float, 8> candidates{};
     std::size_t count = 0;
     add_candidate(0.0F, candidates, count);
     add_candidate(1.0F, candidates, count);
     for (std::size_t axis = 0; axis < 3; ++axis) {
         if (direction[axis] != 0.0F) {
-            add_candidate((min_values[axis] - segment.start[axis]) / direction[axis], candidates,
-                          count);
-            add_candidate((max_values[axis] - segment.start[axis]) / direction[axis], candidates,
-                          count);
+            add_candidate((min_values[axis] - segment.segment.start[axis]) / direction[axis],
+                          candidates, count);
+            add_candidate((max_values[axis] - segment.segment.start[axis]) / direction[axis],
+                          candidates, count);
         }
     }
 
@@ -275,8 +259,8 @@ bool capsule_overlaps_object_aabb(const TriggerCapsule& capsule,
     auto evaluate = [&](float t) noexcept {
         best_distance_squared = std::min(
             best_distance_squared,
-            point_aabb_distance_squared(add(segment.start, mul(direction, t)), min_values,
-                                        max_values));
+            point_aabb_distance_squared(add(segment.segment.start, mul(direction, t)),
+                                        Aabb3{.min = min_values, .max = max_values}));
     };
 
     for (std::size_t i = 0; i < count; ++i) {
@@ -289,7 +273,7 @@ bool capsule_overlaps_object_aabb(const TriggerCapsule& capsule,
             continue;
         }
         const float mid = (lo + hi) * 0.5F;
-        const auto mid_point = add(segment.start, mul(direction, mid));
+        const auto mid_point = add(segment.segment.start, mul(direction, mid));
         float numerator = 0.0F;
         float denominator = 0.0F;
         for (std::size_t axis = 0; axis < 3; ++axis) {
@@ -303,7 +287,7 @@ bool capsule_overlaps_object_aabb(const TriggerCapsule& capsule,
                 active = true;
             }
             if (active) {
-                numerator += direction[axis] * (segment.start[axis] - bound);
+                numerator += direction[axis] * (segment.segment.start[axis] - bound);
                 denominator += direction[axis] * direction[axis];
             }
         }
@@ -355,45 +339,36 @@ std::vector<ObjectCollider> build_object_colliders(const RuntimeWorld& world) {
 
 void ObjectColliderSystem::set_colliders(std::span<const ObjectCollider> colliders) {
     colliders_.assign(colliders.begin(), colliders.end());
-    overlap_history_.clear();
+    overlap_tracker_.reset(build_collider_samples(colliders_, [](const ObjectCollider&) {
+        return false;
+    }));
 }
 
 std::vector<ObjectColliderOverlapEvent> ObjectColliderSystem::replace_colliders_preserving_overlaps(
     std::span<const ObjectCollider> colliders) noexcept {
-    const auto old_history = overlap_history_;
-
     std::vector<ObjectColliderOverlapEvent> exits;
-    for (const OverlapHistoryEntry& old_entry : old_history) {
-        if (!old_entry.overlapping) {
+    std::vector<std::uint32_t> seen_old_ids;
+    seen_old_ids.reserve(colliders_.size());
+    for (const ObjectCollider& old_collider : colliders_) {
+        if (id_seen_before(seen_old_ids, old_collider.id)) {
             continue;
         }
-        const std::size_t new_index = first_collider_index(colliders, old_entry.collider_id);
+        seen_old_ids.push_back(old_collider.id);
+        if (!overlap_tracker_.is_overlapping(old_collider.id)) {
+            continue;
+        }
+        const std::size_t new_index = first_collider_index(colliders, old_collider.id);
         if (new_index == colliders.size() || !colliders[new_index].enabled) {
-            exits.push_back(make_exit_event(old_entry.collider_id, old_entry.name));
+            exits.push_back(make_exit_event(old_collider.id,
+                                            overlap_tracker_.name_or(old_collider.id,
+                                                                     old_collider.name)));
         }
     }
 
     colliders_.assign(colliders.begin(), colliders.end());
-    overlap_history_.clear();
-    std::vector<std::uint32_t> seen_ids;
-    seen_ids.reserve(colliders_.size());
-    for (const ObjectCollider& collider : colliders_) {
-        if (id_seen_before(seen_ids, collider.id)) {
-            continue;
-        }
-        seen_ids.push_back(collider.id);
-
-        bool old_overlapping = false;
-        for (const OverlapHistoryEntry& old_entry : old_history) {
-            if (old_entry.collider_id == collider.id) {
-                old_overlapping = old_entry.overlapping;
-                break;
-            }
-        }
-        overlap_history_.push_back({.collider_id = collider.id,
-                                    .name = collider.name,
-                                    .overlapping = old_overlapping && collider.enabled});
-    }
+    overlap_tracker_.reset(build_collider_samples(colliders_, [this](const ObjectCollider& collider) {
+        return collider.enabled && overlap_tracker_.is_overlapping(collider.id);
+    }));
     return exits;
 }
 
@@ -420,18 +395,13 @@ ObjectColliderMutationResult ObjectColliderSystem::set_collider_enabled(
     }
 
     collider.enabled = enabled;
-    for (OverlapHistoryEntry& entry : overlap_history_) {
-        if (entry.collider_id == collider_id) {
-            if (!enabled && entry.overlapping) {
-                result.exit_events.push_back(make_exit_event(collider_id, entry.name));
-                entry.overlapping = false;
-            }
-            entry.name = collider.name;
-            return result;
-        }
+    if (!enabled) {
+        result.exit_events = to_object_collider_events(
+            overlap_tracker_.remove_or_disable(collider_id, collider.name));
     }
-    overlap_history_.push_back(
-        {.collider_id = collider_id, .name = collider.name, .overlapping = false});
+    overlap_tracker_.reset(build_collider_samples(colliders_, [this](const ObjectCollider& sample) {
+        return sample.enabled && overlap_tracker_.is_overlapping(sample.id);
+    }));
     return result;
 }
 
@@ -449,27 +419,22 @@ ObjectColliderMutationResult ObjectColliderSystem::upsert_collider(
                                         .message = "Object collider was upserted."};
     if (count == 0) {
         colliders_.push_back(collider);
-        overlap_history_.push_back(
-            {.collider_id = collider.id, .name = collider.name, .overlapping = false});
+        overlap_tracker_.reset(build_collider_samples(colliders_, [this](const ObjectCollider& sample) {
+            return sample.enabled && overlap_tracker_.is_overlapping(sample.id);
+        }));
         return result;
     }
 
     const std::size_t index = first_collider_index(colliders_, collider.id);
-    std::string previous_name = colliders_[index].name;
-    bool was_overlapping = false;
-    for (OverlapHistoryEntry& entry : overlap_history_) {
-        if (entry.collider_id == collider.id) {
-            previous_name = entry.name;
-            was_overlapping = entry.overlapping;
-            entry.name = collider.name;
-            entry.overlapping = entry.overlapping && collider.enabled;
-            break;
-        }
-    }
+    const std::string previous_name = overlap_tracker_.name_or(collider.id, colliders_[index].name);
+    const bool was_overlapping = overlap_tracker_.is_overlapping(collider.id);
     colliders_[index] = collider;
     if (!collider.enabled && was_overlapping) {
         result.exit_events.push_back(make_exit_event(collider.id, previous_name));
     }
+    overlap_tracker_.reset(build_collider_samples(colliders_, [this](const ObjectCollider& sample) {
+        return sample.enabled && overlap_tracker_.is_overlapping(sample.id);
+    }));
     return result;
 }
 
@@ -490,57 +455,22 @@ ObjectColliderMutationResult ObjectColliderSystem::remove_collider(
                                         .code = "applied",
                                         .message = "Object collider was removed."};
     const std::size_t index = first_collider_index(colliders_, collider_id);
+    result.exit_events = to_object_collider_events(
+        overlap_tracker_.remove_or_disable(collider_id, colliders_[index].name));
     colliders_.erase(colliders_.begin() + static_cast<std::ptrdiff_t>(index));
-    for (auto it = overlap_history_.begin(); it != overlap_history_.end(); ++it) {
-        if (it->collider_id == collider_id) {
-            if (it->overlapping) {
-                result.exit_events.push_back(make_exit_event(collider_id, it->name));
-            }
-            overlap_history_.erase(it);
-            return result;
-        }
-    }
+    overlap_tracker_.reset(build_collider_samples(colliders_, [this](const ObjectCollider& sample) {
+        return sample.enabled && overlap_tracker_.is_overlapping(sample.id);
+    }));
     return result;
 }
 
 std::vector<ObjectColliderOverlapEvent> ObjectColliderSystem::update_player_capsule(
     const TriggerCapsule& player_capsule) noexcept {
-    std::vector<ObjectColliderOverlapEvent> events;
-    std::vector<OverlapHistoryEntry> next_history;
-    next_history.reserve(colliders_.size());
-    std::vector<std::uint32_t> seen_ids;
-    seen_ids.reserve(colliders_.size());
-
-    for (const ObjectCollider& collider : colliders_) {
-        if (id_seen_before(seen_ids, collider.id)) {
-            continue;
-        }
-        seen_ids.push_back(collider.id);
-
-        bool previous = false;
-        for (const OverlapHistoryEntry& entry : overlap_history_) {
-            if (entry.collider_id == collider.id) {
-                previous = entry.overlapping;
-                break;
-            }
-        }
-
-        const bool current = current_overlap(player_capsule, collider);
-
-        ObjectColliderOverlapEvent event;
-        event.collider_id = collider.id;
-        event.name = collider.name;
-        event.entered = current && !previous;
-        event.stayed = current && previous;
-        event.exited = !current && previous;
-        if (event.entered || event.stayed || event.exited) {
-            events.push_back(std::move(event));
-        }
-        next_history.push_back(
-            {.collider_id = collider.id, .name = collider.name, .overlapping = current});
-    }
-    overlap_history_ = std::move(next_history);
-    return events;
+    const auto samples = build_collider_samples(
+        colliders_, [&player_capsule](const ObjectCollider& collider) {
+            return current_overlap(player_capsule, collider);
+        });
+    return to_object_collider_events(overlap_tracker_.update(samples));
 }
 
 const std::vector<ObjectCollider>& ObjectColliderSystem::colliders() const noexcept {

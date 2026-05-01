@@ -35,7 +35,8 @@ struct ScriptedWorldFrame {
  * @brief Authoritative world-session wrapper that invokes server-side scripts after native ticks.
  *
  * RuntimeWorld remains caller-owned and must outlive this session, matching WorldSession lifetime
- * requirements. Scripting is opt-in through the stellar_scripting target.
+ * requirements. Lua scripting is mandatory server-authoritative infrastructure and always runs in
+ * the restricted sandbox.
  */
 class ScriptedWorldSession {
 public:

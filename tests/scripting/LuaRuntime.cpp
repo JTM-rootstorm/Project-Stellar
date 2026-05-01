@@ -119,7 +119,7 @@ void emitted_events_preserve_call_order() {
     require_true(events[0].fields[1].key == "b", "field order should be deterministic");
 }
 
-void sandbox_restrictions_are_installed() {
+void sandbox_restrictions_are_always_installed() {
     LuaRuntime runtime{};
     auto loaded = runtime.load_script(
         "sandbox",
@@ -157,7 +157,7 @@ void sandbox_restrictions_are_installed() {
         }
     }
     require_true(saw_io && saw_os && saw_package && saw_debug && saw_require,
-                 "restricted libraries should be unavailable");
+                 "restricted libraries should always be unavailable");
 }
 
 void emit_event_rejects_nested_fields() {
@@ -172,7 +172,7 @@ void emit_event_rejects_nested_fields() {
 }
 
 void instruction_budget_rejects_infinite_loop() {
-    LuaRuntime runtime{LuaRuntimeConfig{.instruction_budget = 100, .restricted_sandbox = true}};
+    LuaRuntime runtime{LuaRuntimeConfig{.instruction_budget = 100}};
     auto loaded = runtime.load_script(
         "loop",
         "Loop = {}\nfunction Loop.run(event) while true do end end\n");
@@ -198,7 +198,7 @@ int main() {
     missing_function_is_noop_success();
     syntax_and_runtime_errors_are_reported();
     emitted_events_preserve_call_order();
-    sandbox_restrictions_are_installed();
+    sandbox_restrictions_are_always_installed();
     emit_event_rejects_nested_fields();
     instruction_budget_rejects_infinite_loop();
     bytecode_loading_is_rejected();

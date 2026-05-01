@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "stellar/assets/WorldMetadataAsset.hpp"
+#include "stellar/world/SensorOverlapTracker.hpp"
 
 namespace stellar::world {
 
@@ -100,7 +101,7 @@ public:
 
 private:
     std::vector<TriggerVolume> triggers_;
-    std::vector<bool> previous_overlaps_;
+    SensorOverlapTracker overlap_tracker_;
 };
 
 /**

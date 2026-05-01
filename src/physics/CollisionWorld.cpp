@@ -1,5 +1,7 @@
 #include "stellar/physics/CollisionWorld.hpp"
 
+#include "stellar/math/Geometry3.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -14,19 +16,13 @@ constexpr float kContactOffset = 1.0e-4F;
 constexpr std::uint32_t kInvalidNode = std::numeric_limits<std::uint32_t>::max();
 constexpr std::size_t kBvhLeafSize = 4;
 
-using Vec3 = std::array<float, 3>;
-
-Vec3 add(Vec3 a, Vec3 b) noexcept {
-    return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
-}
-
-Vec3 subtract(Vec3 a, Vec3 b) noexcept {
-    return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
-}
-
-Vec3 multiply(Vec3 a, float scalar) noexcept {
-    return {a[0] * scalar, a[1] * scalar, a[2] * scalar};
-}
+using stellar::math::add;
+using stellar::math::dot;
+using stellar::math::length_squared;
+using stellar::math::mul;
+using stellar::math::normalize_or;
+using stellar::math::sub;
+using stellar::math::Vec3;
 
 Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
     return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
@@ -36,47 +32,30 @@ Vec3 max_vec(Vec3 a, Vec3 b) noexcept {
     return {std::max(a[0], b[0]), std::max(a[1], b[1]), std::max(a[2], b[2])};
 }
 
-float dot(Vec3 a, Vec3 b) noexcept {
-    return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
-}
-
 Vec3 cross(Vec3 a, Vec3 b) noexcept {
     return {(a[1] * b[2]) - (a[2] * b[1]),
             (a[2] * b[0]) - (a[0] * b[2]),
             (a[0] * b[1]) - (a[1] * b[0])};
 }
 
-float length_squared(Vec3 value) noexcept {
-    return dot(value, value);
-}
-
-Vec3 normalize(Vec3 value) noexcept {
-    const float len_sq = length_squared(value);
-    if (len_sq <= kEpsilon * kEpsilon) {
-        return {0.0F, 1.0F, 0.0F};
-    }
-
-    const float inv_len = 1.0F / std::sqrt(len_sq);
-    return multiply(value, inv_len);
-}
-
 Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcept {
     if (length_squared(triangle.normal) > kEpsilon * kEpsilon) {
-        return normalize(triangle.normal);
+        return normalize_or(triangle.normal, {0.0F, 1.0F, 0.0F});
     }
 
-    return normalize(cross(subtract(triangle.b, triangle.a), subtract(triangle.c, triangle.a)));
+    return normalize_or(cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a)),
+                        {0.0F, 1.0F, 0.0F});
 }
 
 bool point_in_triangle(Vec3 point, const stellar::assets::CollisionTriangle& triangle) noexcept {
     const Vec3 normal = triangle_normal(triangle);
-    const Vec3 edge_ab = subtract(triangle.b, triangle.a);
-    const Vec3 edge_bc = subtract(triangle.c, triangle.b);
-    const Vec3 edge_ca = subtract(triangle.a, triangle.c);
+    const Vec3 edge_ab = sub(triangle.b, triangle.a);
+    const Vec3 edge_bc = sub(triangle.c, triangle.b);
+    const Vec3 edge_ca = sub(triangle.a, triangle.c);
 
-    const Vec3 ap = subtract(point, triangle.a);
-    const Vec3 bp = subtract(point, triangle.b);
-    const Vec3 cp = subtract(point, triangle.c);
+    const Vec3 ap = sub(point, triangle.a);
+    const Vec3 bp = sub(point, triangle.b);
+    const Vec3 cp = sub(point, triangle.c);
 
     const float side_ab = dot(normal, cross(edge_ab, ap));
     const float side_bc = dot(normal, cross(edge_bc, bp));
@@ -89,8 +68,8 @@ bool segment_triangle(Vec3 origin,
                       Vec3 delta,
                       const stellar::assets::CollisionTriangle& triangle,
                       float& out_t) noexcept {
-    const Vec3 edge1 = subtract(triangle.b, triangle.a);
-    const Vec3 edge2 = subtract(triangle.c, triangle.a);
+    const Vec3 edge1 = sub(triangle.b, triangle.a);
+    const Vec3 edge2 = sub(triangle.c, triangle.a);
     const Vec3 pvec = cross(delta, edge2);
     const float det = dot(edge1, pvec);
 
@@ -99,7 +78,7 @@ bool segment_triangle(Vec3 origin,
     }
 
     const float inv_det = 1.0F / det;
-    const Vec3 tvec = subtract(origin, triangle.a);
+    const Vec3 tvec = sub(origin, triangle.a);
     const float u = dot(tvec, pvec) * inv_det;
     if (u < -kEpsilon || u > 1.0F + kEpsilon) {
         return false;
@@ -150,7 +129,7 @@ Aabb merge(Aabb a, Aabb b) noexcept {
 Aabb expand(Aabb bounds, float amount) noexcept {
     const float safe_amount = std::max(amount, 0.0F);
     const Vec3 margin{safe_amount, safe_amount, safe_amount};
-    return {.min = subtract(bounds.min, margin), .max = add(bounds.max, margin)};
+    return {.min = sub(bounds.min, margin), .max = add(bounds.max, margin)};
 }
 
 Aabb triangle_bounds(const stellar::assets::CollisionTriangle& triangle) noexcept {
@@ -160,7 +139,7 @@ Aabb triangle_bounds(const stellar::assets::CollisionTriangle& triangle) noexcep
 }
 
 Vec3 aabb_centroid(Aabb bounds) noexcept {
-    return multiply(add(bounds.min, bounds.max), 0.5F);
+    return mul(add(bounds.min, bounds.max), 0.5F);
 }
 
 bool segment_aabb(Vec3 origin, Vec3 delta, Aabb bounds) noexcept {
@@ -225,7 +204,7 @@ SweepHit sweep_sphere_against_triangle(Vec3 position,
                                         float radius,
                                         const stellar::assets::CollisionTriangle& triangle) noexcept {
     const Vec3 normal = triangle_normal(triangle);
-    const float signed_start = dot(subtract(position, triangle.a), normal);
+    const float signed_start = dot(sub(position, triangle.a), normal);
     const float denom = dot(displacement, normal);
     Vec3 contact_normal = normal;
     float target_distance = radius;
@@ -239,7 +218,7 @@ SweepHit sweep_sphere_against_triangle(Vec3 position,
         contact_normal = normal;
     } else if (signed_start < -radius && denom > kEpsilon) {
         target_distance = -radius;
-        contact_normal = multiply(normal, -1.0F);
+        contact_normal = mul(normal, -1.0F);
     } else {
         return {};
     }
@@ -249,8 +228,8 @@ SweepHit sweep_sphere_against_triangle(Vec3 position,
         return {};
     }
 
-    const Vec3 center_at_hit = add(position, multiply(displacement, std::clamp(t, 0.0F, 1.0F)));
-    const Vec3 contact_point = subtract(center_at_hit, multiply(contact_normal, radius));
+    const Vec3 center_at_hit = add(position, mul(displacement, std::clamp(t, 0.0F, 1.0F)));
+    const Vec3 contact_point = sub(center_at_hit, mul(contact_normal, radius));
     if (!point_in_triangle(contact_point, triangle)) {
         return {};
     }
@@ -327,7 +306,7 @@ void CollisionWorld::build_broadphase() noexcept {
             return node_index;
         }
 
-        const Vec3 extent = subtract(centroid_bounds.max, centroid_bounds.min);
+        const Vec3 extent = sub(centroid_bounds.max, centroid_bounds.min);
         int split_axis = 0;
         if (extent[1] > extent[split_axis]) {
             split_axis = 1;
@@ -420,7 +399,7 @@ RaycastHit CollisionWorld::raycast(Vec3 origin,
                 nearest_t = t;
                 result.hit = true;
                 result.t = t;
-                result.position = add(origin, multiply(delta, t));
+                result.position = add(origin, mul(delta, t));
                 result.normal = triangle_normal(triangle);
                 result.mesh_index = ref.mesh_index;
                 result.triangle_index = ref.triangle_index;
@@ -618,11 +597,11 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
 
         result.hit = true;
         const float travel_t = std::max(0.0F, nearest.t - kContactOffset);
-        current_position = add(current_position, multiply(remaining, travel_t));
+        current_position = add(current_position, mul(remaining, travel_t));
 
-        const Vec3 unused = multiply(remaining, 1.0F - travel_t);
+        const Vec3 unused = mul(remaining, 1.0F - travel_t);
         const float into_plane = dot(unused, nearest.normal);
-        remaining = subtract(unused, multiply(nearest.normal, into_plane));
+        remaining = sub(unused, mul(nearest.normal, into_plane));
         result.iterations = iteration + 1;
     }
 

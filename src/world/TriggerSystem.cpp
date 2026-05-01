@@ -1,53 +1,28 @@
 #include "stellar/world/TriggerSystem.hpp"
 
+#include "stellar/math/Geometry3.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <utility>
 
 namespace stellar::world {
 namespace {
 
-float sanitized_half_extent(float value) noexcept {
-    if (!std::isfinite(value)) {
-        return 0.0F;
-    }
-    return std::abs(value);
-}
-
-float sanitized_radius(float radius) noexcept {
-    if (!std::isfinite(radius) || radius < 0.0F) {
-        return 0.0F;
-    }
-    return radius;
-}
-
-bool is_finite(float value) noexcept {
-    return std::isfinite(value);
-}
-
-bool is_finite(std::array<float, 3> value) noexcept {
-    return is_finite(value[0]) && is_finite(value[1]) && is_finite(value[2]);
-}
-
-float length_squared(std::array<float, 3> value) noexcept {
-    return value[0] * value[0] + value[1] * value[1] + value[2] * value[2];
-}
-
-std::array<float, 3> add(std::array<float, 3> lhs, std::array<float, 3> rhs) noexcept {
-    return {lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2]};
-}
-
-std::array<float, 3> sub(std::array<float, 3> lhs, std::array<float, 3> rhs) noexcept {
-    return {lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]};
-}
-
-std::array<float, 3> mul(std::array<float, 3> value, float scale) noexcept {
-    return {value[0] * scale, value[1] * scale, value[2] * scale};
-}
+using stellar::math::Aabb3;
+using stellar::math::add;
+using stellar::math::is_finite;
+using stellar::math::length_squared;
+using stellar::math::mul;
+using stellar::math::point_aabb_distance_squared;
+using stellar::math::sanitized_capsule_height;
+using stellar::math::sanitized_half_extent;
+using stellar::math::sanitized_radius;
+using stellar::math::sub;
 
 std::array<float, 3> normalized_or_world_y(std::array<float, 3> value) noexcept {
     if (!is_finite(value)) {
@@ -59,13 +34,6 @@ std::array<float, 3> normalized_or_world_y(std::array<float, 3> value) noexcept 
     }
     const float inv_len = 1.0F / std::sqrt(len_sq);
     return mul(value, inv_len);
-}
-
-float sanitized_height(float height, float radius) noexcept {
-    if (!std::isfinite(height) || height < 0.0F) {
-        return 2.0F * radius;
-    }
-    return std::max(height, 2.0F * radius);
 }
 
 bool trigger_bounds(const TriggerVolume& trigger,
@@ -102,22 +70,6 @@ bool sphere_overlaps_aabb_inclusive(const TriggerVolume& trigger,
     return distance_squared <= query_radius * query_radius;
 }
 
-float point_aabb_distance_squared(std::array<float, 3> point,
-                                  std::array<float, 3> min_values,
-                                  std::array<float, 3> max_values) noexcept {
-    float distance_squared = 0.0F;
-    for (std::size_t axis = 0; axis < 3; ++axis) {
-        float delta = 0.0F;
-        if (point[axis] < min_values[axis]) {
-            delta = min_values[axis] - point[axis];
-        } else if (point[axis] > max_values[axis]) {
-            delta = point[axis] - max_values[axis];
-        }
-        distance_squared += delta * delta;
-    }
-    return distance_squared;
-}
-
 bool add_candidate(float value, std::array<float, 8>& candidates, std::size_t& count) noexcept {
     if (!std::isfinite(value) || value < 0.0F || value > 1.0F) {
         return false;
@@ -133,7 +85,7 @@ bool capsule_overlaps_aabb_inclusive(const TriggerVolume& trigger,
     }
 
     const float radius = sanitized_radius(capsule.radius);
-    const float height = sanitized_height(capsule.height, radius);
+    const float height = sanitized_capsule_height(capsule.height, radius);
     const auto up = normalized_or_world_y(capsule.up);
     const float half_segment_length = std::max(0.0F, (height - 2.0F * radius) * 0.5F);
     const auto start = sub(capsule.center, mul(up, half_segment_length));
@@ -161,8 +113,9 @@ bool capsule_overlaps_aabb_inclusive(const TriggerVolume& trigger,
     float best_distance_squared = std::numeric_limits<float>::infinity();
     auto evaluate = [&](float t) noexcept {
         const auto point = add(start, mul(direction, t));
-        best_distance_squared = std::min(
-            best_distance_squared, point_aabb_distance_squared(point, min_values, max_values));
+        best_distance_squared =
+            std::min(best_distance_squared,
+                     point_aabb_distance_squared(point, Aabb3{.min = min_values, .max = max_values}));
     };
 
     for (std::size_t i = 0; i < count; ++i) {
@@ -202,31 +155,28 @@ bool capsule_overlaps_aabb_inclusive(const TriggerVolume& trigger,
     return best_distance_squared <= radius * radius;
 }
 
-std::vector<TriggerOverlap> update_overlaps(
-    const std::vector<TriggerVolume>& triggers,
-    std::vector<bool>& previous_overlaps,
-    const auto& overlaps_trigger) noexcept {
-    std::vector<TriggerOverlap> overlaps;
-    if (previous_overlaps.size() != triggers.size()) {
-        previous_overlaps.assign(triggers.size(), false);
-    }
-
+std::vector<SensorOverlapSample> build_samples(const std::vector<TriggerVolume>& triggers,
+                                               const auto& overlaps_trigger) {
+    std::vector<SensorOverlapSample> samples;
+    samples.reserve(triggers.size());
     for (std::size_t i = 0; i < triggers.size(); ++i) {
-        const bool current = overlaps_trigger(triggers[i]);
-        const bool previous = previous_overlaps[i];
-
-        TriggerOverlap event;
-        event.name = triggers[i].name;
-        event.entered = current && !previous;
-        event.stayed = current && previous;
-        event.exited = !current && previous;
-
-        if (event.entered || event.stayed || event.exited) {
-            overlaps.push_back(std::move(event));
-        }
-        previous_overlaps[i] = current;
+        samples.push_back({.id = static_cast<std::uint32_t>(i + 1U),
+                           .name = triggers[i].name,
+                           .currently_overlapping = overlaps_trigger(triggers[i])});
     }
+    return samples;
+}
 
+std::vector<TriggerOverlap> to_trigger_overlaps(
+    std::vector<SensorOverlapTransition> transitions) {
+    std::vector<TriggerOverlap> overlaps;
+    overlaps.reserve(transitions.size());
+    for (SensorOverlapTransition& transition : transitions) {
+        overlaps.push_back({.name = std::move(transition.name),
+                            .entered = transition.entered,
+                            .stayed = transition.stayed,
+                            .exited = transition.exited});
+    }
     return overlaps;
 }
 
@@ -237,22 +187,24 @@ void TriggerSystem::set_triggers(std::span<const TriggerVolume> triggers) {
     std::stable_sort(triggers_.begin(), triggers_.end(), [](const auto& lhs, const auto& rhs) {
         return lhs.name < rhs.name;
     });
-    previous_overlaps_.assign(triggers_.size(), false);
+    overlap_tracker_.reset(build_samples(triggers_, [](const TriggerVolume&) { return false; }));
 }
 
 std::vector<TriggerOverlap> TriggerSystem::update_sphere(std::array<float, 3> center,
                                                           float radius) noexcept {
-    return update_overlaps(
-        triggers_, previous_overlaps_, [center, radius](const TriggerVolume& trigger) {
+    const auto samples = build_samples(
+        triggers_, [center, radius](const TriggerVolume& trigger) {
             return sphere_overlaps_aabb_inclusive(trigger, center, radius);
         });
+    return to_trigger_overlaps(overlap_tracker_.update(samples));
 }
 
 std::vector<TriggerOverlap> TriggerSystem::update_capsule(
     const TriggerCapsule& capsule) noexcept {
-    return update_overlaps(triggers_, previous_overlaps_, [&capsule](const TriggerVolume& trigger) {
+    const auto samples = build_samples(triggers_, [&capsule](const TriggerVolume& trigger) {
         return capsule_overlaps_aabb_inclusive(trigger, capsule);
     });
+    return to_trigger_overlaps(overlap_tracker_.update(samples));
 }
 
 const std::vector<TriggerVolume>& TriggerSystem::triggers() const noexcept {

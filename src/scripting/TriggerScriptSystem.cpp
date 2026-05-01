@@ -1,6 +1,7 @@
 #include "stellar/scripting/TriggerScriptSystem.hpp"
 
 #include "stellar/assets/WorldMetadataAsset.hpp"
+#include "stellar/scripting/ScriptHookDispatcher.hpp"
 
 #include <utility>
 
@@ -69,12 +70,6 @@ namespace {
     return context;
 }
 
-void append_drained_outputs(LuaRuntime& runtime, TriggerScriptResult& result) {
-    std::vector<ScriptOutputEvent> events = runtime.drain_output_events();
-    result.output_events.insert(result.output_events.end(), std::make_move_iterator(events.begin()),
-                                std::make_move_iterator(events.end()));
-}
-
 } // namespace
 
 TriggerScriptSystem::TriggerScriptSystem(const stellar::world::RuntimeWorld& world) {
@@ -90,7 +85,7 @@ TriggerScriptSystem::TriggerScriptSystem(const stellar::world::RuntimeWorld& wor
 TriggerScriptResult TriggerScriptSystem::process_trigger_events(
     LuaRuntime& runtime,
     const stellar::server::WorldSnapshot& snapshot) noexcept {
-    TriggerScriptResult result{};
+    std::vector<ScriptHookCall> calls;
 
     for (const stellar::server::MovementTriggerEvent& event : snapshot.trigger_events) {
         for (const Binding& binding : bindings_) {
@@ -107,26 +102,17 @@ TriggerScriptResult TriggerScriptSystem::process_trigger_events(
                     continue;
                 }
 
-                const char* function_name = callback_name(phase);
-                if (!runtime.has_table(binding.table_name)) {
-                    result.errors.push_back(ScriptError{binding.script_id, function_name,
-                                                        "Lua script table is missing: " +
-                                                            binding.table_name});
-                    continue;
-                }
-
-                ScriptCallContext context = make_context(snapshot, event, phase);
-                auto called = runtime.call_table_function(binding.script_id, binding.table_name,
-                                                          function_name, context);
-                if (!called.has_value()) {
-                    result.errors.push_back(std::move(called.error()));
-                }
-                append_drained_outputs(runtime, result);
+                calls.push_back(ScriptHookCall{.script_id = binding.script_id,
+                                               .table_name = binding.table_name,
+                                               .function_name = callback_name(phase),
+                                               .context = make_context(snapshot, event, phase)});
             }
         }
     }
 
-    return result;
+    ScriptHookDispatchResult dispatch_result = dispatch_script_hooks(runtime, calls);
+    return TriggerScriptResult{.output_events = std::move(dispatch_result.output_events),
+                               .errors = std::move(dispatch_result.errors)};
 }
 
 } // namespace stellar::scripting

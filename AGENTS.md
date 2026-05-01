@@ -30,26 +30,22 @@ When `docs/ImplementationStatus.md` conflicts with `docs/Design.md`, prefer `doc
 
 Current branch: `collision-movement`.
 
-Primary near-term goal: move from "glTF renders as a scene" toward "glTF can define playable static world geometry" for a 3D world with 2D billboard entities.
+`docs/ImplementationStatus.md` is the single current-work entry point for branch-facing status and
+near-term priorities. Consult it before starting implementation work. Active handoff notes may point
+to a current plan such as `Plans/NEXT.md`; older phase plans are historical unless explicitly named
+there.
 
-Recommended implementation order:
+The earlier Phase 6A-D world-authoring slices are implemented first passes. Do **not** restart them
+as the active branch plan. The current cleanup direction is to remove phase-seam complexity without
+changing gameplay behavior, while preserving server authority, display-free validation, and existing
+public subsystem boundaries.
 
-1. `Plans/Phase6A-LevelCollisionExtraction.md`
-   - Backend-neutral static level collision data
-   - glTF collision extraction from selected nodes/meshes
-   - Collision node conventions such as `COL_*`, `Collision_*`, and parent `Collision`
-   - Display-free importer tests
-2. `Plans/Phase6B-CollisionQueriesAndMovement.md`
-   - Collision queries
-   - Ground probing
-   - Minimal sweep/slide movement over static collision
-3. `Plans/Phase6C-BillboardSpriteRendering.md`
-   - 2D billboard sprite rendering in 3D world space
-   - OpenGL/Vulkan parity
-4. `Plans/Phase6D-WorldMetadataFromGltf.md`
-   - glTF node-convention metadata for spawns, triggers, sprite markers, and similar gameplay markers
+Lua scripting is core server-authoritative infrastructure for this branch. Do not add or preserve a
+normal build mode where gameplay scripting is absent, and keep Lua sandboxing mandatory.
 
-Avoid spending the next implementation slices on full PBR, morph targets, glTF cameras, or glTF lights unless the user explicitly asks or a concrete asset requirement appears.
+Avoid spending implementation slices on full PBR, morph targets, glTF cameras, glTF lights, dynamic
+rigid bodies, or third-party physics unless the user explicitly asks or a concrete asset requirement
+appears.
 
 ## Architecture
 
@@ -254,4 +250,5 @@ Guidance:
 - Data-oriented ECS remains a core design requirement.
 - OpenGL and Vulkan parity remains required through shared abstractions.
 - Audio is miniaudio-backed when implementation is in scope, with explicit no-op fallback where needed.
-- Keep implementation slices aligned with the active branch priorities.
+- Keep implementation slices aligned with `docs/ImplementationStatus.md` and its referenced active
+  handoff plan.

@@ -11,13 +11,10 @@
 
 namespace stellar::scripting {
 
-/** @brief Config controlling safe Lua execution behavior. */
+/** @brief Config controlling bounded Lua execution behavior. */
 struct LuaRuntimeConfig {
     /** @brief Maximum Lua instruction hook callbacks per protected script call. */
     int instruction_budget = 10000;
-
-    /** @brief True when the runtime installs restricted safe standard libraries only. */
-    bool restricted_sandbox = true;
 };
 
 /** @brief Context passed to Lua callbacks as an event table. */
@@ -40,7 +37,7 @@ public:
     /** @brief Opaque implementation type for the owned Lua state. */
     struct Impl;
 
-    /** @brief Create a Lua runtime and install the configured sandbox/API. */
+    /** @brief Create a Lua runtime and install the mandatory restricted sandbox/API. */
     explicit LuaRuntime(LuaRuntimeConfig config = {});
 
     /** @brief Destroy the Lua state and all loaded script data. */

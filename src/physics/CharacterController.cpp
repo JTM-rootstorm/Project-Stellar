@@ -1,5 +1,7 @@
 #include "stellar/physics/CharacterController.hpp"
 
+#include "stellar/math/Geometry3.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -7,24 +9,18 @@
 namespace stellar::physics {
 namespace {
 
-using Vec3 = std::array<float, 3>;
+using stellar::math::add;
+using stellar::math::dot;
+using stellar::math::length_squared;
+using stellar::math::mul;
+using stellar::math::normalize_or;
+using stellar::math::sub;
+using stellar::math::Vec3;
 
 constexpr float kEpsilon = 1.0e-5F;
 constexpr float kSweepContactOffset = 1.0e-3F;
 constexpr int kSweepSamples = 32;
 constexpr int kRecoveryIterations = 5;
-
-Vec3 add(Vec3 a, Vec3 b) noexcept {
-    return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
-}
-
-Vec3 subtract(Vec3 a, Vec3 b) noexcept {
-    return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
-}
-
-Vec3 multiply(Vec3 a, float scalar) noexcept {
-    return {a[0] * scalar, a[1] * scalar, a[2] * scalar};
-}
 
 Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
     return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
@@ -37,7 +33,7 @@ Vec3 max_vec(Vec3 a, Vec3 b) noexcept {
 CollisionQueryAabb expand_bounds(Vec3 min_value, Vec3 max_value, float amount) noexcept {
     const float safe_amount = std::max(amount, 0.0F);
     const Vec3 margin{safe_amount, safe_amount, safe_amount};
-    return {.min = subtract(min_value, margin), .max = add(max_value, margin)};
+    return {.min = sub(min_value, margin), .max = add(max_value, margin)};
 }
 
 float effective_capsule_half_segment(float radius, float height) noexcept {
@@ -53,8 +49,8 @@ struct CapsuleEndpoints {
 
 CapsuleEndpoints capsule_endpoints(Vec3 center, Vec3 up, float radius, float height) noexcept {
     const float half_segment = effective_capsule_half_segment(radius, height);
-    const Vec3 offset = multiply(up, half_segment);
-    return {.lower = subtract(center, offset), .upper = add(center, offset)};
+    const Vec3 offset = mul(up, half_segment);
+    return {.lower = sub(center, offset), .upper = add(center, offset)};
 }
 
 CollisionQueryAabb capsule_bounds(Vec3 center, Vec3 up, float radius, float height) noexcept {
@@ -74,18 +70,10 @@ CollisionQueryAabb swept_capsule_bounds(Vec3 start,
                          max_vec(max_vec(a.lower, a.upper), max_vec(b.lower, b.upper)), radius);
 }
 
-float dot(Vec3 a, Vec3 b) noexcept {
-    return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
-}
-
 Vec3 cross(Vec3 a, Vec3 b) noexcept {
     return {(a[1] * b[2]) - (a[2] * b[1]),
             (a[2] * b[0]) - (a[0] * b[2]),
             (a[0] * b[1]) - (a[1] * b[0])};
-}
-
-float length_squared(Vec3 value) noexcept {
-    return dot(value, value);
 }
 
 float length(Vec3 value) noexcept {
@@ -96,21 +84,12 @@ float finite_or(float value, float fallback) noexcept {
     return std::isfinite(value) ? value : fallback;
 }
 
-Vec3 normalize_or(Vec3 value, Vec3 fallback) noexcept {
-    const float len_sq = length_squared(value);
-    if (len_sq <= kEpsilon * kEpsilon) {
-        return fallback;
-    }
-
-    return multiply(value, 1.0F / std::sqrt(len_sq));
-}
-
 Vec3 reject_from_normal(Vec3 value, Vec3 normal) noexcept {
     const float into_normal = dot(value, normal);
     if (into_normal >= 0.0F) {
         return value;
     }
-    return subtract(value, multiply(normal, into_normal));
+    return sub(value, mul(normal, into_normal));
 }
 
 Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcept {
@@ -118,33 +97,33 @@ Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcep
         return normalize_or(triangle.normal, {0.0F, 1.0F, 0.0F});
     }
 
-    return normalize_or(cross(subtract(triangle.b, triangle.a), subtract(triangle.c, triangle.a)),
+    return normalize_or(cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a)),
                         {0.0F, 1.0F, 0.0F});
 }
 
 Vec3 closest_point_on_segment(Vec3 point, Vec3 a, Vec3 b) noexcept {
-    const Vec3 ab = subtract(b, a);
+    const Vec3 ab = sub(b, a);
     const float denom = length_squared(ab);
     if (denom <= kEpsilon * kEpsilon) {
         return a;
     }
 
-    const float t = std::clamp(dot(subtract(point, a), ab) / denom, 0.0F, 1.0F);
-    return add(a, multiply(ab, t));
+    const float t = std::clamp(dot(sub(point, a), ab) / denom, 0.0F, 1.0F);
+    return add(a, mul(ab, t));
 }
 
 Vec3 closest_point_on_triangle(Vec3 point,
                                const stellar::assets::CollisionTriangle& triangle) noexcept {
-    const Vec3 ab = subtract(triangle.b, triangle.a);
-    const Vec3 ac = subtract(triangle.c, triangle.a);
-    const Vec3 ap = subtract(point, triangle.a);
+    const Vec3 ab = sub(triangle.b, triangle.a);
+    const Vec3 ac = sub(triangle.c, triangle.a);
+    const Vec3 ap = sub(point, triangle.a);
     const float d1 = dot(ab, ap);
     const float d2 = dot(ac, ap);
     if (d1 <= 0.0F && d2 <= 0.0F) {
         return triangle.a;
     }
 
-    const Vec3 bp = subtract(point, triangle.b);
+    const Vec3 bp = sub(point, triangle.b);
     const float d3 = dot(ab, bp);
     const float d4 = dot(ac, bp);
     if (d3 >= 0.0F && d4 <= d3) {
@@ -154,10 +133,10 @@ Vec3 closest_point_on_triangle(Vec3 point,
     const float vc = (d1 * d4) - (d3 * d2);
     if (vc <= 0.0F && d1 >= 0.0F && d3 <= 0.0F) {
         const float v = d1 / (d1 - d3);
-        return add(triangle.a, multiply(ab, v));
+        return add(triangle.a, mul(ab, v));
     }
 
-    const Vec3 cp = subtract(point, triangle.c);
+    const Vec3 cp = sub(point, triangle.c);
     const float d5 = dot(ab, cp);
     const float d6 = dot(ac, cp);
     if (d6 >= 0.0F && d5 <= d6) {
@@ -167,28 +146,28 @@ Vec3 closest_point_on_triangle(Vec3 point,
     const float vb = (d5 * d2) - (d1 * d6);
     if (vb <= 0.0F && d2 >= 0.0F && d6 <= 0.0F) {
         const float w = d2 / (d2 - d6);
-        return add(triangle.a, multiply(ac, w));
+        return add(triangle.a, mul(ac, w));
     }
 
     const float va = (d3 * d6) - (d5 * d4);
     if (va <= 0.0F && (d4 - d3) >= 0.0F && (d5 - d6) >= 0.0F) {
         const float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-        return add(triangle.b, multiply(subtract(triangle.c, triangle.b), w));
+        return add(triangle.b, mul(sub(triangle.c, triangle.b), w));
     }
 
     const float denom = 1.0F / (va + vb + vc);
     const float v = vb * denom;
     const float w = vc * denom;
-    return add(triangle.a, add(multiply(ab, v), multiply(ac, w)));
+    return add(triangle.a, add(mul(ab, v), mul(ac, w)));
 }
 
 bool segment_intersects_triangle(Vec3 start,
                                  Vec3 end,
                                  const stellar::assets::CollisionTriangle& triangle,
                                  Vec3& intersection) noexcept {
-    const Vec3 delta = subtract(end, start);
-    const Vec3 edge1 = subtract(triangle.b, triangle.a);
-    const Vec3 edge2 = subtract(triangle.c, triangle.a);
+    const Vec3 delta = sub(end, start);
+    const Vec3 edge1 = sub(triangle.b, triangle.a);
+    const Vec3 edge2 = sub(triangle.c, triangle.a);
     const Vec3 pvec = cross(delta, edge2);
     const float det = dot(edge1, pvec);
     if (std::abs(det) <= kEpsilon) {
@@ -196,7 +175,7 @@ bool segment_intersects_triangle(Vec3 start,
     }
 
     const float inv_det = 1.0F / det;
-    const Vec3 tvec = subtract(start, triangle.a);
+    const Vec3 tvec = sub(start, triangle.a);
     const float u = dot(tvec, pvec) * inv_det;
     if (u < -kEpsilon || u > 1.0F + kEpsilon) {
         return false;
@@ -213,7 +192,7 @@ bool segment_intersects_triangle(Vec3 start,
         return false;
     }
 
-    intersection = add(start, multiply(delta, std::clamp(t, 0.0F, 1.0F)));
+    intersection = add(start, mul(delta, std::clamp(t, 0.0F, 1.0F)));
     return true;
 }
 
@@ -224,7 +203,7 @@ struct ClosestPair {
 };
 
 void consider_pair(ClosestPair& best, Vec3 capsule_point, Vec3 triangle_point) noexcept {
-    const float dist_sq = length_squared(subtract(capsule_point, triangle_point));
+    const float dist_sq = length_squared(sub(capsule_point, triangle_point));
     if (dist_sq < best.distance_sq) {
         best.capsule_point = capsule_point;
         best.triangle_point = triangle_point;
@@ -238,9 +217,9 @@ void closest_segment_segment(Vec3 p1,
                              Vec3 q2,
                              Vec3& c1,
                              Vec3& c2) noexcept {
-    const Vec3 d1 = subtract(q1, p1);
-    const Vec3 d2 = subtract(q2, p2);
-    const Vec3 r = subtract(p1, p2);
+    const Vec3 d1 = sub(q1, p1);
+    const Vec3 d2 = sub(q2, p2);
+    const Vec3 r = sub(p1, p2);
     const float a = length_squared(d1);
     const float e = length_squared(d2);
     const float f = dot(d2, r);
@@ -275,8 +254,8 @@ void closest_segment_segment(Vec3 p1,
         }
     }
 
-    c1 = add(p1, multiply(d1, s));
-    c2 = add(p2, multiply(d2, t));
+    c1 = add(p1, mul(d1, s));
+    c2 = add(p2, mul(d2, t));
 }
 
 ClosestPair closest_capsule_segment_triangle(CapsuleEndpoints capsule,
@@ -331,10 +310,10 @@ bool capsule_overlaps_triangle(Vec3 center,
         return false;
     }
 
-    Vec3 normal = normalize_or(subtract(closest.capsule_point, closest.triangle_point),
+    Vec3 normal = normalize_or(sub(closest.capsule_point, closest.triangle_point),
                                triangle_normal(triangle));
     if (dot(normal, fallback_normal) < 0.0F) {
-        normal = multiply(normal, -1.0F);
+        normal = mul(normal, -1.0F);
     }
 
     contact.hit = true;
@@ -355,14 +334,14 @@ Contact sweep_capsule_triangle(Vec3 start,
 
     Contact overlap{};
     bool previous_overlap = capsule_overlaps_triangle(start, up, radius, height, triangle,
-                                                      multiply(displacement, -1.0F), overlap);
+                                                      mul(displacement, -1.0F), overlap);
 
     for (int sample = 1; sample <= kSweepSamples; ++sample) {
         const float t = static_cast<float>(sample) / static_cast<float>(kSweepSamples);
-        const Vec3 current = add(start, multiply(displacement, t));
+        const Vec3 current = add(start, mul(displacement, t));
         Contact sample_contact{};
         const bool overlapping = capsule_overlaps_triangle(current, up, radius, height, triangle,
-                                                           multiply(displacement, -1.0F),
+                                                           mul(displacement, -1.0F),
                                                            sample_contact);
         if (!previous_overlap && overlapping) {
             float lo = static_cast<float>(sample - 1) / static_cast<float>(kSweepSamples);
@@ -370,8 +349,8 @@ Contact sweep_capsule_triangle(Vec3 start,
             for (int refine = 0; refine < 8; ++refine) {
                 const float mid = (lo + hi) * 0.5F;
                 Contact mid_contact{};
-                if (capsule_overlaps_triangle(add(start, multiply(displacement, mid)), up, radius,
-                                              height, triangle, multiply(displacement, -1.0F),
+                if (capsule_overlaps_triangle(add(start, mul(displacement, mid)), up, radius,
+                                              height, triangle, mul(displacement, -1.0F),
                                               mid_contact)) {
                     hi = mid;
                     sample_contact = mid_contact;
@@ -433,10 +412,10 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
                 continue;
             }
 
-            Vec3 normal = normalize_or(subtract(closest.capsule_point, closest.triangle_point),
+            Vec3 normal = normalize_or(sub(closest.capsule_point, closest.triangle_point),
                                        triangle_normal(triangle));
             if (closest.distance_sq <= kEpsilon * kEpsilon && dot(normal, up) < 0.0F) {
-                normal = multiply(normal, -1.0F);
+                normal = mul(normal, -1.0F);
             }
 
             if (penetration > deepest) {
@@ -451,7 +430,7 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
         }
 
         result.overlapped = true;
-        result.position = add(result.position, multiply(push_normal, deepest + kSweepContactOffset));
+        result.position = add(result.position, mul(push_normal, deepest + kSweepContactOffset));
     }
 
     return result;
@@ -507,8 +486,8 @@ SlideResult slide_move(const CollisionWorld& world,
         result.last_normal = nearest.normal;
 
         const float travel_t = std::max(0.0F, nearest.t - kSweepContactOffset);
-        result.position = add(result.position, multiply(result.remaining, travel_t));
-        const Vec3 leftover = multiply(result.remaining, 1.0F - travel_t);
+        result.position = add(result.position, mul(result.remaining, travel_t));
+        const Vec3 leftover = mul(result.remaining, 1.0F - travel_t);
         result.remaining = reject_from_normal(leftover, nearest.normal);
     }
 
@@ -530,8 +509,8 @@ bool snap_to_ground(const CollisionWorld& world,
     }
 
     const float half_segment = effective_capsule_half_segment(radius, height);
-    const Vec3 lower_endpoint = subtract(position, multiply(up, half_segment));
-    const RaycastHit hit = world.raycast(lower_endpoint, multiply(up, -cast_distance), filter);
+    const Vec3 lower_endpoint = sub(position, mul(up, half_segment));
+    const RaycastHit hit = world.raycast(lower_endpoint, mul(up, -cast_distance), filter);
     if (!hit.hit || !is_walkable(hit.normal, up, min_ground_dot)) {
         return false;
     }
@@ -541,8 +520,8 @@ bool snap_to_ground(const CollisionWorld& world,
         return false;
     }
 
-    const Vec3 snapped_lower = add(hit.position, multiply(up, radius + kSweepContactOffset));
-    position = add(snapped_lower, multiply(up, half_segment));
+    const Vec3 snapped_lower = add(hit.position, mul(up, radius + kSweepContactOffset));
+    position = add(snapped_lower, mul(up, half_segment));
     ground_normal = normalize_or(hit.normal, up);
     return true;
 }
@@ -552,7 +531,7 @@ float progress_along(Vec3 start, Vec3 end, Vec3 direction) noexcept {
     if (dir_len_sq <= kEpsilon * kEpsilon) {
         return 0.0F;
     }
-    return dot(subtract(end, start), direction) / std::sqrt(dir_len_sq);
+    return dot(sub(end, start), direction) / std::sqrt(dir_len_sq);
 }
 
 void publish_character_query_diagnostics(const CollisionWorld& world,
@@ -562,7 +541,7 @@ void publish_character_query_diagnostics(const CollisionWorld& world,
                                           float radius,
                                           float height,
                                           CollisionQueryFilter filter) {
-    const Vec3 displacement = subtract(end, start);
+    const Vec3 displacement = sub(end, start);
     (void)world.query_triangles(swept_capsule_bounds(start, displacement, up, radius, height), filter);
 }
 
@@ -615,10 +594,10 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
     bool chosen_grounded = normal_grounded;
     bool stepped = false;
 
-    const Vec3 vertical = multiply(up, dot(input.displacement, up));
-    const Vec3 horizontal = subtract(input.displacement, vertical);
+    const Vec3 vertical = mul(up, dot(input.displacement, up));
+    const Vec3 horizontal = sub(input.displacement, vertical);
     if (normal_move.hit && config.step_height > 0.0F && length_squared(horizontal) > kEpsilon) {
-        SlideResult lift_move = slide_move(*world_, start, multiply(up, config.step_height), radius,
+        SlideResult lift_move = slide_move(*world_, start, mul(up, config.step_height), radius,
                                            height, up, 1, filter);
         const bool lift_clear = !lift_move.hit &&
                                 length_squared(lift_move.remaining) <= kEpsilon * kEpsilon;
@@ -633,7 +612,7 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
                                                               height, up, filter);
         const float normal_progress = progress_along(start, normal_move.position, horizontal);
         const float step_progress = progress_along(start, step_move.position, horizontal);
-        const float lifted = dot(subtract(step_move.position, start), up);
+        const float lifted = dot(sub(step_move.position, start), up);
         const float max_lift = config.step_height + kSweepContactOffset;
         if (lift_clear && !step_recovery.overlapped && step_grounded &&
             step_progress > normal_progress + 0.01F && lifted <= max_lift) {

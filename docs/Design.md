@@ -76,7 +76,7 @@ OpenGL/Vulkan material parity suitable for game content.
 - **Windowing/input abstraction:** SDL2.
 - **Audio:** miniaudio-backed audio when audio implementation is in scope, with explicit
   no-op fallback behavior where needed.
-- **Scripting:** optional vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
+- **Scripting:** mandatory vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
 - **Networking:** local loopback for single-player, extensible toward remote multiplayer.
 
 ---
@@ -125,7 +125,7 @@ Completed Phase 10 implementation order:
    - Invoke `on_trigger_enter`, `on_trigger_stay`, and `on_trigger_exit` from authoritative trigger
      events after server movement resolves.
 4. **Phase 10D — Scripted Session Wrapper**
-   - Add `ScriptedWorldSession` as an opt-in wrapper around native `WorldSession`.
+   - Add `ScriptedWorldSession` as the script-capable wrapper around native `WorldSession`.
 5. **Phase 10E — Documentation and Playable Integration Smoke**
    - Validate the authored glTF -> runtime world -> scripted authoritative trigger path in a
      display-free integration smoke.
@@ -691,8 +691,10 @@ by `@director` when scripts need gameplay, rendering, audio, or tooling integrat
 Lua scripting is gameplay code and therefore runs on the authoritative server/runtime side. The
 initial implementation is intentionally narrow:
 
-- `stellar_scripting` is optional and owns the Lua dependency.
+- `stellar_scripting` is core server-authoritative infrastructure and owns the Lua dependency.
 - `stellar_world` and `stellar_server_core` do not link Lua directly.
+- `LuaRuntime` always installs the restricted sandbox; unrestricted standard-library access is not a
+  normal gameplay runtime configuration path.
 - Import extracts script bindings from world metadata but never executes scripts.
 - `RuntimeWorld` preserves authored script bindings on trigger and object-collider markers.
 - `ScriptedWorldSession` wraps `server::WorldSession`, advances native movement first, then invokes
@@ -804,7 +806,7 @@ dependencies.
 | Vulkan SDK | Vulkan backend | Optional runtime path and opt-in context tests |
 | OpenGL loader | OpenGL backend | Use the loader already selected by the project |
 | cgltf | glTF import | Compile only when glTF support is enabled |
-| Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` when enabled |
+| Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` |
 | stb_image | Image decode | Used by importer image paths |
 | Test framework | Unit/integration tests | Keep default tests display-free |
 | Doxygen | API docs | Public API documentation |
@@ -817,7 +819,7 @@ Representative targets:
 - `stellar-server`
 - Shared engine/static libraries as organized by the current CMake layout.
 - `stellar_import_gltf` when `STELLAR_ENABLE_GLTF=ON`.
-- `stellar_scripting` when `STELLAR_ENABLE_LUA_SCRIPTING=ON`.
+- `stellar_scripting` in the default build.
 - Display-free unit/regression tests.
 - Opt-in OpenGL/Vulkan context tests behind explicit CMake flags.
 
@@ -843,8 +845,7 @@ Lua scripting and scripted playable-world validation:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
-  -DSTELLAR_ENABLE_GLTF=ON \
-  -DSTELLAR_ENABLE_LUA_SCRIPTING=ON
+  -DSTELLAR_ENABLE_GLTF=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build \
   -R '^(scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' \
@@ -902,7 +903,7 @@ Project-Stellar/
 │       ├── physics/          # planned/Phase 6B direction if not already present
 │       ├── platform/
 │       ├── scene/
-│       └── scripting/        # optional server-authoritative Lua wrapper APIs
+│       └── scripting/        # core server-authoritative Lua wrapper APIs
 ├── src/
 │   ├── audio/
 │   ├── client/
@@ -930,7 +931,7 @@ Project-Stellar/
 ├── assets/
 │   └── shaders/
 └── thirdparty/
-    └── lua/                  # vendored Lua when scripting is enabled
+    └── lua/                  # mandatory vendored Lua for server-authoritative scripting
 ```
 
 Avoid adding public folders or top-level concepts that blur ownership unless an implementation plan
@@ -1163,8 +1164,8 @@ Phase 6B display-free tests should cover:
 
 Scripting tests must remain display-free and deterministic by default. Coverage should include:
 
-- Lua runtime construction, sandbox restrictions, protected load/call behavior, bytecode rejection,
-  instruction budget failure, and deterministic output draining.
+- Lua runtime construction, always-on sandbox restrictions, protected load/call behavior, bytecode
+  rejection, instruction budget failure, and deterministic output draining.
 - Trigger script callbacks for enter/stay/exit events using plain authoritative event data.
 - `ScriptedWorldSession` loading, missing-script diagnostics, runtime script errors, latest snapshot
   access without callback replay, and deterministic repeatability.

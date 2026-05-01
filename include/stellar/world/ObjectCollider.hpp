@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "stellar/assets/WorldMetadataAsset.hpp"
+#include "stellar/world/SensorOverlapTracker.hpp"
 #include "stellar/world/TriggerSystem.hpp"
 
 namespace stellar::world {
@@ -164,14 +165,8 @@ public:
     [[nodiscard]] std::vector<ObjectColliderDiagnostic> diagnostics() const;
 
 private:
-    struct OverlapHistoryEntry {
-        std::uint32_t collider_id = 0;
-        std::string name;
-        bool overlapping = false;
-    };
-
     std::vector<ObjectCollider> colliders_;
-    std::vector<OverlapHistoryEntry> overlap_history_;
+    SensorOverlapTracker overlap_tracker_;
 };
 
 } // namespace stellar::world

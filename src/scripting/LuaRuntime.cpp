@@ -12,7 +12,6 @@
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
-#include <lualib.h>
 }
 
 namespace stellar::scripting {
@@ -215,11 +214,7 @@ LuaRuntime::LuaRuntime(LuaRuntimeConfig config) : impl_(new Impl(config)) {
     lua_pushlightuserdata(impl_->state, impl_);
     lua_settable(impl_->state, LUA_REGISTRYINDEX);
 
-    if (impl_->config.restricted_sandbox) {
-        install_restricted_sandbox(impl_->state);
-    } else {
-        luaL_openlibs(impl_->state);
-    }
+    install_restricted_sandbox(impl_->state);
     install_engine_api(impl_->state);
 }
 
