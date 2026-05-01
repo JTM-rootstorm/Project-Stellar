@@ -5,6 +5,7 @@
 #include <limits>
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 
 namespace stellar::graphics::vulkan {
 
@@ -58,17 +59,26 @@ VkExtent2D VulkanGraphicsDevice::current_window_extent_or_pending_rebuild(int wi
                                                                           int height) noexcept {
     (void)width;
     (void)height;
-    int window_width = 0;
-    int window_height = 0;
+
+    int drawable_width = 0;
+    int drawable_height = 0;
+
     if (window_ != nullptr) {
-        SDL_GetWindowSize(window_, &window_width, &window_height);
+        SDL_Vulkan_GetDrawableSize(window_, &drawable_width, &drawable_height);
+
+        // Conservative fallback for unusual platforms/drivers.
+        if (drawable_width <= 0 || drawable_height <= 0) {
+            SDL_GetWindowSize(window_, &drawable_width, &drawable_height);
+        }
     }
-    if (window_width <= 0 || window_height <= 0) {
+
+    if (drawable_width <= 0 || drawable_height <= 0) {
         mark_swapchain_rebuild_pending();
         return VkExtent2D{0, 0};
     }
-    return VkExtent2D{sanitize_dimension(window_width, swapchain_extent_.width),
-                      sanitize_dimension(window_height, swapchain_extent_.height)};
+
+    return VkExtent2D{sanitize_dimension(drawable_width, swapchain_extent_.width),
+                      sanitize_dimension(drawable_height, swapchain_extent_.height)};
 }
 
 bool VulkanGraphicsDevice::recreate_swapchain_from_window_extent() noexcept {
@@ -418,8 +428,16 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     };
     result = vkQueuePresentKHR(graphics_queue_, &present_info);
     frame_in_progress_ = false;
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        log_vulkan_message(vulkan_error("vkQueuePresentKHR", result).message);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        log_vulkan_message("Vulkan swapchain is out of date; scheduling swapchain rebuild");
+        mark_swapchain_rebuild_pending();
+        current_frame_index_ = (current_frame_index_ + 1) % frames_.size();
+        return;
+    }
+
+    if (result == VK_SUBOPTIMAL_KHR) {
+        log_vulkan_message("Vulkan swapchain is suboptimal; scheduling swapchain rebuild");
         mark_swapchain_rebuild_pending();
         current_frame_index_ = (current_frame_index_ + 1) % frames_.size();
         return;

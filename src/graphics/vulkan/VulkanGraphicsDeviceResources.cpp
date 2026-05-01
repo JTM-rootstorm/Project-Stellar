@@ -404,7 +404,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
     }
     bindings[kMaterialTextureSlotCount] = VkDescriptorSetLayoutBinding{
         .binding = kMaterialTextureSlotCount,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         .descriptorCount = 1,
         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
     };
@@ -422,7 +422,7 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
 
     const VkDescriptorSetLayoutBinding skin_draw_binding{
         .binding = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
     };

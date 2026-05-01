@@ -34,6 +34,28 @@ glm::mat4 to_glm_mat4(const std::array<float, 16>& data) noexcept {
     return glm::make_mat4(data.data());
 }
 
+glm::mat4 make_projection_for_backend(GraphicsBackend backend,
+                                      float vertical_fov_degrees,
+                                      float aspect,
+                                      float near_plane,
+                                      float far_plane) {
+    glm::mat4 projection =
+        glm::perspective(glm::radians(vertical_fov_degrees), aspect, near_plane, far_plane);
+
+    if (backend == GraphicsBackend::kVulkan) {
+        // Convert GLM/OpenGL clip space to Vulkan clip space:
+        // - flip Y for Vulkan framebuffer coordinates
+        // - remap depth from OpenGL [-1, 1] to Vulkan [0, 1]
+        glm::mat4 gl_to_vk_clip(1.0F);
+        gl_to_vk_clip[1][1] = -1.0F;
+        gl_to_vk_clip[2][2] = 0.5F;
+        gl_to_vk_clip[3][2] = 0.5F;
+        projection = gl_to_vk_clip * projection;
+    }
+
+    return projection;
+}
+
 void include_point(SceneBounds& bounds, const glm::vec3& point) noexcept {
     bounds.min[0] = std::min(bounds.min[0], point.x);
     bounds.min[1] = std::min(bounds.min[1], point.y);
@@ -238,8 +260,8 @@ void SceneRenderer::render(float elapsed_seconds,
     const float aspect =
         height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0F;
     const SceneCameraFit camera = fit_camera_to_bounds(scene_bounds_, kDefaultFovDegrees, aspect);
-    const glm::mat4 projection = glm::perspective(
-        glm::radians(kDefaultFovDegrees), aspect, camera.near_plane, camera.far_plane);
+    const glm::mat4 projection = make_projection_for_backend(
+        backend_, kDefaultFovDegrees, aspect, camera.near_plane, camera.far_plane);
     const glm::mat4 view = glm::lookAt(glm::vec3(camera.eye[0], camera.eye[1], camera.eye[2]),
                                        glm::vec3(camera.target[0], camera.target[1],
                                                  camera.target[2]),
