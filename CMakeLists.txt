@@ -138,6 +138,21 @@ target_link_libraries(stellar_scripting PRIVATE
     stellar_lua
 )
 
+add_library(stellar_network
+    src/network/Messages.cpp
+    src/network/SnapshotCodec.cpp
+    src/network/SnapshotDelta.cpp
+)
+
+target_include_directories(stellar_network PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_network PUBLIC
+    stellar_server_core
+    stellar_scripting
+)
+
 add_library(stellar_import_bsp
     src/import/bsp/Loader.cpp
     src/import/bsp/Validation.cpp
@@ -435,6 +450,16 @@ stellar_add_scripting_test(stellar_script_command_processor_test script_command_
 stellar_add_scripting_test(stellar_scripted_world_session_test scripted_world_session
     tests/scripting/ScriptedWorldSession.cpp
 )
+
+stellar_add_test_executable(stellar_snapshot_codec_test snapshot_codec
+    tests/network/SnapshotCodec.cpp
+)
+target_link_libraries(stellar_snapshot_codec_test PRIVATE stellar_network)
+
+stellar_add_test_executable(stellar_snapshot_delta_test snapshot_delta
+    tests/network/SnapshotDelta.cpp
+)
+target_link_libraries(stellar_snapshot_delta_test PRIVATE stellar_network)
 
 add_executable(stellar-client
     src/client/main.cpp

@@ -752,6 +752,10 @@ Current contract direction for this branch:
   gameplay authority.
 - Snapshot baselines, structural deltas, and event records should use deterministic serialization with
   bounded strings/vectors and finite numeric data.
+- The PN-3 transport contracts live in `stellar::network` as `NetworkPlayerCommand`,
+  `NetworkWorldSnapshot`, `NetworkGameplayEntity`, `GameplayEvent`, and `SnapshotDelta`. The current
+  binary `SnapshotCodec` is local/transport-neutral and intentionally does not open remote sockets,
+  add prediction, or add reconciliation.
 
 ---
 

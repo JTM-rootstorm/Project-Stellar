@@ -17,7 +17,7 @@ Active phases:
 - Phase PN-0 — Plan archival and follow-up handoff: complete as of 2026-05-01.
 - Phase PN-1 — Live scripted authoritative runtime integration: complete as of 2026-05-01.
 - Phase PN-2 — Authoritative gameplay snapshot presentation: complete as of 2026-05-01.
-- Phase PN-3 — Snapshot/delta/event transport contracts: pending.
+- Phase PN-3 — Snapshot/delta/event transport contracts: complete as of 2026-05-01.
 - Phase PN-4 — Local/remote transport bridge: pending.
 - Phase PN-5 — HUD/audio/toolchain polish: pending.
 - Phase PN-6 — Final docs, validation, and handoff: pending.
@@ -103,6 +103,33 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused PN-2 targets built, focused PN-2 CTest passed 4/4, and full
 default CTest passed 42/42 on 2026-05-01.
+
+Phase PN-3 completion notes:
+
+- Added `stellar_network` transport contracts for client input commands, deterministic authoritative
+  `NetworkWorldSnapshot` state, gameplay entities, server-approved `GameplayEvent` records, and
+  structural `SnapshotDelta` baselines/targets.
+- Server `WorldSnapshot` conversion preserves players and server-owned gameplay entities with stable
+  id ordering; script command/error conversion emits pickup, door-state, script-command, and
+  script-error presentation approvals without adding client authority.
+- Implemented a narrow deterministic binary codec with explicit little-endian integers, bounded
+  strings/vectors, finite-float validation, clean `std::expected` decode failures, and no socket,
+  prediction, or reconciliation behavior.
+- Display-free tests cover snapshot/event round trips, sprite/pickup/door entity data, delta
+  round-trip/apply, invalid/truncated data, oversized strings/vectors, non-finite float rejection, and
+  deterministic byte output.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_snapshot_codec_test stellar_snapshot_delta_test stellar_server_world_session_test stellar_scripted_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(snapshot_codec|snapshot_delta|server_world_session|scripted_world_session)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused PN-3 targets built, focused PN-3 CTest passed 4/4, and full
+default CTest passed 44/44 on 2026-05-01.
 
 ## Branch Scope — Gameplay Loop Expansion over BSP Maps
 
