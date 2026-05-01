@@ -156,6 +156,20 @@ target_link_libraries(stellar_network PUBLIC
     stellar_scripting
 )
 
+add_library(stellar_dedicated_server
+    src/server/DedicatedServer.cpp
+)
+
+target_include_directories(stellar_dedicated_server PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_dedicated_server PUBLIC
+    stellar_import_bsp
+    stellar_network
+    stellar_scripting
+)
+
 add_library(stellar_audio
     src/audio/AudioEventRouter.cpp
 )
@@ -314,6 +328,14 @@ stellar_add_server_test(stellar_server_world_session_test server_world_session
 stellar_add_server_test(stellar_server_gameplay_world_test server_gameplay_world
     tests/server/GameplayWorld.cpp
 )
+
+stellar_add_test_executable(stellar_dedicated_server_test dedicated_server
+    tests/server/DedicatedServer.cpp
+)
+target_include_directories(stellar_dedicated_server_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+)
+target_link_libraries(stellar_dedicated_server_test PRIVATE stellar_dedicated_server)
 
 stellar_add_graphics_test(stellar_render_level_upload_test render_level_upload
     tests/graphics/RenderSceneUpload.cpp
@@ -530,6 +552,18 @@ target_link_libraries(stellar-client PRIVATE
     miniaudio
 )
 
+add_executable(stellar-server
+    src/server/main.cpp
+)
+
+target_include_directories(stellar-server PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar-server PRIVATE
+    stellar_dedicated_server
+)
+
 add_executable(stellar_bsp_fixture_writer
     tests/fixtures/BspFixtureWriter.cpp
 )
@@ -570,6 +604,19 @@ add_test(NAME client_cli_map_validation_rejects_bad_map
     COMMAND stellar-client --validate-map ${STELLAR_CLI_BAD_BSP_FIXTURE}
 )
 set_tests_properties(client_cli_map_validation_rejects_bad_map PROPERTIES
+    FIXTURES_REQUIRED bsp_bad_cli_fixture
+    WILL_FAIL TRUE
+)
+
+add_test(NAME server_cli_validate_config
+    COMMAND stellar-server --validate-config --map ${STELLAR_CLI_BSP_FIXTURE}
+)
+set_tests_properties(server_cli_validate_config PROPERTIES FIXTURES_REQUIRED bsp_cli_fixture)
+
+add_test(NAME server_cli_rejects_bad_map
+    COMMAND stellar-server --validate-config --map ${STELLAR_CLI_BAD_BSP_FIXTURE}
+)
+set_tests_properties(server_cli_rejects_bad_map PROPERTIES
     FIXTURES_REQUIRED bsp_bad_cli_fixture
     WILL_FAIL TRUE
 )

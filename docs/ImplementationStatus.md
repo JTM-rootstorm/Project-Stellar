@@ -19,8 +19,8 @@ Current phase status:
   2026-05-01.
 - Phase ST-3 — Connection and session lifecycle: active/completed as of 2026-05-01.
 - Phase ST-4 — Remote socket transport: active/completed as of 2026-05-01.
-- Phase ST-5 — Dedicated server entry point: next.
-- Phase ST-6 — Client connect mode: deferred.
+- Phase ST-5 — Dedicated server entry point: active/completed as of 2026-05-01.
+- Phase ST-6 — Client connect mode: next.
 - Phase ST-7 — Hardening, documentation, validation, and archival: deferred.
 
 Phase ST-2 completion notes:
@@ -106,6 +106,33 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused ST-4 targets built, focused ST-4 CTest passed 4/4, full debug
 build succeeded, and full default CTest passed 51/51 on 2026-05-01.
+
+Phase ST-5 completion notes:
+
+- Added `stellar::server::DedicatedServer` with `DedicatedServerConfig`, bounded `pump_once()` for
+  tests, validate-only startup, and a `stellar-server` CLI target.
+- The dedicated server owns BSP map validation/loading, backend-neutral runtime-world construction,
+  sandboxed authoritative Lua script loading when map metadata references scripts, single player id
+  assignment, authoritative fixed ticks, snapshots/deltas, and server-approved gameplay events.
+- The socket lifecycle accepts one TCP client, waits for `ClientHello`, validates protocol and map
+  identity, sends `ServerWelcome`, rejects/ignores input before welcome, sends the first full snapshot,
+  emits deltas after the baseline, and survives client disconnect without crashing. This is not a true
+  simultaneous multiplayer simulation claim.
+- Added display-free coverage for CLI/config parsing failures, validate-only generated BSP fixtures,
+  missing/non-BSP/invalid map failures, missing script source failures, socket hello/welcome, first full
+  snapshot, input-driven authoritative snapshot updates, and disconnect handling.
+
+ST-5 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-server stellar_dedicated_server_test stellar_socket_transport_test stellar_network_session_test -j$(nproc)
+ctest --test-dir build -R '^(dedicated_server|socket_transport|network_session|snapshot_|scripted_world_session|bsp_)' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-5 targets built, focused ST-5 CTest passed 21/21, full debug
+build succeeded, and full default CTest passed 54/54 on 2026-05-01.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 

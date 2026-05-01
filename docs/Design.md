@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.5 (TCP socket transport foundation complete)  
+**Version:** 0.2.6 (dedicated server entry point complete)
 **Last Updated:** 2026-05-01
 
 ---
@@ -78,7 +78,7 @@ suitable for game content.
   no-op fallback behavior where needed.
 - **Scripting:** mandatory vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
 - **Networking:** local loopback plus Linux/POSIX TCP socket transport behind transport-neutral
-  client/server packet seams.
+  client/server packet seams, with a headless `stellar-server` authoritative entry point.
 
 ---
 
@@ -108,8 +108,8 @@ deferred.
 Current branch: `socket-transport`.
 
 Primary near-term status: socket transport and networked session lifecycle over the completed BSP
-gameplay loop and presentation/networking polish foundations. The next active slice after the TCP
-transport foundation is the dedicated server entry point.
+gameplay loop and presentation/networking polish foundations. The dedicated server entry point is
+complete; the next active slice is client remote-connect mode.
 Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
 and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
 
@@ -153,9 +153,12 @@ Authoritative gameplay snapshots are converted into client-side billboards, HUD 
 requests, but those systems remain disposable presentation caches/routes and never mutate server
 gameplay truth. Snapshot, delta, and event contracts are deterministic, serializable, and
 server-authored. The implemented transport layer includes local/in-memory endpoints and a TCP-first,
-Linux/POSIX socket backend using a length-prefixed packet envelope. Dedicated server startup, client
-remote-connect mode, true simultaneous multiplayer simulation, interpolation, prediction, and
-reconciliation remain deferred until explicitly scoped.
+Linux/POSIX socket backend using a length-prefixed packet envelope. The `stellar-server` executable
+loads and validates BSP maps headlessly, loads referenced authoritative Lua scripts from the map
+directory or configured script root, accepts one TCP client, performs `ClientHello`/`ServerWelcome`,
+assigns the authoritative player id, ticks the server-owned runtime, and sends the first full snapshot
+followed by deltas/events. Client remote-connect mode, true simultaneous multiplayer simulation,
+interpolation, prediction, and reconciliation remain deferred until explicitly scoped.
 
 Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
 and retired importer removal are complete historical implementation steps. Their completion notes
@@ -241,10 +244,12 @@ platform infrastructure, and static collision/query infrastructure.
 #### Server Application
 
 - Initialize ECS world and authoritative game systems.
-- Load or receive backend-neutral world data.
+- Load backend-neutral BSP world data and referenced authoritative script sources.
 - Own collision queries and movement validation.
 - Run simulation ticks.
-- Serialize snapshots or deltas for clients.
+- Serialize snapshots, deltas, and server-approved gameplay events for clients.
+- Provide `stellar-server --validate-config --map path/to/map.bsp` for display-free map/script
+  validation before opening sockets.
 
 ### 5.2 Core World Data
 
@@ -790,6 +795,10 @@ Current contract behavior for this branch:
   accepted client. It rejects oversized payloads before allocation, handles partial read/write paths
   with bounded nonblocking loops, and keeps UDP, multi-client simulation, prediction, and
   reconciliation out of scope.
+- The dedicated server entry point uses the TCP socket backend for one accepted client, validates the
+  `ClientHello` protocol and map identity before accepting input, sends `ServerWelcome`, assigns the
+  authoritative player id, emits the first full `NetworkWorldSnapshot`, then emits structural deltas
+  and server-approved gameplay events from server-owned ticks.
 
 ---
 

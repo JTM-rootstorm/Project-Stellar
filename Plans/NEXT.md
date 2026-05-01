@@ -11,17 +11,17 @@ Branch target: `socket-transport`
 
 ## Active scope
 
-Socket transport and networked session lifecycle are the active branch target. Phase ST-4 added Linux/POSIX TCP socket transport behind the existing transport seam. The next implementation slice is the dedicated server entry point:
+Socket transport and networked session lifecycle are the active branch target. Phase ST-5 added the headless dedicated server entry point on top of the Linux/POSIX TCP socket transport. The next implementation slice is client connect mode:
 
-`TCP SocketTransport + ClientHello + ServerWelcome + LocalServerBridge + ClientWorldReceiver + NetworkWorldSnapshot presentation`
+`stellar-server + TCP SocketTransport + ClientHello + ServerWelcome + ClientWorldReceiver + NetworkWorldSnapshot presentation`
 
 ## Current phase status
 
 - ST-2 — Live client over local networked transport path: completed.
 - ST-3 — Connection and session lifecycle: completed.
 - ST-4 — Remote socket transport: completed.
-- ST-5 — Dedicated server entry point: next.
-- ST-6 — Client connect mode: deferred.
+- ST-5 — Dedicated server entry point: completed.
+- ST-6 — Client connect mode: next.
 - ST-7 — Hardening, documentation, validation, and archival: deferred.
 
 ## Completed historical scope
@@ -43,5 +43,5 @@ Do not restart completed collision, movement, Lua scripting, object-collider, BS
 - Default tests remain display-free.
 - OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
-- No client prediction or reconciliation is active for ST-4/ST-5.
+- No client prediction or reconciliation is active for ST-5/ST-6.
 - Do not add Source/VBSP, dynamic rigid bodies, moving brush simulation, full PBR, client-side gameplay scripting, model/animation systems, or retired importer functionality unless explicitly requested.
