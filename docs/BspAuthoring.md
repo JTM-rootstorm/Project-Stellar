@@ -4,8 +4,9 @@ BSP maps are Stellar's canonical playable level source. Entity keys are imported
 
 Gameplay authoring uses inch-scale coordinates on the active `bsp-gameplay-loop` branch: 1 Stellar
 gameplay world unit equals 1 inch, Y is up, and BSP coordinates are imported 1:1 without hidden scale
-conversion. A 72 inch tall player capsule should usually be spawned with its center 36 inches above
-the floor.
+conversion. The default authoritative player capsule is 72 inches tall with a 16 inch radius, 18 inch
+step height, 0.5 inch skin width, and 4 inch ground snap. Player starts should usually place the
+capsule center 36 inches above the floor.
 
 ## Minimal workflow
 
@@ -45,9 +46,12 @@ Malformed vectors and booleans produce import diagnostics. Import does not run L
 ```text
 classname = info_player_start
 targetname = PlayerStart
-origin = "0 0 32"
+origin = "0 36 0"
 angle = "90"
 ```
+
+For the default 72 inch player capsule, use an origin such as `"0 36 0"` when the floor is at
+`y = 0`. The importer preserves the authored origin; it does not lift player spawns automatically.
 
 ### Trigger script
 

@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include "stellar/core/WorldUnits.hpp"
 #include "stellar/physics/CollisionWorld.hpp"
 
 namespace stellar::physics {
@@ -11,22 +12,22 @@ namespace stellar::physics {
  */
 struct CharacterControllerConfig {
     /** @brief Character collision radius used for static sweeps. */
-    float radius = 0.35F;
+    float radius = stellar::core::kPlayerRadiusInches;
 
     /** @brief Total vertical capsule height including hemispherical ends. */
-    float height = 1.8F;
+    float height = stellar::core::kPlayerHeightInches;
 
     /** @brief Small separation kept between the character and static triangles. */
-    float skin_width = 0.03F;
+    float skin_width = stellar::core::kPlayerSkinWidthInches;
 
     /** @brief Maximum ground slope angle, in degrees, considered walkable. */
     float max_slope_degrees = 50.0F;
 
     /** @brief Maximum conservative vertical lift used by step-up attempts. */
-    float step_height = 0.35F;
+    float step_height = stellar::core::kPlayerStepHeightInches;
 
     /** @brief Maximum post-move downward snap distance used to keep stable grounding. */
-    float ground_snap_distance = 0.12F;
+    float ground_snap_distance = stellar::core::kGroundSnapDistanceInches;
 
     /** @brief Fixed upper bound for sweep-and-slide iterations. */
     int max_slide_iterations = 4;

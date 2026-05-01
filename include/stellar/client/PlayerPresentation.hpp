@@ -3,6 +3,7 @@
 #include <array>
 #include <optional>
 
+#include "stellar/core/WorldUnits.hpp"
 #include "stellar/server/WorldSession.hpp"
 
 namespace stellar::client {
@@ -10,16 +11,17 @@ namespace stellar::client {
 /** @brief Camera follow settings derived from authoritative player snapshots. */
 struct PlayerCameraConfig {
     /** @brief World-space offset from the player position to the camera eye. */
-    std::array<float, 3> follow_offset{0.0F, 2.0F, 6.0F};
+    std::array<float, 3> follow_offset{0.0F, stellar::core::kPlayerHeightInches,
+                                       stellar::core::feet_to_units(12.0F)};
 
     /** @brief World-space offset from the player position to the camera look-at target. */
-    std::array<float, 3> look_at_offset{0.0F, 0.8F, 0.0F};
+    std::array<float, 3> look_at_offset{0.0F, 60.0F, 0.0F};
 
     /** @brief Requested near clip plane; finite positive values are preserved above 0.01. */
     float near_plane = 0.1F;
 
     /** @brief Requested far clip plane; finite values greater than near are preserved. */
-    float far_plane = 250.0F;
+    float far_plane = 4096.0F;
 };
 
 /** @brief Presentation state derived from one authoritative player snapshot. */
@@ -46,7 +48,7 @@ struct PlayerCameraFrame {
     float near_plane = 0.1F;
 
     /** @brief Sanitized far clip plane, always greater than near_plane. */
-    float far_plane = 250.0F;
+    float far_plane = 4096.0F;
 };
 
 /** @brief Extract player presentation state from the latest authoritative world snapshot. */

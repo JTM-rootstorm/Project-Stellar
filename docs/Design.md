@@ -120,7 +120,12 @@ handoff retained at `Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md`.
 
 Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
 world unit equals 1 inch, Y is up, and BSP authored coordinates import without hidden scale
-conversion. Player spawn centers should be authored half the capsule height above the floor.
+conversion. `stellar::core::WorldUnits.hpp` records the shared code constants. The default
+authoritative player capsule is 72 inches tall with a 16 inch radius, so player spawn centers should
+be authored 36 inches above the floor unless a later archetype explicitly changes the capsule.
+Default walk tuning is 160 inches/second max speed, 1200 inches/second² acceleration, 800
+inches/second² gravity, and 2400 inches/second terminal fall speed; these are game-feel defaults, not
+real-world simulation claims.
 
 BSP entity metadata binds triggers, object-collider sensors, sprite markers, spawns, and script
 IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative
@@ -1183,6 +1188,7 @@ Deferred unless scoped:
 | 2026-04-30 | 0.1.5 | Kilo | Align design with `lua-scripting` branch status, Phase 10 server-authoritative Lua scripting, `stellar_scripting`, scripted session smoke coverage, dependency/build/test updates, and deferred client/entity scripting work |
 | 2026-04-30 | 0.1.6 | Kilo | Align design with Phase 11 scripted collision behavior: runtime collision state, filtered authoritative movement, native script collision commands, object collider registry foundation, and scripted collision smoke coverage |
 | 2026-05-01 | 0.2.0 | Kilo | Lock active design direction to BSP maps as the canonical playable level format and begin migration from scene-shaped assets to `LevelAsset` |
+| 2026-05-01 | 0.2.1 | Kilo | Adopt inch-scale gameplay defaults for world units, player capsule, movement simulation, and debug camera presentation |
 
 ---
 

@@ -8,10 +8,10 @@ namespace {
 
 constexpr float kMinFixedDt = 1.0e-5F;
 constexpr float kMaxFixedDt = 0.25F;
-constexpr float kMaxReasonableSpeed = 200.0F;
-constexpr float kMaxReasonableAcceleration = 1000.0F;
+constexpr float kMaxReasonableSpeed = 1000.0F;
+constexpr float kMaxReasonableAcceleration = 10000.0F;
 constexpr float kMaxReasonableGravity = 1000.0F;
-constexpr float kMaxReasonableTerminalFallSpeed = 1000.0F;
+constexpr float kMaxReasonableTerminalFallSpeed = 10000.0F;
 constexpr float kMinRadius = 0.001F;
 constexpr int kMinSlideIterations = 1;
 constexpr int kMaxSlideIterations = 16;
@@ -106,28 +106,37 @@ using Vec3 = std::array<float, 3>;
 [[nodiscard]] SanitizedMovementSimulationConfig sanitize_config(
     MovementSimulationConfig config) noexcept {
     bool sanitized = false;
-    config.max_speed = sanitize_non_negative(config.max_speed, 6.0F, kMaxReasonableSpeed, sanitized);
-    config.acceleration =
-        sanitize_non_negative(config.acceleration, 40.0F, kMaxReasonableAcceleration, sanitized);
-    config.gravity = sanitize_non_negative(config.gravity, 24.0F, kMaxReasonableGravity, sanitized);
+    config.max_speed = sanitize_non_negative(config.max_speed, MovementSimulationConfig{}.max_speed,
+                                             kMaxReasonableSpeed, sanitized);
+    config.acceleration = sanitize_non_negative(config.acceleration,
+                                                MovementSimulationConfig{}.acceleration,
+                                                kMaxReasonableAcceleration, sanitized);
+    config.gravity = sanitize_non_negative(config.gravity, MovementSimulationConfig{}.gravity,
+                                           kMaxReasonableGravity, sanitized);
     config.terminal_fall_speed = sanitize_non_negative(
-        config.terminal_fall_speed, 50.0F, kMaxReasonableTerminalFallSpeed, sanitized);
+        config.terminal_fall_speed, MovementSimulationConfig{}.terminal_fall_speed,
+        kMaxReasonableTerminalFallSpeed, sanitized);
     config.fixed_dt = sanitize_positive(config.fixed_dt, 1.0F / 60.0F, kMinFixedDt, kMaxFixedDt,
                                         sanitized);
 
-    config.character.radius = sanitize_positive(config.character.radius, 0.35F, kMinRadius,
-                                                kMaxReasonableSpeed, sanitized);
-    config.character.height = sanitize_positive(config.character.height, 1.8F,
+    config.character.radius = sanitize_positive(config.character.radius,
+                                                MovementSimulationConfig{}.character.radius,
+                                                kMinRadius, kMaxReasonableSpeed, sanitized);
+    config.character.height = sanitize_positive(config.character.height,
+                                                MovementSimulationConfig{}.character.height,
                                                 2.0F * config.character.radius,
                                                 kMaxReasonableSpeed, sanitized);
-    config.character.skin_width = sanitize_non_negative(config.character.skin_width, 0.03F, 1.0F,
-                                                        sanitized);
+    config.character.skin_width = sanitize_non_negative(config.character.skin_width,
+                                                        MovementSimulationConfig{}.character.skin_width,
+                                                        8.0F, sanitized);
     config.character.max_slope_degrees = sanitize_positive(config.character.max_slope_degrees, 50.0F,
                                                            0.01F, 89.9F, sanitized);
-    config.character.step_height = sanitize_non_negative(config.character.step_height, 0.35F, 5.0F,
-                                                         sanitized);
+    config.character.step_height = sanitize_non_negative(config.character.step_height,
+                                                         MovementSimulationConfig{}.character.step_height,
+                                                         128.0F, sanitized);
     config.character.ground_snap_distance = sanitize_non_negative(
-        config.character.ground_snap_distance, 0.12F, 5.0F, sanitized);
+        config.character.ground_snap_distance,
+        MovementSimulationConfig{}.character.ground_snap_distance, 128.0F, sanitized);
     if (config.character.max_slide_iterations < kMinSlideIterations) {
         config.character.max_slide_iterations = kMinSlideIterations;
         sanitized = true;

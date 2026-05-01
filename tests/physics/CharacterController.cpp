@@ -100,6 +100,16 @@ stellar::physics::CharacterControllerConfig config() {
     return cfg;
 }
 
+void default_controller_config_uses_inch_scale_player_capsule() {
+    const stellar::physics::CharacterControllerConfig cfg;
+
+    assert(nearly_equal(cfg.radius, 16.0F, 0.0F));
+    assert(nearly_equal(cfg.height, 72.0F, 0.0F));
+    assert(nearly_equal(cfg.skin_width, 0.5F, 0.0F));
+    assert(nearly_equal(cfg.step_height, 18.0F, 0.0F));
+    assert(nearly_equal(cfg.ground_snap_distance, 4.0F, 0.0F));
+}
+
 stellar::physics::CharacterMoveResult move(const stellar::assets::LevelCollisionAsset& asset,
                                            Vec3 position,
                                            Vec3 displacement,
@@ -458,6 +468,7 @@ void all_enabled_filter_matches_existing_behavior() {
 } // namespace
 
 int main() {
+    default_controller_config_uses_inch_scale_player_capsule();
     empty_world_movement_passes_through_unchanged();
     grounded_state_detected_on_floor();
     start_overlap_with_floor_recovers();

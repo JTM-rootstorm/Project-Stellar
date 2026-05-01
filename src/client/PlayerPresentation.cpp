@@ -7,7 +7,7 @@ namespace stellar::client {
 namespace {
 
 constexpr float kDefaultNearPlane = 0.1F;
-constexpr float kDefaultFarPlane = 250.0F;
+constexpr float kDefaultFarPlane = 4096.0F;
 constexpr float kMinimumNearPlane = 0.01F;
 constexpr float kMinimumClipSeparation = 0.01F;
 

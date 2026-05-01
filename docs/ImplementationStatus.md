@@ -37,7 +37,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 ## BSP Gameplay Loop — Active Phase Status
 
 - Phase 0 — Active gameplay-loop handoff lock-in: complete as of 2026-05-01.
-- Phase 1 — Inch-based world scale and gameplay tuning: not started.
+- Phase 1 — Inch-based world scale and gameplay tuning: complete as of 2026-05-01.
 - Phase 2 — Procedural developer textures for inch-scale BSP authoring: not started.
 - Phase 3 — Load the configured BSP map into the live client path: not started.
 - Phase 4 — Authoritative player camera drives level rendering: not started.
@@ -54,6 +54,28 @@ Phase 0 completion notes:
   `docs/BspAuthoring.md` to point agents at the gameplay-loop plan and record the inch-scale unit
   policy.
 - No source behavior changes were introduced.
+
+Phase 1 completion notes:
+
+- Added `include/stellar/core/WorldUnits.hpp` as the code source for inch-scale gameplay constants
+  and trivial inch/foot conversion helpers.
+- Updated default authoritative player capsule, movement simulation, and player camera presentation
+  tuning to inch-scale values: 72 inch height, 16 inch radius, 160 inches/second walk speed, and a
+  4096 unit debug far plane.
+- Tiny synthetic movement and controller tests continue to override their local geometry and tuning
+  explicitly, while default-value assertions now cover inch-scale controller, movement, and camera
+  settings.
+- No BSP importer scale conversion was introduced; authored BSP coordinates remain imported 1:1.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_character_controller_test stellar_server_movement_simulation_test stellar_player_presentation_test -j$(nproc)
+ctest --test-dir build -R '^(character_controller|server_movement_simulation|player_presentation)$' --output-on-failure
+```
+
+Result: configure/build and focused CTest passed on 2026-05-01.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

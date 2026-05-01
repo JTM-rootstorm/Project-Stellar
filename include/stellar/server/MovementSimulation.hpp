@@ -13,16 +13,16 @@ namespace stellar::server {
  */
 struct MovementSimulationConfig {
     /** @brief Maximum horizontal movement speed in world units per second. */
-    float max_speed = 6.0F;
+    float max_speed = stellar::core::kWalkSpeedInchesPerSecond;
 
     /** @brief Horizontal acceleration toward the requested movement direction. */
-    float acceleration = 40.0F;
+    float acceleration = stellar::core::kAccelerationInchesPerSecondSquared;
 
     /** @brief Downward acceleration applied when not grounded. */
-    float gravity = 24.0F;
+    float gravity = stellar::core::kGravityInchesPerSecondSquared;
 
     /** @brief Maximum downward velocity magnitude. */
-    float terminal_fall_speed = 50.0F;
+    float terminal_fall_speed = stellar::core::kTerminalFallSpeedInchesPerSecond;
 
     /** @brief Fixed simulation tick duration in seconds. */
     float fixed_dt = 1.0F / 60.0F;
