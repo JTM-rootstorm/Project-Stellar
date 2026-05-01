@@ -729,9 +729,11 @@ Potential protocol split:
 Exact protocol choices remain implementation details until a networking plan scopes them.
 The completed BSP presentation/networking polish work added remote-ready snapshot, delta, and event
 contracts before real remote sockets. The local in-memory transport bridge exercises the same
-client-input/server-snapshot message contract planned for future remote play, while remote socket
-transport, real multiplayer lifecycle, prediction, interpolation, and reconciliation remain deferred
-until explicitly scoped.
+client-input/server-snapshot message contract planned for future remote play. The socket transport
+branch now includes deterministic `ClientHello` / `ServerWelcome` session setup, protocol/map
+compatibility rejection, and server-assigned player authority before the first snapshot is accepted.
+Remote socket transport, true simultaneous multiplayer simulation, prediction, interpolation, and
+reconciliation remain deferred until explicitly scoped.
 
 ### 10.2 Message Categories
 
@@ -745,6 +747,13 @@ Representative message categories:
 | `ENTITY_DESTROY` | Server to client | Entity removal |
 | `EVENT` | Server to client | Presentation event such as audio or VFX trigger |
 | `CONNECT` / `WELCOME` | Both | Connection setup |
+
+The first-stage lifecycle supports one active local player slot over a multi-client-ready protocol
+shape. The client sends a bounded `ClientHello` with `ProtocolVersion`, client diagnostics, requested
+map id, and nonce. The server replies with `ServerWelcome`, either accepted with a `SessionId` and
+authoritative `PlayerId`, or rejected with stable protocol/map diagnostics. Input before an accepted
+welcome is deterministically ignored/rejected, and the server overwrites requested player ids with the
+assigned authoritative player id.
 
 ### 10.3 State Synchronization
 
@@ -766,9 +775,10 @@ Current contract behavior for this branch:
 - Snapshot baselines, structural deltas, and event records should use deterministic serialization with
   bounded strings/vectors and finite numeric data.
 - The transport contracts live in `stellar::network` as `NetworkPlayerCommand`,
-  `NetworkWorldSnapshot`, `NetworkGameplayEntity`, `GameplayEvent`, and `SnapshotDelta`. The current
-  binary `SnapshotCodec` is local/transport-neutral and intentionally does not open remote sockets,
-  add prediction, or add reconciliation.
+  `ClientHello`, `ServerWelcome`, `MapIdentity`, `NetworkPlayerCommand`, `NetworkWorldSnapshot`,
+  `NetworkGameplayEntity`, `GameplayEvent`, and `SnapshotDelta`. The current binary `SnapshotCodec`
+  is local/transport-neutral and intentionally does not open remote sockets, add prediction, or add
+  reconciliation.
 - The local bridge adds in-memory/local `ClientTransport` and `ServerTransport` endpoints plus a local
   authoritative server adapter and client receiver over those contracts. Client commands remain
   requests; the bridge overwrites authority with the configured server player slot, emits snapshots,

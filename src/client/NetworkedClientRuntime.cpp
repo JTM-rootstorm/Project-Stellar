@@ -35,34 +35,83 @@ NetworkedClientRuntime::NetworkedClientRuntime(const stellar::world::RuntimeWorl
                                                NetworkedClientRuntimeConfig config)
     : config_(config),
       transport_(stellar::network::make_loopback_transport_pair()),
-      bridge_(world, config_.bridge) {}
+      bridge_(world, config_.bridge) {
+    send_client_hello();
+}
 
 NetworkedClientRuntime::NetworkedClientRuntime(
     stellar::scripting::ScriptedWorldSession scripted_session,
     NetworkedClientRuntimeConfig config)
     : config_(config),
       transport_(stellar::network::make_loopback_transport_pair()),
-      bridge_(std::move(scripted_session), config_.bridge) {}
+      bridge_(std::move(scripted_session), config_.bridge) {
+    send_client_hello();
+}
 
 NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platform::Input& input,
                                                           float delta_seconds) noexcept {
     NetworkedClientFrameResult frame;
+    frame.diagnostics.insert(frame.diagnostics.end(), pending_diagnostics_.begin(),
+                             pending_diagnostics_.end());
+    pending_diagnostics_.clear();
 
-    stellar::network::NetworkPlayerCommand command{};
-    command.player_id = config_.bridge.session.local_player_id;
-    command.command_sequence = next_command_sequence_++;
-    command.movement = make_movement_command(input, config_.input_mapper);
+    auto drain_server_packets = [&]() {
+        ClientWorldReceiverDrainResult total_drain;
+        for (const stellar::network::TransportPacket& packet :
+             transport_.client->receive_from_server()) {
+            const std::vector<std::uint8_t> bytes = stellar::network::from_payload(packet.payload);
+            if (auto welcome = stellar::network::decode_server_welcome(bytes)) {
+                if (welcome->accepted) {
+                    session_state_ = stellar::network::SessionState::kConnected;
+                    assigned_player_id_ = welcome->assigned_player_id;
+                } else {
+                    session_state_ = stellar::network::SessionState::kRejected;
+                    frame.diagnostics.push_back(welcome->rejection_code + ": " + welcome->message);
+                }
+                continue;
+            }
+            if (session_state_ != stellar::network::SessionState::kConnected) {
+                ++frame.rejected_packets;
+                frame.diagnostics.push_back(
+                    "packet_before_welcome: Authoritative packet arrived before welcome acceptance");
+                continue;
+            }
+            ClientWorldReceiverDrainResult drain = receiver_.accept_packet(packet);
+            total_drain.snapshots += drain.snapshots;
+            total_drain.deltas += drain.deltas;
+            total_drain.events += drain.events;
+            total_drain.rejected_packets += drain.rejected_packets;
+            total_drain.errors.insert(total_drain.errors.end(), drain.errors.begin(),
+                                      drain.errors.end());
+        }
+        frame.rejected_packets += total_drain.rejected_packets;
+        append_receiver_diagnostics(frame, total_drain);
+    };
 
-    auto encoded_command = stellar::network::encode_player_command(command);
-    if (!encoded_command) {
-        ++frame.rejected_packets;
-        frame.diagnostics.push_back(encoded_command.error().code + ": " +
-                                    encoded_command.error().message);
-    } else if (auto sent = transport_.client->send_to_server(
-                   reliable_packet(std::move(*encoded_command)));
-               !sent) {
-        ++frame.rejected_packets;
-        frame.diagnostics.push_back(sent.error().code + ": " + sent.error().message);
+    if (session_state_ == stellar::network::SessionState::kConnecting) {
+        const LocalServerBridgePumpResult handshake = bridge_.pump(*transport_.server, 0.0F);
+        frame.rejected_packets += handshake.rejected_packets;
+        append_bridge_diagnostics(frame, handshake);
+        drain_server_packets();
+    }
+
+    if (session_state_ == stellar::network::SessionState::kConnected) {
+        stellar::network::NetworkPlayerCommand command{};
+        command.player_id = assigned_player_id_;
+        command.command_sequence = next_command_sequence_++;
+        command.movement = make_movement_command(input, config_.input_mapper);
+
+        auto encoded_command = stellar::network::encode_player_command(command);
+        if (!encoded_command) {
+            ++frame.rejected_packets;
+            frame.diagnostics.push_back(encoded_command.error().code + ": " +
+                                        encoded_command.error().message);
+        } else if (auto sent = transport_.client->send_to_server(
+                       reliable_packet(std::move(*encoded_command)));
+                   !sent) {
+            ++frame.rejected_packets;
+            frame.diagnostics.push_back(sent.error().code + ": " + sent.error().message);
+        }
     }
 
     const LocalServerBridgePumpResult pump = bridge_.pump(*transport_.server, delta_seconds);
@@ -71,10 +120,9 @@ NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platfor
     frame.dropped_excess_time = pump.dropped_excess_time;
     append_bridge_diagnostics(frame, pump);
 
-    const ClientWorldReceiverDrainResult drain = receiver_.drain(*transport_.client);
-    frame.rejected_packets += drain.rejected_packets;
-    append_receiver_diagnostics(frame, drain);
+    drain_server_packets();
     frame.events = receiver_.take_queued_events();
+    frame.session_state = session_state_;
 
     return frame;
 }
@@ -85,7 +133,11 @@ NetworkedClientRuntime::latest_snapshot() const noexcept {
 }
 
 stellar::server::PlayerId NetworkedClientRuntime::local_player_id() const noexcept {
-    return config_.bridge.session.local_player_id;
+    return assigned_player_id_;
+}
+
+stellar::network::SessionState NetworkedClientRuntime::session_state() const noexcept {
+    return session_state_;
 }
 
 std::uint64_t NetworkedClientRuntime::next_command_sequence() const noexcept {
@@ -95,6 +147,25 @@ std::uint64_t NetworkedClientRuntime::next_command_sequence() const noexcept {
 ClientWorldReceiverDrainResult NetworkedClientRuntime::accept_authoritative_packet_for_test(
     const stellar::network::TransportPacket& packet) noexcept {
     return receiver_.accept_packet(packet);
+}
+
+void NetworkedClientRuntime::send_client_hello() noexcept {
+    stellar::network::ClientHello hello{};
+    hello.protocol_version = stellar::network::kCurrentProtocolVersion;
+    hello.client_name = "local-client";
+    hello.requested_map_id = config_.bridge.map_identity.map_id;
+    hello.client_nonce = 1;
+
+    auto encoded = stellar::network::encode_client_hello(hello);
+    if (!encoded) {
+        session_state_ = stellar::network::SessionState::kRejected;
+        pending_diagnostics_.push_back(encoded.error().code + ": " + encoded.error().message);
+        return;
+    }
+    if (auto sent = transport_.client->send_to_server(reliable_packet(std::move(*encoded))); !sent) {
+        session_state_ = stellar::network::SessionState::kRejected;
+        pending_diagnostics_.push_back(sent.error().code + ": " + sent.error().message);
+    }
 }
 
 } // namespace stellar::client

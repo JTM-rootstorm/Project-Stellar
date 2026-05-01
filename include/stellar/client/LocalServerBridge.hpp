@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "stellar/network/Messages.hpp"
+#include "stellar/network/Session.hpp"
 #include "stellar/network/Transport.hpp"
 #include "stellar/server/WorldSession.hpp"
 #include "stellar/scripting/ScriptedWorldSession.hpp"
@@ -24,6 +25,9 @@ struct LocalServerBridgeConfig {
 
     /** @brief Emit structural deltas after the first full authoritative snapshot when possible. */
     bool emit_deltas = true;
+
+    /** @brief Expected server map identity for deterministic session compatibility checks. */
+    stellar::network::MapIdentity map_identity = stellar::network::make_map_identity("local");
 };
 
 /** @brief One bridge packet decode/send failure kept for diagnostics without crashing. */
@@ -45,6 +49,9 @@ struct LocalServerBridgePumpResult {
 
     /** @brief Number of malformed or transport-failed packets rejected without crashing. */
     std::uint32_t rejected_packets = 0;
+
+    /** @brief Current server-side session lifecycle state after this pump. */
+    stellar::network::SessionState session_state = stellar::network::SessionState::kDisconnected;
 
     /** @brief Diagnostics for rejected packets. */
     std::vector<LocalServerBridgeError> errors;
@@ -78,6 +85,8 @@ private:
     std::variant<stellar::server::WorldSession, stellar::scripting::ScriptedWorldSession> session_;
     stellar::network::NetworkPlayerCommand pending_command_{};
     stellar::network::NetworkWorldSnapshot latest_snapshot_{};
+    stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
+    stellar::network::SessionId session_id_ = 1;
     bool has_sent_snapshot_ = false;
     float accumulated_seconds_ = 0.0F;
 };

@@ -90,6 +90,22 @@ stellar::network::TransportPacket reliable_packet(std::vector<std::uint8_t> byte
                                              .payload = stellar::network::to_payload(bytes)};
 }
 
+void accept_local_session(stellar::client::LocalServerBridge& bridge,
+                          stellar::network::LoopbackTransportPair& transport) {
+    stellar::network::ClientHello hello{};
+    hello.requested_map_id = "local";
+    auto encoded = stellar::network::encode_client_hello(hello);
+    assert(encoded.has_value());
+    assert(transport.client->send_to_server(reliable_packet(*encoded)).has_value());
+    const auto pump = bridge.pump(*transport.server, 0.0F);
+    assert(pump.session_state == stellar::network::SessionState::kConnected);
+    const auto replies = transport.client->receive_from_server();
+    assert(!replies.empty());
+    assert(stellar::network::decode_server_welcome(
+               stellar::network::from_payload(replies[0].payload))
+               .has_value());
+}
+
 stellar::network::NetworkWorldSnapshot snapshot(std::uint64_t tick, float x) {
     stellar::network::NetworkWorldSnapshot result{};
     result.tick = tick;
@@ -158,9 +174,11 @@ void local_bridge_emits_snapshot_after_input_command() {
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::client::LocalServerBridgeConfig config{};
     config.session = test_session_config();
+    config.emit_deltas = false;
     stellar::client::LocalServerBridge bridge(world, config);
     stellar::client::ClientWorldReceiver receiver;
     auto transport = stellar::network::make_loopback_transport_pair();
+    accept_local_session(bridge, transport);
 
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 999;
@@ -196,9 +214,11 @@ void scripted_bridge_propagates_server_approved_event() {
     assert(scripted.has_value());
     stellar::client::LocalServerBridgeConfig config{};
     config.session = test_session_config();
+    config.emit_deltas = false;
     stellar::client::LocalServerBridge bridge(std::move(*scripted), config);
     stellar::client::ClientWorldReceiver receiver;
     auto transport = stellar::network::make_loopback_transport_pair();
+    accept_local_session(bridge, transport);
 
     const auto pump = bridge.pump(*transport.server, 0.1F);
     const auto drain = receiver.drain(*transport.client);

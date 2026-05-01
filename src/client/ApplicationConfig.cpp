@@ -104,6 +104,10 @@ prepare_application_runtime(const ApplicationConfig &config) {
       prepared.validation->loaded_script_ids = registry->loaded_script_ids;
       prepared.validation->script_errors = registry->script_errors;
 
+      NetworkedClientRuntimeConfig runtime_config{};
+      runtime_config.bridge.map_identity =
+          stellar::network::make_map_identity(*prepared.runtime_world);
+
       auto scripted_session = stellar::scripting::ScriptedWorldSession::create(
           *prepared.runtime_world, stellar::server::WorldSessionConfig{},
           std::move(registry->registry));
@@ -115,10 +119,13 @@ prepare_application_runtime(const ApplicationConfig &config) {
       }
       prepared.validation->scripted_runtime_enabled = true;
       prepared.networked_runtime = std::make_unique<NetworkedClientRuntime>(
-          std::move(*scripted_session));
+          std::move(*scripted_session), runtime_config);
     } else {
+      NetworkedClientRuntimeConfig runtime_config{};
+      runtime_config.bridge.map_identity =
+          stellar::network::make_map_identity(*prepared.runtime_world);
       prepared.networked_runtime =
-          std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world);
+          std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world, runtime_config);
     }
   }
 

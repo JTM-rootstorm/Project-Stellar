@@ -17,8 +17,8 @@ Current phase status:
 
 - Phase ST-2 — Live client over local networked transport path: active/completed as of
   2026-05-01.
-- Phase ST-3 — Connection and session lifecycle: next.
-- Phase ST-4 — Remote socket transport: deferred.
+- Phase ST-3 — Connection and session lifecycle: active/completed as of 2026-05-01.
+- Phase ST-4 — Remote socket transport: next/deferred until ST-3 review.
 - Phase ST-5 — Dedicated server entry point: deferred.
 - Phase ST-6 — Client connect mode: deferred.
 - Phase ST-7 — Hardening, documentation, validation, and archival: deferred.
@@ -48,6 +48,36 @@ ctest --test-dir build --output-on-failure
 
 Result: configure succeeded, focused ST-2 targets built, focused ST-2 CTest passed 12/12, full
 debug build succeeded, and full default CTest passed 49/49 on 2026-05-01.
+
+Phase ST-3 completion notes:
+
+- Added deterministic session protocol contracts in `stellar::network` for `ProtocolVersion`,
+  `SessionId`, `SessionState`, `MapIdentity`, `ClientHello`, and `ServerWelcome`, including a small
+  non-cryptographic deterministic map identity hash helper.
+- Extended the binary codec with bounded little-endian hello/welcome encode/decode paths and clean
+  `std::expected` failures for malformed, truncated, oversized, and unknown packet data.
+- `LocalServerBridge` now requires an accepted hello before input/snapshots, rejects protocol and map
+  mismatches with deterministic `ServerWelcome` diagnostics, and overwrites requested command player
+  ids with the server-assigned authoritative player slot.
+- `NetworkedClientRuntime` sends `ClientHello` on creation, pumps the local bridge until accepted,
+  stores the assigned player id, uses it for commands and presentation lookup, and exposes session
+  state/diagnostics in frame results.
+- Display-free coverage was added for session round trips, accepted welcome/player assignment,
+  protocol mismatch, map mismatch, input before welcome, malformed packets, and assigned-player
+  presentation behavior. Remote sockets remain deferred; there is still no prediction or
+  reconciliation.
+
+ST-3 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_network_session_test stellar_snapshot_codec_test stellar_networked_client_runtime_test stellar_client_world_receiver_test -j$(nproc)
+ctest --test-dir build -R '^(network_session|snapshot_codec|networked_client_runtime|client_world_receiver|loopback_transport)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: focused ST-3 targets built, focused ST-3 CTest passed 5/5, full debug build succeeded, and
+full default CTest passed 50/50 on 2026-05-01.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 

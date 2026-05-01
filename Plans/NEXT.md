@@ -11,15 +11,15 @@ Branch target: `socket-transport`
 
 ## Active scope
 
-Socket transport and networked session lifecycle are the active branch target. Phase ST-2 moves mapped local client play onto the existing transport/receiver path before remote socket work:
+Socket transport and networked session lifecycle are the active branch target. Phase ST-3 adds deterministic local session setup on top of the ST-2 transport/receiver path before remote socket work:
 
-`LoopbackTransportPair + LocalServerBridge + ClientWorldReceiver + NetworkWorldSnapshot presentation`
+`ClientHello + ServerWelcome + LoopbackTransportPair + LocalServerBridge + ClientWorldReceiver + NetworkWorldSnapshot presentation`
 
 ## Current phase status
 
-- ST-2 — Live client over local networked transport path: active/completed in the current slice.
-- ST-3 — Connection and session lifecycle: next.
-- ST-4 — Remote socket transport: deferred until session lifecycle exists.
+- ST-2 — Live client over local networked transport path: completed.
+- ST-3 — Connection and session lifecycle: active/completed in the current slice.
+- ST-4 — Remote socket transport: next/deferred until ST-3 review.
 - ST-5 — Dedicated server entry point: deferred.
 - ST-6 — Client connect mode: deferred.
 - ST-7 — Hardening, documentation, validation, and archival: deferred.
@@ -43,5 +43,5 @@ Do not restart completed collision, movement, Lua scripting, object-collider, BS
 - Default tests remain display-free.
 - OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
-- No client prediction or reconciliation is active for ST-2.
+- No client prediction or reconciliation is active for ST-3.
 - Do not add Source/VBSP, dynamic rigid bodies, moving brush simulation, full PBR, client-side gameplay scripting, model/animation systems, or retired importer functionality unless explicitly requested.

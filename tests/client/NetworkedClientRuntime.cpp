@@ -1,4 +1,5 @@
 #include "stellar/client/NetworkedClientRuntime.hpp"
+#include "stellar/client/PlayerPresentation.hpp"
 #include "stellar/network/Transport.hpp"
 #include "stellar/scripting/ScriptRegistry.hpp"
 #include "stellar/scripting/ScriptedWorldSession.hpp"
@@ -115,6 +116,7 @@ void local_runtime_emits_first_snapshot_after_frame() {
     const auto frame = runtime.update(input, 0.1F);
 
     assert(frame.ticks_run == 1);
+    assert(frame.session_state == stellar::network::SessionState::kConnected);
     assert(frame.rejected_packets == 0);
     assert(runtime.latest_snapshot().has_value());
     assert(runtime.latest_snapshot()->tick == 1);
@@ -131,6 +133,23 @@ void movement_input_changes_authoritative_network_snapshot() {
     assert(frame.ticks_run == 1);
     assert(runtime.latest_snapshot().has_value());
     assert(runtime.latest_snapshot()->players[0].position[0] > 0.9F);
+}
+
+void assigned_player_id_is_used_for_presentation() {
+    const auto scene = scene_with_markers({player_spawn({2.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::client::NetworkedClientRuntime runtime(world, test_config());
+    stellar::platform::Input input;
+
+    const auto frame = runtime.update(input, 0.1F);
+
+    assert(frame.session_state == stellar::network::SessionState::kConnected);
+    assert(runtime.local_player_id() == 7);
+    assert(runtime.latest_snapshot().has_value());
+    const auto presentation = stellar::client::make_player_presentation_state(
+        *runtime.latest_snapshot(), runtime.local_player_id());
+    assert(presentation.has_value());
+    assert(presentation->position[0] == runtime.latest_snapshot()->players[0].position[0]);
 }
 
 void script_events_queue_through_receiver() {
@@ -185,6 +204,7 @@ void command_sequence_increments_deterministically() {
 int main() {
     local_runtime_emits_first_snapshot_after_frame();
     movement_input_changes_authoritative_network_snapshot();
+    assigned_player_id_is_used_for_presentation();
     script_events_queue_through_receiver();
     malformed_packets_are_rejected_without_crash();
     command_sequence_increments_deterministically();

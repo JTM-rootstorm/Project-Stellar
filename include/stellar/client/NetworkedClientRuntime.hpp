@@ -11,6 +11,7 @@
 #include "stellar/client/LocalServerBridge.hpp"
 #include "stellar/client/MovementInputMapper.hpp"
 #include "stellar/network/Messages.hpp"
+#include "stellar/network/Session.hpp"
 #include "stellar/network/Transport.hpp"
 #include "stellar/platform/Input.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
@@ -42,6 +43,9 @@ struct NetworkedClientFrameResult {
 
     /** @brief Deterministic local transport/codec/receiver diagnostics for tests and tools. */
     std::vector<std::string> diagnostics;
+
+    /** @brief Client-side session lifecycle state after this frame. */
+    stellar::network::SessionState session_state = stellar::network::SessionState::kDisconnected;
 };
 
 /**
@@ -72,6 +76,9 @@ public:
     /** @brief Return the local player id assigned for this local transport phase. */
     [[nodiscard]] stellar::server::PlayerId local_player_id() const noexcept;
 
+    /** @brief Return the current client-side session lifecycle state. */
+    [[nodiscard]] stellar::network::SessionState session_state() const noexcept;
+
     /** @brief Return the next command sequence value that will be assigned. */
     [[nodiscard]] std::uint64_t next_command_sequence() const noexcept;
 
@@ -80,11 +87,17 @@ public:
         const stellar::network::TransportPacket& packet) noexcept;
 
 private:
+    /** @brief Encode and send the deterministic session hello over the local transport. */
+    void send_client_hello() noexcept;
+
     NetworkedClientRuntimeConfig config_{};
     stellar::network::LoopbackTransportPair transport_{};
     LocalServerBridge bridge_;
     ClientWorldReceiver receiver_{};
     std::uint64_t next_command_sequence_ = 1;
+    stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
+    stellar::server::PlayerId assigned_player_id_ = 0;
+    std::vector<std::string> pending_diagnostics_;
 };
 
 } // namespace stellar::client
