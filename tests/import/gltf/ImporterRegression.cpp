@@ -1157,6 +1157,8 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
         return false;
     }
 
+    const auto level = stellar::assets::to_level_asset(*scene);
+
     return check_vec3(player->position, {6.0f, 2.0f, 3.0f},
                       "expected parent+child player marker position") &&
            check_vec4(player->rotation, {0.0f, 0.0f, 0.0f, 1.0f},
@@ -1178,10 +1180,10 @@ bool run_world_metadata_fixture(const std::filesystem::path& root) {
                  "expected trigger script id extraction") &&
            check(trigger->script->table_name == "Door",
                  "expected trigger script table extraction") &&
-           check(stellar::world::build_runtime_world(*scene)
-                     .world_metadata.markers[2]
-                     .script.has_value(),
-                 "expected runtime world to copy trigger script binding") &&
+            check(stellar::world::build_runtime_world(level)
+                      .world_metadata.markers[2]
+                      .script.has_value(),
+                  "expected runtime world to copy trigger script binding") &&
            check_vec3(sprite->position, {5.0f, 0.0f, 6.0f},
                       "expected sprite marker position") &&
            check(sprite->extras_json.find("torch.png") != std::string::npos,

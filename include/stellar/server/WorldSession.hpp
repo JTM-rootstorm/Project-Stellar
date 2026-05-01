@@ -116,7 +116,7 @@ struct WorldSessionConfig {
  * @brief Backend-neutral authoritative session over one runtime world.
  *
  * The session stores a pointer to caller-owned RuntimeWorld data. The caller must keep that
- * RuntimeWorld, and the SceneAsset backing it, alive for the lifetime of the session or until the
+ * RuntimeWorld, and the LevelAsset backing it, alive for the lifetime of the session or until the
  * next reset call supplies a replacement world.
  */
 class WorldSession {

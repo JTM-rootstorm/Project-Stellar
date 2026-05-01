@@ -8,6 +8,7 @@
 #include "stellar/assets/CollisionAsset.hpp"
 #include "stellar/assets/ImageAsset.hpp"
 #include "stellar/assets/AnimationAsset.hpp"
+#include "stellar/assets/LevelAsset.hpp"
 #include "stellar/assets/MaterialAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
 #include "stellar/assets/SkinAsset.hpp"
@@ -18,7 +19,7 @@
 namespace stellar::assets {
 
 /**
- * @brief Complete imported asset payload for a glTF-like scene.
+ * @brief Legacy imported scene payload retained for importer compatibility during migration.
  */
 struct SceneAsset {
     std::string source_uri;
@@ -35,5 +36,20 @@ struct SceneAsset {
     std::optional<LevelCollisionAsset> level_collision;
     WorldMetadataAsset world_metadata;
 };
+
+/**
+ * @brief Copy legacy imported scene data into the source-neutral playable level contract.
+ */
+[[nodiscard]] inline LevelAsset to_level_asset(const SceneAsset& scene) {
+    LevelAsset level;
+    level.source_uri = scene.source_uri;
+    level.geometry.images = scene.images;
+    level.geometry.textures = scene.textures;
+    level.geometry.samplers = scene.samplers;
+    level.geometry.meshes = scene.meshes;
+    level.level_collision = scene.level_collision;
+    level.world_metadata = scene.world_metadata;
+    return level;
+}
 
 } // namespace stellar::assets

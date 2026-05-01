@@ -18,9 +18,9 @@ stellar::assets::WorldMarker trigger_marker(std::string name, Vec3 position, Vec
     return marker;
 }
 
-stellar::assets::SceneAsset scene_with_triggers(
+stellar::assets::LevelAsset scene_with_triggers(
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.assign(markers.begin(), markers.end());
     return scene;
 }
@@ -143,7 +143,7 @@ void reset_clears_previous_overlap_state() {
 }
 
 void world_without_triggers_emits_no_events() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::MovementTriggerTracker tracker;
     tracker.reset_from_world(world);

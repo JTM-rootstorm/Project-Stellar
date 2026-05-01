@@ -421,7 +421,8 @@ int main() {
     const auto imported = stellar::import::gltf::load_scene(fixture_path.string());
     assert(imported.has_value());
 
-    const auto world = stellar::world::build_runtime_world(*imported);
+    const auto level = stellar::assets::to_level_asset(*imported);
+    const auto world = stellar::world::build_runtime_world(level);
     assert_phase9f_coverage(*imported, world);
 
     std::filesystem::remove(fixture_path);

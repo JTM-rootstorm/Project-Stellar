@@ -30,6 +30,26 @@ Phase BSP-0 is complete as of 2026-05-01:
 
 Validation: documentation review and active-reference search.
 
+Phase BSP-1 is complete as of 2026-05-01:
+
+- Added source-neutral `LevelAsset` as the canonical runtime level input.
+- Moved runtime world assembly off glTF-shaped `SceneAsset` assumptions.
+- Preserved existing backend-neutral collision, trigger, object-collider, scripting, and
+  server-authority seams.
+- Updated synthetic display-free tests to construct runtime worlds from `LevelAsset`.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(runtime_world|collision_world|character_controller|trigger_system|object_collider|server_world_session|scripted_world_session)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. Targeted Phase BSP-1 suite passed 7/7, and full
+default CTest passed 26/26.
+
 ## Historical collision-movement status
 
 Branch target: `collision-movement`

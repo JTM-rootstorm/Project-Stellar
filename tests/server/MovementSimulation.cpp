@@ -53,9 +53,9 @@ stellar::assets::CollisionTriangle wall_x_triangle_b(float x = 1.0F) {
                     {-1.0F, 0.0F, 0.0F});
 }
 
-stellar::assets::SceneAsset scene_with_metadata(
+stellar::assets::LevelAsset scene_with_metadata(
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.world_metadata.markers.assign(markers.begin(), markers.end());
     return scene;
 }
@@ -68,9 +68,9 @@ stellar::assets::WorldMarker player_spawn(Vec3 position) {
     return marker;
 }
 
-stellar::assets::SceneAsset scene_with_collision(
+stellar::assets::LevelAsset scene_with_collision(
     std::initializer_list<stellar::assets::CollisionTriangle> triangles) {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     stellar::assets::CollisionMesh mesh;
     mesh.name = "collision";
     mesh.triangles.assign(triangles.begin(), triangles.end());
@@ -79,8 +79,8 @@ stellar::assets::SceneAsset scene_with_collision(
     return scene;
 }
 
-stellar::assets::SceneAsset scene_with_named_collision_meshes() {
-    stellar::assets::SceneAsset scene;
+stellar::assets::LevelAsset scene_with_named_collision_meshes() {
+    stellar::assets::LevelAsset scene;
     stellar::assets::CollisionMesh wall;
     wall.name = "Wall";
     wall.triangles = {wall_x_triangle_a(), wall_x_triangle_b()};
@@ -119,7 +119,7 @@ void spawn_state_uses_player_spawn_marker() {
 }
 
 void spawn_state_defaults_to_origin_without_player_spawn() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
 
     const auto state = stellar::server::make_spawn_movement_state(world);
@@ -128,7 +128,7 @@ void spawn_state_defaults_to_origin_without_player_spawn() {
 }
 
 void empty_world_moves_without_collision() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     auto config = test_config();
     config.acceleration = 100.0F;
@@ -180,7 +180,7 @@ void wall_world_blocks_authoritative_movement() {
 }
 
 void wish_direction_is_clamped() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     auto config = test_config();
     config.acceleration = 1000.0F;
@@ -195,7 +195,7 @@ void wish_direction_is_clamped() {
 }
 
 void nan_input_is_sanitized() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     const float nan = std::numeric_limits<float>::quiet_NaN();
 
@@ -209,7 +209,7 @@ void nan_input_is_sanitized() {
 }
 
 void terminal_fall_speed_is_clamped() {
-    const stellar::assets::SceneAsset scene;
+    const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
     auto config = test_config();
     config.terminal_fall_speed = 10.0F;
@@ -227,7 +227,7 @@ void client_position_is_not_part_of_command() {
 }
 
 void runtime_world_collision_optional_is_handled() {
-    stellar::assets::SceneAsset scene;
+    stellar::assets::LevelAsset scene;
     scene.level_collision = stellar::assets::LevelCollisionAsset{};
     const auto world = stellar::world::build_runtime_world(scene);
 

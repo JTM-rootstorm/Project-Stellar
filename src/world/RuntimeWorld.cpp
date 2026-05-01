@@ -36,21 +36,21 @@ std::size_t count_marker_type(const stellar::assets::WorldMetadataAsset& metadat
 
 } // namespace
 
-RuntimeWorld build_runtime_world(const stellar::assets::SceneAsset& scene) {
+RuntimeWorld build_runtime_world(const stellar::assets::LevelAsset& level) {
     RuntimeWorld world;
-    world.scene_asset = &scene;
-    world.world_metadata = scene.world_metadata;
+    world.level_asset = &level;
+    world.world_metadata = level.world_metadata;
 
-    if (scene.level_collision.has_value()) {
-        world.diagnostics.collision_mesh_count = scene.level_collision->meshes.size();
-        world.diagnostics.collision_triangle_count = count_collision_triangles(*scene.level_collision);
+    if (level.level_collision.has_value()) {
+        world.diagnostics.collision_mesh_count = level.level_collision->meshes.size();
+        world.diagnostics.collision_triangle_count = count_collision_triangles(*level.level_collision);
 
-        if (!scene.level_collision->meshes.empty()) {
-            world.collision_world.emplace(*scene.level_collision);
+        if (!level.level_collision->meshes.empty()) {
+            world.collision_world.emplace(*level.level_collision);
             world.diagnostics.has_collision = true;
         } else {
             world.diagnostics.warnings.push_back(
-                "Scene has a level collision asset with no collision meshes");
+                "Level has a collision asset with no collision meshes");
         }
     }
 
@@ -63,7 +63,7 @@ RuntimeWorld build_runtime_world(const stellar::assets::SceneAsset& scene) {
         has_marker_type(world.world_metadata, stellar::assets::WorldMarkerType::kPlayerSpawn);
 
     if (!world.diagnostics.has_player_spawn) {
-        world.diagnostics.warnings.push_back("Scene has no player spawn marker");
+        world.diagnostics.warnings.push_back("Level has no player spawn marker");
     }
 
     return world;

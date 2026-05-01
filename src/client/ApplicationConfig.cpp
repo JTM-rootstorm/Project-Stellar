@@ -9,7 +9,6 @@
 #include <utility>
 
 namespace stellar::client {
-
 std::expected<ApplicationValidation, stellar::platform::Error>
 validate_application_config(const ApplicationConfig& config) {
     ApplicationValidation validation;
@@ -25,8 +24,9 @@ validate_application_config(const ApplicationConfig& config) {
     }
 
     validation.scene = std::move(*loaded_scene);
+    validation.level = stellar::assets::to_level_asset(*validation.scene);
     validation.runtime_world_diagnostics =
-        stellar::world::build_runtime_world(*validation.scene).diagnostics;
+        stellar::world::build_runtime_world(*validation.level).diagnostics;
     return validation;
 #else
     return std::unexpected(stellar::platform::Error(

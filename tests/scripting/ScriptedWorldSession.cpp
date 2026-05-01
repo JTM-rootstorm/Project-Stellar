@@ -65,14 +65,14 @@ stellar::assets::CollisionTriangle wall_x_triangle_b(float x = 0.8F) {
                     {-1.0F, 0.0F, 0.0F});
 }
 
-stellar::assets::SceneAsset scene_with_markers(
+stellar::assets::LevelAsset scene_with_markers(
     std::initializer_list<stellar::assets::WorldMarker> markers) {
-    stellar::assets::SceneAsset scene{};
+    stellar::assets::LevelAsset scene{};
     scene.world_metadata.markers.assign(markers.begin(), markers.end());
     return scene;
 }
 
-stellar::assets::SceneAsset scene_with_trigger_and_wall(std::string wall_name) {
+stellar::assets::LevelAsset scene_with_trigger_and_wall(std::string wall_name) {
     auto scene = scene_with_markers({
         player_spawn({0.0F, 0.5F, 0.0F}),
         trigger_marker("DoorOpen", {0.0F, 0.5F, 0.0F}, {0.5F, 0.5F, 0.5F}, "door", "Door"),

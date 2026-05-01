@@ -31,6 +31,17 @@ struct WorldScriptBinding {
 };
 
 /**
+ * @brief Source key/value metadata preserved on an authored world marker.
+ */
+struct WorldEntityProperty {
+    /** @brief Source metadata key. */
+    std::string key;
+
+    /** @brief Source metadata value. */
+    std::string value;
+};
+
+/**
  * @brief Backend-neutral authored marker from a world or level source asset.
  */
 struct WorldMarker {
@@ -44,6 +55,9 @@ struct WorldMarker {
 
     /** @brief Optional script binding copied from authoring metadata. */
     std::optional<WorldScriptBinding> script;
+
+    /** @brief Ordered source key/value metadata preserved for tooling and gameplay binding. */
+    std::vector<WorldEntityProperty> properties;
 };
 
 /**

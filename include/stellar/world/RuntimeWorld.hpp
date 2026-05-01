@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-#include "stellar/assets/SceneAsset.hpp"
+#include "stellar/assets/LevelAsset.hpp"
 #include "stellar/assets/WorldMetadataAsset.hpp"
 #include "stellar/physics/CollisionWorld.hpp"
 
@@ -42,14 +42,14 @@ struct RuntimeWorldDiagnostics {
 };
 
 /**
- * @brief Backend-neutral runtime world assembled from an imported scene asset.
+ * @brief Backend-neutral runtime world assembled from a source-neutral level asset.
  *
- * RuntimeWorld does not own the source SceneAsset. The caller must keep the SceneAsset alive for at
- * least as long as this object because CollisionWorld references SceneAsset::level_collision data.
+ * RuntimeWorld does not own the source LevelAsset. The caller must keep the LevelAsset alive for at
+ * least as long as this object because CollisionWorld references LevelAsset::level_collision data.
  */
 struct RuntimeWorld {
-    /** @brief Source imported scene asset backing render data and collision lifetime. */
-    const stellar::assets::SceneAsset* scene_asset = nullptr;
+    /** @brief Source level asset backing geometry metadata and collision lifetime. */
+    const stellar::assets::LevelAsset* level_asset = nullptr;
 
     /** @brief Optional static collision query world, created only for non-empty level collision. */
     std::optional<stellar::physics::CollisionWorld> collision_world;
@@ -62,9 +62,9 @@ struct RuntimeWorld {
 };
 
 /**
- * @brief Assemble a backend-neutral runtime world from an imported scene asset.
+ * @brief Assemble a backend-neutral runtime world from a source-neutral level asset.
  */
-[[nodiscard]] RuntimeWorld build_runtime_world(const stellar::assets::SceneAsset& scene);
+[[nodiscard]] RuntimeWorld build_runtime_world(const stellar::assets::LevelAsset& level);
 
 /**
  * @brief Find the first player spawn marker in runtime world metadata.
