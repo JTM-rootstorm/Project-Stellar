@@ -358,6 +358,13 @@ void scripted_trigger_can_disable_named_collision_mesh() {
     assert(frame.command_results.size() == 1);
     assert(frame.command_results[0].applied);
     assert(frame.command_results[0].code == "ok");
+    bool found_open_gate = false;
+    for (const stellar::server::GameplayEntity& entity : frame.snapshot.gameplay_world.entities) {
+        if (entity.kind == stellar::server::EntityKind::kDoor && entity.metadata.name == "DoorBlocker") {
+            found_open_gate = entity.open && !entity.active;
+        }
+    }
+    assert(found_open_gate);
 }
 
 void collision_disable_affects_next_tick_not_current_tick() {
@@ -459,7 +466,7 @@ void repeat_run_produces_same_script_events_and_command_results() {
 void scripted_object_collider_enter_can_disable_own_collider() {
     const auto scene = scene_with_markers({
         player_spawn({0.0F, 0.0F, 0.0F}),
-        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "sensor",
                                "gem", "Gem"),
     });
     const auto world = stellar::world::build_runtime_world(scene);
@@ -492,10 +499,45 @@ void scripted_object_collider_enter_can_disable_own_collider() {
     assert(next.script_events.empty());
 }
 
+void pickup_enter_collects_once_and_deactivates_gameplay_entity() {
+    stellar::assets::WorldMarker pickup{};
+    pickup.type = stellar::assets::WorldMarkerType::kObjectCollider;
+    pickup.name = "Gem";
+    pickup.position = {0.0F, 0.0F, 0.0F};
+    pickup.scale = {1.0F, 1.0F, 1.0F};
+    pickup.archetype = "pickup";
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F}), pickup});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::scripting::ScriptRegistry registry{};
+    auto session = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
+                                                                    std::move(registry));
+    assert(session.has_value());
+
+    const auto first = session->tick({});
+    const auto second = session->tick({});
+
+    assert(first.snapshot.object_collider_events.size() == 1);
+    assert(first.snapshot.object_collider_events[0].entered);
+    assert(first.script_events.size() == 1);
+    assert(first.script_events[0].name == "gameplay.collect_pickup");
+    assert(first.command_results.size() == 1);
+    assert(first.command_results[0].applied);
+    assert(first.command_results[0].code == "collected");
+    assert(first.command_results[0].object_collider_events.size() == 1);
+    assert(first.command_results[0].object_collider_events[0].exited);
+
+    const auto& pickup_entity = first.snapshot.gameplay_world.entities[1];
+    assert(pickup_entity.kind == stellar::server::EntityKind::kPickup);
+    assert(!pickup_entity.active);
+    assert(second.snapshot.object_collider_events.empty());
+    assert(second.script_events.empty());
+    assert(second.command_results.empty());
+}
+
 void latest_snapshot_does_not_replay_object_collider_scripts() {
     const auto scene = scene_with_markers({
         player_spawn({0.0F, 0.0F, 0.0F}),
-        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "sensor",
                                "gem", "Gem"),
     });
     const auto world = stellar::world::build_runtime_world(scene);
@@ -524,7 +566,7 @@ void latest_snapshot_does_not_replay_object_collider_scripts() {
 void repeat_run_produces_same_object_script_events_and_command_results() {
     const auto scene = scene_with_markers({
         player_spawn({0.0F, 0.0F, 0.0F}),
-        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "sensor",
                                "gem", "Gem"),
     });
     const auto world = stellar::world::build_runtime_world(scene);
@@ -549,7 +591,7 @@ void trigger_scripts_and_object_collider_scripts_have_documented_order() {
     const auto scene = scene_with_markers({
         player_spawn({0.0F, 0.0F, 0.0F}),
         trigger_marker("Gate", {0.0F, 0.0F, 0.0F}, {0.5F, 0.5F, 0.5F}, "gate", "Gate"),
-        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "pickup",
+        object_collider_marker("Gem", {0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}, "sensor",
                                "gem", "Gem"),
     });
     const auto world = stellar::world::build_runtime_world(scene);
@@ -588,6 +630,7 @@ int main() {
     latest_snapshot_does_not_reapply_commands();
     repeat_run_produces_same_script_events_and_command_results();
     scripted_object_collider_enter_can_disable_own_collider();
+    pickup_enter_collects_once_and_deactivates_gameplay_entity();
     latest_snapshot_does_not_replay_object_collider_scripts();
     repeat_run_produces_same_object_script_events_and_command_results();
     trigger_scripts_and_object_collider_scripts_have_documented_order();

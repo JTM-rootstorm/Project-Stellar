@@ -43,7 +43,7 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 - Phase 4 — Authoritative player camera drives level rendering: complete as of 2026-05-01.
 - Phase 5 — Minimal ECS/entity spawn from BSP metadata: complete as of 2026-05-01.
 - Phase 6 — Single-room controllable player loop: complete as of 2026-05-01.
-- Phase 7 — First interaction loop, pickup and scripted door/gate: not started.
+- Phase 7 — First interaction loop, pickup and scripted door/gate: complete as of 2026-05-01.
 - Phase 8 — Final branch hardening and documentation: not started.
 
 Phase 0 completion notes:
@@ -194,6 +194,33 @@ ctest --test-dir build -R '^(bsp_fixture_writer|bsp_playable_world_smoke|client_
 Result: focused Phase 6 build targets and CTest regex passed on 2026-05-01. Manual renderer/display
 validation was skipped because the requested validation scope is display-free and no GPU/display
 manual check was run.
+
+Phase 7 completion notes:
+
+- Added minimal server-owned interaction state to `GameplayWorld`: pickup entities can become
+  inactive after collection, and door/gate entities mirror named collision mesh open/closed state for
+  presentation snapshots without renderer ownership.
+- Object-collider pickup enter events now emit native `gameplay.collect_pickup` commands through the
+  existing script-command processing path; native code validates active pickup state, disables the
+  collider, and prevents repeated collection on later enters/stays.
+- Scripted trigger enter/stay/exit behavior continues to use the sandboxed Lua hook path; scripts can
+  emit `collision.set_mesh_enabled` for named gate meshes, and accepted native commands update both
+  authoritative collision state and gameplay door/gate metadata.
+- Added display-free coverage for collect-once pickup behavior, collider disablement preventing
+  repeated enters, gate collision toggling through Lua command output, deterministic invalid command
+  failure, and gameplay snapshot state updates.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_scripted_world_session_test stellar_trigger_script_system_test stellar_object_collider_script_system_test stellar_script_command_processor_test stellar_bsp_playable_world_smoke_test -j$(nproc)
+ctest --test-dir build -R '^(scripted_world_session|trigger_script|object_collider_script|script_command_processor|bsp_playable_world_smoke|bsp_scripted_playable_world_smoke|bsp_scripted_collision_smoke|bsp_scripted_object_collider_smoke)$' --output-on-failure
+cmake --build build --target stellar_server_gameplay_world_test stellar_server_world_session_test -j$(nproc)
+ctest --test-dir build -R '^(server_gameplay_world|server_world_session)$' --output-on-failure
+```
+
+Result: focused Phase 7 validation passed on 2026-05-01.
 
 ## BSP Authoring and Presentation Hardening — Complete
 

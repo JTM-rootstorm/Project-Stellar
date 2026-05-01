@@ -83,6 +83,12 @@ struct GameplayEntity {
 
     /** @brief Marker/collision metadata component. */
     GameplayEntityMetadata metadata{};
+
+    /** @brief True when this entity should remain authoritative and presentable. */
+    bool active = true;
+
+    /** @brief Door/gate state derived from named static collision; true means blocker is open. */
+    bool open = false;
 };
 
 /** @brief Stable local player to entity binding emitted by server-owned gameplay world. */
@@ -117,6 +123,20 @@ public:
 
     /** @brief Return the entity bound to a player slot, when one was spawned. */
     [[nodiscard]] std::optional<EntityId> entity_for_player(PlayerId player_id) const noexcept;
+
+    /** @brief Return immutable entity with a matching object-collider id, or nullptr when absent. */
+    [[nodiscard]] const GameplayEntity* entity_for_object_collider(
+        std::uint32_t collider_id) const noexcept;
+
+    /** @brief Return true when an active pickup owns the supplied object-collider id. */
+    [[nodiscard]] bool is_active_pickup_collider(std::uint32_t collider_id) const noexcept;
+
+    /** @brief Mark a pickup inactive by object-collider id after authoritative collection. */
+    [[nodiscard]] bool deactivate_pickup_by_collider(std::uint32_t collider_id) noexcept;
+
+    /** @brief Update door/gate open state for all entities bound to a collision mesh name. */
+    [[nodiscard]] bool set_door_open_by_collision_mesh_name(std::string_view mesh_name,
+                                                            bool open) noexcept;
 
     /** @brief Return a display-free serializable entity snapshot. */
     [[nodiscard]] GameplayWorldSnapshot snapshot() const;

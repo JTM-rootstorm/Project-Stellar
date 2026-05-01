@@ -44,7 +44,7 @@ world inch; changing editor texture scale changes the visible inch marks accordi
 | Generic spawn | `info_stellar_spawn` | `targetname`, `archetype`, `origin` | `stellar.script`, `stellar.table` | Creates metadata for server-side spawn logic; no entity is spawned during import. |
 | Trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` or `origin` + `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker. Script ids are metadata only until authoritative runtime invokes them. |
 | Sprite billboard | `stellar_sprite`, `env_sprite`, or any entity with `stellar.sprite` | `targetname`, `origin`, `stellar.sprite` | `stellar.texture`, `stellar.size`, `stellar.alpha` | Creates a sprite marker for presentation. `stellar.script` is unsupported and ignored with a diagnostic. |
-| Object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"` or `origin` + `stellar.extents`, `stellar.collider=object` | `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker. It is not a rigid body and does not block movement. |
+| Object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"` or `origin` + `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
 | Static collision brush | `func_wall`, `func_door`, `func_button`, `trigger_*` | `model="*N"` | `targetname`, `stellar.collision=static|sensor|none` | Contributes named static collision where collision extraction supports it. Moving brush simulation is deferred. |
 
 Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation is enabled, including unsupported keys.
@@ -135,10 +135,17 @@ targetname = PickupGem
 origin = "96 64 32"
 stellar.extents = "8 8 8"
 stellar.collider = "object"
+archetype = "pickup"
 stellar.script = "scripts/pickup.lua"
 stellar.table = "PickupGem"
 stellar.enabled = "yes"
 ```
+
+Object-collider markers with pickup/item archetypes, such as `archetype = "pickup"` or
+`archetype = "item_health"`, are server-authoritative pickups. On enter, the authoritative runtime
+emits a native `gameplay.collect_pickup` command, validates that the pickup is still active, disables
+the object collider, and marks the gameplay entity inactive for future presentation snapshots. Repeated
+overlaps do not collect the same pickup again.
 
 ### Static collision blocker
 
@@ -150,6 +157,10 @@ stellar.collision = "static"
 ```
 
 Scripts may later request validated enable/disable changes by collision mesh name. The BSP import itself does not animate, move, or simulate the brush.
+When a sandboxed Lua trigger emits `collision.set_mesh_enabled` for a named gate/door mesh, native
+server code validates the mesh name, applies the collision-state change, and mirrors the door/gate
+`open` state into server-owned gameplay metadata. Disabling a gate mesh means the blocker is open;
+enabling it means closed.
 
 ## Unsupported or deferred
 

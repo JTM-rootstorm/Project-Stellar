@@ -90,6 +90,21 @@ struct ObjectColliderMutationResult {
     std::vector<ObjectColliderEvent> object_collider_events;
 };
 
+/** @brief Result for authoritative pickup collection from object-collider interaction. */
+struct PickupCollectionResult {
+    /** @brief True when an active pickup was collected and state changed. */
+    bool applied = false;
+
+    /** @brief Stable machine-readable result code. */
+    std::string code;
+
+    /** @brief Human-readable collection result message for logs and tests. */
+    std::string message;
+
+    /** @brief Synchronous collider exit events emitted while disabling the pickup collider. */
+    std::vector<ObjectColliderEvent> object_collider_events;
+};
+
 /** @brief Snapshot emitted by the authoritative world session after a tick. */
 struct WorldSnapshot {
     /** @brief Number of completed authoritative simulation ticks. */
@@ -165,6 +180,9 @@ public:
     /** @brief Enable or disable one collider and synchronously return mutation exits only. */
     [[nodiscard]] ObjectColliderMutationResult set_object_collider_enabled(
         std::uint32_t collider_id, bool enabled) noexcept;
+
+    /** @brief Collect an active pickup by object-collider id and disable its server collider. */
+    [[nodiscard]] PickupCollectionResult collect_pickup(std::uint32_t collider_id) noexcept;
 
     /** @brief Insert or replace one collider and synchronously return mutation exits only. */
     [[nodiscard]] ObjectColliderMutationResult upsert_object_collider(

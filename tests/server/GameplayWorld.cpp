@@ -84,11 +84,13 @@ void spawns_player_sprite_pickup_and_door_entities_deterministically() {
 
     assert(entity_at(snapshot, 2).id == 3);
     assert(entity_at(snapshot, 2).kind == stellar::server::EntityKind::kPickup);
-    assert(entity_at(snapshot, 2).metadata.object_collider_id == 1);
+    assert(entity_at(snapshot, 2).metadata.object_collider_id == 3);
+    assert(entity_at(snapshot, 2).active);
 
     assert(entity_at(snapshot, 3).id == 4);
     assert(entity_at(snapshot, 3).kind == stellar::server::EntityKind::kDoor);
     assert(entity_at(snapshot, 3).metadata.source_type == "trigger");
+    assert(!entity_at(snapshot, 3).open);
 }
 
 void spawns_pickup_from_info_spawn_and_doors_from_collision_meshes() {

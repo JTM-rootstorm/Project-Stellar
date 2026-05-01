@@ -49,8 +49,6 @@ stellar::scripting::ScriptRegistry script_registry() {
   registry.set_script("scripts/pickup.lua",
                       "PickupGem = {}\n"
                       "function PickupGem.on_object_collider_enter(event)\n"
-                      "  stellar.emit_event('object_collider.set_enabled', "
-                      "{id = event.collider_id, enabled = false})\n"
                       "  stellar.emit_event('gameplay.pickup_collected', "
                       "{name = event.collider_name})\n"
                       "end\n");
@@ -171,7 +169,7 @@ void assert_scripted_runtime_path(const stellar::world::RuntimeWorld &world) {
     if (has_script_event(frame, "gameplay.pickup_collected")) {
       saw_object_enter = true;
     }
-    if (has_applied_command(frame, "object_collider.set_enabled")) {
+    if (has_applied_command(frame, "gameplay.collect_pickup")) {
       saw_object_disable = true;
     }
   }

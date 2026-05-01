@@ -96,6 +96,11 @@ stellar::scripting::ScriptOutputEvent set_object_collider_event(double id, bool 
         .fields = {number_field("id", id), bool_field("enabled", enabled)}};
 }
 
+stellar::scripting::ScriptOutputEvent collect_pickup_event(double id) {
+    return stellar::scripting::ScriptOutputEvent{.name = "gameplay.collect_pickup",
+                                                 .fields = {number_field("id", id)}};
+}
+
 void collision_set_mesh_enabled_valid_event_applies() {
     const auto scene = scene_with_meshes({mesh("DoorBlocker")});
     const auto world = stellar::world::build_runtime_world(scene);
@@ -277,6 +282,44 @@ void object_collider_disable_while_overlapped_surfaces_sync_exit_in_command_resu
     assert(application.results[0].object_collider_events[0].collider_id == 2);
 }
 
+void gameplay_collect_pickup_deactivates_once_and_disables_collider() {
+    auto scene = scene_with_object_collider();
+    scene.world_metadata.markers[1].archetype = "pickup";
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    (void)session.tick({});
+
+    const auto event = collect_pickup_event(2.0);
+    const auto first = stellar::scripting::apply_script_commands(session, {&event, 1});
+    const auto second = stellar::scripting::apply_script_commands(session, {&event, 1});
+    const auto next = session.tick({});
+
+    assert(first.results.size() == 1);
+    assert(first.results[0].applied);
+    assert(first.results[0].code == "collected");
+    assert(first.results[0].object_collider_events.size() == 1);
+    assert(first.results[0].object_collider_events[0].exited);
+    assert(!session.gameplay_snapshot().entities[1].active);
+    assert(second.results.size() == 1);
+    assert(!second.results[0].applied);
+    assert(second.results[0].code == "already_collected");
+    assert(next.object_collider_events.empty());
+}
+
+void gameplay_collect_pickup_invalid_id_reports_invalid_field() {
+    auto scene = scene_with_object_collider();
+    scene.world_metadata.markers[1].archetype = "pickup";
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world);
+    const auto event = collect_pickup_event(2.5);
+
+    const auto application = stellar::scripting::apply_script_commands(session, {&event, 1});
+
+    assert(application.results.size() == 1);
+    assert(!application.results[0].applied);
+    assert(application.results[0].code == "invalid_field");
+}
+
 } // namespace
 
 int main() {
@@ -292,5 +335,7 @@ int main() {
     object_collider_set_enabled_non_boolean_enabled_reports_invalid_field();
     object_collider_set_enabled_unknown_id_reports_not_found();
     object_collider_disable_while_overlapped_surfaces_sync_exit_in_command_result();
+    gameplay_collect_pickup_deactivates_once_and_disables_collider();
+    gameplay_collect_pickup_invalid_id_reports_invalid_field();
     return EXIT_SUCCESS;
 }

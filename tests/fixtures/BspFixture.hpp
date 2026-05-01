@@ -149,7 +149,8 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
       "\"stellar.table\" \"Door\"\n}\n"
       "{\n\"classname\" \"stellar_object_collider\"\n\"targetname\" "
       "\"PickupGem\"\n"
-      "\"model\" \"*3\"\n\"stellar.script\" \"scripts/pickup.lua\"\n"
+      "\"model\" \"*3\"\n\"archetype\" \"pickup\"\n"
+      "\"stellar.script\" \"scripts/pickup.lua\"\n"
       "\"stellar.table\" \"PickupGem\"\n}\n"
       "{\n\"classname\" \"env_sprite\"\n\"targetname\" \"Torch\"\n"
       "\"origin\" \"0 1 -1\"\n\"stellar.sprite\" \"torch\"\n}\n";

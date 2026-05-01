@@ -131,6 +131,11 @@ BSP entity metadata binds triggers, object-collider sensors, sprite markers, spa
 IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative
 movement/session output, emits primitive script events, and applies only native-validated
 collision/object-collider commands to server-owned runtime state.
+Pickup object-collider enters are collected through a native `gameplay.collect_pickup` command emitted
+by the authoritative object-collider script system, so pickup active/inactive state and collider
+disablement remain server-owned. Scripted doors/gates are static named collision meshes toggled by
+sandboxed Lua output events such as `collision.set_mesh_enabled`; accepted commands also update
+server gameplay metadata (`open`/`active`) for presentation snapshots.
 
 Lua runtime, collision filtering, scripted triggers, object-collider sensors, BSP canonical import,
 and retired importer removal are complete historical implementation steps. Their completion notes

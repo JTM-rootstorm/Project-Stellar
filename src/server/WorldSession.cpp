@@ -123,7 +123,12 @@ std::uint64_t WorldSession::tick_index() const noexcept {
 stellar::world::RuntimeCollisionStateResult WorldSession::set_collision_mesh_enabled(
     std::string_view name,
     bool enabled) noexcept {
-    return collision_state_.set_mesh_enabled(name, enabled);
+    stellar::world::RuntimeCollisionStateResult result =
+        collision_state_.set_mesh_enabled(name, enabled);
+    if (result.applied) {
+        (void)gameplay_world_.set_door_open_by_collision_mesh_name(name, !enabled);
+    }
+    return result;
 }
 
 void WorldSession::set_object_colliders(
@@ -144,7 +149,39 @@ ObjectColliderMutationResult WorldSession::set_object_collider_enabled(
     std::uint32_t collider_id, bool enabled) noexcept {
     return to_server_mutation_result(config_.local_player_id, object_collider_system_,
                                      object_collider_system_.set_collider_enabled(collider_id,
-                                                                                  enabled));
+                                                                                   enabled));
+}
+
+PickupCollectionResult WorldSession::collect_pickup(std::uint32_t collider_id) noexcept {
+    if (!gameplay_world_.is_active_pickup_collider(collider_id)) {
+        const bool known_collider =
+            gameplay_world_.entity_for_object_collider(collider_id) != nullptr;
+        return PickupCollectionResult{.applied = false,
+                                      .code = known_collider ? "already_collected" : "not_found",
+                                      .message = known_collider ? "Pickup is already inactive"
+                                                                : "Pickup collider was not found"};
+    }
+
+    ObjectColliderMutationResult disabled = set_object_collider_enabled(collider_id, false);
+    if (!disabled.applied) {
+        return PickupCollectionResult{.applied = false,
+                                      .code = std::move(disabled.code),
+                                      .message = std::move(disabled.message),
+                                      .object_collider_events =
+                                          std::move(disabled.object_collider_events)};
+    }
+
+    if (!gameplay_world_.deactivate_pickup_by_collider(collider_id)) {
+        return PickupCollectionResult{.applied = false,
+                                      .code = "invalid_pickup",
+                                      .message = "Collider is not an active pickup"};
+    }
+
+    return PickupCollectionResult{.applied = true,
+                                  .code = "collected",
+                                  .message = "Pickup collected",
+                                  .object_collider_events =
+                                      std::move(disabled.object_collider_events)};
 }
 
 ObjectColliderMutationResult WorldSession::upsert_object_collider(

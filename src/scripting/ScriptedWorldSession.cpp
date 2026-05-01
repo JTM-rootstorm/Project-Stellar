@@ -90,6 +90,7 @@ ScriptedWorldFrame ScriptedWorldSession::tick(
 
     ScriptCommandApplication command_application =
         apply_script_commands(session_, output_events);
+    latest_snapshot_.gameplay_world = session_.gameplay_snapshot();
 
     return ScriptedWorldFrame{.snapshot = latest_snapshot_,
                                 .script_events = std::move(output_events),

@@ -744,6 +744,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                string_or(entity, "stellar.collider") == "object") {
       marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
       marker.name = string_or(entity, "targetname", classname);
+      marker.archetype = string_or(entity, "archetype");
     } else if (is_brush_class(classname)) {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
       marker.name = string_or(entity, "targetname", classname);

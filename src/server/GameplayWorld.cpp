@@ -145,14 +145,14 @@ void GameplayWorld::reset_from_world(const stellar::world::RuntimeWorld& world,
         player_bindings_.push_back({.player_id = local_player_id, .entity_id = id});
     }
 
-    std::uint32_t object_collider_id = 1;
-    for (const WorldMarker& marker : world.world_metadata.markers) {
+    for (std::size_t marker_index = 0; marker_index < world.world_metadata.markers.size();
+         ++marker_index) {
+        const WorldMarker& marker = world.world_metadata.markers[marker_index];
         if (marker.type == WorldMarkerType::kObjectCollider) {
             const EntityKind kind = is_pickup_archetype(marker.archetype) ? EntityKind::kPickup
-                                                                         : EntityKind::kObjectCollider;
-            entities_.push_back(
-                marker_entity(allocate_entity_id(), kind, marker, object_collider_id));
-            ++object_collider_id;
+                                                                          : EntityKind::kObjectCollider;
+            entities_.push_back(marker_entity(allocate_entity_id(), kind, marker,
+                                              static_cast<std::uint32_t>(marker_index + 1U)));
             continue;
         }
 
@@ -219,6 +219,47 @@ std::optional<EntityId> GameplayWorld::entity_for_player(PlayerId player_id) con
         }
     }
     return std::nullopt;
+}
+
+const GameplayEntity* GameplayWorld::entity_for_object_collider(
+    std::uint32_t collider_id) const noexcept {
+    for (const GameplayEntity& entity : entities_) {
+        if (entity.metadata.object_collider_id == collider_id) {
+            return &entity;
+        }
+    }
+    return nullptr;
+}
+
+bool GameplayWorld::is_active_pickup_collider(std::uint32_t collider_id) const noexcept {
+    const GameplayEntity* entity = entity_for_object_collider(collider_id);
+    return entity != nullptr && entity->kind == EntityKind::kPickup && entity->active;
+}
+
+bool GameplayWorld::deactivate_pickup_by_collider(std::uint32_t collider_id) noexcept {
+    for (GameplayEntity& entity : entities_) {
+        if (entity.metadata.object_collider_id == collider_id) {
+            if (entity.kind != EntityKind::kPickup || !entity.active) {
+                return false;
+            }
+            entity.active = false;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool GameplayWorld::set_door_open_by_collision_mesh_name(std::string_view mesh_name,
+                                                         bool open) noexcept {
+    bool matched = false;
+    for (GameplayEntity& entity : entities_) {
+        if (entity.kind == EntityKind::kDoor && entity.metadata.name == mesh_name) {
+            entity.open = open;
+            entity.active = !open;
+            matched = true;
+        }
+    }
+    return matched;
 }
 
 GameplayWorldSnapshot GameplayWorld::snapshot() const {
