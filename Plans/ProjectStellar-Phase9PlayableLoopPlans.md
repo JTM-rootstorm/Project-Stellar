@@ -383,6 +383,30 @@ ctest --test-dir build --output-on-failure
   - Full ECS remains future work.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 9A authoritative world session and snapshots.
+- Public API: added `PlayerId`, `PlayerCommand`, `PlayerSnapshot`, `WorldSnapshot`,
+  `WorldSessionConfig`, and `WorldSession` in `include/stellar/server/WorldSession.hpp`.
+- Movement integration: `WorldSession` initializes from `make_spawn_movement_state(world)` and ticks
+  through `simulate_movement_tick_and_update_triggers`.
+- Trigger integration: the session owns a `MovementTriggerTracker`; tick snapshots include that tick's
+  events, while pure `snapshot()` calls do not replay previous events.
+- Determinism/lifetime: one local player slot is supported, missing commands become zero intent,
+  unknown player IDs are ignored, ticks increment after simulation, and the caller owns the
+  referenced `RuntimeWorld` lifetime.
+- Tests added/updated: `tests/server/WorldSession.cpp`, CTest `server_world_session`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_server_world_session_test stellar_server_movement_simulation_test stellar_movement_trigger_integration_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(server_world_session|server_movement_simulation|movement_trigger_integration)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed.
+- Deferred follow-up:
+  - Remote networking remains future work.
+  - Full ECS remains future work.
+
 ---
 
 <!-- Phase9B-WorldMetadataAuthoringValidation.md -->
@@ -620,6 +644,27 @@ ctest --test-dir build --output-on-failure
   - ECS spawning and sprite binding remain future work.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 9B world metadata authoring validation.
+- Public API: added metadata validation severity, finding, report, config, invalid-index sentinel,
+  asset overload, and `RuntimeWorld` convenience overload in
+  `include/stellar/world/WorldMetadataValidation.hpp`.
+- Validation policy: errors for missing required player spawn, non-finite marker transforms, and empty
+  entity archetypes; warnings for multiple player spawns, duplicate/empty trigger or sprite names,
+  empty portal names, zero or large trigger extents, deferred portal runtime behavior, and unparsed
+  `extras_json`.
+- Tests added/updated: `tests/world/WorldMetadataValidation.cpp`, CTest
+  `world_metadata_validation`.
+- Validation:
+  - `cmake --build build --target stellar_world_metadata_validation_test stellar_collision_validation_test stellar_runtime_world_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(world_metadata_validation|collision_validation|runtime_world)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed.
+- Deferred follow-up:
+  - ECS spawning, portal traversal, trigger callbacks, and sprite binding remain future work.
+
 ---
 
 <!-- Phase9C-InputCommandMapping.md -->
@@ -838,6 +883,26 @@ ctest --test-dir build --output-on-failure
   - Camera-relative input, mouse look, gamepad, and rebinding remain future work.
 ```
 
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 9C input command mapping.
+- Public API: added `MovementInputState`, `MovementInputBindings`, `MovementInputMapperConfig`, and
+  `make_movement_command` overloads for plain input state and `platform::Input` in
+  `include/stellar/client/MovementInputMapper.hpp`.
+- Direction policy: forward maps to world `-Z`, backward to `+Z`, left to `-X`, right to `+X`, `Y`
+  remains zero, diagonal normalization is deterministic/configurable, and jump remains command intent
+  only.
+- Tests added/updated: `tests/client/MovementInputMapper.cpp`, CTest
+  `client_movement_input_mapper`.
+- Validation:
+  - `cmake --build build --target stellar_client_movement_input_mapper_test stellar_server_movement_simulation_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(client_movement_input_mapper|server_movement_simulation)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed.
+- Deferred follow-up:
+  - Camera-relative input, mouse look, gamepad, and rebinding remain future work.
+
 ---
 
 <!-- Phase9D-LocalLoopbackClientRuntime.md -->
@@ -1053,6 +1118,27 @@ ctest --test-dir build -R '^(client_asset_validation_smoke|client_cli_asset_vali
   - Player presentation and camera follow remain Phase 9E if not complete.
   - Remote networking remains future work.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 9D local loopback client runtime.
+- Public API: added `LocalLoopbackRuntimeConfig`, `LocalLoopbackFrameResult`, and
+  `LocalLoopbackRuntime` in `include/stellar/client/LocalLoopbackRuntime.hpp`.
+- Authority boundary: client input is translated to `PlayerCommand`; only the in-process authoritative
+  `WorldSession` applies movement; fixed ticks are accumulated and bounded by `max_ticks_per_frame`,
+  with snapshots and trigger events returned for presentation.
+- Application integration: deferred; `Application::run` was not modified in this display-free slice.
+- Tests added/updated: `tests/client/LocalLoopbackRuntime.cpp`, CTest
+  `client_local_loopback_runtime`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_client_local_loopback_runtime_test stellar_server_world_session_test stellar_client_movement_input_mapper_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(client_local_loopback_runtime|server_world_session|client_movement_input_mapper)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed.
+- Deferred follow-up:
+  - Remote networking remains future work.
 
 ---
 
@@ -1277,6 +1363,28 @@ available.
   - Sprite atlas/material binding remains future work if not complete.
   - Client prediction and camera obstruction remain future work.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 9E player presentation and camera snapshot data.
+- Public API: added `PlayerCameraConfig`, `PlayerPresentationState`, `PlayerCameraFrame`,
+  `make_player_presentation_state`, and `make_player_camera_frame` in
+  `include/stellar/client/PlayerPresentation.hpp`.
+- Authority boundary: presentation copies data from authoritative snapshots only and does not mutate
+  or own gameplay state.
+- Renderer integration: deferred; no backend renderer changes or billboard helper were added because
+  authored player material/texture binding is not scoped yet.
+- Tests added/updated: `tests/client/PlayerPresentation.cpp`, CTest `player_presentation`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_player_presentation_test stellar_server_world_session_test stellar_render_scene_inspection_test -j$(nproc)`
+  - `ctest --test-dir build -R '^(player_presentation|server_world_session|render_scene_inspection)$' --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed.
+- Deferred follow-up:
+  - Sprite atlas/material binding, renderer camera override, camera obstruction, interpolation, and
+    prediction remain future work.
 
 ---
 
@@ -1520,5 +1628,29 @@ ctest --test-dir build -R 'server.*smoke|playable_world_smoke' --output-on-failu
   - Full ECS/entity spawning remains future work.
   - Rendered player sprite/camera polish remains future work if not complete.
 ```
+
+## Completion Notes (2026-04-30)
+
+- Implemented: Phase 9F playable world fixture and headless smoke.
+- Fixture: `tests/integration/PlayableWorldSmoke.cpp` generates a temporary embedded-buffer glTF with
+  visible render geometry, collision-only floor/walls using existing conventions, `SPAWN_Player`,
+  `TRIGGER_DoorOpen`, `SPRITE_Guide`, and metadata transform composition.
+- Integration path: the smoke test imports the fixture, validates collision, validates metadata,
+  builds `RuntimeWorld`, creates `server::WorldSession`, runs scripted authoritative movement, checks
+  wall collision, trigger event determinism, repeated snapshot determinism, and collision-only render
+  filtering without a graphics context.
+- Optional CLI: deferred; no `stellar-server` executable was added.
+- Tests added/updated: `tests/integration/PlayableWorldSmoke.cpp`, CTest `playable_world_smoke` gated
+  by `STELLAR_ENABLE_GLTF`.
+- Validation:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_GLTF=ON`
+  - `cmake --build build --target stellar_playable_world_smoke_test -j$(nproc)`
+  - `ctest --test-dir build -R playable_world_smoke --output-on-failure`
+  - `cmake --build build -j$(nproc)`
+  - `ctest --test-dir build --output-on-failure`
+  - Result: passed, 21/21 tests.
+- Deferred follow-up:
+  - Remote networking, full ECS/entity spawning, and rendered player sprite/camera polish remain
+    future work.
 
 ---

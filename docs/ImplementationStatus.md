@@ -17,6 +17,58 @@ Do **not** restart those phases from scratch. Treat them as implemented first pa
 
 ## Current status
 
+Phase 9F is complete as of 2026-04-30:
+
+- Added a display-free playable-world smoke test that generates a small glTF fixture and validates the
+  import -> collision validation -> metadata validation -> runtime world -> authoritative session path.
+- The fixture covers visible render geometry, collision-only floor/walls, player spawn metadata,
+  trigger metadata, sprite metadata, and collision-only render filtering.
+- The scripted authoritative movement path checks initial spawn snapshots, wall collision, trigger
+  events, deterministic repeat output, and no graphics/window context requirement.
+
+Phase 9E is complete as of 2026-04-30:
+
+- Added backend-neutral player presentation helpers that extract player pose from authoritative
+  `WorldSnapshot` data without mutating server state.
+- Added deterministic camera-follow frame generation with documented sanitization for non-finite
+  position/offset and near/far clip-plane inputs.
+- Deferred renderer camera override and player billboard/material binding until a later presentation
+  slice.
+
+Phase 9D is complete as of 2026-04-30:
+
+- Added `stellar::client::LocalLoopbackRuntime`, an in-process authoritative runtime bridge over
+  `stellar::server::WorldSession` for local/single-player client presentation.
+- Client input is mapped to server commands, fixed-step time is accumulated deterministically, ticks
+  are bounded by `max_ticks_per_frame`, and snapshots/trigger events are returned for presentation.
+- `Application::run` integration remains deferred; the implemented bridge is display-free and tested
+  independently.
+
+Phase 9C is complete as of 2026-04-30:
+
+- Added `stellar_client_runtime` and `MovementInputMapper` APIs for converting plain input state or
+  `platform::Input` keyboard state into `server::MovementCommand` intent.
+- The world-axis convention is documented and tested: forward `-Z`, backward `+Z`, left `-X`, right
+  `+X`, with optional deterministic diagonal normalization and jump intent pass-through.
+- The mapper does not apply movement locally and introduces no rendering or networking dependency.
+
+Phase 9B is complete as of 2026-04-30:
+
+- Added standalone backend-neutral `validate_world_metadata` diagnostics for player spawns, entity
+  spawns, triggers, sprite markers, portal markers, non-finite transforms, duplicate names, empty
+  names/extents, large trigger extents, and unparsed `extras_json`.
+- Reports are deterministic and available for both `WorldMetadataAsset` and `RuntimeWorld` without
+  making runtime world construction fail by default.
+
+Phase 9A is complete as of 2026-04-30:
+
+- Added `stellar::server::WorldSession`, a backend-neutral authoritative session around one local
+  player slot with stable command and snapshot data shapes for future ECS/network expansion.
+- The session owns movement state, fixed tick sequencing, and `MovementTriggerTracker` state while
+  referencing caller-owned `RuntimeWorld` data with documented lifetime requirements.
+- Missing commands produce zero movement, unknown player commands are ignored deterministically, ticks
+  use the existing authoritative movement simulation, and pure snapshots do not replay trigger events.
+
 Phase 8F is complete as of 2026-04-30:
 
 - Added a display-free collision performance regression harness with large synthetic floor,

@@ -58,6 +58,7 @@ add_library(stellar_world
     src/world/RuntimeWorld.cpp
     src/world/TriggerSystem.cpp
     src/world/CollisionValidation.cpp
+    src/world/WorldMetadataValidation.cpp
 )
 
 target_include_directories(stellar_world PUBLIC
@@ -72,6 +73,7 @@ target_link_libraries(stellar_world PUBLIC
 add_library(stellar_server_core
     src/server/MovementSimulation.cpp
     src/server/MovementTriggerIntegration.cpp
+    src/server/WorldSession.cpp
 )
 
 target_include_directories(stellar_server_core PUBLIC
@@ -128,6 +130,21 @@ target_include_directories(stellar_platform PUBLIC
 
 target_link_libraries(stellar_platform PUBLIC
     ${SDL2_LIBRARIES}
+)
+
+add_library(stellar_client_runtime
+    src/client/MovementInputMapper.cpp
+    src/client/LocalLoopbackRuntime.cpp
+    src/client/PlayerPresentation.cpp
+)
+
+target_include_directories(stellar_client_runtime PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_runtime PUBLIC
+    stellar_platform
+    stellar_server_core
 )
 
 add_library(stellar_graphics
@@ -223,6 +240,20 @@ target_link_libraries(stellar_collision_validation_test PRIVATE
 
 add_test(NAME collision_validation COMMAND stellar_collision_validation_test)
 
+add_executable(stellar_world_metadata_validation_test
+    tests/world/WorldMetadataValidation.cpp
+)
+
+target_include_directories(stellar_world_metadata_validation_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_world_metadata_validation_test PRIVATE
+    stellar_world
+)
+
+add_test(NAME world_metadata_validation COMMAND stellar_world_metadata_validation_test)
+
 add_executable(stellar_server_movement_simulation_test
     tests/server/MovementSimulation.cpp
 )
@@ -250,6 +281,20 @@ target_link_libraries(stellar_movement_trigger_integration_test PRIVATE
 )
 
 add_test(NAME movement_trigger_integration COMMAND stellar_movement_trigger_integration_test)
+
+add_executable(stellar_server_world_session_test
+    tests/server/WorldSession.cpp
+)
+
+target_include_directories(stellar_server_world_session_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_server_world_session_test PRIVATE
+    stellar_server_core
+)
+
+add_test(NAME server_world_session COMMAND stellar_server_world_session_test)
 
 add_executable(stellar_render_scene_upload_test
     tests/graphics/RenderSceneUpload.cpp
@@ -400,6 +445,48 @@ target_link_libraries(stellar_client_asset_validation_smoke PRIVATE
 
 add_test(NAME client_asset_validation_smoke COMMAND stellar_client_asset_validation_smoke)
 
+add_executable(stellar_client_movement_input_mapper_test
+    tests/client/MovementInputMapper.cpp
+)
+
+target_include_directories(stellar_client_movement_input_mapper_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_movement_input_mapper_test PRIVATE
+    stellar_client_runtime
+)
+
+add_test(NAME client_movement_input_mapper COMMAND stellar_client_movement_input_mapper_test)
+
+add_executable(stellar_player_presentation_test
+    tests/client/PlayerPresentation.cpp
+)
+
+target_include_directories(stellar_player_presentation_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_player_presentation_test PRIVATE
+    stellar_client_runtime
+)
+
+add_test(NAME player_presentation COMMAND stellar_player_presentation_test)
+
+add_executable(stellar_client_local_loopback_runtime_test
+    tests/client/LocalLoopbackRuntime.cpp
+)
+
+target_include_directories(stellar_client_local_loopback_runtime_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_local_loopback_runtime_test PRIVATE
+    stellar_client_runtime
+)
+
+add_test(NAME client_local_loopback_runtime COMMAND stellar_client_local_loopback_runtime_test)
+
 add_executable(stellar-client
     src/client/main.cpp
     src/client/Application.cpp
@@ -446,6 +533,22 @@ if(STELLAR_ENABLE_GLTF)
     )
 
     add_test(NAME gltf_importer_regression COMMAND stellar_import_gltf_regression)
+
+    add_executable(stellar_playable_world_smoke_test
+        tests/integration/PlayableWorldSmoke.cpp
+    )
+
+    target_include_directories(stellar_playable_world_smoke_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_playable_world_smoke_test PRIVATE
+        stellar_import_gltf
+        stellar_world
+        stellar_server_core
+    )
+
+    add_test(NAME playable_world_smoke COMMAND stellar_playable_world_smoke_test)
 else()
     set_tests_properties(client_cli_asset_validation PROPERTIES
         WILL_FAIL TRUE
