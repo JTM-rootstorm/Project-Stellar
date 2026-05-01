@@ -70,6 +70,32 @@ Result: default configure and build succeeded. The phase-plan targeted command c
 successfully for the matching runtime/collision tests; a corrected CTest regex also ran the new
 `bsp_importer` test for 5/5 targeted passes. Full default CTest passed 27/27.
 
+Phase BSP-3 is complete as of 2026-05-01:
+
+- Runtime world assembly consumes source-neutral BSP-backed `LevelAsset` data and exposes object
+  collider marker lookup alongside existing spawn, trigger, and sprite marker helpers.
+- Server movement, static collision filters, triggers, object-collider sensors, and Lua script hooks
+  are covered from generated BSP metadata through authoritative `ScriptedWorldSession` ticks.
+- Client startup validation now uses `--map`/`map_path`, loads `.bsp` maps through
+  `stellar_import_bsp`, and no longer has a glTF feature-gate validation failure path.
+- Added display-free BSP playable-world/scripted integration smoke coverage plus BSP-backed client
+  map validation and CLI validation tests.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_|playable_world_smoke|scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke|server_world_session|scripted_world_session|client_map_validation_smoke|client_cli_map_validation)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: default configure and build succeeded. The phase-plan targeted command passed 9/9 selected
+tests in this CTest regex mode, including server/session, scripted session, client map validation,
+CLI map validation, and BSP-backed playable/scripted smoke aliases. A corrected CTest regex also ran
+`bsp_importer` and `bsp_playable_world_smoke` for 11/11 targeted passes. Full default CTest passed
+33/33.
+
 ## Historical collision-movement status
 
 Branch target: `collision-movement`

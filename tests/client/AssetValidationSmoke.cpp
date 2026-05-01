@@ -1,49 +1,38 @@
 #include "stellar/client/ApplicationConfig.hpp"
 
+#include "../fixtures/BspFixture.hpp"
+
 #include <cassert>
 #include <filesystem>
-#include <fstream>
-#include <string_view>
-
-namespace {
-
-void write_text_file(const std::filesystem::path& path, std::string_view content) {
-    std::ofstream file(path, std::ios::binary);
-    file.write(content.data(), static_cast<std::streamsize>(content.size()));
-}
-
-} // namespace
 
 int main() {
-    const auto root = std::filesystem::temp_directory_path() / "stellar_client_asset_smoke";
-    std::filesystem::create_directories(root);
+  const auto root =
+      std::filesystem::temp_directory_path() / "stellar_client_map_smoke";
+  std::filesystem::create_directories(root);
 
-    const auto gltf_path = root / "valid_scene.gltf";
-    write_text_file(gltf_path,
-                    "{\n"
-                    "  \"asset\": { \"version\": \"2.0\" },\n"
-                    "  \"scenes\": [{ \"name\": \"empty\", \"nodes\": [] }],\n"
-                    "  \"scene\": 0\n"
-                    "}\n");
+  const auto bsp_path = root / "valid_map.bsp";
+  stellar::tests::fixtures::write_bsp_fixture(bsp_path);
 
-    stellar::client::ApplicationConfig config;
-    config.asset_path = gltf_path.string();
-    config.validate_only = true;
+  stellar::client::ApplicationConfig config;
+  config.map_path = bsp_path.string();
+  config.validate_only = true;
 
-    const auto result = stellar::client::validate_application_config(config);
+  const auto result = stellar::client::validate_application_config(config);
 
-#if defined(STELLAR_ENABLE_GLTF)
-    assert(result.has_value());
-    assert(result->scene.has_value());
-    assert(result->runtime_world_diagnostics.has_value());
-    assert(!result->runtime_world_diagnostics->has_collision);
-    assert(result->runtime_world_diagnostics->marker_count == 0);
-    assert(result->runtime_world_diagnostics->sprite_marker_count == 0);
-    assert(!result->runtime_world_diagnostics->has_player_spawn);
-#else
-    assert(!result.has_value());
-    assert(result.error().message.find("STELLAR_ENABLE_GLTF=ON") != std::string::npos);
-#endif
+  assert(result.has_value());
+  assert(result->level.has_value());
+  assert(result->runtime_world_diagnostics.has_value());
+  assert(result->runtime_world_diagnostics->has_collision);
+  assert(result->runtime_world_diagnostics->marker_count == 5);
+  assert(result->runtime_world_diagnostics->sprite_marker_count == 1);
+  assert(result->runtime_world_diagnostics->object_collider_marker_count == 1);
+  assert(result->runtime_world_diagnostics->has_player_spawn);
 
-    return 0;
+  config.map_path = (root / "unsupported.gltf").string();
+  const auto unsupported = stellar::client::validate_application_config(config);
+  assert(!unsupported.has_value());
+  assert(unsupported.error().message.find("Unsupported map extension") !=
+         std::string::npos);
+
+  return 0;
 }

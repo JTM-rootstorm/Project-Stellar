@@ -169,7 +169,7 @@ Keep test names if useful, but their fixture/import path must be BSP.
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
-ctest --test-dir build -R '^(bsp_|playable_world_smoke|scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke|server_world_session|scripted_world_session|client_asset_validation_smoke|client_cli_asset_validation)$' --output-on-failure
+ctest --test-dir build -R '^(bsp_|playable_world_smoke|scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke|server_world_session|scripted_world_session|client_map_validation_smoke|client_cli_map_validation)$' --output-on-failure
 ctest --test-dir build --output-on-failure
 ```
 
@@ -193,3 +193,32 @@ Validation run:
 
 <commands and result>
 ```
+
+---
+
+## Completion note
+
+Phase BSP-3 is complete as of 2026-05-01.
+
+- Runtime world assembly consumes BSP-backed source-neutral `LevelAsset` data and exposes object
+  collider marker lookup.
+- Server movement, static collision filters, triggers, object-collider sensors, and Lua hooks are
+  covered through generated BSP fixtures and authoritative scripted-session ticks.
+- Client validation uses `--map`/`map_path`, loads `.bsp` maps through `stellar_import_bsp`, and no
+  longer uses the old glTF feature-gate validation error path.
+- Display-free BSP playable/scripted smokes, client map validation, and CLI map validation were added
+  or renamed in CMake.
+
+Validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_|playable_world_smoke|scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke|server_world_session|scripted_world_session|client_map_validation_smoke|client_cli_map_validation)$' --output-on-failure
+ctest --test-dir build -R 'bsp_|playable_world_smoke|scripted_playable_world_smoke|scripted_collision_smoke|scripted_object_collider_smoke|server_world_session|scripted_world_session|client_map_validation_smoke|client_cli_map_validation' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure/build succeeded; phase-plan targeted CTest passed 9/9 selected tests, corrected
+targeted CTest passed 11/11 including BSP importer and BSP playable smoke, and full CTest passed
+33/33.

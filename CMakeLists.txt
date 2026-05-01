@@ -289,7 +289,7 @@ target_include_directories(stellar_client_config PUBLIC
 
 target_link_libraries(stellar_client_config PUBLIC
     stellar_assets
-    stellar_scene
+    stellar_import_bsp
     stellar_world
 )
 
@@ -410,19 +410,20 @@ stellar_add_physics_test(stellar_collision_performance_regression_test collision
     tests/physics/CollisionPerformanceRegression.cpp
 )
 
-add_executable(stellar_client_asset_validation_smoke
+add_executable(stellar_client_map_validation_smoke
     tests/client/AssetValidationSmoke.cpp
 )
 
-target_include_directories(stellar_client_asset_validation_smoke PRIVATE
+target_include_directories(stellar_client_map_validation_smoke PRIVATE
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
 )
 
-target_link_libraries(stellar_client_asset_validation_smoke PRIVATE
+target_link_libraries(stellar_client_map_validation_smoke PRIVATE
     stellar_client_config
 )
 
-add_test(NAME client_asset_validation_smoke COMMAND stellar_client_asset_validation_smoke)
+add_test(NAME client_map_validation_smoke COMMAND stellar_client_map_validation_smoke)
 
 stellar_add_client_runtime_test(stellar_client_movement_input_mapper_test client_movement_input_mapper
     tests/client/MovementInputMapper.cpp
@@ -473,20 +474,54 @@ target_link_libraries(stellar-client PRIVATE
     miniaudio
 )
 
-set(STELLAR_EMPTY_GLTF_FIXTURE
-    ${CMAKE_SOURCE_DIR}/tests/fixtures/gltf/empty_scene.gltf
+add_executable(stellar_bsp_fixture_writer
+    tests/fixtures/BspFixtureWriter.cpp
 )
 
-add_test(NAME client_cli_asset_validation
-    COMMAND stellar-client --validate-config --asset ${STELLAR_EMPTY_GLTF_FIXTURE}
+target_include_directories(stellar_bsp_fixture_writer PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
 )
+
+set(STELLAR_CLI_BSP_FIXTURE
+    ${CMAKE_BINARY_DIR}/tests/fixtures/bsp/client_cli_map_validation.bsp
+)
+
+add_test(NAME bsp_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE}
+)
+set_tests_properties(bsp_fixture_writer PROPERTIES FIXTURES_SETUP bsp_cli_fixture)
+
+add_test(NAME client_cli_map_validation
+    COMMAND stellar-client --validate-config --map ${STELLAR_CLI_BSP_FIXTURE}
+)
+set_tests_properties(client_cli_map_validation PROPERTIES FIXTURES_REQUIRED bsp_cli_fixture)
+
+add_executable(stellar_bsp_playable_world_smoke_test
+    tests/integration/BspPlayableWorldSmoke.cpp
+)
+
+target_include_directories(stellar_bsp_playable_world_smoke_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+)
+
+target_link_libraries(stellar_bsp_playable_world_smoke_test PRIVATE
+    stellar_import_bsp
+    stellar_scripting
+)
+
+add_test(NAME bsp_playable_world_smoke COMMAND stellar_bsp_playable_world_smoke_test)
+add_test(NAME playable_world_smoke COMMAND stellar_bsp_playable_world_smoke_test)
+add_test(NAME scripted_playable_world_smoke COMMAND stellar_bsp_playable_world_smoke_test)
+add_test(NAME scripted_collision_smoke COMMAND stellar_bsp_playable_world_smoke_test)
+add_test(NAME scripted_object_collider_smoke COMMAND stellar_bsp_playable_world_smoke_test)
 
 if(STELLAR_ENABLE_GLTF)
     target_compile_definitions(stellar_client_config PRIVATE STELLAR_ENABLE_GLTF=1)
     target_compile_definitions(stellar-client PRIVATE STELLAR_ENABLE_GLTF=1)
     target_link_libraries(stellar_client_config PUBLIC stellar_import_gltf)
     target_link_libraries(stellar-client PRIVATE stellar_import_gltf)
-    target_compile_definitions(stellar_client_asset_validation_smoke PRIVATE STELLAR_ENABLE_GLTF=1)
 
     add_executable(stellar_import_gltf_regression
         tests/import/gltf/ImporterRegression.cpp
@@ -503,27 +538,4 @@ if(STELLAR_ENABLE_GLTF)
     )
 
     add_test(NAME gltf_importer_regression COMMAND stellar_import_gltf_regression)
-
-    stellar_add_gltf_world_test(stellar_playable_world_smoke_test playable_world_smoke
-        tests/integration/PlayableWorldSmoke.cpp
-    )
-
-    stellar_add_scripted_gltf_world_test(stellar_scripted_playable_world_smoke_test
-        scripted_playable_world_smoke
-        tests/integration/ScriptedPlayableWorldSmoke.cpp
-    )
-
-    stellar_add_scripted_gltf_world_test(stellar_scripted_collision_smoke_test
-        scripted_collision_smoke
-        tests/integration/ScriptedCollisionSmoke.cpp
-    )
-
-    stellar_add_scripted_gltf_world_test(stellar_scripted_object_collider_smoke_test
-        scripted_object_collider_smoke
-        tests/integration/ScriptedObjectColliderSmoke.cpp
-    )
-else()
-    set_tests_properties(client_cli_asset_validation PROPERTIES
-        WILL_FAIL TRUE
-    )
 endif()

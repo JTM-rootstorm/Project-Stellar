@@ -1,37 +1,43 @@
 #include "stellar/client/ApplicationConfig.hpp"
 
+#include "stellar/import/bsp/Loader.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
-#if defined(STELLAR_ENABLE_GLTF)
-#include "stellar/import/gltf/Loader.hpp"
-#endif
-
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
+#include <string>
 #include <utility>
 
 namespace stellar::client {
 std::expected<ApplicationValidation, stellar::platform::Error>
-validate_application_config(const ApplicationConfig& config) {
-    ApplicationValidation validation;
+validate_application_config(const ApplicationConfig &config) {
+  ApplicationValidation validation;
 
-    if (!config.asset_path.has_value()) {
-        return validation;
-    }
-
-#if defined(STELLAR_ENABLE_GLTF)
-    auto loaded_scene = stellar::import::gltf::load_scene(*config.asset_path);
-    if (!loaded_scene) {
-        return std::unexpected(loaded_scene.error());
-    }
-
-    validation.scene = std::move(*loaded_scene);
-    validation.level = stellar::assets::to_level_asset(*validation.scene);
-    validation.runtime_world_diagnostics =
-        stellar::world::build_runtime_world(*validation.level).diagnostics;
+  if (!config.map_path.has_value()) {
     return validation;
-#else
+  }
+
+  std::string extension =
+      std::filesystem::path(*config.map_path).extension().string();
+  std::ranges::transform(extension, extension.begin(), [](unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+  if (extension != ".bsp") {
     return std::unexpected(stellar::platform::Error(
-        "--asset requires a build configured with STELLAR_ENABLE_GLTF=ON"));
-#endif
+        "Unsupported map extension for --map: " + extension +
+        " (expected .bsp)"));
+  }
+
+  auto loaded_level = stellar::import::bsp::load_level(*config.map_path);
+  if (!loaded_level) {
+    return std::unexpected(loaded_level.error());
+  }
+
+  validation.level = std::move(*loaded_level);
+  validation.runtime_world_diagnostics =
+      stellar::world::build_runtime_world(*validation.level).diagnostics;
+  return validation;
 }
 
 } // namespace stellar::client
