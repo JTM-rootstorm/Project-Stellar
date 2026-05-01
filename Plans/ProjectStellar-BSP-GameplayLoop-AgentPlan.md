@@ -809,7 +809,7 @@ Validate the branch end-to-end, align docs, and record clear completion notes.
    - `docs/BspAuthoring.md`: inch-scale room examples and developer texture names.
    - `Plans/NEXT.md`: point to the next recommended scope after this branch.
 2. Audit active references.
-   - No stale GLTF/retired importer references outside archived docs/build outputs.
+   - No stale retired-importer references outside archived docs/build outputs.
    - No meter-scale default language remains for gameplay units.
 3. Run full validation.
 4. Record known deferrals.

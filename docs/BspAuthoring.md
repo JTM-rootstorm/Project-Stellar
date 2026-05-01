@@ -17,6 +17,11 @@ capsule center 36 inches above the floor.
 
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD definitions, or equivalent editor mechanisms that preserve keys exactly.
 
+For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
+on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
+floor plan with an 8 ft ceiling, a player spawn at `0 36 0`, and developer grid/wall materials listed
+below.
+
 ## Procedural developer textures
 
 BSP materials may reference these deterministic developer textures without embedding miptex pixels or
@@ -195,13 +200,13 @@ Common diagnostics:
 - `kNoCollisionTriangles`: imported collision extraction produced no triangles; this is currently a warning for maps or tests with an explicit no-collision policy.
 
 ```bash
-cmake -S . -B build-phase5-carmack -DCMAKE_BUILD_TYPE=Debug
-cmake --build build-phase5-carmack -j$(nproc)
-ctest --test-dir build-phase5-carmack -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
 ```
 
 For broad confidence, also run:
 
 ```bash
-ctest --test-dir build-phase5-carmack --output-on-failure
+ctest --test-dir build --output-on-failure
 ```

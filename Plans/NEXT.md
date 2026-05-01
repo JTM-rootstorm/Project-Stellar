@@ -1,12 +1,12 @@
-# Stellar Engine - Current Branch Handoff
+# Stellar Engine - Next Scope Handoff
 
 Branch target: `bsp-gameplay-loop`
 
 ## Current entry point
 
-Use `docs/ImplementationStatus.md` as the current branch-facing source of truth.
-Use `Plans/BspGameplayLoop-AgentPlan.md` as the active implementation handoff and
-`Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` as the detailed master plan.
+Use `docs/ImplementationStatus.md` as the completed `bsp-gameplay-loop` branch source of truth.
+The gameplay-loop phase handoffs are retained for history at `Plans/BspGameplayLoop-AgentPlan.md` and
+`Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md`; do not treat them as the next active scope.
 
 Branch start policy:
 
@@ -14,10 +14,17 @@ Branch start policy:
 - Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, or BSP
   hardening work.
 
-Active next scope:
+Completed branch scope:
 
 - Gameplay loop expansion over BSP maps.
-- Current phase plan: `Plans/BspGameplayLoop-AgentPlan.md`.
+- Final status: Phases 0-8 complete as recorded in `docs/ImplementationStatus.md`.
+
+Recommended next scope:
+
+- Presentation and networking polish over the completed BSP gameplay loop.
+- Suggested first slices: server snapshot/delta expansion, remote transport integration, sprite and
+  interaction presentation polish, UI/HUD or inventory feedback for pickups, audio/event presentation,
+  and BSP editor/toolchain workflow polish.
 
 Archived completed plans:
 
@@ -26,13 +33,13 @@ Archived completed plans:
 - BSP hardening: `Plans/Archived/project_stellar_bsp_hardening_plan/`
 - BSP canonical migration: `Plans/Archived/project_stellar_bsp_canonical_plan/`
 
-## Active scope
+## Completed scope
 
-BSP maps are the canonical playable level format. The next implementation scope is gameplay loop
-expansion over BSP maps, building on the existing BSP metadata, server-authoritative runtime world,
-client presentation, and sandboxed Lua command path.
+BSP maps are the canonical playable level format. The completed branch added gameplay-loop expansion
+over BSP maps, building on existing BSP metadata, server-authoritative runtime world, client
+presentation, and the sandboxed Lua command path.
 
-Focus areas:
+Completed focus areas:
 
 - ECS/entity spawn from BSP metadata.
 - Player presentation from authoritative snapshots.

@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.1 (BSP gameplay-loop planning alignment)  
+**Version:** 0.2.2 (BSP gameplay-loop branch completion)  
 **Last Updated:** 2026-05-01
 
 ---
@@ -115,8 +115,8 @@ Completed BSP hardening added actionable diagnostics, source-neutral PVS and lig
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
 deterministic headless validation.
 
-The active BSP gameplay-loop plan is `Plans/BspGameplayLoop-AgentPlan.md`, with the detailed master
-handoff retained at `Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md`.
+The BSP gameplay-loop branch has completed its selected Phases 0-8. Completion notes live in
+`docs/ImplementationStatus.md`; `Plans/NEXT.md` now identifies the next recommended post-branch scope.
 
 Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
 world unit equals 1 inch, Y is up, and BSP authored coordinates import without hidden scale
@@ -131,6 +131,10 @@ BSP entity metadata binds triggers, object-collider sensors, sprite markers, spa
 IDs/tables, but import does not execute scripts. Runtime scripting wraps authoritative
 movement/session output, emits primitive script events, and applies only native-validated
 collision/object-collider commands to server-owned runtime state.
+The live single-player client path can load a configured BSP map, keep the validated `LevelAsset`
+alive for `RuntimeWorld`, instantiate local loopback authoritative runtime state, advance movement from
+captured input, and render the level from the authoritative player presentation camera. The no-map
+debug fallback remains a presentation-only fallback.
 Pickup object-collider enters are collected through a native `gameplay.collect_pickup` command emitted
 by the authoritative object-collider script system, so pickup active/inactive state and collider
 disablement remain server-owned. Scripted doors/gates are static named collision meshes toggled by
@@ -603,7 +607,10 @@ snapshots containing plain transform plus inert metadata components. Spawn/impor
 scripts and never stores renderer, texture, audio, or backend handles. Current metadata-driven entity
 kinds cover player, sprite marker, pickup candidate, door/gate, trigger, and object-collider records;
 presentation systems may bind sprite ids later from copied metadata while the server remains the source
-of gameplay truth.
+of gameplay truth. Pickup and door/gate interaction state is now represented in authoritative gameplay
+snapshots: collected pickups become inactive, object-collider pickup sensors can be disabled through
+validated native commands, and named static gate meshes mirror open/closed state after accepted Lua
+collision commands.
 
 ### 9.4 Systems
 

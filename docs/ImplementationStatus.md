@@ -2,23 +2,23 @@
 
 Branch target: `bsp-gameplay-loop`
 
-## Active Scope — Gameplay Loop Expansion over BSP Maps
+## Branch Scope — Gameplay Loop Expansion over BSP Maps
 
 This branch begins after `collision-movement` merges to `main`. Treat collision, movement,
 trigger, object-collider, Lua scripting, BSP canonical migration, BSP rendering, and BSP hardening as
 completed foundations, not as active work to restart.
 
-The next implementation scope is gameplay loop expansion over BSP maps while preserving server
-authority and display-free default validation.
+The selected branch scope is gameplay loop expansion over BSP maps while preserving server authority
+and display-free default validation.
 
-Initial focus areas:
+Completed focus areas:
 
 - ECS/entity spawn from BSP metadata.
 - Player presentation from authoritative snapshots.
 - Sprite, animation, and interaction loop.
 - Item pickup and scripted doors/gates using the existing Lua command path.
 
-Active implementation plan:
+Completed implementation plan:
 
 - `Plans/BspGameplayLoop-AgentPlan.md` — concise active agent handoff.
 - `Plans/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed master plan.
@@ -27,9 +27,9 @@ Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is u
 coordinates import without scale conversion, and player capsule center spawns should be half the
 capsule height above the floor.
 
-Near-term implementation should continue to use `Plans/NEXT.md` as the short branch handoff and this
-file as the source of truth for completion notes. Archived phase plans under `Plans/Archived/` are
-historical context unless this file explicitly names one as active.
+Follow-up implementation should use `Plans/NEXT.md` for the next recommended scope after this branch
+and this file as the source of truth for branch completion notes. Archived phase plans under
+`Plans/Archived/` are historical context unless this file explicitly names one as active.
 
 Do not add Source/VBSP support, dynamic rigid bodies, full PBR, client-side gameplay scripting,
 renderer/audio gameplay authority, or retired importer functionality unless explicitly requested.
@@ -44,7 +44,48 @@ renderer/audio gameplay authority, or retired importer functionality unless expl
 - Phase 5 — Minimal ECS/entity spawn from BSP metadata: complete as of 2026-05-01.
 - Phase 6 — Single-room controllable player loop: complete as of 2026-05-01.
 - Phase 7 — First interaction loop, pickup and scripted door/gate: complete as of 2026-05-01.
-- Phase 8 — Final branch hardening and documentation: not started.
+- Phase 8 — Final branch hardening and documentation: complete as of 2026-05-01.
+
+Phase 8 completion notes:
+
+- Finalized the branch-facing handoff docs after Phases 0-7 and recorded the BSP gameplay-loop branch
+  as complete.
+- Confirmed active design documentation covers the inch-scale unit policy, live BSP client loop,
+  metadata-driven server entity spawn direction, and pickup plus scripted door/gate interaction loop.
+- Confirmed BSP authoring documentation covers inch-scale gameplay-room examples and all procedural
+  developer texture names and aliases.
+- Updated `Plans/NEXT.md` to point at the next recommended post-branch scope instead of presenting the
+  completed gameplay-loop phases as active work.
+- Active retired-importer references are limited to documented audit commands and historical notes in
+  this status file; archived plans and build outputs remain excluded from active audits.
+
+Final Phase 8 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(bsp_|render_level|runtime_world|client_|player_presentation|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|world_metadata_validation|collision_validation|character_controller)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'meter\|metre\|1\.8F\|0\.35F\|0\.8F\|6\.0F' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+```
+
+Result: final validation passed on 2026-05-01. Configure/build succeeded, full default CTest passed
+41/41, and focused BSP/runtime/render/client/player/server/script/collision validation passed 31/31.
+The active retired-importer audit returned only documented audit command references outside archived
+plans and ignored build outputs. The unit audit found no active prose reverting gameplay defaults to an
+old scale policy; remaining matches are the documented audit command plus numeric literals used for
+inch-scale constants, OpenGL texture enum names, aspect ratios, generated BSP room coordinates, and
+synthetic test geometry that intentionally overrides local values.
+
+Known deferred post-branch items:
+
+- Remote networking and snapshot/delta expansion.
+- Client prediction and reconciliation.
+- Client presentation polish for sprites, animation, UI/HUD, inventory, VFX, and audio events.
+- BSP toolchain/editor workflow polish beyond deterministic procedural developer texture fallback.
+- Rich animation/model systems, moving brush simulation, Source/VBSP, dynamic rigid bodies, full PBR,
+  and client-side gameplay scripting remain out of scope unless explicitly requested.
 
 Phase 0 completion notes:
 
