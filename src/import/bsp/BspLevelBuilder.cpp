@@ -1,6 +1,7 @@
 #include "BspBinary.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -40,7 +41,44 @@ using Vec3 = std::array<float, 3>;
   std::istringstream stream(*text);
   Vec3 value{};
   if (stream >> value[0] >> value[1] >> value[2]) {
-    return value;
+    std::string trailing;
+    if (!(stream >> trailing)) {
+      return value;
+    }
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] std::optional<std::array<float, 2>> parse_vec2(const std::string *text) {
+  if (text == nullptr) {
+    return std::nullopt;
+  }
+  std::istringstream stream(*text);
+  std::array<float, 2> value{};
+  if (stream >> value[0] >> value[1]) {
+    std::string trailing;
+    if (!(stream >> trailing)) {
+      return value;
+    }
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] std::optional<bool> parse_bool_like(const std::string *text) {
+  if (text == nullptr) {
+    return std::nullopt;
+  }
+  std::string value;
+  value.reserve(text->size());
+  for (char character : *text) {
+    value.push_back(static_cast<char>(
+        std::tolower(static_cast<unsigned char>(character))));
+  }
+  if (value == "1" || value == "true" || value == "yes") {
+    return true;
+  }
+  if (value == "0" || value == "false" || value == "no") {
+    return false;
   }
   return std::nullopt;
 }
@@ -149,6 +187,21 @@ void add_warning(ImportReport *report, DiagnosticCode code,
                                            .lump_index = lump_index,
                                            .entity_index = std::nullopt,
                                            .face_index = face_index});
+}
+
+void add_entity_warning(ImportReport *report, DiagnosticCode code,
+                        const std::string &source_uri, std::size_t entity_index,
+                        std::string message) {
+  if (report == nullptr) {
+    return;
+  }
+  report->diagnostics.push_back(Diagnostic{.severity = DiagnosticSeverity::kWarning,
+                                           .code = code,
+                                           .message = std::move(message),
+                                           .source_uri = source_uri,
+                                           .lump_index = static_cast<std::size_t>(LumpIndex::kEntities),
+                                           .entity_index = entity_index,
+                                           .face_index = std::nullopt});
 }
 
 [[nodiscard]] std::optional<std::size_t>
@@ -606,7 +659,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
 
   bool has_player_spawn = false;
   bool has_worldspawn = false;
-  for (const Entity &entity : entities) {
+  for (std::size_t entity_index = 0; entity_index < entities.size(); ++entity_index) {
+    const Entity &entity = entities[entity_index];
     const std::string classname = string_or(entity, "classname", "entity");
     stellar::assets::WorldMarker marker{};
     bool emit = true;
@@ -648,9 +702,17 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     if (!emit) {
       continue;
     }
-    if (auto origin = parse_vec3(value_for(entity, "origin"))) {
+    const std::string *origin_text = value_for(entity, "origin");
+    if (auto origin = parse_vec3(origin_text)) {
       marker.position = *origin;
+    } else if (origin_text != nullptr) {
+      add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                         level.source_uri, entity_index,
+                         level.source_uri + ": BSP entity has malformed origin vector: " +
+                             *origin_text);
     }
+
+    bool has_brush_model_bounds = false;
     if (auto model_index = parse_model_index(value_for(entity, "model"));
         model_index && *model_index >= 0 &&
         static_cast<std::size_t>(*model_index) < map.models.size()) {
@@ -661,6 +723,57 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       marker.scale = {(model.maxs[0] - model.mins[0]) * 0.5F,
                       (model.maxs[1] - model.mins[1]) * 0.5F,
                       (model.maxs[2] - model.mins[2]) * 0.5F};
+      has_brush_model_bounds = true;
+    }
+
+    if ((marker.type == stellar::assets::WorldMarkerType::kTrigger ||
+         marker.type == stellar::assets::WorldMarkerType::kObjectCollider) &&
+        !has_brush_model_bounds) {
+      const std::string *extents_text = value_for(entity, "stellar.extents");
+      if (auto extents = parse_vec3(extents_text)) {
+        marker.scale = *extents;
+      } else if (extents_text != nullptr) {
+        add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                           level.source_uri, entity_index,
+                           level.source_uri +
+                               ": BSP entity has malformed stellar.extents vector: " +
+                               *extents_text);
+      }
+    }
+
+    if (marker.type == stellar::assets::WorldMarkerType::kSprite) {
+      const std::string *size_text = value_for(entity, "stellar.size");
+      if (auto size = parse_vec2(size_text)) {
+        marker.scale = {(*size)[0], (*size)[1], 1.0F};
+      } else if (size_text != nullptr) {
+        add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                           level.source_uri, entity_index,
+                           level.source_uri +
+                               ": BSP sprite has malformed stellar.size vector: " +
+                               *size_text);
+      }
+    }
+
+    if (marker.type == stellar::assets::WorldMarkerType::kTrigger) {
+      const std::string *once_text = value_for(entity, "stellar.once");
+      if (once_text != nullptr && !parse_bool_like(once_text).has_value()) {
+        add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                           level.source_uri, entity_index,
+                           level.source_uri +
+                               ": BSP trigger has malformed stellar.once boolean: " +
+                               *once_text);
+      }
+    }
+
+    if (marker.type == stellar::assets::WorldMarkerType::kObjectCollider) {
+      const std::string *enabled_text = value_for(entity, "stellar.enabled");
+      if (enabled_text != nullptr && !parse_bool_like(enabled_text).has_value()) {
+        add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                           level.source_uri, entity_index,
+                           level.source_uri +
+                               ": BSP object collider has malformed stellar.enabled boolean: " +
+                               *enabled_text);
+      }
     }
     if (auto binding = script_binding_for(entity)) {
       if (script_path_escape(binding->script_id)) {
@@ -668,7 +781,14 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
             level.source_uri + ": BSP entity script binding uses an absolute "
                                "path or parent path escape"));
       }
-      marker.script = std::move(binding);
+      if (marker.type == stellar::assets::WorldMarkerType::kSprite) {
+        add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                           level.source_uri, entity_index,
+                           level.source_uri +
+                               ": BSP sprite script bindings are not supported and were ignored");
+      } else {
+        marker.script = std::move(binding);
+      }
     }
     if (options.preserve_raw_entities) {
       copy_properties(marker, entity);

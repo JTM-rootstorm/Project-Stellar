@@ -19,7 +19,7 @@ Planned phase status:
 - Phase 1 — BSP diagnostics and `LevelAsset` contract foundation: complete as of 2026-05-01.
 - Phase 2 — BSP PVS, leaf visibility, and render culling: complete as of 2026-05-01.
 - Phase 3 — BSP lightmaps, textures, materials, and WAD fallback: complete as of 2026-05-01.
-- Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: not started.
+- Phase 4 — BSP entity, sprite, trigger, and object authoring conventions: complete as of 2026-05-01.
 - Phase 5 — BSP validation tooling and regression fixtures: not started.
 - Phase 6 — Final hardening, documentation, archive, and `NEXT.md` completion: not started.
 
@@ -100,6 +100,32 @@ ctest --test-dir build --output-on-failure
 
 Result: configure and build succeeded. Focused Phase 3 suite passed 5/5, and full default CTest
 passed 34/34.
+
+Phase 4 completion notes:
+
+- Added `docs/BspAuthoring.md` with concrete BSP entity key conventions for player spawns,
+  gameplay spawns, trigger volumes, sprite billboards, object-collider sensors, and static collision
+  brush entities.
+- BSP import now validates deterministic vector and bool-like authoring fields, preserves raw entity
+  key/value metadata, derives brush-model bounds for trigger/object-collider markers, supports
+  `origin` + `stellar.extents` fallback volumes, and keeps script path escape checks fatal.
+- Sprite script bindings remain unsupported and are ignored with diagnostics instead of creating
+  client-side or presentation-owned gameplay behavior.
+- Added display-free `bsp_entity_authoring` coverage for documented conventions, malformed
+  vectors/booleans, script path rejection, brush bounds, fallback volumes, and sprite script
+  diagnostics.
+
+Validation run:
+
+```bash
+cmake -S . -B build-phase4-kojima -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-phase4-kojima -j$(nproc)
+ctest --test-dir build-phase4-kojima -R '^(bsp_entity_authoring|bsp_importer|world_metadata_validation|bsp_playable_world_smoke|scripted_world_session)$' --output-on-failure
+ctest --test-dir build-phase4-kojima --output-on-failure
+```
+
+Result: configure and build succeeded. Focused Phase 4 suite passed 5/5, and full default CTest
+passed 35/35.
 
 Phase 0 completion notes:
 

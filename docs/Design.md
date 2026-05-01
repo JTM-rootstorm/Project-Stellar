@@ -313,6 +313,7 @@ Initial BSP support targets:
 ### 6.2 BSP Entity and Metadata Conventions
 
 BSP entity key/value data is preserved in order and mapped to source-neutral world metadata.
+The current authoring guide and key reference live in `docs/BspAuthoring.md`.
 
 Initial mappings:
 
@@ -331,6 +332,9 @@ Script bindings use BSP entity keys such as `stellar.script`, `_stellar_script`,
 and invokes them later. For object colliders, native runtime collider ids are assigned
 deterministically from metadata marker order and are used for validated commands rather than
 name-based mutation.
+
+Brush-backed trigger/object-collider markers derive bounds from `model="*N"`; point-authored
+volumes use `origin` plus `stellar.extents`. Sprite script bindings are unsupported and diagnosed.
 
 ### 6.3 BSP Deferrals
 

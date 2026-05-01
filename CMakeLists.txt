@@ -332,6 +332,11 @@ stellar_add_test_executable(stellar_import_bsp_test bsp_importer
 )
 target_link_libraries(stellar_import_bsp_test PRIVATE stellar_import_bsp)
 
+stellar_add_test_executable(stellar_bsp_entity_authoring_test bsp_entity_authoring
+    tests/import/bsp/BspEntityAuthoring.cpp
+)
+target_link_libraries(stellar_bsp_entity_authoring_test PRIVATE stellar_import_bsp)
+
 stellar_add_test_executable(stellar_bsp_visibility_test bsp_visibility
     tests/import/bsp/BspVisibility.cpp
 )
