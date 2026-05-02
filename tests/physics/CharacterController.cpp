@@ -1,5 +1,7 @@
 #include "stellar/physics/CharacterController.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
+
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -11,7 +13,7 @@ namespace {
 using Vec3 = std::array<float, 3>;
 
 constexpr float kTolerance = 2.0e-2F;
-constexpr Vec3 kLegacyYUpFixtureUp{0.0F, 1.0F, 0.0F};
+constexpr Vec3 kZUpFixtureUp = stellar::core::kWorldUp;
 
 bool nearly_equal(float a, float b, float tolerance = kTolerance) {
     return std::abs(a - b) <= tolerance;
@@ -60,33 +62,33 @@ stellar::assets::LevelCollisionAsset make_two_mesh_asset(
     return asset;
 }
 
-stellar::assets::CollisionTriangle floor_triangle(float y = 0.0F) {
-    return triangle({-10.0F, y, -10.0F}, {10.0F, y, -10.0F}, {0.0F, y, 10.0F},
-                    {0.0F, 1.0F, 0.0F});
+stellar::assets::CollisionTriangle floor_triangle(float z = 0.0F) {
+    return triangle({-10.0F, -10.0F, z}, {10.0F, -10.0F, z}, {0.0F, 10.0F, z},
+                    stellar::core::kWorldUp);
 }
 
 stellar::assets::CollisionTriangle wall_x_triangle(float x = 2.0F) {
-    return triangle({x, -2.0F, -3.0F}, {x, 3.0F, 3.0F}, {x, -2.0F, 3.0F},
+    return triangle({x, -3.0F, -2.0F}, {x, 3.0F, 3.0F}, {x, 3.0F, -2.0F},
                     {-1.0F, 0.0F, 0.0F});
 }
 
 stellar::assets::CollisionTriangle wall_x_triangle_2(float x = 2.0F) {
-    return triangle({x, -2.0F, -3.0F}, {x, 3.0F, -3.0F}, {x, 3.0F, 3.0F},
+    return triangle({x, -3.0F, -2.0F}, {x, -3.0F, 3.0F}, {x, 3.0F, 3.0F},
                     {-1.0F, 0.0F, 0.0F});
 }
 
-stellar::assets::CollisionTriangle wall_z_triangle(float z = 2.0F) {
-    return triangle({-3.0F, -2.0F, z}, {3.0F, -2.0F, z}, {3.0F, 3.0F, z},
-                    {0.0F, 0.0F, -1.0F});
+stellar::assets::CollisionTriangle wall_y_triangle(float y = 2.0F) {
+    return triangle({-3.0F, y, -2.0F}, {3.0F, y, -2.0F}, {3.0F, y, 3.0F},
+                    {0.0F, -1.0F, 0.0F});
 }
 
 stellar::assets::CollisionTriangle angled_wall_triangle() {
-    return triangle({2.0F, -2.0F, -2.0F}, {0.0F, 3.0F, 2.0F}, {0.0F, -2.0F, 2.0F},
-                    {-0.7071067F, 0.0F, -0.7071067F});
+    return triangle({2.0F, -2.0F, -2.0F}, {0.0F, 2.0F, 3.0F}, {0.0F, 2.0F, -2.0F},
+                    {-0.7071067F, -0.7071067F, 0.0F});
 }
 
-stellar::assets::CollisionTriangle slope_triangle(float y1, float y2, Vec3 normal) {
-    return triangle({-4.0F, y1, -4.0F}, {4.0F, y1, -4.0F}, {0.0F, y2, 4.0F}, normal);
+stellar::assets::CollisionTriangle slope_triangle(float z1, float z2, Vec3 normal) {
+    return triangle({-4.0F, -4.0F, z1}, {4.0F, -4.0F, z1}, {0.0F, 4.0F, z2}, normal);
 }
 
 stellar::physics::CharacterControllerConfig config() {
@@ -119,7 +121,7 @@ stellar::physics::CharacterMoveResult move(const stellar::assets::LevelCollision
     stellar::physics::CharacterController controller(world);
     return controller.move({.position = position,
                             .displacement = displacement,
-                            .up = kLegacyYUpFixtureUp},
+                            .up = kZUpFixtureUp},
                            cfg);
 }
 
@@ -134,22 +136,22 @@ void empty_world_movement_passes_through_unchanged() {
 
 void grounded_state_detected_on_floor() {
     const auto asset = make_asset({floor_triangle()});
-    const auto moved = move(asset, {0.0F, 0.55F, 0.0F}, {0.5F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.55F}, {0.5F, 0.0F, 0.0F});
     assert(moved.grounded);
-    assert(nearly_equal(moved.position[1], 0.9F, 0.03F));
+    assert(nearly_equal(moved.position[2], 0.9F, 0.03F));
 }
 
 void start_overlap_with_floor_recovers() {
     const auto asset = make_asset({floor_triangle()});
-    const auto moved = move(asset, {0.0F, 0.3F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.3F}, {0.0F, 0.0F, 0.0F});
     assert(moved.started_overlapping);
-    assert(moved.position[1] >= 0.89F);
+    assert(moved.position[2] >= 0.89F);
     assert(finite(moved.position));
 }
 
 void start_overlap_with_wall_recovers() {
     const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2()});
-    const auto moved = move(asset, {1.7F, 1.0F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {1.7F, 0.0F, 1.0F}, {0.0F, 0.0F, 0.0F});
     assert(moved.started_overlapping);
     assert(moved.position[0] <= 1.51F);
     assert(finite(moved.position));
@@ -157,95 +159,95 @@ void start_overlap_with_wall_recovers() {
 
 void horizontal_wall_stop() {
     const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2()});
-    const auto moved = move(asset, {0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.0F}, {5.0F, 0.0F, 0.0F});
     assert(moved.hit);
     assert(moved.position[0] < 1.52F);
 }
 
 void slide_along_axis_aligned_wall() {
     const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2()});
-    const auto moved = move(asset, {0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 1.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.0F}, {5.0F, 1.0F, 0.0F});
     assert(moved.hit);
     assert(moved.position[0] < 1.52F);
-    assert(moved.position[2] > 0.8F);
+    assert(moved.position[1] > 0.8F);
 }
 
 void slide_along_angled_wall() {
     const auto asset = make_asset({angled_wall_triangle()});
-    const auto moved = move(asset, {-1.0F, 1.0F, -1.0F}, {4.0F, 0.0F, 4.0F});
+    const auto moved = move(asset, {-1.0F, -1.0F, 1.0F}, {4.0F, 4.0F, 0.0F});
     assert(moved.hit);
     assert(finite(moved.position));
-    assert(moved.position[0] < 1.8F || moved.position[2] < 1.8F);
+    assert(moved.position[0] < 1.8F || moved.position[1] < 1.8F);
 }
 
 void corner_collision_stops_cleanly() {
-    const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2(), wall_z_triangle()});
-    const auto moved = move(asset, {0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 5.0F});
+    const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2(), wall_y_triangle()});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.0F}, {5.0F, 5.0F, 0.0F});
     assert(moved.hit);
     assert(moved.position[0] < 1.52F);
-    assert(moved.position[2] < 1.52F);
+    assert(moved.position[1] < 1.52F);
     assert(finite(moved.remaining_displacement));
 }
 
 void sphere_catches_triangle_edge() {
-    const auto edge = triangle({2.0F, 0.0F, -0.1F}, {2.0F, 2.0F, -0.1F}, {2.0F, 0.0F, 0.1F},
-                               {-1.0F, 0.0F, 0.0F});
+    const auto edge = triangle({2.0F, -0.1F, 0.0F}, {2.0F, -0.1F, 2.0F}, {2.0F, 0.1F, 0.0F},
+                                {-1.0F, 0.0F, 0.0F});
     const auto asset = make_asset({edge});
-    const auto moved = move(asset, {0.0F, 1.8F, 0.3F}, {4.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.3F, 1.8F}, {4.0F, 0.0F, 0.0F});
     assert(moved.hit);
     assert(finite(moved.position));
 }
 
 void sphere_catches_triangle_vertex() {
-    const auto corner = triangle({2.0F, 0.0F, 0.0F}, {2.0F, 1.0F, 0.0F}, {2.0F, 0.0F, 1.0F},
-                                 {-1.0F, 0.0F, 0.0F});
+    const auto corner = triangle({2.0F, 0.0F, 0.0F}, {2.0F, 0.0F, 1.0F}, {2.0F, 1.0F, 0.0F},
+                                  {-1.0F, 0.0F, 0.0F});
     const auto asset = make_asset({corner});
-    const auto moved = move(asset, {0.0F, 1.0F, 0.0F}, {4.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.0F}, {4.0F, 0.0F, 0.0F});
     assert(moved.hit);
     assert(finite(moved.position));
 }
 
 void walkable_slope_remains_ground() {
-    const auto asset = make_asset({slope_triangle(0.0F, 2.0F, {0.0F, 0.9701425F, -0.2425356F})});
-    const auto moved = move(asset, {0.0F, 1.1F, 0.0F}, {0.2F, 0.0F, 0.0F});
+    const auto asset = make_asset({slope_triangle(0.0F, 2.0F, {0.0F, -0.2425356F, 0.9701425F})});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.1F}, {0.2F, 0.0F, 0.0F});
     assert(moved.grounded);
-    assert(moved.ground_normal[1] > 0.9F);
+    assert(moved.ground_normal[2] > 0.9F);
 }
 
 void too_steep_slope_is_not_ground() {
-    const auto asset = make_asset({slope_triangle(0.0F, 8.0F, {0.0F, 0.4472136F, -0.8944272F})});
-    const auto moved = move(asset, {0.0F, 4.5F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto asset = make_asset({slope_triangle(0.0F, 8.0F, {0.0F, -0.8944272F, 0.4472136F})});
+    const auto moved = move(asset, {0.0F, 0.0F, 4.5F}, {0.0F, 0.0F, 0.0F});
     assert(!moved.grounded);
 }
 
 void ground_snap_keeps_character_grounded_over_small_drop() {
     const auto asset = make_asset({floor_triangle(0.0F)});
-    const auto moved = move(asset, {0.0F, 0.62F, 0.0F}, {0.5F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.62F}, {0.5F, 0.0F, 0.0F});
     assert(moved.grounded);
-    assert(nearly_equal(moved.position[1], 0.9F, 0.03F));
+    assert(nearly_equal(moved.position[2], 0.9F, 0.03F));
 }
 
 stellar::assets::LevelCollisionAsset block_asset(float height) {
-    return make_asset({triangle({1.0F, 0.0F, -1.0F}, {1.0F, height, 1.0F},
-                                {1.0F, 0.0F, 1.0F}, {-1.0F, 0.0F, 0.0F}),
-                       triangle({1.0F, height, -1.0F}, {2.0F, height, -1.0F},
-                                {2.0F, height, 1.0F}, {0.0F, 1.0F, 0.0F}),
-                       triangle({1.0F, height, -1.0F}, {2.0F, height, 1.0F},
-                                {1.0F, height, 1.0F}, {0.0F, 1.0F, 0.0F})});
+    return make_asset({triangle({1.0F, -1.0F, 0.0F}, {1.0F, 1.0F, height},
+                                {1.0F, 1.0F, 0.0F}, {-1.0F, 0.0F, 0.0F}),
+                       triangle({1.0F, -1.0F, height}, {2.0F, -1.0F, height},
+                                {2.0F, 1.0F, height}, stellar::core::kWorldUp),
+                       triangle({1.0F, -1.0F, height}, {2.0F, 1.0F, height},
+                                {1.0F, 1.0F, height}, stellar::core::kWorldUp)});
 }
 
 void step_up_succeeds_for_low_obstacle() {
     const auto asset = block_asset(0.25F);
-    const auto moved = move(asset, {0.0F, 0.9F, 0.0F}, {1.6F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.9F}, {1.6F, 0.0F, 0.0F});
     assert(moved.stepped);
     assert(moved.grounded);
     assert(moved.position[0] > 1.0F);
-    assert(nearly_equal(moved.position[1], 1.15F, 0.04F));
+    assert(nearly_equal(moved.position[2], 1.15F, 0.04F));
 }
 
 void step_up_fails_for_high_obstacle() {
     const auto asset = block_asset(0.6F);
-    const auto moved = move(asset, {0.0F, 0.9F, 0.0F}, {1.6F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.9F}, {1.6F, 0.0F, 0.0F});
     assert(!moved.stepped);
     assert(moved.position[0] < 0.55F);
 }
@@ -263,8 +265,8 @@ stellar::assets::LevelCollisionAsset many_triangle_wall_world() {
     std::vector<stellar::assets::CollisionTriangle> triangles;
     for (int index = 0; index < 96; ++index) {
         const float x = 50.0F + static_cast<float>(index) * 3.0F;
-        triangles.push_back(triangle({x, 0.0F, -1.0F}, {x + 1.0F, 0.0F, 1.0F},
-                                     {x + 2.0F, 0.0F, -1.0F}, {0.0F, 1.0F, 0.0F}));
+        triangles.push_back(triangle({x, -1.0F, 0.0F}, {x + 1.0F, 1.0F, 0.0F},
+                                     {x + 2.0F, -1.0F, 0.0F}, stellar::core::kWorldUp));
     }
     triangles.push_back(wall_x_triangle());
     triangles.push_back(wall_x_triangle_2());
@@ -275,8 +277,8 @@ void many_triangle_world_matches_local_relevant_result() {
     const auto local_asset = make_asset({wall_x_triangle(), wall_x_triangle_2()});
     const auto many_asset = many_triangle_wall_world();
 
-    const auto local = move(local_asset, {0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 0.0F});
-    const auto many = move(many_asset, {0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 0.0F});
+    const auto local = move(local_asset, {0.0F, 0.0F, 1.0F}, {5.0F, 0.0F, 0.0F});
+    const auto many = move(many_asset, {0.0F, 0.0F, 1.0F}, {5.0F, 0.0F, 0.0F});
 
     assert(many.hit == local.hit);
     assert(nearly_equal(many.position[0], local.position[0]));
@@ -289,9 +291,9 @@ void many_triangle_world_reports_pruned_character_candidates() {
     stellar::physics::CollisionWorld world(asset);
     stellar::physics::CharacterController controller(world);
 
-    const auto moved = controller.move({.position = {0.0F, 1.0F, 0.0F},
+    const auto moved = controller.move({.position = {0.0F, 0.0F, 1.0F},
                                         .displacement = {5.0F, 0.0F, 0.0F},
-                                        .up = kLegacyYUpFixtureUp},
+                                        .up = kZUpFixtureUp},
                                        config());
     assert(moved.hit);
     assert(world.stats().triangle_count == 98);
@@ -303,24 +305,24 @@ void degenerate_triangles_remain_finite_with_candidate_queries() {
     const auto degenerate = triangle({20.0F, 20.0F, 20.0F}, {20.0F, 20.0F, 20.0F},
                                      {20.0F, 20.0F, 20.0F}, {0.0F, 0.0F, 0.0F});
     const auto asset = make_asset({degenerate, wall_x_triangle(), wall_x_triangle_2()});
-    const auto moved = move(asset, {0.0F, 1.0F, 0.0F}, {5.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.0F}, {5.0F, 0.0F, 0.0F});
     assert(moved.hit);
     assert(finite(moved.position));
     assert(finite(moved.remaining_displacement));
 }
 
-stellar::assets::CollisionTriangle ceiling_triangle(float y = 1.6F) {
-    return triangle({-10.0F, y, -10.0F}, {0.0F, y, 10.0F}, {10.0F, y, -10.0F},
-                    {0.0F, -1.0F, 0.0F});
+stellar::assets::CollisionTriangle ceiling_triangle(float z = 1.6F) {
+    return triangle({-10.0F, -10.0F, z}, {0.0F, 10.0F, z}, {10.0F, -10.0F, z},
+                    stellar::core::kWorldDown);
 }
 
 stellar::assets::CollisionTriangle high_wall_band_1(float x = 2.0F) {
-    return triangle({x, 1.45F, -2.0F}, {x, 2.5F, 2.0F}, {x, 1.45F, 2.0F},
+    return triangle({x, -2.0F, 1.45F}, {x, 2.0F, 2.5F}, {x, 2.0F, 1.45F},
                     {-1.0F, 0.0F, 0.0F});
 }
 
 stellar::assets::CollisionTriangle high_wall_band_2(float x = 2.0F) {
-    return triangle({x, 1.45F, -2.0F}, {x, 2.5F, -2.0F}, {x, 2.5F, 2.0F},
+    return triangle({x, -2.0F, 1.45F}, {x, -2.0F, 2.5F}, {x, 2.0F, 2.5F},
                     {-1.0F, 0.0F, 0.0F});
 }
 
@@ -328,45 +330,45 @@ void height_equal_to_two_radii_matches_sphere_like_behavior() {
     auto sphere_cfg = config();
     sphere_cfg.height = sphere_cfg.radius * 2.0F;
     const auto asset = make_asset({floor_triangle()});
-    const auto moved = move(asset, {0.0F, 0.55F, 0.0F}, {0.5F, 0.0F, 0.0F}, sphere_cfg);
+    const auto moved = move(asset, {0.0F, 0.0F, 0.55F}, {0.5F, 0.0F, 0.0F}, sphere_cfg);
     assert(moved.grounded);
-    assert(nearly_equal(moved.position[1], 0.5F, 0.03F));
+    assert(nearly_equal(moved.position[2], 0.5F, 0.03F));
 }
 
 void capsule_stands_on_floor_with_center_above_ground() {
     const auto asset = make_asset({floor_triangle()});
-    const auto moved = move(asset, {0.0F, 0.9F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.9F}, {0.0F, 0.0F, 0.0F});
     assert(moved.grounded);
-    assert(nearly_equal(moved.position[1], 0.9F, 0.03F));
+    assert(nearly_equal(moved.position[2], 0.9F, 0.03F));
 }
 
 void capsule_wall_collision_uses_body_height_not_only_center() {
     const auto asset = make_asset({high_wall_band_1(), high_wall_band_2()});
-    const auto moved = move(asset, {0.0F, 0.8F, 0.0F}, {4.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.8F}, {4.0F, 0.0F, 0.0F});
     assert(moved.hit);
     assert(finite(moved.position));
 }
 
 void capsule_ceiling_blocks_upward_movement() {
     const auto asset = make_asset({ceiling_triangle(1.6F)});
-    const auto moved = move(asset, {0.0F, 0.6F, 0.0F}, {0.0F, 1.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.6F}, {0.0F, 0.0F, 1.0F});
     assert(moved.hit);
-    assert(moved.position[1] < 0.72F);
+    assert(moved.position[2] < 0.72F);
 }
 
 void capsule_start_overlap_with_ceiling_recovers_down_or_stably_out() {
     const auto asset = make_asset({ceiling_triangle(1.6F)});
-    const auto moved = move(asset, {0.0F, 0.75F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.75F}, {0.0F, 0.0F, 0.0F});
     assert(moved.started_overlapping);
-    assert(moved.position[1] <= 0.71F || moved.position[1] >= 2.49F);
+    assert(moved.position[2] <= 0.71F || moved.position[2] >= 2.49F);
     assert(finite(moved.position));
 }
 
 void capsule_ground_snap_uses_bottom_endpoint() {
     const auto asset = make_asset({floor_triangle()});
-    const auto moved = move(asset, {0.0F, 1.0F, 0.0F}, {0.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 0.0F});
     assert(moved.grounded);
-    assert(nearly_equal(moved.position[1], 0.9F, 0.03F));
+    assert(nearly_equal(moved.position[2], 0.9F, 0.03F));
 }
 
 void capsule_step_up_does_not_enter_low_ceiling() {
@@ -374,14 +376,14 @@ void capsule_step_up_does_not_enter_low_ceiling() {
                                    block_asset(0.25F).meshes[0].triangles[1],
                                    block_asset(0.25F).meshes[0].triangles[2],
                                    ceiling_triangle(1.95F)});
-    const auto moved = move(asset, {0.0F, 0.9F, 0.0F}, {1.6F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.9F}, {1.6F, 0.0F, 0.0F});
     assert(!moved.stepped);
-    assert(moved.position[1] < 1.1F);
+    assert(moved.position[2] < 1.1F);
 }
 
 void capsule_too_tall_for_tunnel_is_blocked() {
     const auto asset = make_asset({floor_triangle(), ceiling_triangle(1.4F)});
-    const auto moved = move(asset, {0.0F, 0.9F, 0.0F}, {2.0F, 0.0F, 0.0F});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.9F}, {2.0F, 0.0F, 0.0F});
     assert(moved.started_overlapping || moved.hit);
     assert(finite(moved.position));
 }
@@ -397,11 +399,11 @@ void capsule_degenerate_height_and_radius_remain_finite() {
 }
 
 void capsule_slide_into_corner_stops_cleanly() {
-    const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2(), wall_z_triangle()});
-    const auto moved = move(asset, {0.0F, 0.9F, 0.0F}, {5.0F, 0.0F, 5.0F});
+    const auto asset = make_asset({wall_x_triangle(), wall_x_triangle_2(), wall_y_triangle()});
+    const auto moved = move(asset, {0.0F, 0.0F, 0.9F}, {5.0F, 5.0F, 0.0F});
     assert(moved.hit);
     assert(moved.position[0] < 1.52F);
-    assert(moved.position[2] < 1.52F);
+    assert(moved.position[1] < 1.52F);
     assert(finite(moved.remaining_displacement));
 }
 
@@ -411,9 +413,9 @@ void disabled_wall_no_longer_blocks_character() {
     stellar::physics::CharacterController controller(world);
     const std::vector<bool> enabled{false, true};
 
-    const auto moved = controller.move({.position = {0.0F, 1.0F, 0.0F},
+    const auto moved = controller.move({.position = {0.0F, 0.0F, 1.0F},
                                         .displacement = {5.0F, 0.0F, 0.0F},
-                                        .up = kLegacyYUpFixtureUp},
+                                        .up = kZUpFixtureUp},
                                        config(), {.enabled_meshes = &enabled});
 
     assert(!moved.hit);
@@ -426,9 +428,9 @@ void disabled_floor_no_longer_grounds_character() {
     stellar::physics::CharacterController controller(world);
     const std::vector<bool> enabled{false, true};
 
-    const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
+    const auto moved = controller.move({.position = {0.0F, 0.0F, 0.9F},
                                         .displacement = {0.0F, 0.0F, 0.0F},
-                                        .up = kLegacyYUpFixtureUp},
+                                        .up = kZUpFixtureUp},
                                        config(), {.enabled_meshes = &enabled});
 
     assert(!moved.grounded);
@@ -444,9 +446,9 @@ void step_up_ignores_disabled_step() {
     stellar::physics::CharacterController controller(world);
     const std::vector<bool> enabled{false, true};
 
-    const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
+    const auto moved = controller.move({.position = {0.0F, 0.0F, 0.9F},
                                         .displacement = {1.6F, 0.0F, 0.0F},
-                                        .up = kLegacyYUpFixtureUp},
+                                        .up = kZUpFixtureUp},
                                        config(), {.enabled_meshes = &enabled});
 
     assert(!moved.stepped);
@@ -460,13 +462,13 @@ void all_enabled_filter_matches_existing_behavior() {
     stellar::physics::CharacterController controller(world);
     const std::vector<bool> enabled{true};
 
-    const auto unfiltered = controller.move({.position = {0.0F, 1.0F, 0.0F},
+    const auto unfiltered = controller.move({.position = {0.0F, 0.0F, 1.0F},
                                             .displacement = {5.0F, 0.0F, 0.0F},
-                                            .up = kLegacyYUpFixtureUp},
+                                            .up = kZUpFixtureUp},
                                            config());
-    const auto filtered = controller.move({.position = {0.0F, 1.0F, 0.0F},
+    const auto filtered = controller.move({.position = {0.0F, 0.0F, 1.0F},
                                            .displacement = {5.0F, 0.0F, 0.0F},
-                                           .up = kLegacyYUpFixtureUp},
+                                           .up = kZUpFixtureUp},
                                           config(), {.enabled_meshes = &enabled});
 
     assert(filtered.hit == unfiltered.hit);

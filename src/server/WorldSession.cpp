@@ -1,5 +1,7 @@
 #include "stellar/server/WorldSession.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
+
 #include <utility>
 
 namespace stellar::server {
@@ -11,7 +13,7 @@ namespace {
     const SanitizedMovementSimulationConfig sanitized_config =
         sanitize_movement_simulation_config(config);
     return {.center = position,
-            .up = {0.0F, 1.0F, 0.0F},
+             .up = stellar::core::kWorldUp,
             .radius = sanitized_config.value.character.radius,
             .height = sanitized_config.value.character.height};
 }

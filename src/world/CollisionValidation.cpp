@@ -1,5 +1,7 @@
 #include "stellar/world/CollisionValidation.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -12,7 +14,7 @@ namespace {
 constexpr float kNearZeroNormalLengthSq = 1.0e-8F;
 constexpr float kNearZeroTriangleAreaSq = 1.0e-10F;
 constexpr float kBoundsTolerance = 1.0e-4F;
-constexpr float kWalkableUpNormalY = 0.5F;
+constexpr float kWalkableUpNormalDot = 0.5F;
 
 using Vec3 = std::array<float, 3>;
 
@@ -238,7 +240,7 @@ CollisionValidationReport validate_level_collision(
             }
 
             if (finite_normal && length_sq(triangle.normal) > kNearZeroNormalLengthSq &&
-                triangle.normal[1] >= kWalkableUpNormalY) {
+                triangle.normal[stellar::core::kWorldUpIndex] >= kWalkableUpNormalDot) {
                 has_walkable_upward_surface = true;
             }
         }

@@ -1,5 +1,7 @@
 #include "stellar/server/MovementTriggerIntegration.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
+
 #include <utility>
 
 namespace stellar::server {
@@ -24,7 +26,7 @@ std::vector<MovementTriggerEvent> MovementTriggerTracker::update(
     std::array<float, 3> position,
     const stellar::physics::CharacterControllerConfig& character) noexcept {
     const stellar::world::TriggerCapsule capsule{.center = position,
-                                                 .up = {0.0F, 1.0F, 0.0F},
+                                                  .up = stellar::core::kWorldUp,
                                                  .radius = character.radius,
                                                  .height = character.height};
     const auto overlaps = trigger_system_.update_capsule(capsule);

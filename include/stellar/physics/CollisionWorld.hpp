@@ -66,7 +66,7 @@ struct GroundProbeHit {
     /** @brief True when a floor-like triangle was found within the probe distance. */
     bool hit = false;
 
-    /** @brief Distance from probe origin to the ground hit along negative Y. */
+    /** @brief Distance from probe origin to the ground hit along the world down axis. */
     float distance = 0.0F;
 
     /** @brief Full raycast hit data for the ground triangle. */
@@ -175,17 +175,17 @@ public:
                                      CollisionQueryFilter filter) const noexcept;
 
     /**
-     * @brief Probe downward along negative Y and return the nearest floor-like hit.
+     * @brief Probe downward along world down and return the nearest floor-like hit.
      */
     [[nodiscard]] GroundProbeHit probe_ground(std::array<float, 3> origin,
-                                              float max_distance,
-                                              float min_floor_normal_y = 0.5F) const noexcept;
+                                               float max_distance,
+                                               float min_floor_normal_up = 0.5F) const noexcept;
 
     /** @brief Probe downward using an optional static collision mesh filter. */
     [[nodiscard]] GroundProbeHit probe_ground(std::array<float, 3> origin,
-                                              float max_distance,
-                                              float min_floor_normal_y,
-                                              CollisionQueryFilter filter) const noexcept;
+                                               float max_distance,
+                                               float min_floor_normal_up,
+                                               CollisionQueryFilter filter) const noexcept;
 
     /**
      * @brief Move a sphere center by displacement using fixed-iteration sweep-and-slide.

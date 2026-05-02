@@ -9,7 +9,7 @@
 namespace {
 
 stellar::world::TriggerCapsule player_capsule(std::array<float, 3> center = {}) {
-    return {.center = center, .up = {0.0F, 1.0F, 0.0F}, .radius = 0.5F, .height = 2.0F};
+    return {.center = center, .up = {0.0F, 0.0F, 1.0F}, .radius = 0.5F, .height = 2.0F};
 }
 
 stellar::world::ObjectCollider make_collider(std::uint32_t id,

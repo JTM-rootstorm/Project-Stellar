@@ -1,6 +1,8 @@
 #include "stellar/physics/CharacterController.hpp"
 #include "stellar/physics/CollisionWorld.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
+
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -54,23 +56,23 @@ stellar::assets::LevelCollisionAsset make_asset_from_vector(
     return asset;
 }
 
-stellar::assets::CollisionTriangle floor_a(float x0, float z0, float size = 1.0F) {
-    return triangle({x0, 0.0F, z0}, {x0 + size, 0.0F, z0}, {x0, 0.0F, z0 + size},
-                    {0.0F, 1.0F, 0.0F});
+stellar::assets::CollisionTriangle floor_a(float x0, float y0, float size = 1.0F) {
+    return triangle({x0, y0, 0.0F}, {x0 + size, y0, 0.0F}, {x0, y0 + size, 0.0F},
+                    stellar::core::kWorldUp);
 }
 
-stellar::assets::CollisionTriangle floor_b(float x0, float z0, float size = 1.0F) {
-    return triangle({x0 + size, 0.0F, z0}, {x0 + size, 0.0F, z0 + size},
-                    {x0, 0.0F, z0 + size}, {0.0F, 1.0F, 0.0F});
+stellar::assets::CollisionTriangle floor_b(float x0, float y0, float size = 1.0F) {
+    return triangle({x0 + size, y0, 0.0F}, {x0 + size, y0 + size, 0.0F},
+                    {x0, y0 + size, 0.0F}, stellar::core::kWorldUp);
 }
 
 stellar::assets::CollisionTriangle wall_x_a(float x = 2.0F) {
-    return triangle({x, -1.0F, -3.0F}, {x, 3.0F, 3.0F}, {x, -1.0F, 3.0F},
+    return triangle({x, -3.0F, -1.0F}, {x, 3.0F, 3.0F}, {x, 3.0F, -1.0F},
                     {-1.0F, 0.0F, 0.0F});
 }
 
 stellar::assets::CollisionTriangle wall_x_b(float x = 2.0F) {
-    return triangle({x, -1.0F, -3.0F}, {x, 3.0F, -3.0F}, {x, 3.0F, 3.0F},
+    return triangle({x, -3.0F, -1.0F}, {x, -3.0F, 3.0F}, {x, 3.0F, 3.0F},
                     {-1.0F, 0.0F, 0.0F});
 }
 
@@ -78,12 +80,12 @@ stellar::assets::LevelCollisionAsset make_grid_floor(int side) {
     std::vector<stellar::assets::CollisionTriangle> triangles;
     triangles.reserve(static_cast<std::size_t>(side * side * 2));
     const float origin = -static_cast<float>(side) * 0.5F;
-    for (int z = 0; z < side; ++z) {
+    for (int y = 0; y < side; ++y) {
         for (int x = 0; x < side; ++x) {
             const float x0 = origin + static_cast<float>(x);
-            const float z0 = origin + static_cast<float>(z);
-            triangles.push_back(floor_a(x0, z0));
-            triangles.push_back(floor_b(x0, z0));
+            const float y0 = origin + static_cast<float>(y);
+            triangles.push_back(floor_a(x0, y0));
+            triangles.push_back(floor_b(x0, y0));
         }
     }
     return make_asset_from_vector(std::move(triangles), "grid_floor");
@@ -94,8 +96,8 @@ std::vector<stellar::assets::CollisionTriangle> distant_triangle_cloud(int count
     triangles.reserve(static_cast<std::size_t>(count));
     for (int index = 0; index < count; ++index) {
         const float x = 100.0F + static_cast<float>(index % 32) * 3.0F;
-        const float z = 100.0F + static_cast<float>(index / 32) * 3.0F;
-        triangles.push_back(floor_a(x, z, 1.0F));
+        const float y = 100.0F + static_cast<float>(index / 32) * 3.0F;
+        triangles.push_back(floor_a(x, y, 1.0F));
     }
     return triangles;
 }
@@ -139,11 +141,11 @@ void raycast_large_scene_prunes_triangle_tests() {
     const auto asset = make_grid_floor(48);
     stellar::physics::CollisionWorld world(asset);
 
-    const auto hit = world.raycast({0.25F, 5.0F, 0.25F}, {0.0F, -10.0F, 0.0F});
+    const auto hit = world.raycast({0.25F, 0.25F, 5.0F}, {0.0F, 0.0F, -10.0F});
     const auto stats = world.stats();
 
     assert(hit.hit);
-    assert(nearly_equal(hit.position[1], 0.0F));
+    assert(nearly_equal(hit.position[2], 0.0F));
     assert(stats.triangle_count == 48U * 48U * 2U);
     assert(stats.last_query_triangle_tests > 0);
     assert(stats.last_query_triangle_tests < stats.triangle_count / 4U);
@@ -153,8 +155,8 @@ void raycast_equal_hits_remain_deterministic() {
     const auto asset = make_asset({floor_a(-1.0F, -1.0F, 2.0F), floor_a(-1.0F, -1.0F, 2.0F)});
     stellar::physics::CollisionWorld world(asset);
 
-    const auto first = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
-    const auto second = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    const auto first = world.raycast({0.0F, 0.0F, 2.0F}, {0.0F, 0.0F, -4.0F});
+    const auto second = world.raycast({0.0F, 0.0F, 2.0F}, {0.0F, 0.0F, -4.0F});
 
     assert(first.hit);
     assert(second.hit);
@@ -171,7 +173,7 @@ void character_move_large_scene_prunes_candidate_tests() {
     stellar::physics::CollisionWorld world(asset);
     stellar::physics::CharacterController controller(world);
 
-    const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
+    const auto moved = controller.move({.position = {0.0F, 0.0F, 0.9F},
                                         .displacement = {5.0F, 0.0F, 0.0F}},
                                        character_config());
     const auto stats = world.stats();
@@ -187,8 +189,8 @@ void character_move_result_stable_across_repeated_runs() {
     const auto asset = make_corridor_with_distant_cloud(256);
     stellar::physics::CollisionWorld world(asset);
     stellar::physics::CharacterController controller(world);
-    const stellar::physics::CharacterMoveInput input{.position = {0.0F, 0.9F, 0.0F},
-                                                     .displacement = {5.0F, 0.0F, 1.0F}};
+    const stellar::physics::CharacterMoveInput input{.position = {0.0F, 0.0F, 0.9F},
+                                                     .displacement = {5.0F, 1.0F, 0.0F}};
 
     const auto first = controller.move(input, character_config());
     const auto first_stats = world.stats();
@@ -209,7 +211,7 @@ void degenerate_triangle_cloud_does_not_poison_stats() {
     const auto asset = make_degenerate_set();
     stellar::physics::CollisionWorld world(asset);
 
-    const auto hit = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    const auto hit = world.raycast({0.0F, 0.0F, 2.0F}, {0.0F, 0.0F, -4.0F});
     const auto stats = world.stats();
 
     assert(hit.hit);
@@ -218,8 +220,8 @@ void degenerate_triangle_cloud_does_not_poison_stats() {
     assert(stats.last_query_triangle_tests > 0);
     assert(stats.last_query_triangle_tests <= stats.triangle_count);
 
-    const auto candidates = world.query_triangles({.min = {-0.5F, -0.1F, -0.5F},
-                                                   .max = {0.5F, 0.1F, 0.5F}});
+    const auto candidates = world.query_triangles({.min = {-0.5F, -0.5F, -0.1F},
+                                                   .max = {0.5F, 0.5F, 0.1F}});
     assert(!candidates.empty());
     assert(world.stats().last_query_candidate_count == candidates.size());
     assert(world.stats().last_query_triangle_tests == candidates.size());
@@ -229,7 +231,7 @@ void empty_world_stats_are_stable() {
     stellar::assets::LevelCollisionAsset asset;
     stellar::physics::CollisionWorld world(asset);
 
-    const auto miss = world.raycast({0.0F, 1.0F, 0.0F}, {0.0F, -2.0F, 0.0F});
+    const auto miss = world.raycast({0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, -2.0F});
     const auto after_raycast = world.stats();
     const auto candidates = world.query_triangles({.min = {-1.0F, -1.0F, -1.0F},
                                                    .max = {1.0F, 1.0F, 1.0F}});
@@ -250,9 +252,9 @@ void single_triangle_world_stats_are_stable() {
     const auto asset = make_asset({floor_a(-1.0F, -1.0F, 2.0F)});
     stellar::physics::CollisionWorld world(asset);
 
-    const auto hit = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    const auto hit = world.raycast({0.0F, 0.0F, 2.0F}, {0.0F, 0.0F, -4.0F});
     const auto first = world.stats();
-    const auto repeated = world.raycast({0.0F, 2.0F, 0.0F}, {0.0F, -4.0F, 0.0F});
+    const auto repeated = world.raycast({0.0F, 0.0F, 2.0F}, {0.0F, 0.0F, -4.0F});
     const auto second = world.stats();
 
     assert(hit.hit);
@@ -271,8 +273,8 @@ void distant_geometry_does_not_affect_local_movement_result() {
     stellar::physics::CollisionWorld cloud_world(cloud_asset);
     stellar::physics::CharacterController local_controller(local_world);
     stellar::physics::CharacterController cloud_controller(cloud_world);
-    const stellar::physics::CharacterMoveInput input{.position = {0.0F, 0.9F, 0.0F},
-                                                     .displacement = {5.0F, 0.0F, 1.0F}};
+    const stellar::physics::CharacterMoveInput input{.position = {0.0F, 0.0F, 0.9F},
+                                                     .displacement = {5.0F, 1.0F, 0.0F}};
 
     const auto local = local_controller.move(input, character_config());
     const auto cloud = cloud_controller.move(input, character_config());

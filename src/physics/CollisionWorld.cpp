@@ -475,22 +475,22 @@ CollisionWorld::query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter 
 }
 
 GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
-                                            float max_distance,
-                                            float min_floor_normal_y) const noexcept {
-    return probe_ground(origin, max_distance, min_floor_normal_y, {});
+                                             float max_distance,
+                                             float min_floor_normal_up) const noexcept {
+    return probe_ground(origin, max_distance, min_floor_normal_up, {});
 }
 
 GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
-                                            float max_distance,
-                                            float min_floor_normal_y,
-                                            CollisionQueryFilter filter) const noexcept {
+                                             float max_distance,
+                                             float min_floor_normal_up,
+                                             CollisionQueryFilter filter) const noexcept {
     GroundProbeHit result{};
     if (max_distance <= 0.0F) {
         return result;
     }
 
-    const RaycastHit hit = raycast(origin, {0.0F, -max_distance, 0.0F}, filter);
-    if (!hit.hit || hit.normal[1] < min_floor_normal_y) {
+    const RaycastHit hit = raycast(origin, mul(stellar::core::kWorldDown, max_distance), filter);
+    if (!hit.hit || dot(hit.normal, kDefaultUp) < min_floor_normal_up) {
         return result;
     }
 

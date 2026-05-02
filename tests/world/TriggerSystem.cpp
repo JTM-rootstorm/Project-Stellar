@@ -144,7 +144,7 @@ void capsule_overlap_matches_sphere_when_height_is_two_radii() {
     const auto sphere = sphere_system.update_sphere({2.0F, 0.0F, 0.0F}, 1.0F);
     const auto capsule = capsule_system.update_capsule(
         stellar::world::TriggerCapsule{.center = {2.0F, 0.0F, 0.0F},
-                                       .up = {0.0F, 1.0F, 0.0F},
+                                        .up = {0.0F, 0.0F, 1.0F},
                                        .radius = 1.0F,
                                        .height = 2.0F});
 
@@ -157,8 +157,8 @@ void capsule_overlap_matches_sphere_when_height_is_two_radii() {
 void capsule_top_enters_high_trigger_where_center_sphere_does_not() {
     stellar::world::TriggerVolume trigger;
     trigger.name = "High";
-    trigger.center = {0.0F, 1.75F, 0.0F};
-    trigger.half_extents = {0.25F, 0.05F, 0.25F};
+    trigger.center = {0.0F, 0.0F, 1.75F};
+    trigger.half_extents = {0.25F, 0.25F, 0.05F};
     stellar::world::TriggerSystem sphere_system;
     stellar::world::TriggerSystem capsule_system;
     const std::vector<stellar::world::TriggerVolume> triggers{trigger};
@@ -168,7 +168,7 @@ void capsule_top_enters_high_trigger_where_center_sphere_does_not() {
     assert(sphere_system.update_sphere({0.0F, 0.0F, 0.0F}, 0.25F).empty());
     const auto capsule = capsule_system.update_capsule(
         stellar::world::TriggerCapsule{.center = {0.0F, 0.0F, 0.0F},
-                                       .up = {0.0F, 1.0F, 0.0F},
+                                        .up = {0.0F, 0.0F, 1.0F},
                                        .radius = 0.25F,
                                        .height = 4.0F});
     assert(capsule.size() == 1);
@@ -178,8 +178,8 @@ void capsule_top_enters_high_trigger_where_center_sphere_does_not() {
 void capsule_bottom_enters_low_trigger_where_center_sphere_does_not() {
     stellar::world::TriggerVolume trigger;
     trigger.name = "Low";
-    trigger.center = {0.0F, -1.75F, 0.0F};
-    trigger.half_extents = {0.25F, 0.05F, 0.25F};
+    trigger.center = {0.0F, 0.0F, -1.75F};
+    trigger.half_extents = {0.25F, 0.25F, 0.05F};
     stellar::world::TriggerSystem sphere_system;
     stellar::world::TriggerSystem capsule_system;
     const std::vector<stellar::world::TriggerVolume> triggers{trigger};
@@ -189,7 +189,7 @@ void capsule_bottom_enters_low_trigger_where_center_sphere_does_not() {
     assert(sphere_system.update_sphere({0.0F, 0.0F, 0.0F}, 0.25F).empty());
     const auto capsule = capsule_system.update_capsule(
         stellar::world::TriggerCapsule{.center = {0.0F, 0.0F, 0.0F},
-                                       .up = {0.0F, 1.0F, 0.0F},
+                                        .up = {0.0F, 0.0F, 1.0F},
                                        .radius = 0.25F,
                                        .height = 4.0F});
     assert(capsule.size() == 1);
@@ -221,7 +221,7 @@ void capsule_non_finite_inputs_are_sanitized_or_noop_deterministically() {
 
     overlaps = system.update_capsule(
         stellar::world::TriggerCapsule{.center = {inf, 0.0F, 0.0F},
-                                       .up = {0.0F, 1.0F, 0.0F},
+                                        .up = {0.0F, 0.0F, 1.0F},
                                        .radius = 0.25F,
                                        .height = 1.0F});
     assert(overlaps.size() == 1);
@@ -241,7 +241,7 @@ void capsule_trigger_order_is_deterministic() {
 
     const auto overlaps = system.update_capsule(
         stellar::world::TriggerCapsule{.center = {0.0F, 0.0F, 0.0F},
-                                       .up = {0.0F, 1.0F, 0.0F},
+                                        .up = {0.0F, 0.0F, 1.0F},
                                        .radius = 0.25F,
                                        .height = 1.0F});
     assert(overlaps.size() == 2);

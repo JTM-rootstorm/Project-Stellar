@@ -40,7 +40,7 @@ WorldSnapshot snapshot_with_event(MovementTriggerEvent event) {
     snapshot.tick = 7;
     PlayerSnapshot player{};
     player.player_id = 1;
-    player.position = {2.0F, 3.0F, 4.0F};
+    player.position = {2.0F, 4.0F, 36.0F};
     snapshot.players.push_back(player);
     snapshot.trigger_events.push_back(std::move(event));
     return snapshot;
@@ -96,8 +96,8 @@ void enter_stay_exit_callbacks_receive_event_fields() {
     require_true(string_field(enter.output_events[0], "phase") == "enter", "enter phase should pass");
     require_true(number_field(enter.output_events[0], "player") == 1.0, "player id should pass");
     require_true(number_field(enter.output_events[0], "x") == 2.0, "player x should pass");
-    require_true(number_field(enter.output_events[0], "y") == 3.0, "player y should pass");
-    require_true(number_field(enter.output_events[0], "z") == 4.0, "player z should pass");
+    require_true(number_field(enter.output_events[0], "y") == 4.0, "player y should pass");
+    require_true(number_field(enter.output_events[0], "z") == 36.0, "player z should pass");
 
     auto stay = system.process_trigger_events(
         runtime, snapshot_with_event(MovementTriggerEvent{.trigger_name = "Door", .stayed = true}));
@@ -228,8 +228,8 @@ void runtime_error_continues_to_later_callbacks() {
 void script_trigger_enter_uses_capsule_accurate_authoritative_event() {
     RuntimeWorld world{};
     auto marker = trigger_marker("TallDoor", "door", "Door");
-    marker.position = {0.0F, 1.75F, 0.0F};
-    marker.scale = {0.2F, 0.05F, 0.2F};
+    marker.position = {0.0F, 0.0F, 1.75F};
+    marker.scale = {0.2F, 0.2F, 0.05F};
     world.world_metadata.markers.push_back(std::move(marker));
 
     stellar::server::MovementSimulationConfig config{};

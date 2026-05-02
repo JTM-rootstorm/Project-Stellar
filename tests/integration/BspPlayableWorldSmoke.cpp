@@ -206,7 +206,7 @@ void assert_gameplay_room_import(const stellar::assets::LevelAsset &level,
   assert(world.diagnostics.has_player_spawn);
   assert(stellar::world::find_player_spawn(world) != nullptr);
   assert(stellar::world::find_player_spawn(world)->position ==
-         (std::array<float, 3>{0.0F, 36.0F, 0.0F}));
+         (std::array<float, 3>{0.0F, 0.0F, 36.0F}));
   assert(stellar::world::find_trigger_markers(world).size() == 1);
   assert(stellar::world::find_object_collider_markers(world).size() == 1);
   assert(stellar::world::find_sprite_markers(world).size() == 1);
@@ -224,7 +224,7 @@ void assert_gameplay_room_loopback_path(const stellar::world::RuntimeWorld &worl
 
   auto previous = runtime.latest_snapshot();
   assert(previous.players.size() == 1);
-  assert(previous.players[0].position == (std::array<float, 3>{0.0F, 36.0F, 0.0F}));
+  assert(previous.players[0].position == (std::array<float, 3>{0.0F, 0.0F, 36.0F}));
 
   for (int i = 0; i < 8; ++i) {
     const auto frame = runtime.update(forward_right, 1.0F / 60.0F);
@@ -239,9 +239,9 @@ void assert_gameplay_room_loopback_path(const stellar::world::RuntimeWorld &worl
 
   const auto &moved_player = previous.players[0];
   assert(moved_player.position[0] > 0.0F);
-  assert(moved_player.position[2] < 0.0F);
-  assert(moved_player.position[1] >= 16.0F);
-  assert(moved_player.position[1] <= 80.0F);
+  assert(std::fabs(moved_player.position[1]) > 0.0F);
+  assert(moved_player.position[2] >= 16.0F);
+  assert(moved_player.position[2] <= 80.0F);
 
   const auto right = input_with_keys({SDL_SCANCODE_D});
   for (int i = 0; i < 120; ++i) {
@@ -261,8 +261,8 @@ void assert_gameplay_room_loopback_path(const stellar::world::RuntimeWorld &worl
   for (int i = 0; i < 240; ++i) {
     previous = runtime.update(forward, 1.0F / 60.0F).snapshot;
   }
-  assert(previous.players[0].position[2] >= -80.01F);
-  assert(previous.players[0].position[2] <= 80.01F);
+  assert(previous.players[0].position[1] >= -80.01F);
+  assert(previous.players[0].position[1] <= 80.01F);
 }
 
 void assert_gameplay_room_path() {

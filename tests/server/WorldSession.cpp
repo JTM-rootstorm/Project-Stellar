@@ -82,8 +82,8 @@ stellar::assets::LevelAsset scene_with_named_collision_meshes(
     wall.triangles = {wall_x_triangle_a(wall_x), wall_x_triangle_b(wall_x)};
     stellar::assets::CollisionMesh floor;
     floor.name = "Floor";
-    floor.triangles = {triangle({-10.0F, -5.0F, -10.0F}, {10.0F, -5.0F, -10.0F},
-                                {10.0F, -5.0F, 10.0F}, {0.0F, 1.0F, 0.0F})};
+    floor.triangles = {triangle({-10.0F, -10.0F, -5.0F}, {10.0F, -10.0F, -5.0F},
+                                {10.0F, 10.0F, -5.0F}, {0.0F, 0.0F, 1.0F})};
     scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {wall, floor}};
     return scene;
 }
@@ -226,7 +226,7 @@ void tick_with_local_player_command_updates_player_snapshot() {
 
 void wall_collision_is_authoritative_in_snapshot() {
     const auto scene = scene_with_collision_and_markers({wall_x_triangle_a(), wall_x_triangle_b()},
-                                                        {player_spawn({0.0F, 0.5F, 0.0F})});
+                                                        {player_spawn({0.0F, 0.0F, 0.5F})});
     const auto world = stellar::world::build_runtime_world(scene);
     auto config = test_session_config();
     config.movement.character.radius = 0.25F;
@@ -417,7 +417,7 @@ void same_inputs_produce_same_snapshots() {
 }
 
 void world_session_disabled_mesh_affects_next_tick() {
-    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.0F, 0.5F});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::WorldSession session(world, test_session_config());
     const std::vector<stellar::server::PlayerCommand> commands{
@@ -432,9 +432,9 @@ void world_session_disabled_mesh_affects_next_tick() {
 }
 
 void world_session_collision_state_resets_with_world() {
-    const auto first_scene = scene_with_named_collision_meshes("GateA", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto first_scene = scene_with_named_collision_meshes("GateA", 0.8F, {0.0F, 0.0F, 0.5F});
     const auto first_world = stellar::world::build_runtime_world(first_scene);
-    const auto second_scene = scene_with_named_collision_meshes("GateB", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto second_scene = scene_with_named_collision_meshes("GateB", 0.8F, {0.0F, 0.0F, 0.5F});
     const auto second_world = stellar::world::build_runtime_world(second_scene);
     stellar::server::WorldSession session(first_world, test_session_config());
     assert(session.set_collision_mesh_enabled("GateA", false).applied);
@@ -449,7 +449,7 @@ void world_session_collision_state_resets_with_world() {
 }
 
 void snapshot_does_not_apply_or_replay_collision_mutation() {
-    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.0F, 0.5F});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::WorldSession session(world, test_session_config());
     const auto before = session.snapshot();
@@ -461,7 +461,7 @@ void snapshot_does_not_apply_or_replay_collision_mutation() {
 }
 
 void same_collision_state_and_inputs_produce_same_snapshots() {
-    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.5F, 0.0F});
+    const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.0F, 0.5F});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::WorldSession a(world, test_session_config());
     stellar::server::WorldSession b(world, test_session_config());

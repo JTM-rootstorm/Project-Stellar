@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "stellar/assets/WorldMetadataAsset.hpp"
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/world/SensorOverlapTracker.hpp"
 
 namespace stellar::world {
@@ -50,14 +51,15 @@ struct TriggerOverlap {
  * @brief Vertical capsule used for backend-neutral trigger overlap queries.
  *
  * The center is the world-space capsule center, height is the total capsule height including both
- * hemispherical ends, and up is normalized internally with world-Y fallback for zero vectors.
+ * hemispherical ends, and up is normalized internally with the central world-up fallback for zero
+ * vectors.
  */
 struct TriggerCapsule {
     /** @brief World-space center of the capsule. */
     std::array<float, 3> center{};
 
     /** @brief Capsule axis direction; normalized by TriggerSystem during overlap queries. */
-    std::array<float, 3> up{0.0F, 1.0F, 0.0F};
+    std::array<float, 3> up{stellar::core::kWorldUp};
 
     /** @brief Capsule radius in world units. */
     float radius = 0.0F;

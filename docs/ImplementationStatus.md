@@ -51,6 +51,11 @@ Phase 0 baseline audit findings:
   character-controller and presentation default-up values to named constants, and added display-free
   `world_axes` coverage. Remaining server/runtime fixtures, authored map coordinates, and player
   presentation behavior are scheduled for Phase 2/3 conversion.
+- Phase 2 converted authoritative runtime movement, physics collision queries, trigger/object-collider
+  capsule defaults, collision validation, script-facing event tests, and generated BSP gameplay
+  fixtures to Z-up semantics. Player starts now use `z = 36` in converted generated fixtures, gravity
+  applies along `-Z`, horizontal movement uses the X/Y plane, and importer/entity parsing still
+  preserves authored `x y z` ordering without hidden axis swaps.
 
 Phase 0 validation:
 
@@ -75,6 +80,16 @@ ctest --test-dir build -R '^(world_axes|character_controller|collision_world|col
 
 Result: focused Phase 1 builds and tests passed during implementation. Full CTest remains part of
 phase-close validation before commit.
+
+Phase 2 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(character_controller|collision_world|collision_performance_regression|collision_validation|runtime_world|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|bsp_playable_world_smoke|movement_simulation|movement_trigger_integration|trigger_system|object_collider|runtime_collision_state)' --output-on-failure
+```
+
+Result: focused Phase 2 physics/runtime/gameplay tests passed during implementation. Full CTest remains
+part of phase-close validation before commit.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 

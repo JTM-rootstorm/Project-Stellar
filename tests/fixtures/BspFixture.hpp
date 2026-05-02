@@ -141,7 +141,7 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
   const std::string entities =
       "{\n\"classname\" \"worldspawn\"\n}\n"
       "{\n\"classname\" \"info_player_start\"\n\"targetname\" \"Start\"\n"
-      "\"origin\" \"-1 0.6 0\"\n}\n"
+      "\"origin\" \"-1 0 0.6\"\n}\n"
       "{\n\"classname\" \"func_wall\"\n\"targetname\" \"DoorBlocker\"\n"
       "\"model\" \"*1\"\n}\n"
       "{\n\"classname\" \"trigger_multiple\"\n\"targetname\" \"DoorTrigger\"\n"
@@ -153,7 +153,7 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
       "\"stellar.script\" \"scripts/pickup.lua\"\n"
       "\"stellar.table\" \"PickupGem\"\n}\n"
       "{\n\"classname\" \"env_sprite\"\n\"targetname\" \"Torch\"\n"
-      "\"origin\" \"0 1 -1\"\n\"stellar.sprite\" \"torch\"\n}\n";
+      "\"origin\" \"0 -1 1\"\n\"stellar.sprite\" \"torch\"\n}\n";
   const std::size_t entity_offset = bytes.size();
   bytes.insert(
       bytes.end(), reinterpret_cast<const std::byte *>(entities.data()),
@@ -161,7 +161,7 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
   set_bsp_lump(bytes, LumpIndex::kEntities, entity_offset, entities.size());
 
   const std::size_t plane_offset = bytes.size();
-  append_bsp_plane(bytes, {0.0F, 1.0F, 0.0F});
+  append_bsp_plane(bytes, {0.0F, 0.0F, 1.0F});
   set_bsp_lump(bytes, LumpIndex::kPlanes, plane_offset, 20);
 
   const std::size_t texture_offset = bytes.size();
@@ -181,14 +181,14 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
 
   const std::size_t vertex_offset = bytes.size();
   const std::array<BspVec3, 8> vertices{{
-      {-3.0F, 0.0F, -2.0F},
-      {3.0F, 0.0F, -2.0F},
-      {3.0F, 0.0F, 2.0F},
-      {-3.0F, 0.0F, 2.0F},
-      {0.75F, 0.0F, -1.0F},
-      {0.75F, 2.0F, -1.0F},
-      {0.75F, 2.0F, 1.0F},
-      {0.75F, 0.0F, 1.0F},
+      {-3.0F, -2.0F, 0.0F},
+      {3.0F, -2.0F, 0.0F},
+      {3.0F, 2.0F, 0.0F},
+      {-3.0F, 2.0F, 0.0F},
+      {0.75F, -1.0F, 0.0F},
+      {0.75F, -1.0F, 2.0F},
+      {0.75F, 1.0F, 2.0F},
+      {0.75F, 1.0F, 0.0F},
   }};
   for (const auto &vertex : vertices) {
     append_bsp_vec3(bytes, vertex);
@@ -220,10 +220,10 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
   set_bsp_lump(bytes, LumpIndex::kSurfedges, surfedge_offset, 8 * 4);
 
   const std::size_t model_offset = bytes.size();
-  append_bsp_model(bytes, {-3.0F, 0.0F, -2.0F}, {3.0F, 0.0F, 2.0F}, 0, 1);
-  append_bsp_model(bytes, {0.75F, 0.0F, -1.0F}, {0.75F, 2.0F, 1.0F}, 1, 1);
-  append_bsp_model(bytes, {-0.45F, 0.0F, -0.5F}, {-0.05F, 1.2F, 0.5F}, 0, 0);
-  append_bsp_model(bytes, {0.05F, 0.0F, -0.5F}, {0.45F, 1.2F, 0.5F}, 0, 0);
+  append_bsp_model(bytes, {-3.0F, -2.0F, 0.0F}, {3.0F, 2.0F, 0.0F}, 0, 1);
+  append_bsp_model(bytes, {0.75F, -1.0F, 0.0F}, {0.75F, 1.0F, 2.0F}, 1, 1);
+  append_bsp_model(bytes, {-0.45F, -0.5F, 0.0F}, {-0.05F, 0.5F, 1.2F}, 0, 0);
+  append_bsp_model(bytes, {0.05F, -0.5F, 0.0F}, {0.45F, 0.5F, 1.2F}, 0, 0);
   set_bsp_lump(bytes, LumpIndex::kModels, model_offset, 4 * 64);
 
   return bytes;
@@ -238,16 +238,16 @@ inline std::vector<std::byte> build_bsp_gameplay_room_fixture() {
   const std::string entities =
       "{\n\"classname\" \"worldspawn\"\n}\n"
       "{\n\"classname\" \"info_player_start\"\n\"targetname\" \"RoomStart\"\n"
-      "\"origin\" \"0 36 0\"\n}\n"
+      "\"origin\" \"0 0 36\"\n}\n"
       "{\n\"classname\" \"stellar_sprite\"\n\"targetname\" \"RoomSprite\"\n"
-      "\"origin\" \"48 48 -48\"\n\"stellar.sprite\" \"test_sprite\"\n"
+      "\"origin\" \"48 -48 48\"\n\"stellar.sprite\" \"test_sprite\"\n"
       "\"stellar.texture\" \"sprites/test_sprite.png\"\n\"stellar.size\" \"24 48\"\n}\n"
       "{\n\"classname\" \"stellar_object_collider\"\n\"targetname\" \"FuturePickup\"\n"
-      "\"origin\" \"-48 36 48\"\n\"stellar.extents\" \"8 8 8\"\n"
+      "\"origin\" \"-48 48 36\"\n\"stellar.extents\" \"8 8 8\"\n"
       "\"stellar.collider\" \"object\"\n\"archetype\" \"pickup_future\"\n"
       "\"stellar.enabled\" \"yes\"\n}\n"
       "{\n\"classname\" \"trigger_stellar\"\n\"targetname\" \"FutureDoorTrigger\"\n"
-      "\"origin\" \"0 36 -64\"\n\"stellar.extents\" \"24 36 8\"\n"
+      "\"origin\" \"0 -64 36\"\n\"stellar.extents\" \"24 8 36\"\n"
       "\"stellar.once\" \"false\"\n}\n";
   const std::size_t entity_offset = bytes.size();
   bytes.insert(bytes.end(), reinterpret_cast<const std::byte *>(entities.data()),
@@ -255,7 +255,7 @@ inline std::vector<std::byte> build_bsp_gameplay_room_fixture() {
   set_bsp_lump(bytes, LumpIndex::kEntities, entity_offset, entities.size());
 
   const std::size_t plane_offset = bytes.size();
-  append_bsp_plane(bytes, {0.0F, 1.0F, 0.0F});
+  append_bsp_plane(bytes, {0.0F, 0.0F, 1.0F});
   set_bsp_lump(bytes, LumpIndex::kPlanes, plane_offset, 20);
 
   const std::size_t texture_offset = bytes.size();
@@ -267,14 +267,14 @@ inline std::vector<std::byte> build_bsp_gameplay_room_fixture() {
 
   const std::size_t vertex_offset = bytes.size();
   const std::array<BspVec3, 24> vertices{{
-      {-96.0F, 0.0F, -96.0F}, {-96.0F, 0.0F, 96.0F}, {96.0F, 0.0F, 96.0F},
-      {96.0F, 0.0F, -96.0F},  {-96.0F, 96.0F, -96.0F}, {96.0F, 96.0F, -96.0F},
-      {96.0F, 96.0F, 96.0F},  {-96.0F, 96.0F, 96.0F}, {96.0F, 0.0F, -96.0F},
-      {96.0F, 0.0F, 96.0F},   {96.0F, 96.0F, 96.0F},  {96.0F, 96.0F, -96.0F},
-      {-96.0F, 0.0F, -96.0F}, {-96.0F, 96.0F, -96.0F}, {-96.0F, 96.0F, 96.0F},
-      {-96.0F, 0.0F, 96.0F},  {-96.0F, 0.0F, 96.0F},  {-96.0F, 96.0F, 96.0F},
-      {96.0F, 96.0F, 96.0F},  {96.0F, 0.0F, 96.0F},   {-96.0F, 0.0F, -96.0F},
-      {96.0F, 0.0F, -96.0F},  {96.0F, 96.0F, -96.0F}, {-96.0F, 96.0F, -96.0F},
+      {-96.0F, -96.0F, 0.0F}, {-96.0F, 96.0F, 0.0F}, {96.0F, 96.0F, 0.0F},
+      {96.0F, -96.0F, 0.0F},  {-96.0F, -96.0F, 96.0F}, {96.0F, -96.0F, 96.0F},
+      {96.0F, 96.0F, 96.0F},  {-96.0F, 96.0F, 96.0F}, {96.0F, -96.0F, 0.0F},
+      {96.0F, 96.0F, 0.0F},   {96.0F, 96.0F, 96.0F},  {96.0F, -96.0F, 96.0F},
+      {-96.0F, -96.0F, 0.0F}, {-96.0F, -96.0F, 96.0F}, {-96.0F, 96.0F, 96.0F},
+      {-96.0F, 96.0F, 0.0F},  {-96.0F, 96.0F, 0.0F},  {-96.0F, 96.0F, 96.0F},
+      {96.0F, 96.0F, 96.0F},  {96.0F, 96.0F, 0.0F},   {-96.0F, -96.0F, 0.0F},
+      {96.0F, -96.0F, 0.0F},  {96.0F, -96.0F, 96.0F}, {-96.0F, -96.0F, 96.0F},
   }};
   for (const auto &vertex : vertices) {
     append_bsp_vec3(bytes, vertex);
@@ -313,7 +313,7 @@ inline std::vector<std::byte> build_bsp_gameplay_room_fixture() {
                vertices.size() * 4);
 
   const std::size_t model_offset = bytes.size();
-  append_bsp_model(bytes, {-96.0F, 0.0F, -96.0F}, {96.0F, 96.0F, 96.0F}, 0, 6);
+  append_bsp_model(bytes, {-96.0F, -96.0F, 0.0F}, {96.0F, 96.0F, 96.0F}, 0, 6);
   set_bsp_lump(bytes, LumpIndex::kModels, model_offset, 64);
 
   return bytes;
