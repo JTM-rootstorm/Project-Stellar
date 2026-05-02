@@ -1,16 +1,13 @@
 # Stellar developer material names
 
 The Stellar runtime recognizes these BSP material names and creates deterministic display-free fallback
-material data when embedded miptex pixels or WAD files are unavailable:
+material data when embedded miptex pixels or WAD files are unavailable.
 
-- stellar_dev_grid_12
-- stellar_dev_grid_16
-- stellar_dev_grid_32
-- stellar_dev_grid_64
-- stellar_dev_player_72
-- stellar_dev_wall_96
+TrenchBroom-visible PNGs are provided in two naming layouts:
 
-Slash aliases are also accepted where the compiler/editor preserves them:
+## Preferred short names used by fixture maps
+
+These are stored under `materials/dev/` and should appear in TrenchBroom as `dev/...` materials:
 
 - dev/grid_12
 - dev/grid_16
@@ -19,6 +16,18 @@ Slash aliases are also accepted where the compiler/editor preserves them:
 - dev/player_72
 - dev/wall_96
 
-Editor-visible WAD3 texture generation is deferred for this phase. If TrenchBroom requires thumbnails,
-create a local WAD with these exact texture names; compiled maps remain valid when the BSP references
-these names because Stellar validation falls back by material name.
+The fixture `.map` files use these names because they are short enough for classic BSP/WAD-style tooling.
+
+## Runtime fallback/root aliases
+
+These root-level PNGs are also kept for runtime fallback naming and manual reference:
+
+- stellar_dev_grid_12
+- stellar_dev_grid_16
+- stellar_dev_grid_32
+- stellar_dev_grid_64
+- stellar_dev_player_72
+- stellar_dev_wall_96
+
+If TrenchBroom still shows gray faces after copying this package, reload the Stellar game profile or restart
+TrenchBroom so it rescans `GameConfig.cfg` and the material directory.
