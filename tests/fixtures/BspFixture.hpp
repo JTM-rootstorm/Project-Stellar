@@ -229,11 +229,16 @@ inline std::vector<std::byte> build_bsp_playable_fixture() {
   return bytes;
 }
 
+inline void set_bsp_version(std::vector<std::byte> &bytes,
+                            std::int32_t version) {
+  patch_bsp_i32(bytes, 0, version);
+}
+
 inline std::vector<std::byte> build_bsp_gameplay_room_fixture() {
   using stellar::import::bsp::detail::LumpIndex;
 
   std::vector<std::byte> bytes(4 + 15 * 8);
-  patch_bsp_i32(bytes, 0, 29);
+  patch_bsp_i32(bytes, 0, 30);
 
   const std::string entities =
       "{\n\"classname\" \"worldspawn\"\n}\n"
@@ -267,8 +272,8 @@ inline std::vector<std::byte> build_bsp_gameplay_room_fixture() {
 
   const std::size_t vertex_offset = bytes.size();
   const std::array<BspVec3, 24> vertices{{
-      {-96.0F, -96.0F, 0.0F}, {-96.0F, 96.0F, 0.0F}, {96.0F, 96.0F, 0.0F},
-      {96.0F, -96.0F, 0.0F},  {-96.0F, -96.0F, 96.0F}, {96.0F, -96.0F, 96.0F},
+      {-96.0F, -96.0F, 0.0F}, {96.0F, -96.0F, 0.0F},  {96.0F, 96.0F, 0.0F},
+      {-96.0F, 96.0F, 0.0F},  {-96.0F, -96.0F, 96.0F}, {96.0F, -96.0F, 96.0F},
       {96.0F, 96.0F, 96.0F},  {-96.0F, 96.0F, 96.0F}, {96.0F, -96.0F, 0.0F},
       {96.0F, 96.0F, 0.0F},   {96.0F, 96.0F, 96.0F},  {96.0F, -96.0F, 96.0F},
       {-96.0F, -96.0F, 0.0F}, {-96.0F, -96.0F, 96.0F}, {-96.0F, 96.0F, 96.0F},

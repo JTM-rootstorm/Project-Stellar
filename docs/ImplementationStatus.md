@@ -60,6 +60,10 @@ Phase 0 baseline audit findings:
   Player camera eye offset is along +Z, default forward is +Y on the X/Y plane, yaw rotates around
   +Z, input commands map W/S to ±Y and A/D to ±X, and snapshots remain raw server-authored data
   carriers with no new prediction, interpolation, reconciliation, or client authority.
+- Phase 4 locked importer validation around BSP30 as the TrenchBroom target while preserving the
+  existing BSP29 compatibility path. BSP30 tests now cover Z-up player origins, dotted and underscore
+  alias entity keys, deterministic developer material fallback, malformed lump rejection, and explicit
+  Source/VBSP unsupported-version diagnostics without hidden axis conversion.
 
 Phase 0 validation:
 
@@ -104,6 +108,16 @@ ctest --test-dir build -R '^(player_presentation|gameplay_presentation|render_le
 
 Result: focused Phase 3 presentation, input, and network-adjacent tests passed during implementation.
 Full CTest remains part of phase-close validation before commit.
+
+Phase 4 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_validation|bsp_importer|bsp_authoring_smoke|client_map_validation_smoke|client_cli_map_validation|dedicated_server)' --output-on-failure
+```
+
+Result: focused BSP30 importer/validation tests passed during implementation. Full CTest remains part
+of phase-close validation before commit.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 

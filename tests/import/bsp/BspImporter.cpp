@@ -1,6 +1,7 @@
 #include "stellar/import/bsp/Loader.hpp"
 
 #include "../../../src/import/bsp/BspBinary.hpp"
+#include "../../fixtures/BspFixture.hpp"
 
 #include <array>
 #include <cassert>
@@ -203,6 +204,19 @@ void bsp_parser_rejects_unknown_version() {
       stellar::import::bsp::load_level_from_memory(bytes, "bad_version.bsp");
   assert(!result);
   assert(result.error().message.find("31") != std::string::npos);
+  assert(result.error().message.find("BSP29") != std::string::npos);
+  assert(result.error().message.find("BSP30") != std::string::npos);
+}
+
+void bsp_parser_rejects_source_vbsp_header() {
+  auto bytes = minimal_bsp();
+  patch_i32(bytes, 0, 0x50534256); // "VBSP" little-endian, not classic BSP30.
+  auto result =
+      stellar::import::bsp::load_level_from_memory(bytes, "source_like.bsp");
+  assert(!result);
+  assert(result.error().message.find("unsupported BSP version") !=
+         std::string::npos);
+  assert(result.error().message.find("Source/VBSP") != std::string::npos);
 }
 
 void bsp_parser_checks_lump_bounds() {
@@ -212,6 +226,21 @@ void bsp_parser_checks_lump_bounds() {
       stellar::import::bsp::load_level_from_memory(bytes, "bad_lump.bsp");
   assert(!result);
   assert(result.error().message.find("out of bounds") != std::string::npos);
+}
+
+void bsp30_parser_rejects_malformed_lump_size_safely() {
+  auto bytes = minimal_bsp(30);
+  std::int32_t face_lump_offset = 0;
+  std::memcpy(&face_lump_offset,
+              bytes.data() + lump_header_offset(LumpIndex::kFaces),
+              sizeof(face_lump_offset));
+  set_lump(bytes, LumpIndex::kFaces,
+           static_cast<std::size_t>(face_lump_offset), 19);
+  auto result = stellar::import::bsp::load_level_from_memory(
+      bytes, "malformed_faces_bsp30.bsp");
+  assert(!result);
+  assert(result.error().message.find("multiple of record size") !=
+         std::string::npos);
 }
 
 void bsp_parser_loads_minimal_worldspawn_geometry() {
@@ -224,6 +253,99 @@ void bsp_parser_loads_minimal_worldspawn_geometry() {
   assert(result->geometry.materials.size() == 1);
   assert(result->geometry.materials[0].name == "stone");
   assert(result->geometry.meshes[0].primitives[0].indices.size() == 6);
+}
+
+void bsp_parser_preserves_legacy_bsp29_support() {
+  auto bytes = minimal_bsp(29);
+  auto result =
+      stellar::import::bsp::load_level_from_memory(bytes, "legacy_bsp29.bsp");
+  assert(result);
+  assert(result->geometry.meshes.size() == 1);
+}
+
+void bsp30_zup_room_imports_coordinates_without_axis_swaps() {
+  auto bytes = stellar::tests::fixtures::build_bsp_gameplay_room_fixture();
+  auto result = stellar::import::bsp::load_level_from_memory(
+      bytes, "minimal_zup_room_bsp30.bsp");
+  assert(result);
+  assert(result->world_metadata.markers.size() == 4);
+  const auto &spawn = result->world_metadata.markers[0];
+  assert(spawn.type == stellar::assets::WorldMarkerType::kPlayerSpawn);
+  assert(spawn.position[0] == 0.0F);
+  assert(spawn.position[1] == 0.0F);
+  assert(spawn.position[2] == 36.0F);
+
+  assert(result->level_collision.has_value());
+  const auto &collision = *result->level_collision;
+  assert(collision.bounds_min[2] == 0.0F);
+  assert(collision.bounds_max[2] == 96.0F);
+  assert(!collision.meshes.empty());
+  assert(!collision.meshes[0].triangles.empty());
+  const auto &floor = collision.meshes[0].triangles[0];
+  assert(floor.a[2] == 0.0F);
+  assert(floor.b[2] == 0.0F);
+  assert(floor.c[2] == 0.0F);
+  assert(floor.normal[0] == 0.0F);
+  assert(floor.normal[1] == 0.0F);
+  assert(floor.normal[2] == 1.0F);
+}
+
+void bsp30_entity_lump_preserves_dotted_and_alias_keys() {
+  auto bytes = minimal_bsp(30, true);
+  auto result = stellar::import::bsp::load_level_from_memory(
+      bytes, "entity_keys_bsp30.bsp");
+  assert(result);
+  const auto &trigger = result->world_metadata.markers[1];
+  assert(trigger.script.has_value());
+  assert(trigger.script->script_id == "scripts/door.lua");
+  assert(trigger.script->table_name == "Door");
+  bool saw_dotted = false;
+  for (const auto &property : trigger.properties) {
+    saw_dotted = saw_dotted || property.key == "stellar.script";
+  }
+  assert(saw_dotted);
+
+  const std::string alias_entities =
+      "{\n\"classname\" \"worldspawn\"\n}\n"
+      "{\n\"classname\" \"info_player_start\"\n\"origin\" \"0 0 36\"\n}\n"
+      "{\n\"classname\" \"trigger_multiple\"\n\"targetname\" \"AliasTrigger\"\n"
+      "\"origin\" \"8 9 10\"\n\"_stellar_extents\" \"4 5 6\"\n"
+      "\"_stellar_script\" \"scripts/alias.lua\"\n"
+      "\"_stellar_table\" \"Alias\"\n}\n";
+  auto alias_bytes = minimal_bsp(30, true);
+  const std::size_t entity_offset = alias_bytes.size();
+  alias_bytes.insert(
+      alias_bytes.end(),
+      reinterpret_cast<const std::byte *>(alias_entities.data()),
+      reinterpret_cast<const std::byte *>(alias_entities.data() + alias_entities.size()));
+  set_lump(alias_bytes, LumpIndex::kEntities, entity_offset,
+           alias_entities.size());
+  auto alias_result = stellar::import::bsp::load_level_from_memory(
+      alias_bytes, "entity_alias_keys_bsp30.bsp");
+  assert(alias_result);
+  const auto &alias_trigger = alias_result->world_metadata.markers[1];
+  assert(alias_trigger.script.has_value());
+  assert(alias_trigger.script->script_id == "scripts/alias.lua");
+  assert(alias_trigger.script->table_name == "Alias");
+  assert(alias_trigger.position[0] == 8.0F);
+  assert(alias_trigger.position[1] == 9.0F);
+  assert(alias_trigger.position[2] == 10.0F);
+  assert(alias_trigger.scale[0] == 4.0F);
+  assert(alias_trigger.scale[1] == 5.0F);
+  assert(alias_trigger.scale[2] == 6.0F);
+}
+
+void bsp30_developer_material_fallback_is_deterministic() {
+  auto bytes = stellar::tests::fixtures::build_bsp_gameplay_room_fixture();
+  auto result = stellar::import::bsp::load_level_from_memory(
+      bytes, "dev_materials_bsp30.bsp");
+  assert(result);
+  assert(result->geometry.images.size() == 3);
+  assert(result->geometry.images[0].name == "stellar_dev_grid_32");
+  assert(result->geometry.images[1].name == "stellar_dev_grid_64");
+  assert(result->geometry.images[2].name == "stellar_dev_wall_96");
+  assert(result->geometry.images[0].pixels.size() == 32U * 32U * 4U);
+  assert(result->geometry.images[0].pixels[0] == 255U);
 }
 
 void bsp_parser_builds_collision_triangles() {
@@ -363,8 +485,14 @@ void bsp_raw_lighting_and_visibility_lumps_import_without_renderer() {
 int main() {
   bsp_parser_rejects_invalid_header();
   bsp_parser_rejects_unknown_version();
+  bsp_parser_rejects_source_vbsp_header();
   bsp_parser_checks_lump_bounds();
+  bsp30_parser_rejects_malformed_lump_size_safely();
   bsp_parser_loads_minimal_worldspawn_geometry();
+  bsp_parser_preserves_legacy_bsp29_support();
+  bsp30_zup_room_imports_coordinates_without_axis_swaps();
+  bsp30_entity_lump_preserves_dotted_and_alias_keys();
+  bsp30_developer_material_fallback_is_deterministic();
   bsp_parser_builds_collision_triangles();
   bsp_entity_parser_preserves_key_values();
   bsp_entity_parser_rejects_malformed_entity_text();

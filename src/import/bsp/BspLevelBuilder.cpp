@@ -18,7 +18,7 @@ namespace {
 using Vec3 = std::array<float, 3>;
 
 [[nodiscard]] const std::string *value_for(const Entity &entity,
-                                           std::string_view key) noexcept {
+                                            std::string_view key) noexcept {
   for (const auto &pair : entity.pairs) {
     if (pair.key == key) {
       return &pair.value;
@@ -27,9 +27,28 @@ using Vec3 = std::array<float, 3>;
   return nullptr;
 }
 
-[[nodiscard]] std::string string_or(const Entity &entity, std::string_view key,
-                                    std::string fallback = {}) {
+[[nodiscard]] const std::string *value_for_alias(const Entity &entity,
+                                                 std::string_view key,
+                                                 std::string_view alias) noexcept {
   if (const std::string *value = value_for(entity, key)) {
+    return value;
+  }
+  return value_for(entity, alias);
+}
+
+[[nodiscard]] std::string string_or(const Entity &entity, std::string_view key,
+                                     std::string fallback = {}) {
+  if (const std::string *value = value_for(entity, key)) {
+    return *value;
+  }
+  return fallback;
+}
+
+[[nodiscard]] std::string string_or_alias(const Entity &entity,
+                                          std::string_view key,
+                                          std::string_view alias,
+                                          std::string fallback = {}) {
+  if (const std::string *value = value_for_alias(entity, key, alias)) {
     return *value;
   }
   return fallback;
@@ -400,17 +419,13 @@ struct LightmapBuildResult {
 
 [[nodiscard]] std::optional<stellar::assets::WorldScriptBinding>
 script_binding_for(const Entity &entity) {
-  const std::string *script = value_for(entity, "stellar.script");
-  if (script == nullptr) {
-    script = value_for(entity, "_stellar_script");
-  }
+  const std::string *script =
+      value_for_alias(entity, "stellar.script", "_stellar_script");
   if (script == nullptr) {
     return std::nullopt;
   }
-  const std::string *table = value_for(entity, "stellar.table");
-  if (table == nullptr) {
-    table = value_for(entity, "_stellar_table");
-  }
+  const std::string *table =
+      value_for_alias(entity, "stellar.table", "_stellar_table");
   return stellar::assets::WorldScriptBinding{
       .script_id = *script,
       .table_name = table == nullptr ? std::string{} : *table};
@@ -735,13 +750,14 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       marker.type = stellar::assets::WorldMarkerType::kTrigger;
       marker.name = string_or(entity, "targetname", classname);
     } else if (classname == "env_sprite" || classname == "stellar_sprite" ||
-               value_for(entity, "stellar.sprite") != nullptr) {
+               value_for_alias(entity, "stellar.sprite", "_stellar_sprite") != nullptr) {
       marker.type = stellar::assets::WorldMarkerType::kSprite;
       marker.name = string_or(entity, "targetname", classname);
-      marker.archetype =
-          string_or(entity, "archetype", string_or(entity, "stellar.sprite"));
+      marker.archetype = string_or(
+          entity, "archetype",
+          string_or_alias(entity, "stellar.sprite", "_stellar_sprite"));
     } else if (classname == "stellar_object_collider" ||
-               string_or(entity, "stellar.collider") == "object") {
+               string_or_alias(entity, "stellar.collider", "_stellar_collider") == "object") {
       marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
       marker.name = string_or(entity, "targetname", classname);
       marker.archetype = string_or(entity, "archetype");
@@ -784,7 +800,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     if ((marker.type == stellar::assets::WorldMarkerType::kTrigger ||
          marker.type == stellar::assets::WorldMarkerType::kObjectCollider) &&
         !has_brush_model_bounds) {
-      const std::string *extents_text = value_for(entity, "stellar.extents");
+      const std::string *extents_text =
+          value_for_alias(entity, "stellar.extents", "_stellar_extents");
       if (auto extents = parse_vec3(extents_text)) {
         marker.scale = *extents;
       } else if (extents_text != nullptr) {
@@ -797,7 +814,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
 
     if (marker.type == stellar::assets::WorldMarkerType::kSprite) {
-      const std::string *size_text = value_for(entity, "stellar.size");
+      const std::string *size_text = value_for_alias(entity, "stellar.size", "_stellar_size");
       if (auto size = parse_vec2(size_text)) {
         marker.scale = {(*size)[0], (*size)[1], 1.0F};
       } else if (size_text != nullptr) {
@@ -810,7 +827,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
 
     if (marker.type == stellar::assets::WorldMarkerType::kTrigger) {
-      const std::string *once_text = value_for(entity, "stellar.once");
+      const std::string *once_text = value_for_alias(entity, "stellar.once", "_stellar_once");
       if (once_text != nullptr && !parse_bool_like(once_text).has_value()) {
         add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
                            level.source_uri, entity_index,
@@ -821,7 +838,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
 
     if (marker.type == stellar::assets::WorldMarkerType::kObjectCollider) {
-      const std::string *enabled_text = value_for(entity, "stellar.enabled");
+      const std::string *enabled_text =
+          value_for_alias(entity, "stellar.enabled", "_stellar_enabled");
       if (enabled_text != nullptr && !parse_bool_like(enabled_text).has_value()) {
         add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
                            level.source_uri, entity_index,

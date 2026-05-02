@@ -9,6 +9,7 @@
 
 #include <SDL2/SDL.h>
 
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -45,6 +46,10 @@ std::expected<void, stellar::platform::Error> Application::run() {
   }
 
   if (config_.validate_only) {
+    if (config_.map_path.has_value()) {
+      std::cout << "stellar-client: BSP map validation succeeded (BSP30 TrenchBroom target; "
+                   "legacy BSP29 supported)\n";
+    }
     return {};
   }
 
