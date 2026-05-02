@@ -1,5 +1,68 @@
 # Project Stellar: Implementation Status
 
+Branch target: `trenchbroom-compat`
+
+## Active Scope — TrenchBroom BSP30 Compatibility and Z-up Migration
+
+Status: in progress.
+
+Current branch goals:
+
+- Convert active gameplay/runtime/world authoring convention from Y-up to Z-up.
+- Preserve 1 Stellar unit = 1 inch.
+- Target TrenchBroom-authored BSP30 maps.
+- Add/validate TrenchBroom game configuration, FGD, material/editor assets, BSP30 compile wrapper,
+  and end-to-end map fixtures.
+- Preserve server authority, sandboxed Lua, BSP canonical runtime, and display-free validation.
+
+Active handoff docs:
+
+- `Plans/TrenchBroomCompat-AgentPlan.md`
+- `Plans/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
+
+Phase order:
+
+1. Phase 0 — branch, handoff, and docs baseline.
+2. Phase 0.5 — remove prototype cube renderer and debug cube fallback.
+3. Phase 1 — central Z-up world-axis contract.
+4. Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures.
+5. Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests.
+6. Phase 4 — BSP30 import/validation lockdown.
+7. Phase 5 — TrenchBroom package, FGD, material/editor assets, and compile wrappers.
+8. Phase 6 — exported map fixtures and end-to-end validation.
+9. Phase 7 — final documentation, audits, archival, and handoff.
+
+Phase 0 baseline audit findings:
+
+- Active Y-up authoring/runtime guidance remains in `docs/Design.md`, `docs/BspAuthoring.md`, this
+  status file's historical BSP gameplay-loop notes, `tools/bsp/stellar_entities.fgd`, and generated
+  BSP fixtures/tests. These are scheduled for Phase 1/2/7 updates.
+- Hardcoded +Y up literals remain in active physics, server movement/session code, world trigger and
+  object-collider helpers, graphics camera/billboard defaults, and related tests. These are scheduled
+  for Phase 1/2/3 conversion through central world-axis constants.
+- BSP29/BSP30 wording remains in active importer APIs and docs. The branch policy is to preserve
+  low-cost legacy BSP29 importer support while making BSP30 the TrenchBroom workflow target in Phase 4.
+- The helper FGD still exposes plain placeholder names such as `stellar_script`; Phase 5 must replace
+  TrenchBroom-facing fields with dotted keys or importer-supported aliases.
+- Prototype cube references remain in `CubeRenderer`, `DebugCubeMesh`, `LevelRenderer`, graphics
+  tests, and CMake. Phase 0.5 removes that runtime path and replaces no-map rendering with a
+  static-less fallback.
+
+Phase 0 validation:
+
+```bash
+git grep -n -i 'Y is up\|Y-up\|0 36 0\|floor at `y = 0`\|floor at y = 0' -- docs include src tests tools Plans ':!Plans/Archived/**' ':!build*/**'
+git grep -n '0\.0F, 1\.0F, 0\.0F\|0, 1, 0' -- include src tests ':!build*/**'
+git grep -n -i 'BSP29/BSP30\|BSP29\|BSP30' -- docs include src tests tools Plans ':!Plans/Archived/**' ':!build*/**'
+git grep -n 'stellar_script\|stellar_extents\|stellar_sprite\|stellar_collision' -- tools docs tests include src ':!build*/**'
+git grep -n 'CubeRenderer\|DebugCubeMesh\|create_debug_cube_mesh\|debug:cube\|debug_cube\|debug_cube_surface\|debug_red\|debug_green\|debug_blue' -- include src tests CMakeLists.txt docs Plans ':!Plans/Archived/**' ':!build*/**'
+```
+
+Result: audit commands were run during Phase 0; findings are summarized above. No runtime behavior was
+changed in Phase 0.
+
+## Completed Scope — Socket Transport and Networked Session Lifecycle
+
 Branch target: `socket-transport`
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle

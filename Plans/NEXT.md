@@ -1,16 +1,58 @@
 # Stellar Engine - Next Scope Handoff
 
-Branch target: `socket-transport`
+Branch target: `trenchbroom-compat`
 
 ## Current entry point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. Socket transport and networked session lifecycle are complete. Completed socket transport handoffs are archived under:
+`docs/ImplementationStatus.md` is the source of truth for branch status. The active scope is
+TrenchBroom BSP30 compatibility and the Z-up migration. The current phase package is:
+
+- `Plans/TrenchBroomCompat-AgentPlan.md`
+- `Plans/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
+
+## Active scope
+
+The branch is converting active runtime and authoring conventions from Y-up to Z-up while preserving
+the 1 Stellar gameplay unit = 1 authored inch policy. The active TrenchBroom workflow targets
+BSP30-authored maps with imported coordinates preserved 1:1.
+
+Current branch goals:
+
+- Convert active runtime, movement, collision, presentation, and BSP fixture assumptions to Z-up.
+- Target TrenchBroom-authored BSP30 maps as the primary authoring workflow.
+- Fully remove the prototype cube renderer/debug cube fallback so no-map and remote-without-local-map
+  presentation uses a blank/static-less fallback.
+- Add a TrenchBroom game config, FGD, material/editor assets, BSP30 compile wrapper, and validation
+  fixtures.
+- Preserve server authority, mandatory sandboxed Lua, BSP canonical runtime, and display-free
+  validation.
+
+## Active phase order
+
+1. Phase 0 — branch, handoff, and docs baseline.
+2. Phase 0.5 — remove prototype cube renderer and debug cube fallback.
+3. Phase 1 — central Z-up world-axis contract.
+4. Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures.
+5. Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests.
+6. Phase 4 — BSP30 import/validation lockdown.
+7. Phase 5 — TrenchBroom package, FGD, material/editor assets, and compile wrappers.
+8. Phase 6 — exported map fixtures and end-to-end validation.
+9. Phase 7 — final documentation, audits, archival, and handoff.
+
+Parallelization guidance: Phase 0.5 should complete before Z-up conversion. Phases 1, 2, and 3 are
+tightly coupled and must share the central axis contract. Phases 4 and 5 can proceed after Phase 0/0.5
+if they avoid committing old Y-up examples. Phase 6 depends on Phases 2, 4, and 5. Phase 7 is last.
+
+## Deferred post-socket options
+
+Socket transport and networked session lifecycle are complete and remain deferred follow-up context,
+not active work. Completed socket transport handoffs are archived under:
 
 - `Plans/Archived/socket_transport/SocketTransport-AgentPlan.md`
 - `Plans/Archived/socket_transport/ProjectStellar-SocketTransport-AgentPlan.md`
 - `Plans/Archived/socket_transport/kilo_socket_transport_plans/`
 
-## Completed scope
+## Completed socket-transport scope
 
 The branch now has:
 
@@ -27,9 +69,9 @@ Implemented limits remain explicit: one accepted TCP client, one active authorit
 - ST-6 — Client connect mode: completed.
 - ST-7 — Hardening, documentation, validation, and archival: completed.
 
-## Post-ST next options
+## Post-TrenchBroom follow-up options
 
-Pick one focused follow-up before implementation starts:
+After `trenchbroom-compat` is complete, pick one focused follow-up before implementation starts:
 
 - Client interpolation/presentation smoothing over authoritative snapshots.
 - Client prediction/reconciliation, explicitly scoped against server authority.
