@@ -17,6 +17,12 @@ TEXTURES = (
     "dev/grid_64",
     "dev/player_72",
     "dev/wall_96",
+    "dev_grid_12",
+    "dev_grid_16",
+    "dev_grid_32",
+    "dev_grid_64",
+    "dev_player_72",
+    "dev_wall_96",
 )
 
 WAD3_MIPTEX_TYPE = 0x43
@@ -127,17 +133,18 @@ def wall_pattern() -> list[int]:
 
 
 def texture_pixels(name: str) -> list[int]:
-    if name == "dev/grid_12":
+    normalized_name = name.replace("_", "/", 1) if name.startswith("dev_") else name
+    if normalized_name == "dev/grid_12":
         return grid_pattern(12)
-    if name == "dev/grid_16":
+    if normalized_name == "dev/grid_16":
         return grid_pattern(16)
-    if name == "dev/grid_32":
+    if normalized_name == "dev/grid_32":
         return grid_pattern(32)
-    if name == "dev/grid_64":
+    if normalized_name == "dev/grid_64":
         return grid_pattern(64)
-    if name == "dev/player_72":
+    if normalized_name == "dev/player_72":
         return player_pattern()
-    if name == "dev/wall_96":
+    if normalized_name == "dev/wall_96":
         return wall_pattern()
     raise ValueError(f"unhandled texture name: {name}")
 
