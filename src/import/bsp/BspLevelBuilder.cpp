@@ -736,8 +736,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     if (classname == "worldspawn") {
       has_worldspawn = true;
       emit = false;
+    } else if (classname == "light" || classname == "light_spot" ||
+               classname == "light_environment" || classname == "info_null") {
+      emit = false;
     } else if (classname == "info_player_start" ||
-               classname == "info_player_deathmatch") {
+                classname == "info_player_deathmatch") {
       has_player_spawn = true;
       marker.type = stellar::assets::WorldMarkerType::kPlayerSpawn;
       marker.name = string_or(entity, "targetname", "Player");
@@ -746,7 +749,10 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       marker.name = string_or(entity, "targetname", classname);
       marker.archetype = string_or(entity, "archetype");
     } else if (classname == "trigger_multiple" || classname == "trigger_once" ||
-               classname == "trigger_stellar") {
+               classname == "trigger_stellar" ||
+               classname == "trigger_stellar_point" ||
+               classname == "trigger_multiple_point" ||
+               classname == "trigger_once_point") {
       marker.type = stellar::assets::WorldMarkerType::kTrigger;
       marker.name = string_or(entity, "targetname", classname);
     } else if (classname == "env_sprite" || classname == "stellar_sprite" ||
@@ -757,7 +763,9 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
           entity, "archetype",
           string_or_alias(entity, "stellar.sprite", "_stellar_sprite"));
     } else if (classname == "stellar_object_collider" ||
-               string_or_alias(entity, "stellar.collider", "_stellar_collider") == "object") {
+               classname == "stellar_object_collider_point" ||
+               string_or_alias(entity, "stellar.collider", "_stellar_collider") ==
+                   "object") {
       marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
       marker.name = string_or(entity, "targetname", classname);
       marker.archetype = string_or(entity, "archetype");

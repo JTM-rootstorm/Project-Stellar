@@ -29,8 +29,8 @@ The conventions do not require one editor. Use custom key/value fields, smart-ed
 definitions, or equivalent editor mechanisms that preserve keys exactly. Dotted Stellar keys such as
 `stellar.script` must reach the compiled BSP entity text as dotted keys or as importer-supported aliases
 such as `_stellar_script`. The TrenchBroom package at `tools/trenchbroom/Stellar/` uses those
-underscore aliases directly for reliability; `tools/bsp/stellar_entities.fgd` remains a small legacy
-helper with the same alias policy.
+underscore aliases directly for reliability. It is the authoritative FGD; `tools/bsp/stellar_entities.fgd`
+is a compatibility copy with the same concrete class/key contract, verified by display-free FGD lint.
 
 For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
 on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
@@ -65,12 +65,19 @@ paths or generated compiler edits back into `maps/src/` or `tests/fixtures/trenc
 
 | Purpose | Class/key | Required keys | Optional keys | Runtime semantics |
 | --- | --- | --- | --- | --- |
-| Player spawn | `info_player_start` | `origin` | `targetname`, `angle` | Creates a player spawn marker. |
+| World setup | `worldspawn` | none | `message`, `wad`, `_light` | Defines world entity data for BSP compilers/import. No runtime marker is emitted. |
+| Player spawn | `info_player_start` | `origin` | `targetname`, `angle`, `angles` | Creates a player spawn marker. |
+| Deathmatch/player spawn | `info_player_deathmatch` | `origin` | `targetname`, `angle`, `angles` | Creates the same player-spawn marker type as `info_player_start`; use for multiplayer/deathmatch spawn pads or maps that only provide DM starts. |
 | Generic spawn | `info_stellar_spawn` | `targetname`, `archetype`, `origin` | `stellar.script`, `stellar.table` | Creates metadata for server-side spawn logic; no entity is spawned during import. |
-| Trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` or `origin` + `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker. Script ids are metadata only until authoritative runtime invokes them. |
+| Compile-time lights | `light`, `light_spot`, `light_environment` | `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2` as applicable | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
+| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are metadata only until authoritative runtime invokes them. |
+| Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
 | Sprite billboard | `stellar_sprite`, `env_sprite`, or any entity with `stellar.sprite` | `targetname`, `origin`, `stellar.sprite` | `stellar.texture`, `stellar.size`, `stellar.alpha` | Creates a sprite marker for presentation. `stellar.script` is unsupported and ignored with a diagnostic. |
-| Object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"` or `origin` + `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
-| Static collision brush | `func_wall`, `func_door`, `func_button`, `trigger_*` | `model="*N"` | `targetname`, `stellar.collision=static|sensor|none` | Contributes named static collision where collision extraction supports it. Moving brush simulation is deferred. |
+| Brush object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker from brush model bounds. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
+| Point object-collider sensor | `stellar_object_collider_point` | `targetname`, `origin`, `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates the same object-collider marker type as brush sensors, using authored origin plus half-extents. |
+| Static brush classes | `func_wall`, `func_illusionary`, `func_detail` | `model="*N"` | `targetname`, `archetype`, `stellar.collision=static|sensor|none` | Imported as brush/static metadata; `func_detail` is primarily compile-time detail geometry. Runtime moving/physics behavior is not implied. |
+| Advertised moving/interactable brush metadata | `func_door`, `func_button` | `model="*N"` | `targetname`, `archetype`, `target`, `killtarget`, `message`, `delay`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Keys are intentionally exposed for the later runtime brush phase. Current import preserves them as metadata/static collision state; no client authority or moving brush simulation is added in Phase 02. |
+| Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `killtarget`, `message`, `delay`, `spawnflags` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
 
 Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation
 is enabled, including unsupported keys.
@@ -79,6 +86,8 @@ is enabled, including unsupported keys.
 
 - `origin` and `stellar.extents` are three floats: `"x y z"`.
 - `stellar.size` is two floats: `"width height"`.
+- Light `_light` commonly uses compiler-compatible `"r g b brightness"` text; plain `light` is
+  retained as a compiler compatibility key when a compile path expects it.
 - Boolean-like values accept only `1`, `0`, `true`, `false`, `yes`, and `no`.
 - Script ids must be asset-relative identifiers or paths. Absolute paths, drive-letter paths, and `..` parent escapes are rejected.
 - Dotted key aliases currently supported by the importer include `_stellar_script`, `_stellar_table`,
@@ -158,6 +167,23 @@ angle = "90"
 
 For the default 72 inch player capsule, use an origin such as `"0 0 36"` when the floor is at
 `z = 0`. The importer preserves the authored origin; it does not lift player spawns automatically.
+`info_player_deathmatch` follows the same Z-up origin policy and maps to the same player-spawn marker
+type; use it for deathmatch/multiplayer spawn pads or compatibility with BSP compile/editor workflows
+that prefer the traditional DM classname.
+
+### Compile-time lights
+
+```text
+classname = light
+targetname = KeyLight
+origin = "0 0 80"
+_light = "255 240 220 300"
+style = "0"
+```
+
+`light`, `light_spot`, and `light_environment` are compile-time entities for BSP lighting tools. Stellar
+imports generated lightmap bytes and surface metadata, but these light entities do not create dynamic
+runtime lights or server gameplay entities in Phase 02.
 
 ### Trigger script
 
@@ -175,7 +201,7 @@ stellar.once = "false"
 Point-authored fallback trigger:
 
 ```text
-classname = trigger_stellar
+classname = trigger_stellar_point
 targetname = PickupArea
 origin = "128 64 32"
 stellar.extents = "16 16 24"
@@ -202,6 +228,19 @@ Do not attach `stellar.script` to sprite markers; sprite script bindings are uns
 ```text
 classname = stellar_object_collider
 targetname = PickupGem
+model = "*3"
+stellar.collider = "object"
+archetype = "pickup"
+stellar.script = "scripts/pickup.lua"
+stellar.table = "PickupGem"
+stellar.enabled = "yes"
+```
+
+Point-authored object collider:
+
+```text
+classname = stellar_object_collider_point
+targetname = PickupGemPoint
 origin = "96 64 32"
 stellar.extents = "8 8 8"
 stellar.collider = "object"
@@ -232,9 +271,31 @@ server code validates the mesh name, applies the collision-state change, and mir
 `open` state into server-owned gameplay metadata. Disabling a gate mesh means the blocker is open;
 enabling it means closed.
 
+### Door/button metadata reserved for the runtime brush phase
+
+```text
+classname = func_door
+targetname = MainDoor
+model = "*4"
+target = "DoorOpenedRelay"
+angle = "90"
+speed = "100"
+wait = "4"
+lip = "8"
+stellar.collision = "static"
+stellar.script = "scripts/door.lua"
+stellar.table = "MainDoor"
+```
+
+`func_door` and `func_button` smart properties are intentionally advertised now so authored maps do not
+depend on raw custom keys before TB-FULL-05. Phase 02 does not add moving brush simulation; imported
+keys remain server-side metadata/static collision inputs until the later runtime phase implements the
+authoritative behavior.
+
 ## Unsupported or deferred
 
-- Moving brush simulation for `func_door`, `func_button`, plats, trains, or rotating entities.
+- Moving brush simulation for `func_door`, `func_button`, plats, trains, or rotating entities until the
+  later runtime brush phase implements the advertised authoritative behavior.
 - Client-side gameplay scripting or presentation script execution.
 - Sprite script callbacks.
 - Renderer-owned or audio-owned gameplay state.

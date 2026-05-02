@@ -408,6 +408,13 @@ stellar_add_test_executable(stellar_bsp_entity_authoring_test bsp_entity_authori
 )
 target_link_libraries(stellar_bsp_entity_authoring_test PRIVATE stellar_import_bsp)
 
+stellar_add_test_executable(stellar_fgd_contract_test fgd_contract
+    tests/import/bsp/FgdContract.cpp
+)
+target_compile_definitions(stellar_fgd_contract_test PRIVATE
+    STELLAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
 stellar_add_test_executable(stellar_bsp_visibility_test bsp_visibility
     tests/import/bsp/BspVisibility.cpp
 )
@@ -702,4 +709,8 @@ add_test(NAME bsp_authoring_smoke COMMAND stellar_bsp_authoring_smoke_test)
 
 add_test(NAME bsp_authoring_smoke_compile_wrapper
     COMMAND bash -c "if command -v ericw-qbsp >/dev/null 2>&1 || command -v qbsp >/dev/null 2>&1 || command -v hqbsp >/dev/null 2>&1 || command -v tyr-qbsp >/dev/null 2>&1 || [[ -n \"$STELLAR_BSP30_COMPILER\" || -n \"$QBSP\" ]]; then STELLAR_CLIENT='${CMAKE_BINARY_DIR}/stellar-client' STELLAR_SERVER='${CMAKE_BINARY_DIR}/stellar-server' '${CMAKE_SOURCE_DIR}/tools/bsp/compile_trenchbroom_bsp30.sh' --map '${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/minimal_zup_room.map' --out '${STELLAR_TRENCHBROOM_FIXTURE_DIR}/compile_wrapper_smoke.bsp' --profile fast; else printf 'Skipping BSP30 compile wrapper smoke: no compiler found.\\n'; fi"
+)
+
+add_test(NAME trenchbroom_package_path_smoke
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/trenchbroom/test_stellar_package_paths.sh ${CMAKE_SOURCE_DIR}
 )

@@ -8,6 +8,12 @@ These fixtures are editor-facing references for the `trenchbroom-compat` branch.
 - `scripts/*.lua` — valid asset-relative Lua scripts used by scripted fixtures.
 - `compiled/` — reserved for externally compiled BSP30 outputs. Default CI does not require checked-in BSP binaries; CTest generates deterministic BSP30 equivalents under `build/tests/fixtures/trenchbroom/compiled/` with `stellar_bsp_fixture_writer`.
 
+The editor package used by these fixtures lives at `tools/trenchbroom/Stellar/`. It supports repo-local
+use and copied-package use through `STELLAR_REPO_ROOT` or package `.stellar_repo_root`. The helper
+`tools/trenchbroom/install_stellar_game_package.sh` can copy or link the package into a TrenchBroom
+games directory and validates `GameConfig.cfg`, `CompilationProfiles.cfg`, FGD, icon, materials/WAD,
+and package-local compile/validate shims.
+
 ## Fixture matrix
 
 | Fixture | Source | Generated/compiled BSP | Expected BSP version | Expected outcome |
@@ -62,8 +68,14 @@ references and compiler-facing texture alias rewrites only into copied work maps
 3. Open `tests/fixtures/trenchbroom/src/minimal_zup_room.map`.
 4. Confirm `dev/grid_32`, `dev/grid_64`, and `dev/wall_96` materials are visible/selectable or named consistently if using a local WAD.
 5. Confirm Stellar entity classes appear with smart properties, especially underscore aliases such as `_stellar_script`, `_stellar_extents`, and `_stellar_sprite`.
-6. Compile with the BSP30 profile or run `tools/bsp/compile_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/src/minimal_zup_room.map --out tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp --profile fast`.
-7. Run `tools/bsp/validate_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp`.
-8. Optionally launch `build/stellar-client --map tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp` on a machine with display/GPU access.
+6. Compile with the BSP30 profile. The profile invokes `bin/stellar_tb_compile.sh` with quoted map and
+   output paths, so copied packages and paths with spaces work when `STELLAR_REPO_ROOT` or
+   `.stellar_repo_root` points at the checkout.
+7. Or run `tools/bsp/compile_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/src/minimal_zup_room.map --out tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp --profile fast`.
+8. Run `tools/bsp/validate_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp`.
+9. Optionally launch `build/stellar-client --map tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp` on a machine with display/GPU access.
 
-Default CI must remain display-free and must not require an external BSP compiler. The compile wrapper smoke test skips gracefully when no compiler is available.
+Default CI must remain display-free and must not require an external BSP compiler. The compile wrapper
+smoke test skips gracefully when no compiler is available, and `trenchbroom_package_path_smoke` checks
+package-local shims, copied-package root resolution, expected package files, and quoted compile profile
+parameters without launching TrenchBroom.

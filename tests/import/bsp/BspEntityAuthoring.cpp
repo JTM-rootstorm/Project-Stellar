@@ -139,6 +139,135 @@ void point_authored_trigger_and_object_collider_use_origin_extents_fallback() {
   assert(level->world_metadata.markers[2].scale[0] == 6.0F);
 }
 
+void explicit_point_volume_classes_map_to_runtime_marker_types() {
+  std::vector<stellar::import::bsp::detail::Entity> entities;
+  entities.push_back(entity({{"classname", "worldspawn"}}));
+  entities.push_back(entity({{"classname", "info_player_start"}, {"origin", "0 0 36"}}));
+  entities.push_back(entity({{"classname", "trigger_stellar_point"},
+                             {"targetname", "PointTrigger"},
+                             {"origin", "10 20 30"},
+                             {"_stellar_extents", "3 4 5"},
+                             {"_stellar_once", "true"}}));
+  entities.push_back(entity({{"classname", "trigger_multiple_point"},
+                             {"targetname", "PointMultiple"},
+                             {"origin", "11 21 31"},
+                             {"_stellar_extents", "4 5 6"}}));
+  entities.push_back(entity({{"classname", "trigger_once_point"},
+                             {"targetname", "PointOnce"},
+                             {"origin", "12 22 32"},
+                             {"_stellar_extents", "5 6 7"}}));
+  entities.push_back(entity({{"classname", "stellar_object_collider_point"},
+                             {"targetname", "PointCollider"},
+                             {"origin", "40 50 60"},
+                             {"_stellar_extents", "6 7 8"},
+                             {"_stellar_collider", "object"},
+                             {"archetype", "pickup"}}));
+
+  stellar::import::bsp::ImportReport report;
+  auto level = stellar::import::bsp::detail::build_level_asset(
+      map_with_models(), std::move(entities), "explicit_point_volumes.bsp", {}, &report);
+  assert(level.has_value());
+  assert(report.diagnostics.empty());
+  assert(level->world_metadata.markers.size() == 5);
+  assert(level->world_metadata.markers[1].type == stellar::assets::WorldMarkerType::kTrigger);
+  assert(level->world_metadata.markers[1].position[2] == 30.0F);
+  assert(level->world_metadata.markers[1].scale[0] == 3.0F);
+  assert(level->world_metadata.markers[2].type == stellar::assets::WorldMarkerType::kTrigger);
+  assert(level->world_metadata.markers[3].type == stellar::assets::WorldMarkerType::kTrigger);
+  assert(level->world_metadata.markers[4].type ==
+         stellar::assets::WorldMarkerType::kObjectCollider);
+  assert(level->world_metadata.markers[4].archetype == "pickup");
+}
+
+void deathmatch_spawn_and_compile_only_helpers_follow_authoring_contract() {
+  std::vector<stellar::import::bsp::detail::Entity> entities;
+  entities.push_back(entity({{"classname", "worldspawn"}, {"message", "Lit Test"}}));
+  entities.push_back(entity({{"classname", "info_player_deathmatch"},
+                             {"targetname", "DMStart"},
+                             {"origin", "1 2 36"},
+                             {"angle", "180"}}));
+  entities.push_back(entity({{"classname", "light"},
+                             {"targetname", "CompileLight"},
+                             {"origin", "0 0 80"},
+                             {"_light", "255 240 220 300"}}));
+  entities.push_back(entity({{"classname", "light_spot"},
+                             {"targetname", "CompileSpot"},
+                             {"origin", "16 0 80"},
+                             {"pitch", "-45"},
+                             {"_cone", "25"}}));
+  entities.push_back(entity({{"classname", "light_environment"},
+                             {"origin", "0 0 96"},
+                             {"angle", "90"},
+                             {"pitch", "-35"}}));
+  entities.push_back(entity({{"classname", "info_null"},
+                             {"targetname", "CompileTarget"},
+                             {"origin", "4 5 6"}}));
+
+  stellar::import::bsp::ImportReport report;
+  auto level = stellar::import::bsp::detail::build_level_asset(
+      map_with_models(), std::move(entities), "compile_only_helpers.bsp", {}, &report);
+  assert(level.has_value());
+  assert(report.diagnostics.empty());
+  assert(level->world_metadata.markers.size() == 1);
+  const auto &spawn = level->world_metadata.markers[0];
+  assert(spawn.type == stellar::assets::WorldMarkerType::kPlayerSpawn);
+  assert(spawn.name == "DMStart");
+  assert(spawn.position[0] == 1.0F && spawn.position[1] == 2.0F &&
+         spawn.position[2] == 36.0F);
+}
+
+void advertised_brush_entity_keys_are_preserved_as_metadata() {
+  std::vector<stellar::import::bsp::detail::Entity> entities;
+  entities.push_back(entity({{"classname", "worldspawn"}}));
+  entities.push_back(entity({{"classname", "info_player_start"}, {"origin", "0 0 36"}}));
+  entities.push_back(entity({{"classname", "func_door"},
+                             {"targetname", "MainDoor"},
+                             {"model", "*1"},
+                             {"archetype", "door"},
+                             {"target", "DoorRelay"},
+                             {"killtarget", "OldRelay"},
+                             {"message", "Opened"},
+                             {"delay", "0.25"},
+                             {"angle", "90"},
+                             {"angles", "0 90 0"},
+                             {"speed", "100"},
+                             {"wait", "4"},
+                             {"lip", "8"},
+                             {"dmg", "0"},
+                             {"spawnflags", "32"},
+                             {"_stellar_collision", "static"}}));
+  entities.push_back(entity({{"classname", "func_button"},
+                             {"targetname", "DoorButton"},
+                             {"model", "*2"},
+                             {"target", "MainDoor"},
+                             {"speed", "40"},
+                             {"wait", "1"},
+                             {"lip", "4"},
+                             {"spawnflags", "0"},
+                             {"_stellar_collision", "sensor"}}));
+
+  stellar::import::bsp::ImportReport report;
+  auto level = stellar::import::bsp::detail::build_level_asset(
+      map_with_models(), std::move(entities), "brush_entity_metadata.bsp", {}, &report);
+  assert(level.has_value());
+  assert(report.diagnostics.empty());
+  assert(level->world_metadata.markers.size() == 3);
+
+  const auto &door = level->world_metadata.markers[1];
+  assert(door.type == stellar::assets::WorldMarkerType::kEntitySpawn);
+  assert(door.name == "MainDoor");
+  assert(door.archetype == "func_door");
+  assert(door.properties.size() == 16);
+  assert(door.properties[3].key == "archetype" && door.properties[3].value == "door");
+  assert(door.properties[15].key == "_stellar_collision");
+
+  const auto &button = level->world_metadata.markers[2];
+  assert(button.type == stellar::assets::WorldMarkerType::kEntitySpawn);
+  assert(button.name == "DoorButton");
+  assert(button.archetype == "func_button");
+  assert(button.properties[3].key == "target" && button.properties[3].value == "MainDoor");
+}
+
 void malformed_vectors_and_booleans_emit_diagnostics() {
   std::vector<stellar::import::bsp::detail::Entity> entities;
   entities.push_back(entity({{"classname", "worldspawn"}}));
@@ -214,6 +343,9 @@ void unsupported_sprite_script_binding_is_diagnosed_and_ignored() {
 int main() {
   documented_entities_map_to_world_markers_and_preserve_properties();
   point_authored_trigger_and_object_collider_use_origin_extents_fallback();
+  explicit_point_volume_classes_map_to_runtime_marker_types();
+  deathmatch_spawn_and_compile_only_helpers_follow_authoring_contract();
+  advertised_brush_entity_keys_are_preserved_as_metadata();
   malformed_vectors_and_booleans_emit_diagnostics();
   script_path_escape_is_rejected();
   unsupported_sprite_script_binding_is_diagnosed_and_ignored();

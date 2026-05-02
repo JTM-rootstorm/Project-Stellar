@@ -14,7 +14,24 @@ is project-owned and lives at:
 tools/trenchbroom/Stellar/
 ```
 
-Add that directory as a TrenchBroom game package, or copy it into TrenchBroom's local games directory.
+Add that directory as a TrenchBroom game package for repo-local use, or install/copy it into
+TrenchBroom's local games directory. For copied packages, point the package back at the checkout with
+`STELLAR_REPO_ROOT` or with the package-local `.stellar_repo_root` file written by the helper.
+
+Helper install examples:
+
+```bash
+tools/trenchbroom/install_stellar_game_package.sh --dest "$HOME/.TrenchBroom/games" --copy
+tools/trenchbroom/install_stellar_game_package.sh --dest "$HOME/.TrenchBroom/games" --link
+```
+
+Manual copied-package setup:
+
+```bash
+cp -a tools/trenchbroom/Stellar "$HOME/.TrenchBroom/games/Stellar"
+printf '%s\n' "$PWD" > "$HOME/.TrenchBroom/games/Stellar/.stellar_repo_root"
+```
+
 Then create a new map using the **Stellar** game configuration.
 
 Manual editor checklist:
@@ -41,9 +58,16 @@ Compile BSP output under:
 maps/compiled/
 ```
 
-The game package includes `GameConfig.cfg`, `CompilationProfiles.cfg`, and `stellar_entities.fgd`.
-Compilation profiles call project wrappers in `tools/bsp/` so terminal and editor builds share the same
-BSP30 and validation policy.
+The game package includes `GameConfig.cfg`, `CompilationProfiles.cfg`, `stellar_entities.fgd`,
+`Icon.png`, package-local materials/WAD assets, and `bin/stellar_tb_compile.sh` /
+`bin/stellar_tb_validate.sh` shims. Compilation profiles call those shims, which locate the checkout and
+delegate to project wrappers in `tools/bsp/` so terminal and editor builds share the same BSP30 and
+validation policy.
+
+The shims resolve the repository root in this order: `STELLAR_REPO_ROOT`, package `.stellar_repo_root`,
+walking upward for repo-local installs, then the current working directory if it is a Stellar checkout.
+Compile profile parameters quote `${MAP_FULL_PATH}` and output paths so spaces in checkout or map paths
+are handled by the shell wrapper path.
 
 ## Coordinates, scale, and first room
 
@@ -75,8 +99,8 @@ validation:
 | `stellar_dev_player_72` | `dev/player_72` | 72 inch player-height reference strip. |
 | `stellar_dev_wall_96` | `dev/wall_96` | 96 inch / 8 foot wall-height reference strip. |
 
-Editor-visible WAD3 generation is deferred. If TrenchBroom requires texture thumbnails, create a local
-WAD with these exact names. Runtime validation does not require the WAD; it uses deterministic fallback
+The package includes editor-visible developer PNGs and `materials/stellar_dev.wad` with these names.
+Runtime validation still does not depend on editor texture pixels; it uses deterministic fallback
 material data by name.
 
 ## VHLT Linux toolchain
@@ -213,6 +237,11 @@ Profiles:
 
 The wrapper fails clearly when no compiler is configured, the output is missing or empty, the BSP header
 is not version 30, required gameplay entity text is absent, or display-free Stellar validation fails.
+
+If TrenchBroom reports that the compile tool cannot locate the repository, export
+`STELLAR_REPO_ROOT=/path/to/Stellar_Engine` before launching TrenchBroom or reinstall the package with
+`tools/trenchbroom/install_stellar_game_package.sh --copy` so `.stellar_repo_root` is written. If
+validation reports missing binaries, build the project or set `STELLAR_CLIENT` and `STELLAR_SERVER`.
 
 ## Validate and launch
 
