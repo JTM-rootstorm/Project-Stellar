@@ -175,6 +175,32 @@ Final audit interpretation:
 - Prototype cube renderer/debug cube fallback symbols are absent from active source/docs/tests/plans
   outside archived historical plans.
 
+## Completed Follow-up Scope — VHLT BSP Toolchain Testing
+
+Status: complete as of 2026-05-02.
+
+- Added VHLT-aware BSP30 compile routing over `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` while preserving
+  the generic single-compiler wrapper path.
+- Added deterministic developer WAD generation and transient build/work-map WAD injection for
+  TrenchBroom source-map compilation.
+- Added display-free VHLT fixture matrix coverage for the positive TrenchBroom fixtures and the invalid
+  script path negative fixture.
+- Updated TrenchBroom workflow, BSP authoring, and fixture documentation for VHLT tool discovery,
+  generated artifact locations, and client/server validation requirements.
+- Default tests skip clearly when VHLT tools are unavailable and remain display-free.
+
+Validation summary:
+
+```bash
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+```
+
+Result: wrapper syntax checks passed. Documentation checks confirmed VHLT wrapper commands are present
+and the updated documentation does not introduce absolute local paths.
+
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 
 Branch target: `socket-transport`

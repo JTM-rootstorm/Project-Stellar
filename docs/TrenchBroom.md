@@ -79,6 +79,64 @@ Editor-visible WAD3 generation is deferred. If TrenchBroom requires texture thum
 WAD with these exact names. Runtime validation does not require the WAD; it uses deterministic fallback
 material data by name.
 
+## VHLT Linux toolchain
+
+On Linux, the supported multi-stage external BSP30 path is the VHLT wrapper in `tools/bsp/`. Place
+executable VHLT tools in one of these repository-local locations, or point `STELLAR_VHLT_DIR` at a
+directory containing them:
+
+```text
+tools/bsp/hlcsg
+tools/bsp/hlbsp
+tools/bsp/hlvis
+tools/bsp/hlrad
+tools/bsp/ripent      optional
+tools/bsp/vhlt/<tool> alternate layout
+tools/bsp/bin/<tool>  alternate layout
+```
+
+The wrapper also accepts explicit per-tool overrides: `HLCSG`, `HLBSP`, `HLVIS`, `HLRAD`, and
+`RIPENT`. Keep copied or vendored tools executable and out of generated build-output directories.
+
+Compile one map directly with VHLT:
+
+```bash
+tools/bsp/compile_vhlt_bsp30.sh \
+  --map maps/src/test_room.map \
+  --out maps/compiled/test_room.bsp \
+  --profile full
+```
+
+Compile through the editor-facing wrapper while selecting VHLT explicitly:
+
+```bash
+tools/bsp/compile_trenchbroom_bsp30.sh \
+  --map maps/src/test_room.map \
+  --out maps/compiled/test_room.bsp \
+  --profile full \
+  --toolchain vhlt
+```
+
+Or select it by environment for TrenchBroom profiles and terminal use:
+
+```bash
+export STELLAR_BSP30_TOOLCHAIN=vhlt
+tools/bsp/compile_trenchbroom_bsp30.sh \
+  --map maps/src/test_room.map \
+  --out maps/compiled/test_room.bsp \
+  --profile full
+```
+
+Use `maps/compiled/` for manually authored maps. The fixture matrix writes generated artifacts under
+`build/tests/fixtures/trenchbroom/vhlt/compiled/`, logs under
+`build/tests/fixtures/trenchbroom/vhlt/logs/`, and preserved wrapper work directories under
+`build/tests/fixtures/trenchbroom/vhlt/work/` when requested by the matrix runner.
+
+During VHLT compilation, the wrapper copies the source `.map` into an isolated work directory,
+generates a temporary `stellar_dev.wad`, injects or replaces the copied map's `wad` key, and rewrites
+compiler-facing developer texture aliases when required by VHLT. Source-tree `.map` files remain clean
+authoring references and should not receive local absolute WAD paths.
+
 ## FGD key policy
 
 The TrenchBroom-facing FGD uses importer-supported underscore aliases rather than plain placeholder
@@ -130,7 +188,11 @@ Set a BSP30-capable compiler path if one is not on `PATH`:
 export STELLAR_BSP30_COMPILER=/path/to/qbsp
 ```
 
-Compile and validate:
+The generic single-compiler path remains supported. It invokes the configured compiler as
+`<compiler> <map> <out>`, so compilers with different command lines should be wrapped in a small adapter
+and assigned to `STELLAR_BSP30_COMPILER`.
+
+Compile and validate with the selected toolchain:
 
 ```bash
 tools/bsp/compile_trenchbroom_bsp30.sh \
@@ -139,16 +201,25 @@ tools/bsp/compile_trenchbroom_bsp30.sh \
   --profile fast
 ```
 
+Select VHLT with either `--toolchain vhlt` or `STELLAR_BSP30_TOOLCHAIN=vhlt`. The default `auto`
+selection prefers an explicit single compiler, then repository-local VHLT tools, then compatible
+single-compilers found on `PATH`.
+
 Profiles:
 
 - `fast`: quick CSG/BSP iteration through the selected compiler.
-- `full`: full compile profile placeholder through the selected compiler.
+- `full`: full compile profile. VHLT runs `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` for this profile.
 - `validate-only`: skip compile and validate an existing BSP output.
 
 The wrapper fails clearly when no compiler is configured, the output is missing or empty, the BSP header
 is not version 30, required gameplay entity text is absent, or display-free Stellar validation fails.
 
 ## Validate and launch
+
+Always run the validation wrapper after compile, including after a successful VHLT build. Compiler
+success only proves a BSP was produced; Stellar validation proves the BSP30 header, entity text,
+importer constraints, client map validation, server config validation, and Lua script path sandbox
+policy all pass.
 
 Validate an existing BSP30 without compiling:
 
@@ -213,12 +284,26 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 
 - `No BSP30 compiler configured`: set `STELLAR_BSP30_COMPILER` or use `--profile validate-only` for an
   existing BSP.
+- Missing VHLT tools: install or copy executable `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` under
+  `tools/bsp/`, `tools/bsp/vhlt/`, `tools/bsp/bin/`, or set `STELLAR_VHLT_DIR`. The fixture matrix exits
+  with skip code `77` when required tools are unavailable.
 - `BSP header version is not 30`: use the Stellar BSP30 profile and avoid Source/VBSP compilers.
+- WAD generation failures: verify `python3` is available and the build/work output directory is
+  writable. VHLT needs a temporary WAD reference in the copied work map; do not add absolute WAD paths
+  to source-tree `.map` files.
+- Slash texture alias handling: source fixtures may use aliases such as `dev/grid_32`; the VHLT wrapper
+  rewrites copied work maps to compiler-facing aliases for tools that reject slash texture names.
+- `hlcsg` brush diagnostics: inspect the copied work map and stage logs under
+  `build/tests/fixtures/trenchbroom/vhlt/logs/<fixture>/`. Leaks, malformed brush planes, or invalid
+  texture axes can stop the VHLT pipeline before Stellar validation runs.
 - Missing texture thumbnails in TrenchBroom: create a local WAD with the documented developer material
   names; runtime validation still uses deterministic fallback materials by name.
 - Missing player spawn: add `info_player_start` at `origin = "0 0 36"` for the first room.
 - Script path rejected: keep script ids asset-relative and do not use absolute paths, drive-letter
   paths, or `..` parent traversal.
+- VHLT compile succeeds but validation fails with a script path escape: this is expected for negative
+  fixtures such as `invalid_script_escape_zup`; fix authored `_stellar_script` or `stellar.script`
+  values before launching the map.
 - Runtime script missing: place referenced Lua scripts next to the map or configure the runtime script
   root explicitly.
 

@@ -21,6 +21,10 @@ conversion. The default player capsule center should be authored at `origin = "0
 6. Compile/export the `.bsp` as BSP30.
 7. Run the display-free validation commands below before using the map in runtime tests.
 
+VHLT compile success is not sufficient by itself. Always run Stellar client/server validation after
+compile because the runtime importer can still reject unsupported BSP structure, missing gameplay
+requirements, or sandbox-unsafe script ids.
+
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD
 definitions, or equivalent editor mechanisms that preserve keys exactly. Dotted Stellar keys such as
 `stellar.script` must reach the compiled BSP entity text as dotted keys or as importer-supported aliases
@@ -51,6 +55,11 @@ The importer generates `ImageAsset`/`TextureAsset` data for these names during B
 uses nearest filtering so markings stay crisp, and uses repeat wrapping so authored texture axes can
 tile across room surfaces. With standard BSP texture axes, one texel/texture unit corresponds to one
 world inch; changing editor texture scale changes the visible inch marks accordingly.
+
+When compiling through VHLT, keep source `.map` files as clean authoring references. The VHLT wrapper
+copies each map into a build/work directory, creates a temporary developer WAD, injects the copied map's
+`wad` key there, and rewrites compiler-facing aliases when required. Do not commit local absolute WAD
+paths or generated compiler edits back into `maps/src/` or `tests/fixtures/trenchbroom/src/`.
 
 ## Entity key reference
 
@@ -263,6 +272,17 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
 ```
+
+Run the VHLT fixture matrix when VHLT tools are installed locally or provided through
+`STELLAR_VHLT_DIR`:
+
+```bash
+tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full
+```
+
+The matrix compiles positive TrenchBroom fixtures through VHLT, validates the produced BSP30 files with
+Stellar client/server validators, and verifies that the invalid script escape fixture compiles but fails
+Stellar validation for the expected sandbox diagnostic.
 
 For broad confidence, also run:
 

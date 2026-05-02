@@ -17,6 +17,37 @@ These fixtures are editor-facing references for the `trenchbroom-compat` branch.
 | `scripted_interaction_zup` | `src/scripted_interaction_zup.map` | `build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp` | 30 | Scripted authoritative runtime loads `scripts/gate.lua` and `scripts/pickup.lua`. |
 | `invalid_script_escape_zup` | `src/invalid_script_escape_zup.map` | `build/tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp` | 30 | Validation fails because `_stellar_script` uses `../escape.lua`. |
 
+## VHLT fixture matrix
+
+Run the Linux VHLT matrix manually with:
+
+```bash
+tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full
+```
+
+The matrix skips with exit code `77` when required VHLT tools are unavailable. It expects executable
+`hlcsg`, `hlbsp`, `hlvis`, and `hlrad` under `tools/bsp/`, `tools/bsp/vhlt/`, `tools/bsp/bin/`, or the
+directory named by `STELLAR_VHLT_DIR`.
+
+| Fixture | VHLT compile outcome | Stellar validation outcome | Expected result |
+| --- | --- | --- | --- |
+| `minimal_zup_room` | Succeeds. | Succeeds. | Positive fixture passes. |
+| `entity_matrix_zup` | Succeeds. | Succeeds with supported entity/FGD metadata preserved. | Positive fixture passes. |
+| `scripted_interaction_zup` | Succeeds. | Succeeds when `scripts/gate.lua` and `scripts/pickup.lua` are copied beside compiled outputs. | Positive scripted fixture passes. |
+| `invalid_script_escape_zup` | Succeeds. | Fails for `_stellar_script "../escape.lua"` / `kScriptPathEscape`. | Negative fixture passes only when validation fails for the expected reason. |
+
+VHLT matrix outputs are generated under the build tree and should not be committed:
+
+| Artifact | Location |
+| --- | --- |
+| Compiled BSPs | `build/tests/fixtures/trenchbroom/vhlt/compiled/` |
+| Per-fixture logs and copied VHLT stage outputs | `build/tests/fixtures/trenchbroom/vhlt/logs/<fixture>/` |
+| Matrix summary | `build/tests/fixtures/trenchbroom/vhlt/logs/matrix_summary.log` |
+| Preserved wrapper work maps/WADs | `build/tests/fixtures/trenchbroom/vhlt/work/<fixture>/` |
+
+Source `.map` fixtures remain clean authoring references. The VHLT wrapper injects temporary WAD
+references and compiler-facing texture alias rewrites only into copied work maps under the build tree.
+
 ## Expected entities
 
 - `minimal_zup_room`: `worldspawn`, `info_player_start origin "0 0 36"`; room bounds are `-96..96` on X/Y, floor `z=0`, ceiling `z=96`.
