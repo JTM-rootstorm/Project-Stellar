@@ -579,6 +579,18 @@ target_link_libraries(stellar-server PRIVATE
     stellar_dedicated_server
 )
 
+add_test(NAME bsp_authoring_smoke_vhlt_fixture_matrix
+    COMMAND bash "${CMAKE_SOURCE_DIR}/tools/bsp/run_vhlt_fixture_matrix.sh"
+        --source-root "${CMAKE_SOURCE_DIR}"
+        --build-root "${CMAKE_BINARY_DIR}"
+        --profile full
+        --stellar-client "$<TARGET_FILE:stellar-client>"
+        --stellar-server "$<TARGET_FILE:stellar-server>"
+)
+set_tests_properties(bsp_authoring_smoke_vhlt_fixture_matrix PROPERTIES
+    SKIP_RETURN_CODE 77
+)
+
 add_executable(stellar_bsp_fixture_writer
     tests/fixtures/BspFixtureWriter.cpp
 )
