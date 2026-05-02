@@ -128,11 +128,13 @@ void movement_input_changes_authoritative_network_snapshot() {
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::client::NetworkedClientRuntime runtime(world, test_config());
 
-    const auto frame = runtime.update(input_with_key(SDL_SCANCODE_D), 0.1F);
+    const auto frame = runtime.update(input_with_key(SDL_SCANCODE_W), 0.1F);
 
     assert(frame.ticks_run == 1);
     assert(runtime.latest_snapshot().has_value());
-    assert(runtime.latest_snapshot()->players[0].position[0] > 0.9F);
+    assert(runtime.latest_snapshot()->players[0].position[0] == 0.0F);
+    assert(runtime.latest_snapshot()->players[0].position[1] > 0.9F);
+    assert(runtime.latest_snapshot()->players[0].position[2] == 0.0F);
 }
 
 void assigned_player_id_is_used_for_presentation() {

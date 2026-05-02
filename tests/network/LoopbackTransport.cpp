@@ -60,7 +60,7 @@ void client_input_command_serializes_crosses_and_decodes() {
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 777;
     command.command_sequence = 42;
-    command.movement.wish_direction = {1.0F, 0.0F, -1.0F};
+    command.movement.wish_direction = {1.0F, 1.0F, 0.0F};
     command.movement.jump = true;
 
     auto encoded = stellar::network::encode_player_command(command);

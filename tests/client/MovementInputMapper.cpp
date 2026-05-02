@@ -42,7 +42,7 @@ void forward_maps_to_world_forward() {
     const auto command = stellar::client::make_movement_command(
         stellar::client::MovementInputState{.forward = true});
 
-    assert_direction(command, 0.0F, 0.0F, -1.0F);
+    assert_direction(command, 0.0F, 1.0F, 0.0F);
     assert(!command.jump);
 }
 
@@ -50,7 +50,7 @@ void backward_maps_to_world_backward() {
     const auto command = stellar::client::make_movement_command(
         stellar::client::MovementInputState{.backward = true});
 
-    assert_direction(command, 0.0F, 0.0F, 1.0F);
+    assert_direction(command, 0.0F, -1.0F, 0.0F);
     assert(!command.jump);
 }
 
@@ -75,9 +75,9 @@ void diagonal_input_is_normalized_when_enabled() {
         stellar::client::MovementInputState{.forward = true, .right = true});
 
     constexpr float kExpected = 0.70710678118654752440F;
-    assert_direction(command, kExpected, 0.0F, -kExpected);
+    assert_direction(command, kExpected, kExpected, 0.0F);
     assert_near((command.wish_direction[0] * command.wish_direction[0]) +
-                    (command.wish_direction[2] * command.wish_direction[2]),
+                    (command.wish_direction[1] * command.wish_direction[1]),
                 1.0F);
     assert(!command.jump);
 }
@@ -89,7 +89,7 @@ void diagonal_input_not_normalized_when_disabled() {
     const auto command = stellar::client::make_movement_command(
         stellar::client::MovementInputState{.forward = true, .right = true}, config);
 
-    assert_direction(command, 1.0F, 0.0F, -1.0F);
+    assert_direction(command, 1.0F, 1.0F, 0.0F);
     assert(!command.jump);
 }
 

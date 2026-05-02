@@ -135,9 +135,14 @@ LevelCameraFit fit_camera_to_bounds(const LevelBounds &bounds,
 
   LevelCameraFit fit;
   fit.target = bounds.center;
-  fit.eye = {bounds.center[0], bounds.center[1], bounds.center[2] + distance};
-  fit.near_plane = std::max(0.01F, distance - radius * 2.0F);
-  fit.far_plane = std::max(fit.near_plane + 1.0F, distance + radius * 2.0F);
+  const float vertical_offset = distance * 0.5F;
+  const float horizontal_offset = distance;
+  const float camera_distance = std::sqrt(horizontal_offset * horizontal_offset +
+                                          vertical_offset * vertical_offset);
+  fit.eye = {bounds.center[0], bounds.center[1] - horizontal_offset,
+             bounds.center[2] + vertical_offset};
+  fit.near_plane = std::max(0.01F, camera_distance - radius * 2.0F);
+  fit.far_plane = std::max(fit.near_plane + 1.0F, camera_distance + radius * 2.0F);
   return fit;
 }
 

@@ -5,6 +5,9 @@
 #include <cmath>
 #include <limits>
 
+#include "stellar/core/WorldAxes.hpp"
+#include "stellar/core/WorldUnits.hpp"
+
 namespace {
 
 constexpr float kEpsilon = 0.00001F;
@@ -60,24 +63,72 @@ void camera_frame_uses_follow_and_look_offsets() {
     player.position = {10.0F, 20.0F, 30.0F};
     stellar::client::PlayerCameraConfig config;
     config.follow_offset = {1.0F, 2.0F, 3.0F};
-    config.look_at_offset = {-4.0F, 5.0F, -6.0F};
+    config.look_distance = 10.0F;
     config.near_plane = 0.25F;
     config.far_plane = 300.0F;
 
     const auto frame = stellar::client::make_player_camera_frame(player, config);
 
     assert_vec3(frame.eye, {11.0F, 22.0F, 33.0F});
-    assert_vec3(frame.target, {6.0F, 25.0F, 24.0F});
+    assert_vec3(frame.target, {11.0F, 32.0F, 33.0F});
+    assert_vec3(frame.up, stellar::core::kWorldUp);
     assert_near(frame.near_plane, 0.25F);
     assert_near(frame.far_plane, 300.0F);
 }
 
-void default_camera_config_uses_inch_scale_debug_offsets() {
+void default_camera_config_uses_z_up_eye_height() {
     const stellar::client::PlayerCameraConfig config;
 
-    assert_vec3(config.follow_offset, {0.0F, 72.0F, 144.0F});
-    assert_vec3(config.look_at_offset, {0.0F, 60.0F, 0.0F});
+    assert_vec3(config.follow_offset,
+                {0.0F, 0.0F, stellar::core::kPlayerEyeHeightInches});
+    assert_near(config.look_distance, stellar::core::feet_to_units(12.0F));
     assert_near(config.far_plane, 4096.0F);
+}
+
+void camera_frame_uses_z_up_default_basis() {
+    stellar::client::PlayerPresentationState player;
+    player.position = {10.0F, 20.0F, 30.0F};
+
+    const auto frame = stellar::client::make_player_camera_frame(player);
+
+    assert_vec3(frame.eye,
+                {10.0F, 20.0F, 30.0F + stellar::core::kPlayerEyeHeightInches});
+    assert_vec3(frame.target,
+                {10.0F, 20.0F + stellar::core::feet_to_units(12.0F),
+                 30.0F + stellar::core::kPlayerEyeHeightInches});
+    assert_vec3(frame.up, stellar::core::kWorldUp);
+}
+
+void camera_frame_yaw_rotates_on_xy_plane() {
+    stellar::client::PlayerPresentationState player;
+    constexpr float kSinCosHalfTurn = 0.70710678118654752440F;
+    player.rotation = {0.0F, 0.0F, kSinCosHalfTurn, kSinCosHalfTurn};
+    stellar::client::PlayerCameraConfig config;
+    config.follow_offset = {0.0F, 0.0F, 0.0F};
+    config.look_distance = 8.0F;
+
+    const auto frame = stellar::client::make_player_camera_frame(player, config);
+
+    assert_vec3(frame.eye, {0.0F, 0.0F, 0.0F});
+    assert_near(frame.target[0], -8.0F);
+    assert_near(frame.target[1], 0.0F);
+    assert_near(frame.target[2], 0.0F);
+}
+
+void camera_frame_pitch_tilts_around_camera_right() {
+    stellar::client::PlayerPresentationState player;
+    constexpr float kSinCosHalfTurn = 0.70710678118654752440F;
+    player.rotation = {kSinCosHalfTurn, 0.0F, 0.0F, kSinCosHalfTurn};
+    stellar::client::PlayerCameraConfig config;
+    config.follow_offset = {0.0F, 0.0F, 0.0F};
+    config.look_distance = 8.0F;
+
+    const auto frame = stellar::client::make_player_camera_frame(player, config);
+
+    assert_vec3(frame.eye, {0.0F, 0.0F, 0.0F});
+    assert_near(frame.target[0], 0.0F);
+    assert_near(frame.target[1], 0.0F);
+    assert_near(frame.target[2], 8.0F);
 }
 
 void camera_frame_sanitizes_non_finite_input() {
@@ -87,14 +138,14 @@ void camera_frame_sanitizes_non_finite_input() {
     player.position = {infinity, 2.0F, nan};
     stellar::client::PlayerCameraConfig config;
     config.follow_offset = {1.0F, infinity, 3.0F};
-    config.look_at_offset = {nan, 4.0F, infinity};
+    config.look_distance = infinity;
     config.near_plane = nan;
     config.far_plane = infinity;
 
     const auto frame = stellar::client::make_player_camera_frame(player, config);
 
     assert_vec3(frame.eye, {1.0F, 2.0F, 3.0F});
-    assert_vec3(frame.target, {0.0F, 6.0F, 0.0F});
+    assert_vec3(frame.target, {1.0F, 146.0F, 3.0F});
     assert_near(frame.near_plane, 0.1F);
     assert_near(frame.far_plane, 4096.0F);
     for (float value : frame.eye) {
@@ -163,7 +214,10 @@ int main() {
     missing_player_snapshot_returns_nullopt();
     player_snapshot_extracts_position_rotation_grounded();
     camera_frame_uses_follow_and_look_offsets();
-    default_camera_config_uses_inch_scale_debug_offsets();
+    default_camera_config_uses_z_up_eye_height();
+    camera_frame_uses_z_up_default_basis();
+    camera_frame_yaw_rotates_on_xy_plane();
+    camera_frame_pitch_tilts_around_camera_right();
     camera_frame_sanitizes_non_finite_input();
     camera_near_far_are_clamped_or_preserved_by_documented_policy();
     snapshot_presentation_does_not_mutate_authoritative_snapshot();

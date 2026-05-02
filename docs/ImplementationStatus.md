@@ -56,6 +56,10 @@ Phase 0 baseline audit findings:
   fixtures to Z-up semantics. Player starts now use `z = 36` in converted generated fixtures, gravity
   applies along `-Z`, horizontal movement uses the X/Y plane, and importer/entity parsing still
   preserves authored `x y z` ordering without hidden axis swaps.
+- Phase 3 converted client-side presentation and network-adjacent expectations to Z-up semantics.
+  Player camera eye offset is along +Z, default forward is +Y on the X/Y plane, yaw rotates around
+  +Z, input commands map W/S to ±Y and A/D to ±X, and snapshots remain raw server-authored data
+  carriers with no new prediction, interpolation, reconciliation, or client authority.
 
 Phase 0 validation:
 
@@ -90,6 +94,16 @@ ctest --test-dir build -R '^(character_controller|collision_world|collision_perf
 
 Result: focused Phase 2 physics/runtime/gameplay tests passed during implementation. Full CTest remains
 part of phase-close validation before commit.
+
+Phase 3 validation:
+
+```bash
+cmake --build build --target stellar_player_presentation_test stellar_gameplay_presentation_test stellar_render_level_inspection_test stellar_client_movement_input_mapper_test stellar_client_world_receiver_test stellar_networked_client_runtime_test stellar_client_connect_test stellar_snapshot_delta_test stellar_snapshot_codec_test -j$(nproc)
+ctest --test-dir build -R '^(player_presentation|gameplay_presentation|render_level_inspection|client_movement_input_mapper|client_world_receiver|networked_client_runtime|client_connect|snapshot_)' --output-on-failure
+```
+
+Result: focused Phase 3 presentation, input, and network-adjacent tests passed during implementation.
+Full CTest remains part of phase-close validation before commit.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 

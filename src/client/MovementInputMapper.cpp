@@ -8,7 +8,7 @@ stellar::server::MovementCommand make_movement_command(
     stellar::server::MovementCommand command{};
 
     float x = 0.0F;
-    float z = 0.0F;
+    float y = 0.0F;
 
     if (state.left) {
         x -= 1.0F;
@@ -17,19 +17,19 @@ stellar::server::MovementCommand make_movement_command(
         x += 1.0F;
     }
     if (state.forward) {
-        z -= 1.0F;
+        y += 1.0F;
     }
     if (state.backward) {
-        z += 1.0F;
+        y -= 1.0F;
     }
 
-    if (config.normalize_diagonal && x != 0.0F && z != 0.0F) {
+    if (config.normalize_diagonal && x != 0.0F && y != 0.0F) {
         constexpr float kInverseSqrtTwo = 0.70710678118654752440F;
         x *= kInverseSqrtTwo;
-        z *= kInverseSqrtTwo;
+        y *= kInverseSqrtTwo;
     }
 
-    command.wish_direction = {x, 0.0F, z};
+    command.wish_direction = {x, y, 0.0F};
     command.jump = state.jump;
     return command;
 }

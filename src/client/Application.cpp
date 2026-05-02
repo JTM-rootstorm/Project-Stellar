@@ -27,6 +27,7 @@ make_level_render_view(const PlayerCameraFrame &camera) noexcept {
   stellar::graphics::LevelRenderView view;
   view.eye = camera.eye;
   view.target = camera.target;
+  view.up = camera.up;
   view.near_plane = camera.near_plane;
   view.far_plane = camera.far_plane;
   view.visibility_culling = true;

@@ -160,7 +160,7 @@ void verify_billboard_quad_generation_sorting_and_fields() {
   view.view = kIdentity;
   view.view_projection = kIdentity;
   view.camera_right = {1.0F, 0.0F, 0.0F};
-  view.camera_up = {0.0F, 2.0F, 0.0F};
+  view.camera_up = {0.0F, 0.0F, 2.0F};
 
   stellar::graphics::BillboardSprite masked;
   masked.position = {0.0F, 0.0F, -2.0F};
@@ -189,7 +189,7 @@ void verify_billboard_quad_generation_sorting_and_fields() {
   assert(quads[0].size[1] == 3.0F);
   assert(quads[0].alpha_cutoff == 0.375F);
   assert(quads[0].positions[0][0] == -1.0F);
-  assert(quads[0].positions[2][1] == 3.0F);
+  assert(quads[0].positions[2][2] == 1.0F);
   assert(quads[1].texture == stellar::graphics::TextureHandle{66});
   assert(quads[2].texture == stellar::graphics::TextureHandle{55});
 }
@@ -206,7 +206,7 @@ void verify_billboards_submit_after_static_geometry(
   view.view = kIdentity;
   view.view_projection = kIdentity;
   view.camera_right = {1.0F, 0.0F, 0.0F};
-  view.camera_up = {0.0F, 1.0F, 0.0F};
+  view.camera_up = stellar::core::kWorldUp;
 
   stellar::graphics::BillboardSprite near_blend;
   near_blend.position = {0.0F, 0.0F, -1.0F};
@@ -256,7 +256,7 @@ void verify_billboards_submit_without_static_geometry(
   view.view = kIdentity;
   view.view_projection = kIdentity;
   view.camera_right = {1.0F, 0.0F, 0.0F};
-  view.camera_up = {0.0F, 1.0F, 0.0F};
+  view.camera_up = stellar::core::kWorldUp;
 
   stellar::graphics::BillboardSprite sprite;
   sprite.position = {0.0F, 0.0F, -2.0F};
@@ -293,6 +293,7 @@ void verify_level_bounds_and_camera_fit() {
       stellar::graphics::fit_camera_to_bounds(bounds, 45.0F, 16.0F / 9.0F);
   assert(camera.target[0] == 0.0F);
   assert(camera.eye[2] > bounds.max[2]);
+  assert(camera.eye[1] < bounds.min[1]);
   assert(camera.far_plane > camera.near_plane);
 
   const auto empty_bounds =
@@ -339,7 +340,7 @@ void verify_level_render_state_can_disable_culling_for_fallback() {
 
 void verify_billboard_view_is_derived_from_render_state() {
   stellar::graphics::LevelRenderView view;
-  view.eye = {0.0F, 0.0F, 8.0F};
+  view.eye = {0.0F, -8.0F, 4.0F};
   view.target = {0.0F, 0.0F, 0.0F};
 
   const auto state = stellar::graphics::compute_level_render_state(
@@ -349,7 +350,7 @@ void verify_billboard_view_is_derived_from_render_state() {
   assert(billboard_view.view == state.view);
   assert(billboard_view.view_projection == state.view_projection);
   assert(billboard_view.camera_right[0] > 0.99F);
-  assert(billboard_view.camera_up[1] > 0.99F);
+  assert(billboard_view.camera_up[2] > 0.85F);
 }
 
 void verify_graphics_up_defaults_use_world_axis_contract() {

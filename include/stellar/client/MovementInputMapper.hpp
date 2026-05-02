@@ -11,10 +11,10 @@ namespace stellar::client {
  * @brief Configurable key bindings for local movement command generation.
  */
 struct MovementInputBindings {
-    /** @brief Key that requests world-forward movement along negative Z. */
+    /** @brief Key that requests world-forward movement along positive Y. */
     SDL_Scancode forward = SDL_SCANCODE_W;
 
-    /** @brief Key that requests world-backward movement along positive Z. */
+    /** @brief Key that requests world-backward movement along negative Y. */
     SDL_Scancode backward = SDL_SCANCODE_S;
 
     /** @brief Key that requests world-left movement along negative X. */
@@ -34,7 +34,7 @@ struct MovementInputMapperConfig {
     /** @brief Platform key bindings used by the platform::Input adapter overload. */
     MovementInputBindings bindings{};
 
-    /** @brief Normalize non-zero diagonal X/Z input to length one when true. */
+    /** @brief Normalize non-zero diagonal X/Y input to length one when true. */
     bool normalize_diagonal = true;
 };
 
@@ -42,10 +42,10 @@ struct MovementInputMapperConfig {
  * @brief Display-free movement button state before conversion to server intent.
  */
 struct MovementInputState {
-    /** @brief Requests world-forward movement along negative Z. */
+    /** @brief Requests world-forward movement along positive Y. */
     bool forward = false;
 
-    /** @brief Requests world-backward movement along positive Z. */
+    /** @brief Requests world-backward movement along negative Y. */
     bool backward = false;
 
     /** @brief Requests world-left movement along negative X. */
@@ -61,8 +61,8 @@ struct MovementInputState {
 /**
  * @brief Convert display-free input state into a server-owned movement command intent.
  *
- * Direction convention: forward is negative Z, backward is positive Z, left is negative X,
- * right is positive X, and Y is always zero. Jump is forwarded only as command data; this
+ * Direction convention: forward is positive Y, backward is negative Y, left is negative X,
+ * right is positive X, and Z is always zero. Jump is forwarded only as command data; this
  * mapper performs no client-side movement or prediction.
  */
 [[nodiscard]] stellar::server::MovementCommand make_movement_command(
@@ -72,8 +72,8 @@ struct MovementInputState {
 /**
  * @brief Convert platform input state into a server-owned movement command intent.
  *
- * Direction convention: forward is negative Z, backward is positive Z, left is negative X,
- * right is positive X, and Y is always zero. Jump is forwarded only as command data; this
+ * Direction convention: forward is positive Y, backward is negative Y, left is negative X,
+ * right is positive X, and Z is always zero. Jump is forwarded only as command data; this
  * mapper performs no client-side movement or prediction.
  */
 [[nodiscard]] stellar::server::MovementCommand make_movement_command(

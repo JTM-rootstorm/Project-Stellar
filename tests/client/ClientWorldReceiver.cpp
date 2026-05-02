@@ -183,7 +183,7 @@ void local_bridge_emits_snapshot_after_input_command() {
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 999;
     command.command_sequence = 1;
-    command.movement.wish_direction = {1.0F, 0.0F, 0.0F};
+    command.movement.wish_direction = {0.0F, 1.0F, 99.0F};
     auto encoded = stellar::network::encode_player_command(command);
     assert(encoded.has_value());
     assert(transport.client->send_to_server(reliable_packet(*encoded)).has_value());
@@ -196,7 +196,9 @@ void local_bridge_emits_snapshot_after_input_command() {
     assert(drain.snapshots == 1);
     assert(receiver.latest_snapshot()->tick == 1);
     assert(receiver.latest_snapshot()->players[0].player_id == 7);
-    assert(receiver.latest_snapshot()->players[0].position[0] > 0.9F);
+    assert(receiver.latest_snapshot()->players[0].position[0] == 0.0F);
+    assert(receiver.latest_snapshot()->players[0].position[1] > 0.9F);
+    assert(receiver.latest_snapshot()->players[0].position[2] == 0.0F);
 }
 
 void scripted_bridge_propagates_server_approved_event() {
