@@ -2,9 +2,9 @@
 
 Branch target: `trenchbroom-compat`
 
-The active TrenchBroom BSP30 compatibility and Z-up migration plan package lives in:
+The TrenchBroom BSP30 compatibility and Z-up migration scope is complete. Archived plans live in:
 
-- `Plans/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
+- `Plans/Archived/trenchbroom_compat/TrenchBroomCompat-AgentPlan.md`
+- `Plans/Archived/trenchbroom_compat/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
 
-Work phases should follow the master plan order. Commit after each completed phase and do not push or
-pull unless explicitly instructed.
+Use `docs/ImplementationStatus.md` and `Plans/NEXT.md` for current handoff status.

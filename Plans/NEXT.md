@@ -5,43 +5,40 @@ Branch target: `trenchbroom-compat`
 ## Current entry point
 
 `docs/ImplementationStatus.md` is the source of truth for branch status. The active scope is
-TrenchBroom BSP30 compatibility and the Z-up migration. The current phase package is:
+complete TrenchBroom BSP30 compatibility and the Z-up migration. The completed phase package is
+archived under:
 
-- `Plans/TrenchBroomCompat-AgentPlan.md`
-- `Plans/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
+- `Plans/Archived/trenchbroom_compat/TrenchBroomCompat-AgentPlan.md`
+- `Plans/Archived/trenchbroom_compat/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
 
-## Active scope
+## Completed trenchbroom-compat scope
 
-The branch is converting active runtime and authoring conventions from Y-up to Z-up while preserving
-the 1 Stellar gameplay unit = 1 authored inch policy. The active TrenchBroom workflow targets
-BSP30-authored maps with imported coordinates preserved 1:1.
+The branch now uses Z-up runtime and authoring conventions while preserving the 1 Stellar gameplay
+unit = 1 authored inch policy. The supported TrenchBroom workflow targets BSP30-authored maps with
+imported coordinates preserved 1:1.
 
-Current branch goals:
+Completed branch outcomes:
 
-- Convert active runtime, movement, collision, presentation, and BSP fixture assumptions to Z-up.
-- Target TrenchBroom-authored BSP30 maps as the primary authoring workflow.
-- Fully remove the prototype cube renderer/debug cube fallback so no-map and remote-without-local-map
-  presentation uses a blank/static-less fallback.
-- Add a TrenchBroom game config, FGD, material/editor assets, BSP30 compile wrapper, and validation
-  fixtures.
+- Runtime, movement, collision, presentation, and BSP fixture assumptions use Z-up.
+- TrenchBroom-authored BSP30 maps are the primary authoring workflow.
+- No-map and remote-without-local-map presentation use a blank/static-less fallback.
+- The repo includes a TrenchBroom game config, FGD aliases, developer material references, BSP30
+  compile/validation wrappers, source-map fixtures, and generated BSP30 test fixtures.
 - Preserve server authority, mandatory sandboxed Lua, BSP canonical runtime, and display-free
   validation.
 
-## Active phase order
+## Completed phase status
 
-1. Phase 0 — branch, handoff, and docs baseline.
-2. Phase 0.5 — remove prototype cube renderer and switch no-map rendering to a static-less fallback.
-3. Phase 1 — central Z-up world-axis contract.
-4. Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures.
-5. Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests.
-6. Phase 4 — BSP30 import/validation lockdown.
-7. Phase 5 — TrenchBroom package, FGD, material/editor assets, and compile wrappers.
-8. Phase 6 — exported map fixtures and end-to-end validation.
-9. Phase 7 — final documentation, audits, archival, and handoff.
-
-Parallelization guidance: Phase 0.5 should complete before Z-up conversion. Phases 1, 2, and 3 are
-tightly coupled and must share the central axis contract. Phases 4 and 5 can proceed after Phase 0/0.5
-if they avoid committing old Y-up examples. Phase 6 depends on Phases 2, 4, and 5. Phase 7 is last.
+- Phase 0 — branch, handoff, and docs baseline: completed.
+- Phase 0.5 — prototype cube renderer removal and static-less no-map fallback: completed.
+- Phase 1 — central Z-up world-axis contract: completed.
+- Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures: completed.
+- Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests:
+  completed.
+- Phase 4 — BSP30 import/validation lockdown: completed.
+- Phase 5 — TrenchBroom package, FGD, material/editor assets, and compile wrappers: completed.
+- Phase 6 — exported map fixtures and end-to-end validation: completed.
+- Phase 7 — final documentation, audits, archival, and handoff: completed.
 
 ## Deferred post-socket options
 
@@ -69,18 +66,21 @@ Implemented limits remain explicit: one accepted TCP client, one active authorit
 - ST-6 — Client connect mode: completed.
 - ST-7 — Hardening, documentation, validation, and archival: completed.
 
-## Post-TrenchBroom follow-up options
+## Next follow-up options
 
-After `trenchbroom-compat` is complete, pick one focused follow-up before implementation starts:
+Pick one focused follow-up before implementation starts:
 
+- Richer map editor workflow polish, including editor-visible WAD/material preview generation.
+- Room/portal semantics beyond sealed brush rooms.
+- Map distribution/caching or remote presentation-map workflow.
 - Client interpolation/presentation smoothing over authoritative snapshots.
 - Client prediction/reconciliation, explicitly scoped against server authority.
 - True multi-player simulation beyond the current single-client/single-active-player limit.
 - UDP/unreliable transport or transport-selection work.
-- Map distribution/caching or remote presentation-map workflow.
 - Richer HUD/UI/VFX presentation.
 - miniaudio-backed playback integration for server-approved events.
 - Sprite atlas/sheet animation.
+- Moving brush simulation only if explicitly selected later.
 
 ## Completed historical scope
 
@@ -89,12 +89,16 @@ Completed plan packages remain archived and must not be restarted:
 - BSP gameplay loop: `Plans/Archived/bsp_gameplay_loop/`.
 - BSP presentation/networking polish: `Plans/Archived/bsp_presentation_networking_polish/`.
 - Socket transport: `Plans/Archived/socket_transport/`.
+- TrenchBroom BSP30 compatibility and Z-up migration: `Plans/Archived/trenchbroom_compat/`.
 
 Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, BSP hardening, BSP gameplay-loop foundation work, BSP presentation/networking polish work, or socket transport/session lifecycle work.
 
 ## Invariants
 
 - BSP remains the canonical playable level format.
+- The active world-axis convention is Z-up.
+- TrenchBroom authoring targets BSP30, with 1 editor unit = 1 gameplay inch.
+- Default player spawn centers are authored 36 inches above the floor for the default capsule.
 - Server authority remains mandatory.
 - Lua scripting remains mandatory, sandboxed, and server-authoritative.
 - Import never executes scripts.

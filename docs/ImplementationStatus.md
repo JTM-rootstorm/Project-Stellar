@@ -2,23 +2,29 @@
 
 Branch target: `trenchbroom-compat`
 
-## Active Scope — TrenchBroom BSP30 Compatibility and Z-up Migration
+## Completed Scope — TrenchBroom BSP30 Compatibility and Z-up Migration
 
-Status: in progress.
+Status: complete as of 2026-05-01.
 
-Current branch goals:
+Archived handoff docs:
 
-- Convert active gameplay/runtime/world authoring convention from Y-up to Z-up.
-- Preserve 1 Stellar unit = 1 inch.
-- Target TrenchBroom-authored BSP30 maps.
-- Add/validate TrenchBroom game configuration, FGD, material/editor assets, BSP30 compile wrapper,
-  and end-to-end map fixtures.
-- Preserve server authority, sandboxed Lua, BSP canonical runtime, and display-free validation.
+- `Plans/Archived/trenchbroom_compat/TrenchBroomCompat-AgentPlan.md`
+- `Plans/Archived/trenchbroom_compat/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
 
-Active handoff docs:
+Completed branch outcomes:
 
-- `Plans/TrenchBroomCompat-AgentPlan.md`
-- `Plans/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
+- Active gameplay/runtime/world authoring uses Z-up coordinates.
+- 1 Stellar unit remains 1 authored inch.
+- The primary editor workflow targets TrenchBroom-authored BSP30 maps imported 1:1.
+- The default player capsule is 72 inches tall, so player spawn centers are authored at `z = 36`
+  above a floor at `z = 0`.
+- The project now owns a TrenchBroom game package, FGD aliases, developer material references,
+  BSP30 compile/validation wrappers, source-map fixtures, and generated BSP30 test fixtures.
+- Server authority, sandboxed Lua, BSP canonical runtime, import-never-executes-scripts behavior,
+  and display-free validation remain mandatory.
+- No-map and remote-without-presentation-map paths use a blank/static-less presentation fallback.
+- Source/VBSP, moving brush simulation, dynamic rigid bodies, full PBR, client-side gameplay scripting,
+  map transfer/caching, prediction, and reconciliation remain deferred until explicitly selected.
 
 Phase order:
 
@@ -32,55 +38,44 @@ Phase order:
 8. Phase 6 — exported map fixtures and end-to-end validation.
 9. Phase 7 — final documentation, audits, archival, and handoff.
 
-Phase 0 baseline audit findings:
+Phase completion notes:
 
-- Active Y-up authoring/runtime guidance remains in `docs/Design.md`, `docs/BspAuthoring.md`, this
-  status file's historical BSP gameplay-loop notes, `tools/bsp/stellar_entities.fgd`, and generated
-  BSP fixtures/tests. These are scheduled for Phase 1/2/7 updates.
-- Hardcoded +Y up literals remain in active physics, server movement/session code, world trigger and
-  object-collider helpers, graphics camera/billboard defaults, and related tests. These are scheduled
-  for Phase 1/2/3 conversion through central world-axis constants.
-- BSP29/BSP30 wording remains in active importer APIs and docs. The branch policy is to preserve
-  low-cost legacy BSP29 importer support while making BSP30 the TrenchBroom workflow target in Phase 4.
-- The helper FGD still exposes plain placeholder names such as `stellar_script`; Phase 5 must replace
-  TrenchBroom-facing fields with dotted keys or importer-supported aliases.
-- Phase 0.5 removed the old prototype cube renderer and debug cube mesh from active graphics code.
-  No-map and remote-without-presentation-map modes now initialize a blank/static-less presentation
-  frame until authored static geometry or authoritative dynamic snapshot data is available.
-- Phase 1 added the central Z-up world-axis contract in `stellar::core`, converted core
+- Phase 0 — established the branch handoff and baseline audit. The audit identified axis, BSP wording,
+  FGD alias, and prototype fallback cleanup targets without changing runtime behavior.
+- Phase 0.5 — removed the prototype cube renderer/debug cube mesh path. No-map and
+  remote-without-presentation-map modes now initialize a blank/static-less presentation frame until
+  authored static geometry or authoritative dynamic snapshot data is available.
+- Phase 1 — added the central Z-up world-axis contract in `stellar::core`, converted core
   character-controller and presentation default-up values to named constants, and added display-free
-  `world_axes` coverage. Remaining server/runtime fixtures, authored map coordinates, and player
-  presentation behavior are scheduled for Phase 2/3 conversion.
-- Phase 2 converted authoritative runtime movement, physics collision queries, trigger/object-collider
-  capsule defaults, collision validation, script-facing event tests, and generated BSP gameplay
-  fixtures to Z-up semantics. Player starts now use `z = 36` in converted generated fixtures, gravity
-  applies along `-Z`, horizontal movement uses the X/Y plane, and importer/entity parsing still
-  preserves authored `x y z` ordering without hidden axis swaps.
-- Phase 3 converted client-side presentation and network-adjacent expectations to Z-up semantics.
-  Player camera eye offset is along +Z, default forward is +Y on the X/Y plane, yaw rotates around
-  +Z, input commands map W/S to ±Y and A/D to ±X, and snapshots remain raw server-authored data
-  carriers with no new prediction, interpolation, reconciliation, or client authority.
-- Phase 4 locked importer validation around BSP30 as the TrenchBroom target while preserving the
-  existing BSP29 compatibility path. BSP30 tests now cover Z-up player origins, dotted and underscore
+  `world_axes` coverage.
+- Phase 2 — converted authoritative runtime movement, physics collision queries,
+  trigger/object-collider capsule defaults, collision validation, script-facing event tests, and
+  generated BSP gameplay fixtures to Z-up semantics. Gravity applies along `-Z`, horizontal movement
+  uses the X/Y plane, and importer/entity parsing preserves authored `x y z` ordering without hidden
+  axis swaps.
+- Phase 3 — converted client-side presentation and network-adjacent expectations to Z-up semantics.
+  Player camera eye offset is along +Z, default forward is +Y on the X/Y plane, yaw rotates around +Z,
+  input commands map W/S to +/-Y and A/D to +/-X, and snapshots remain raw server-authored data
+  carriers with no prediction, interpolation, reconciliation, or client authority.
+- Phase 4 — locked importer validation around BSP30 as the TrenchBroom target while preserving the
+  existing legacy BSP compatibility path. BSP30 tests cover Z-up player origins, dotted and underscore
   alias entity keys, deterministic developer material fallback, malformed lump rejection, and explicit
   Source/VBSP unsupported-version diagnostics without hidden axis conversion.
-- Phase 5 added the project-owned TrenchBroom package, underscore-alias FGD, developer material name
-  reference, BSP30 compile/validation wrappers, and workflow documentation. The TrenchBroom-facing FGD
-  avoids plain placeholder fields such as `stellar_script`; runtime dotted metadata remains supported
-  and the wrappers fail clearly when external compiler/runtime tools are unavailable.
-- Phase 6 added TrenchBroom-compatible `.map` source fixtures, Lua fixture scripts, deterministic
+- Phase 5 — added the project-owned TrenchBroom package, underscore-alias FGD, developer material name
+  reference, BSP30 compile/validation wrappers, and workflow documentation. Runtime dotted metadata
+  remains supported and wrappers fail clearly when external compiler/runtime tools are unavailable.
+- Phase 6 — added TrenchBroom-compatible `.map` source fixtures, Lua fixture scripts, deterministic
   generated BSP30 outputs under the build tree, fixture README/manual checklist coverage, and
   display-free client/server/importer/script validation for minimal room, entity matrix, scripted
   interaction, and invalid script escape cases.
+- Phase 7 — finalized active docs and handoff, archived the completed plan package, reran final audits,
+  reran full/focused CTest, and validated generated BSP30 fixtures with the wrapper.
 
 Phase 0 validation:
 
 ```bash
-git grep -n -i 'Y is up\|Y-up\|0 36 0\|floor at `y = 0`\|floor at y = 0' -- docs include src tests tools Plans ':!Plans/Archived/**' ':!build*/**'
-git grep -n '0\.0F, 1\.0F, 0\.0F\|0, 1, 0' -- include src tests ':!build*/**'
-git grep -n -i 'BSP29/BSP30\|BSP29\|BSP30' -- docs include src tests tools Plans ':!Plans/Archived/**' ':!build*/**'
-git grep -n 'stellar_script\|stellar_extents\|stellar_sprite\|stellar_collision' -- tools docs tests include src ':!build*/**'
-git grep -n 'CubeRenderer\|DebugCubeMesh\|create_debug_cube_mesh\|debug:cube\|debug_cube\|debug_cube_surface\|debug_red\|debug_green\|debug_blue' -- include src tests CMakeLists.txt docs Plans ':!Plans/Archived/**' ':!build*/**'
+git grep audits for retired axis wording, forward/up vector literals, FGD placeholder names,
+legacy BSP wording, and prototype cube fallback symbols across active docs/source/tests/tools/plans.
 ```
 
 Result: audit commands were run during Phase 0; findings are summarized above. No runtime behavior was
@@ -132,8 +127,8 @@ Phase 5 validation:
 ```bash
 bash -n tools/bsp/compile_trenchbroom_bsp30.sh
 bash -n tools/bsp/validate_trenchbroom_bsp30.sh
-git grep -n 'stellar_script\|stellar_extents\|stellar_sprite\|stellar_collision' -- tools/trenchbroom tools/bsp docs tests ':!build*/**'
-git grep -n '_stellar_script\|stellar.script' -- tools/trenchbroom docs tests ':!build*/**'
+git grep audits for TrenchBroom FGD aliases and runtime dotted metadata keys across active
+tools/docs/tests.
 ```
 
 Result: wrapper syntax checks and FGD/key audits passed during implementation. External BSP compiler
@@ -150,6 +145,35 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 Result: focused Phase 6 fixture and end-to-end validation passed during implementation. Source-tree
 fixture maps are human/editor references; deterministic compiled BSP30 fixtures are generated under
 `build/tests/fixtures/trenchbroom/compiled/` for display-free validation.
+
+Phase 7 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(world_axes|character_controller|collision_validation|runtime_world|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|bsp_|client_map_validation_smoke|client_cli_map_validation|dedicated_server|player_presentation|gameplay_presentation|render_level|graphics_backend_selection|client_world_receiver|networked_client_runtime|snapshot_|hud_presentation|audio_event_router)' --output-on-failure
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
+```
+
+Result: final Phase 7 validation passed on 2026-05-01. Full debug build succeeded with no work to do,
+full default CTest passed 59/59, focused TrenchBroom/BSP30/Z-up CTest passed 40/40, and wrapper
+validation passed for all three generated BSP30 fixtures. The two script-bound generated fixtures
+required the existing fixture Lua scripts to be present beside the generated BSPs under
+`build/tests/fixtures/trenchbroom/compiled/scripts/`, matching runtime script-root behavior.
+
+Final audit interpretation:
+
+- Active docs present Z-up as current and do not describe the retired axis convention as active.
+- Remaining `{0, 1, 0}` source/test hits are forward +Y vectors, triangle vertices, colors, or generic
+  math fallbacks; they are not up-axis contracts.
+- Active TrenchBroom workflow uses dotted runtime keys or underscore aliases; plain placeholder field
+  names are mentioned only as unsupported negative examples.
+- BSP30 is the TrenchBroom target; legacy BSP support remains importer compatibility only, and
+  Source/VBSP remains unsupported/deferred.
+- Prototype cube renderer/debug cube fallback symbols are absent from active source/docs/tests/plans
+  outside archived historical plans.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 
@@ -631,9 +655,10 @@ Completed implementation plan:
 - `Plans/Archived/bsp_gameplay_loop/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed
   historical master plan.
 
-Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is up, BSP authored
-coordinates import without scale conversion, and player capsule center spawns should be half the
-capsule height above the floor.
+Archived branch gameplay unit policy: 1 Stellar gameplay world unit equaled 1 inch, authored BSP
+coordinates imported without scale conversion, and player capsule center spawns were authored half the
+capsule height above the floor. Current active authoring policy is Z-up and documented in the completed
+`trenchbroom-compat` section above.
 
 Follow-up implementation should use `Plans/NEXT.md` for the next recommended post-PN options and this
 file as the source of truth for branch completion notes. Archived phase plans under `Plans/Archived/`
@@ -823,8 +848,8 @@ Phase 6 completion notes:
 
 - Added the `gameplay_room` generated BSP fixture as an inch-scale single-room map while preserving
   the existing tiny playable fixtures for focused importer/script tests.
-- The fixture is a 192x192 inch room from roughly `x/z = -96..96`, with floor `y = 0`, ceiling
-  `y = 96`, a center `info_player_start` at `0 36 0`, static collision floor/walls/ceiling, one
+- The fixture is a 192x192 inch room from roughly `x/y = -96..96`, with floor `z = 0`, ceiling
+  `z = 96`, a center `info_player_start` at `0 0 36`, static collision floor/walls/ceiling, one
   sprite marker, one future pickup object-collider marker, and one future door/gate trigger marker.
 - Display-free smoke coverage now imports the room BSP, builds `RuntimeWorld`, advances a
   `LocalLoopbackRuntime` with forward/right authoritative input, verifies movement direction and room
@@ -1148,7 +1173,7 @@ default CTest passed 26/26.
 
 Phase BSP-2 is complete as of 2026-05-01:
 
-- Added mandatory `stellar_import_bsp` loader for the classic BSP29/BSP30 family.
+- Added mandatory `stellar_import_bsp` loader for the legacy id Software BSP family.
 - Added safe lump parsing, entity key/value parsing, and BSP-to-`LevelAsset` conversion.
 - Built static geometry, named collision meshes, world metadata markers, and script bindings from
   BSP data.

@@ -17,6 +17,16 @@ tools/trenchbroom/Stellar/
 Add that directory as a TrenchBroom game package, or copy it into TrenchBroom's local games directory.
 Then create a new map using the **Stellar** game configuration.
 
+Manual editor checklist:
+
+- Confirm the selected game is **Stellar**.
+- Confirm the map format/profile is BSP30, not Source/VBSP.
+- Confirm the grid and entity coordinates use X/Y for the floor plan and Z for height.
+- Confirm the first room has floor `z = 0`, ceiling `z = 96`, and player origin `0 0 36`.
+- Confirm gameplay metadata uses dotted keys or Stellar FGD underscore aliases.
+- Confirm compile output is written outside the source `.map` directory, normally under
+  `maps/compiled/`.
+
 ## BSP30 workflow
 
 Author `.map` sources under:
@@ -161,7 +171,13 @@ export STELLAR_SERVER=/path/to/stellar-server
 ```
 
 Launch commands remain outside this package's compile wrapper. Use the normal client/server commands
-for the current branch after display-free validation passes.
+for the current branch after display-free validation passes:
+
+```bash
+build/stellar-client --map maps/compiled/test_room.bsp
+build/stellar-server --map maps/compiled/test_room.bsp --listen 127.0.0.1:7777
+build/stellar-client --connect 127.0.0.1:7777
+```
 
 ## End-to-end fixtures
 
@@ -176,9 +192,35 @@ floor `z = 0`, ceiling `z = 96`, `info_player_start origin "0 0 36"`, and develo
 materials. The fixture README documents the complete fixture matrix, expected entities, expected
 validation outcomes, and the manual open/compile/validate checklist.
 
-Default CTest coverage generates deterministic BSP30 equivalents under `build/tests/fixtures/` so CI
-does not need checked-in binary BSPs, an external compiler, a display, or a GPU. External compiler smoke
-coverage is skipped gracefully when no BSP30 compiler is configured.
+Generated fixture policy:
+
+- Source-tree `.map` files are human/editor references and reviewable authoring examples.
+- Lua fixture scripts live next to the source-map fixture set when needed for scripted maps.
+- Binary BSP30 outputs are generated under `build/tests/fixtures/trenchbroom/compiled/` by tests.
+- Generated BSPs are deterministic validation artifacts and are not required to be checked in.
+- CI/default CTest must not require an external BSP compiler, a display, or a GPU.
+- External compiler smoke coverage is optional and skipped clearly when no BSP30 compiler is configured.
+
+Validate generated fixtures after a build with:
+
+```bash
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
+```
+
+## Troubleshooting
+
+- `No BSP30 compiler configured`: set `STELLAR_BSP30_COMPILER` or use `--profile validate-only` for an
+  existing BSP.
+- `BSP header version is not 30`: use the Stellar BSP30 profile and avoid Source/VBSP compilers.
+- Missing texture thumbnails in TrenchBroom: create a local WAD with the documented developer material
+  names; runtime validation still uses deterministic fallback materials by name.
+- Missing player spawn: add `info_player_start` at `origin = "0 0 36"` for the first room.
+- Script path rejected: keep script ids asset-relative and do not use absolute paths, drive-letter
+  paths, or `..` parent traversal.
+- Runtime script missing: place referenced Lua scripts next to the map or configure the runtime script
+  root explicitly.
 
 ## Unsupported or deferred
 

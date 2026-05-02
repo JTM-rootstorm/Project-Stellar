@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.8 (socket transport scope complete)
+**Version:** 0.2.9 (TrenchBroom BSP30 Z-up scope complete)
 **Last Updated:** 2026-05-01
 
 ---
@@ -85,7 +85,7 @@ suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`trenchbroom-compat` branch, it is not the highest authority on current implementation status.
+`trenchbroom-compat` branch, it is not the highest authority on implementation status.
 
 Precedence for resolving conflicts:
 
@@ -107,15 +107,17 @@ deferred.
 
 Current branch: `trenchbroom-compat`.
 
-Primary near-term status: the `trenchbroom-compat` branch is migrating authoring and runtime
-conventions toward TrenchBroom-authored BSP30 maps using a Z-up world-axis contract. Phase 1 makes the
-central axis contract and obvious defaults explicit; full runtime, camera, input, and presentation
-conversion completes in later phases. Socket transport and networked session lifecycle over the
-completed BSP gameplay loop and presentation/networking polish foundations are complete. The completed
-scope includes a Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the
-headless `stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode.
-Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
-and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
+Primary near-term status: the `trenchbroom-compat` branch has completed the Z-up migration and
+TrenchBroom BSP30 authoring workflow. Active runtime, collision, movement, presentation, tests, and map
+fixtures use the central Z-up world-axis contract. TrenchBroom-authored BSP30 maps are the supported
+editor workflow, and imported BSP coordinates are preserved 1:1 as Stellar gameplay inches. Socket
+transport and networked session lifecycle over the completed BSP gameplay loop and
+presentation/networking polish foundations are also complete. The completed scope includes a
+Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the headless
+`stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode. Completed
+collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
+BSP gameplay-loop, socket transport, and TrenchBroom compatibility work should be treated as
+foundational historical context, not restarted.
 
 Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
@@ -127,13 +129,12 @@ The completed gameplay-loop plans are archived under `Plans/Archived/bsp_gamepla
 completed presentation/networking polish plans are archived under
 `Plans/Archived/bsp_presentation_networking_polish/`.
 
-Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
-world unit equals 1 inch, the planned end-state is Z-up with BSP30 authored coordinates imported
-without hidden scale conversion, and remaining Y-up runtime/presentation assumptions are being migrated
-across the TrenchBroom compatibility phases. `stellar::core::WorldUnits.hpp` and
-`stellar::core::WorldAxes.hpp` record the shared code constants. The default
-authoritative player capsule is 72 inches tall with a 16 inch radius, so player spawn centers should
-be authored 36 inches above the floor unless a later archetype explicitly changes the capsule.
+Gameplay authoring and runtime tuning for this branch use inch-scale Z-up world units: 1 Stellar
+gameplay world unit equals 1 inch, BSP30 authored coordinates are imported without hidden scale or axis
+conversion, and `stellar::core::WorldUnits.hpp` plus `stellar::core::WorldAxes.hpp` record the shared
+code constants. The default authoritative player capsule is 72 inches tall with a 16 inch radius, so
+player spawn centers should be authored at `z = 36` above a floor at `z = 0` unless a later archetype
+explicitly changes the capsule.
 Default walk tuning is 160 inches/second max speed, 1200 inches/second² acceleration, 800
 inches/second² gravity, and 2400 inches/second terminal fall speed; these are game-feel defaults, not
 real-world simulation claims.
@@ -363,8 +364,8 @@ family.
 
 Current BSP support covers:
 
-- BSP29 and BSP30-style headers, lump tables, geometry, texture names, entities, visibility, and
-  lighting data where available.
+- Legacy BSP and BSP30 headers, lump tables, geometry, texture names, entities, visibility, and
+  lighting data where available. BSP30 is the TrenchBroom workflow target.
 - Static world geometry represented as backend-neutral mesh primitives.
 - Static collision represented as named triangle collision meshes and optional BSP hull data.
 - Entity key/value metadata for player spawns, generic spawns, triggers, sprite markers,
@@ -1145,7 +1146,7 @@ Representative coverage:
 
 Importer tests should cover:
 
-- BSP29/BSP30 version handling.
+- Legacy BSP and BSP30 version handling.
 - Header and lump bounds validation.
 - Geometry, face triangulation, texture/material name preservation, and bounds.
 - Static collision mesh extraction.

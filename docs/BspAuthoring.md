@@ -13,10 +13,13 @@ conversion. The default player capsule center should be authored at `origin = "0
 
 ## Minimal workflow
 
-1. Build a BSP30 map in TrenchBroom or a compatible Quake/GoldSrc-style toolchain.
-2. Author gameplay markers with ordinary entity key/value pairs.
-3. Compile/export the `.bsp`.
-4. Run the display-free validation commands below before using the map in runtime tests.
+1. Create a TrenchBroom map with the Stellar game profile and BSP30 map format.
+2. Build the first sealed room with an X/Y floor footprint, floor at `z = 0`, and ceiling at `z = 96`.
+3. Place `info_player_start` at `origin = "0 0 36"` for the default 72 inch player capsule.
+4. Use developer materials such as `dev/grid_32`, `dev/grid_64`, and `dev/wall_96` while blocking out.
+5. Author gameplay markers with ordinary entity key/value pairs or the Stellar FGD aliases.
+6. Compile/export the `.bsp` as BSP30.
+7. Run the display-free validation commands below before using the map in runtime tests.
 
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD
 definitions, or equivalent editor mechanisms that preserve keys exactly. Dotted Stellar keys such as
@@ -121,6 +124,19 @@ a room at gameplay scale:
 
 Display-free validation imports this room, builds `RuntimeWorld`, advances `LocalLoopbackRuntime`
 with authoritative movement input, verifies room-wall containment, and checks deterministic snapshots.
+
+### First TrenchBroom room checklist
+
+Use this geometry as the manual editor smoke test before adding scripted interactions:
+
+- X/Y footprint: `-96..96` on both axes.
+- Floor plane: `z = 0`.
+- Ceiling plane: `z = 96`.
+- Player start: `info_player_start` with `origin = "0 0 36"` and an `angle` facing into the room.
+- Materials: `dev/grid_32` or `stellar_dev_grid_32` on the floor, `dev/grid_64` or
+  `stellar_dev_grid_64` on the ceiling, and `dev/wall_96` or `stellar_dev_wall_96` on walls.
+- Compile target: BSP30.
+- Required validation: wrapper validation plus `stellar-client --validate-map`.
 
 ### Player spawn
 
@@ -243,6 +259,9 @@ Common diagnostics:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 ctest --test-dir build -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
 ```
 
 For broad confidence, also run:
