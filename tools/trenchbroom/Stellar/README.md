@@ -62,6 +62,8 @@ Copied packages inherit the same external tool environment as repo-local package
 - `Icon.png`
 - `materials/StellarDevMaterials.txt`
 - `materials/stellar_dev.wad`
+- `templates/minimal_zup_room.map`
+- `templates/lit_zup_room.map`
 - `bin/stellar_tb_compile.sh`
 - `bin/stellar_tb_validate.sh`
 - `bin/stellar_tb_env.sh`
@@ -95,3 +97,24 @@ Do not author plain placeholder keys like `stellar_script`; they are not support
 Use the package-local `materials/stellar_dev.wad`, PNG thumbnails, and names listed in
 `materials/StellarDevMaterials.txt` for editor-visible developer materials. Runtime validation uses
 deterministic fallback materials by material name.
+
+Verify the packaged WAD from the repository root with:
+
+```bash
+python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
+```
+
+Keep source-map `wad` keys relative. Configure extra runtime/import search roots with
+`STELLAR_WAD_PATH` or `STELLAR_TEXTURE_PATH`; do not commit absolute local WAD paths or `..` escapes.
+
+## Templates
+
+`templates/minimal_zup_room.map` and `templates/lit_zup_room.map` are 192x192x96 Z-up starter rooms
+with `info_player_start` at `0 0 36`. `GameConfig.cfg` uses the minimal room as the initial map when
+TrenchBroom honors `initialmap`; otherwise open a template manually and save a copy under `maps/src/`.
+
+The compile shims run source preflight before external compilers. Run it manually with:
+
+```bash
+python3 tools/bsp/validate_trenchbroom_map_source.py maps/src/your_map.map
+```

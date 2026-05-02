@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Project Stellar developer textures as a deterministic WAD3 file."""
+"""Generate and verify Project Stellar developer textures as deterministic WAD3."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import os
 import struct
 import sys
 from pathlib import Path
-from typing import Callable
 
 TEXTURES = (
     "dev/grid_12",
@@ -50,11 +49,9 @@ def build_palette() -> bytes:
         (128, 48, 48),
         (208, 80, 72),
     ]
-
     while len(colors) < PALETTE_SIZE:
         i = len(colors)
         colors.append(((i * 37) & 0xFF, (i * 67) & 0xFF, (i * 97) & 0xFF))
-
     return b"".join(bytes(rgb) for rgb in colors)
 
 
@@ -63,6 +60,14 @@ def validate_texture_name(name: str) -> bytes:
     if not encoded or len(encoded) > 15:
         raise ValueError(f"WAD3 miptex name must be 1..15 ASCII bytes: {name!r}")
     return encoded.ljust(16, b"\0")
+
+
+def canonical_source_name(name: str) -> str:
+    if name.startswith("stellar_dev_"):
+        return "dev/" + name.removeprefix("stellar_dev_")
+    if name.startswith("dev_"):
+        return "dev/" + name.removeprefix("dev_")
+    return name
 
 
 def scale_nearest(base: list[int], base_width: int, width: int, height: int) -> bytes:
@@ -133,7 +138,7 @@ def wall_pattern() -> list[int]:
 
 
 def texture_pixels(name: str) -> list[int]:
-    normalized_name = name.replace("_", "/", 1) if name.startswith("dev_") else name
+    normalized_name = canonical_source_name(name)
     if normalized_name == "dev/grid_12":
         return grid_pattern(12)
     if normalized_name == "dev/grid_16":
@@ -153,17 +158,14 @@ def build_miptex(name: str, palette: bytes) -> bytes:
     width = TEXTURE_SIZE
     height = TEXTURE_SIZE
     base_pixels = texture_pixels(name)
-
     sizes = ((width, height), (width // 2, height // 2), (width // 4, height // 4), (width // 8, height // 8))
     header_size = 16 + 4 + 4 + 4 * 4
     mip_data = [scale_nearest(base_pixels, width, mip_width, mip_height) for mip_width, mip_height in sizes]
-
     offsets: list[int] = []
     cursor = header_size
     for mip in mip_data:
         offsets.append(cursor)
         cursor += len(mip)
-
     miptex = bytearray()
     miptex += validate_texture_name(name)
     miptex += struct.pack("<II4I", width, height, *offsets)
@@ -177,41 +179,92 @@ def build_miptex(name: str, palette: bytes) -> bytes:
 def build_wad() -> bytes:
     palette = build_palette()
     lumps = [(name, build_miptex(name, palette)) for name in TEXTURES]
-
     data = bytearray()
     directory: list[tuple[int, int, str]] = []
     data += struct.pack("<4sII", b"WAD3", len(lumps), 0)
-
     for name, lump in lumps:
         filepos = len(data)
         data += lump
         directory.append((filepos, len(lump), name))
-
     directory_offset = len(data)
     for filepos, size, name in directory:
         data += struct.pack("<IIIbbbb16s", filepos, size, size, WAD3_MIPTEX_TYPE, 0, 0, 0, validate_texture_name(name))
-
     struct.pack_into("<I", data, 8, directory_offset)
     return bytes(data)
 
 
+def inspect_wad(data: bytes) -> list[tuple[str, int, int, int]]:
+    if len(data) < 12:
+        raise ValueError("WAD is too small")
+    magic, count, directory_offset = struct.unpack_from("<4sII", data, 0)
+    if magic != b"WAD3":
+        raise ValueError(f"expected WAD3 magic, found {magic!r}")
+    if directory_offset + count * 32 > len(data):
+        raise ValueError("WAD directory is outside file bounds")
+    entries: list[tuple[str, int, int, int]] = []
+    for i in range(count):
+        filepos, disksize, size, lump_type, compression, _pad1, _pad2, raw_name = struct.unpack_from(
+            "<IIIbbbb16s", data, directory_offset + i * 32
+        )
+        if lump_type != WAD3_MIPTEX_TYPE or compression != 0:
+            raise ValueError(f"unsupported lump metadata at index {i}")
+        if filepos + disksize > len(data) or disksize != size:
+            raise ValueError(f"invalid lump bounds at index {i}")
+        name = raw_name.split(b"\0", 1)[0].decode("ascii")
+        tex_name, width, height = struct.unpack_from("<16sII", data, filepos)
+        embedded_name = tex_name.split(b"\0", 1)[0].decode("ascii")
+        if embedded_name != name:
+            raise ValueError(f"directory name {name!r} disagrees with miptex {embedded_name!r}")
+        palette_count_offset = filepos + disksize - (PALETTE_SIZE * 3 + 2)
+        palette_count = struct.unpack_from("<H", data, palette_count_offset)[0]
+        if palette_count != PALETTE_SIZE:
+            raise ValueError(f"texture {name} has palette size {palette_count}")
+        entries.append((name, width, height, disksize))
+    return entries
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate Project Stellar deterministic developer WAD3 textures.")
-    parser.add_argument("--out", required=True, type=Path, help="Output WAD3 path.")
+    parser = argparse.ArgumentParser(description="Generate or verify Project Stellar deterministic developer WAD3 textures.")
+    parser.add_argument("--out", type=Path, help="Output WAD3 path.")
+    parser.add_argument("--verify", type=Path, help="Verify an existing WAD3 against deterministic generated bytes.")
+    parser.add_argument("--list", action="store_true", help="List deterministic developer texture names and dimensions.")
+    parser.add_argument("--manifest", type=Path, help="Write a text manifest of generated WAD entries.")
+    parser.add_argument("--png-source", type=Path, help="Accepted for workflow documentation; generation is procedural and deterministic.")
     return parser.parse_args(argv)
+
+
+def write_atomic(path: Path, data: bytes) -> None:
+    if path.exists() and path.is_dir():
+        raise OSError(f"output path is a directory: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_bytes(data)
+    os.replace(tmp_path, path)
 
 
 def main(argv: list[str]) -> int:
     try:
         args = parse_args(argv)
-        out_path: Path = args.out
-        if out_path.exists() and out_path.is_dir():
-            raise OSError(f"output path is a directory: {out_path}")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = out_path.with_name(f".{out_path.name}.tmp")
-        tmp_path.write_bytes(build_wad())
-        os.replace(tmp_path, out_path)
-    except (OSError, ValueError, struct.error) as exc:
+        generated = build_wad()
+        entries = inspect_wad(generated)
+        if args.png_source is not None and not args.png_source.exists():
+            raise OSError(f"--png-source path does not exist: {args.png_source}")
+        if args.list:
+            for name, width, height, _size in entries:
+                print(f"{name} {width}x{height}")
+        if args.manifest is not None:
+            write_atomic(args.manifest, "".join(f"{n} {w}x{h} {s}\n" for n, w, h, s in entries).encode("utf-8"))
+        if args.verify is not None:
+            actual = args.verify.read_bytes()
+            inspect_wad(actual)
+            if actual != generated:
+                raise ValueError(f"WAD does not match deterministic generated output: {args.verify}")
+            print(f"Verified deterministic Stellar developer WAD: {args.verify}")
+        if args.out is not None:
+            write_atomic(args.out, generated)
+        if args.out is None and args.verify is None and not args.list and args.manifest is None:
+            raise ValueError("one of --out, --verify, --list, or --manifest is required")
+    except (OSError, ValueError, struct.error, UnicodeDecodeError) as exc:
         print(f"create_stellar_dev_wad.py: error: {exc}", file=sys.stderr)
         return 1
     return 0

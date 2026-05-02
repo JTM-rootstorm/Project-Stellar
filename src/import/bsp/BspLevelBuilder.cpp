@@ -1,10 +1,12 @@
 #include "BspBinary.hpp"
 #include "DeveloperTextures.hpp"
+#include "Wad3Reader.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <limits>
 #include <map>
 #include <optional>
@@ -229,9 +231,19 @@ struct TextureBuildResult {
   std::optional<std::array<std::uint32_t, 2>> texel_size;
 };
 
+[[nodiscard]] std::string texture_lookup_key(std::string_view name) {
+  std::string key;
+  key.reserve(name.size());
+  for (const char ch : name) {
+    key.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+  }
+  return key;
+}
+
 [[nodiscard]] TextureBuildResult
 texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
                     std::map<std::string, std::size_t> &textures,
+                    const std::unordered_map<std::string, WadTextureAsset> &wad_textures,
                     const std::string &texture_name,
                     const Miptex *miptex, const std::string &source_uri,
                     ImportReport *report) {
@@ -279,6 +291,34 @@ texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
     return TextureBuildResult{.texture_index = texture_index,
                               .texel_size = std::array<std::uint32_t, 2>{
                                   miptex->width, miptex->height}};
+  }
+
+  if (const auto wad = wad_textures.find(texture_lookup_key(texture_name));
+      wad != wad_textures.end()) {
+    stellar::assets::ImageAsset image = wad->second.image;
+    image.name = texture_name;
+    const std::size_t image_index = geometry.images.size();
+    const std::array<std::uint32_t, 2> texel_size{image.width, image.height};
+    geometry.images.push_back(std::move(image));
+
+    stellar::assets::SamplerAsset sampler;
+    sampler.name = texture_name + "_wad_repeat";
+    sampler.mag_filter = stellar::assets::TextureFilter::kNearest;
+    sampler.min_filter = stellar::assets::TextureFilter::kNearest;
+    sampler.wrap_s = stellar::assets::TextureWrapMode::kRepeat;
+    sampler.wrap_t = stellar::assets::TextureWrapMode::kRepeat;
+    const std::size_t sampler_index = geometry.samplers.size();
+    geometry.samplers.push_back(std::move(sampler));
+
+    const std::size_t texture_index = geometry.textures.size();
+    geometry.textures.push_back(stellar::assets::TextureAsset{
+        .name = texture_name,
+        .image_index = image_index,
+        .sampler_index = sampler_index,
+        .color_space = stellar::assets::TextureColorSpace::kSrgb});
+    textures.emplace(texture_name, texture_index);
+    return TextureBuildResult{.texture_index = texture_index,
+                              .texel_size = texel_size};
   }
 
   if (auto developer_texture = make_developer_texture(texture_name, source_uri)) {
@@ -516,6 +556,20 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
   mesh.source_uri = level.source_uri;
   std::map<std::string, std::size_t> material_indices;
   std::map<std::string, std::size_t> texture_indices;
+  std::unordered_map<std::string, WadTextureAsset> wad_textures;
+  if (!entities.empty()) {
+    if (const std::string *wad_key = value_for(entities.front(), "wad");
+        wad_key != nullptr && !wad_key->empty()) {
+      WadResolveResult wad_result = resolve_wad_textures(
+          *wad_key, make_wad_resolve_context(level.source_uri));
+      wad_textures = std::move(wad_result.textures);
+      for (std::string &message : wad_result.diagnostics) {
+        add_warning(report, DiagnosticCode::kMissingTexture, level.source_uri,
+                    level.source_uri + ": " + message,
+                    static_cast<std::size_t>(LumpIndex::kTextures));
+      }
+    }
+  }
 
   stellar::assets::LevelCollisionAsset collision{};
   collision.bounds_min = {std::numeric_limits<float>::max(),
@@ -581,8 +635,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       }
       const std::string texture = texture_name_for(map, face);
       const TextureBuildResult texture_asset = texture_asset_index(
-          level.geometry, texture_indices, texture, texture_for_face(map, face),
-          level.source_uri, report);
+          level.geometry, texture_indices, wad_textures, texture,
+          texture_for_face(map, face), level.source_uri, report);
       const LightmapBuildResult lightmap = build_lightmap_for_face(
           level.geometry, map, face, polygon, static_cast<std::size_t>(face_index),
           level.source_uri, report);

@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: tools/bsp/compile_trenchbroom_bsp30.sh --map maps/src/room.map --out maps/compiled/room.bsp [--profile fast|full|validate-only] [--toolchain auto|single|vhlt]
+Usage: tools/bsp/compile_trenchbroom_bsp30.sh --map maps/src/room.map --out maps/compiled/room.bsp [--profile fast|full|validate-only] [--toolchain auto|single|vhlt] [--skip-source-preflight]
 
 Examples:
   tools/bsp/compile_trenchbroom_bsp30.sh --map maps/src/room.map --out maps/compiled/room.bsp --profile fast
@@ -153,6 +153,7 @@ map_path=""
 out_path=""
 profile="fast"
 toolchain="${STELLAR_BSP30_TOOLCHAIN:-auto}"
+source_preflight="1"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --map)
@@ -175,6 +176,10 @@ while [[ $# -gt 0 ]]; do
             toolchain="$2"
             shift 2
             ;;
+        --skip-source-preflight)
+            source_preflight="0"
+            shift
+            ;;
         --help|-h)
             usage
             exit 0
@@ -191,8 +196,10 @@ done
 
 root="$(repo_root)"
 validate_script="$root/tools/bsp/validate_trenchbroom_bsp30.sh"
+source_preflight_script="$root/tools/bsp/validate_trenchbroom_map_source.py"
 vhlt_script="$root/tools/bsp/compile_vhlt_bsp30.sh"
 [[ -x "$validate_script" || -f "$validate_script" ]] || fail "validation wrapper missing: $validate_script"
+[[ -f "$source_preflight_script" ]] || fail "source preflight missing: $source_preflight_script"
 
 selected_toolchain="$toolchain"
 if [[ "$selected_toolchain" == "auto" ]]; then
@@ -207,7 +214,14 @@ if [[ "$selected_toolchain" == "vhlt" ]]; then
         [[ -n "$map_path" ]] || fail "--map is required for compile profiles"
         [[ -f "$map_path" ]] || fail "MAP does not exist: $map_path"
         [[ "$map_path" == *.map ]] || fail "input must be a .map file: $map_path"
-        bash "$vhlt_script" --map "$map_path" --out "$out_path" --profile "$profile"
+        if [[ "$source_preflight" == "1" ]]; then
+            python3 "$source_preflight_script" "$map_path"
+        fi
+        vhlt_args=(--map "$map_path" --out "$out_path" --profile "$profile")
+        if [[ "$source_preflight" == "0" ]]; then
+            vhlt_args+=(--skip-source-preflight)
+        fi
+        bash "$vhlt_script" "${vhlt_args[@]}"
     fi
     exit 0
 fi
@@ -216,6 +230,9 @@ if [[ "$profile" != "validate-only" ]]; then
     [[ -n "$map_path" ]] || fail "--map is required for compile profiles"
     [[ -f "$map_path" ]] || fail "MAP does not exist: $map_path"
     [[ "$map_path" == *.map ]] || fail "input must be a .map file: $map_path"
+    if [[ "$source_preflight" == "1" ]]; then
+        python3 "$source_preflight_script" "$map_path"
+    fi
 
     out_dir="$(dirname "$out_path")"
     mkdir -p "$out_dir"

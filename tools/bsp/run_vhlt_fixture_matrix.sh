@@ -172,6 +172,7 @@ run_negative_fixture() {
     local fixture_log_dir="$logs_dir/$fixture"
     local compile_log="$fixture_log_dir/matrix_compile.log"
     local validate_log="$fixture_log_dir/matrix_validate_expected_failure.log"
+    local preflight_log="$fixture_log_dir/matrix_source_preflight_expected_failure.log"
 
     [[ -f "$map_path" ]] || {
         record_result "$fixture" "FAIL" "missing source fixture: $map_path"
@@ -180,9 +181,19 @@ run_negative_fixture() {
 
     rm -f "$out_path"
     mkdir -p "$fixture_log_dir"
+    if run_and_log "$preflight_log" python3 "$source_preflight_script" "$map_path"; then
+        record_result "$fixture" "FAIL" "source preflight unexpectedly passed; log=$preflight_log"
+        return 1
+    fi
+    if grep -Eiq 'script.*path|path.*escape|absolute|\.\.' "$preflight_log"; then
+        record_result "$fixture" "PASS" "source preflight failed for expected script path escape; logs=$fixture_log_dir"
+        return 0
+    fi
+
     if ! STELLAR_VHLT_KEEP_WORK=1 STELLAR_VHLT_LOG_DIR="$fixture_log_dir" \
         run_and_log "$compile_log" bash "$compile_script" \
             --map "$map_path" --out "$out_path" --profile "$profile" \
+            --skip-source-preflight \
             --no-stellar-validation; then
         record_result "$fixture" "FAIL" "VHLT compile failed before expected validation failure; log=$compile_log"
         return 1
@@ -268,6 +279,7 @@ mkdir -p "$build_root"
 
 compile_script="$source_root/tools/bsp/compile_vhlt_bsp30.sh"
 validate_script="$source_root/tools/bsp/validate_trenchbroom_bsp30.sh"
+source_preflight_script="$source_root/tools/bsp/validate_trenchbroom_map_source.py"
 src_dir="$source_root/tests/fixtures/trenchbroom/src"
 compiled_dir="$build_root/tests/fixtures/trenchbroom/vhlt/compiled"
 logs_dir="$build_root/tests/fixtures/trenchbroom/vhlt/logs"
@@ -278,6 +290,7 @@ failures=0
 
 [[ -f "$compile_script" ]] || fail "missing compile wrapper: $compile_script"
 [[ -f "$validate_script" ]] || fail "missing validation wrapper: $validate_script"
+[[ -f "$source_preflight_script" ]] || fail "missing source preflight: $source_preflight_script"
 
 skip_missing_vhlt_tools "$source_root"
 

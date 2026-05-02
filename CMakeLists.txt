@@ -188,6 +188,7 @@ add_library(stellar_import_bsp
     src/import/bsp/BspParser.cpp
     src/import/bsp/BspEntities.cpp
     src/import/bsp/DeveloperTextures.cpp
+    src/import/bsp/Wad3Reader.cpp
     src/import/bsp/BspLevelBuilder.cpp
 )
 
@@ -714,3 +715,22 @@ add_test(NAME bsp_authoring_smoke_compile_wrapper
 add_test(NAME trenchbroom_package_path_smoke
     COMMAND ${CMAKE_SOURCE_DIR}/tools/trenchbroom/test_stellar_package_paths.sh ${CMAKE_SOURCE_DIR}
 )
+
+add_test(NAME trenchbroom_wad_tool_verify
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/create_stellar_dev_wad.py
+        --verify ${CMAKE_SOURCE_DIR}/tools/trenchbroom/Stellar/materials/stellar_dev.wad
+)
+
+add_test(NAME trenchbroom_wad_tool_list
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/create_stellar_dev_wad.py --list
+)
+
+add_test(NAME trenchbroom_source_preflight_fixtures
+    COMMAND bash -c "for f in '${CMAKE_SOURCE_DIR}'/tests/fixtures/trenchbroom/src/*.map; do case \"$f\" in *invalid_malformed_brush.map|*invalid_script_escape_zup.map) continue ;; esac; python3 '${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py' \"$f\" || exit 1; done"
+)
+
+add_test(NAME trenchbroom_source_preflight_rejects_malformed
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py
+        ${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/invalid_malformed_brush.map
+)
+set_tests_properties(trenchbroom_source_preflight_rejects_malformed PROPERTIES WILL_FAIL TRUE)

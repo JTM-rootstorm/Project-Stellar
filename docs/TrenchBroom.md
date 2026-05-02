@@ -90,18 +90,30 @@ A practical first test room is 192x192x96 inches:
 Use these runtime-recognized material names for deterministic fallback rendering and display-free
 validation:
 
-| Material name | Slash alias | Intended scale cue |
-| --- | --- | --- |
-| `stellar_dev_grid_12` | `dev/grid_12` | 12 inch / 1 foot grid tile. |
-| `stellar_dev_grid_16` | `dev/grid_16` | 16 inch tile/checker. |
-| `stellar_dev_grid_32` | `dev/grid_32` | 32 inch tile/checker. |
-| `stellar_dev_grid_64` | `dev/grid_64` | 64 inch tile/checker. |
-| `stellar_dev_player_72` | `dev/player_72` | 72 inch player-height reference strip. |
-| `stellar_dev_wall_96` | `dev/wall_96` | 96 inch / 8 foot wall-height reference strip. |
+| Canonical runtime name | Source alias | Compiler/WAD alias | Intended scale cue |
+| --- | --- | --- | --- |
+| `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` | 12 inch / 1 foot grid tile. |
+| `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` | 16 inch tile/checker. |
+| `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` | 32 inch tile/checker. |
+| `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` | 64 inch tile/checker. |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
 
-The package includes editor-visible developer PNGs and `materials/stellar_dev.wad` with these names.
-Runtime validation still does not depend on editor texture pixels; it uses deterministic fallback
-material data by name.
+The package includes editor-visible developer PNGs and `materials/stellar_dev.wad`. The WAD uses the
+15-byte compiler-compatible `dev/...` and `dev_*` names; runtime also recognizes the longer
+`stellar_dev_*` aliases as deterministic fallback names. Generate or verify it with:
+
+```bash
+python3 tools/bsp/create_stellar_dev_wad.py --out /tmp/stellar_dev.wad
+python3 tools/bsp/create_stellar_dev_wad.py --list
+python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
+```
+
+Runtime BSP import resolves embedded miptex pixels first, then safe external WAD3 textures from the
+compiled `worldspawn` `wad` key, then deterministic developer fallback names. Relative WAD paths are
+searched from the BSP/map directory, `STELLAR_WAD_PATH`/`STELLAR_TEXTURE_PATH` roots, and the packaged
+developer materials path. Parent-directory escapes are rejected. Absolute WAD paths are ignored unless
+`STELLAR_ALLOW_ABSOLUTE_WAD_PATHS` is explicitly set, so do not commit local absolute WAD paths.
 
 ## VHLT Linux toolchain
 
@@ -237,6 +249,10 @@ Profiles:
 
 The wrapper fails clearly when no compiler is configured, the output is missing or empty, the BSP header
 is not version 30, required gameplay entity text is absent, or display-free Stellar validation fails.
+Before compiling, the wrapper runs `tools/bsp/validate_trenchbroom_map_source.py` over source `.map`
+files. Use `--skip-source-preflight` only for diagnosing compiler behavior directly. Preflight catches
+unbalanced entity/brush blocks, incomplete brushes, malformed Valve 220 texture axes, unsafe script/WAD
+paths, missing worldspawn/player start, and malformed `_stellar_*` values with line/column diagnostics.
 
 If TrenchBroom reports that the compile tool cannot locate the repository, export
 `STELLAR_REPO_ROOT=/path/to/Stellar_Engine` before launching TrenchBroom or reinstall the package with
@@ -325,8 +341,9 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 - `hlcsg` brush diagnostics: inspect the copied work map and stage logs under
   `build/tests/fixtures/trenchbroom/vhlt/logs/<fixture>/`. Leaks, malformed brush planes, or invalid
   texture axes can stop the VHLT pipeline before Stellar validation runs.
-- Missing texture thumbnails in TrenchBroom: create a local WAD with the documented developer material
-  names; runtime validation still uses deterministic fallback materials by name.
+- Missing texture thumbnails in TrenchBroom: use the packaged PNGs/WAD and verify it with
+  `create_stellar_dev_wad.py --verify`; runtime validation still uses deterministic fallback materials
+  by name if external pixels are unavailable.
 - Missing player spawn: add `info_player_start` at `origin = "0 0 36"` for the first room.
 - Script path rejected: keep script ids asset-relative and do not use absolute paths, drive-letter
   paths, or `..` parent traversal.
@@ -340,6 +357,6 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 
 - Moving brush simulation for doors, buttons, plats, trains, or rotating entities.
 - Client-side gameplay scripting or renderer/audio script authority.
-- Editor WAD generation in the project package; runtime fallback by material name is used instead.
+- Arbitrary unsafe WAD paths. Keep WAD keys relative to the map or configured search roots.
 - Source/VBSP formats and Source-specific entities.
 - Dynamic rigid bodies, third-party physics, PBR materials, and model animation systems.

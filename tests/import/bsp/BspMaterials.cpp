@@ -5,9 +5,19 @@
 
 #include <cassert>
 #include <cstddef>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 namespace {
+
+void set_entities(std::vector<std::byte> &bytes, const std::string &entities) {
+    const std::size_t entity_offset = bytes.size();
+    bytes.insert(bytes.end(), reinterpret_cast<const std::byte *>(entities.data()),
+                 reinterpret_cast<const std::byte *>(entities.data() + entities.size()));
+    stellar::tests::bsp_fixture::set_lump(
+        bytes, stellar::import::bsp::detail::LumpIndex::kEntities, entity_offset, entities.size());
+}
 
 void embedded_miptex_creates_image_and_texture() {
     const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(true);
@@ -89,9 +99,20 @@ void developer_texture_names_are_known() {
     assert(stellar::import::bsp::detail::make_developer_texture(
                "stellar_dev_wall_96", "developer_names.bsp")
                .has_value());
+    const char *aliases[] = {"dev/grid_12", "dev/grid_16", "dev/grid_32",
+                             "dev/grid_64", "dev/player_72", "dev/wall_96",
+                             "dev_grid_12", "dev_grid_16", "dev_grid_32",
+                             "dev_grid_64", "dev_player_72", "dev_wall_96",
+                             "stellar_dev_grid_12", "stellar_dev_grid_16",
+                             "stellar_dev_grid_32", "stellar_dev_grid_64",
+                             "stellar_dev_player_72", "stellar_dev_wall_96"};
+    for (const char *alias : aliases) {
+        auto texture = stellar::import::bsp::detail::make_developer_texture(alias, "developer_names.bsp");
+        assert(texture.has_value());
+    }
     assert(!stellar::import::bsp::detail::make_developer_texture(
-                "unknown_missing", "developer_names.bsp")
-                .has_value());
+                 "unknown_missing", "developer_names.bsp")
+                 .has_value());
 }
 
 void external_developer_texture_alias_creates_material_binding() {
@@ -134,6 +155,44 @@ void external_developer_texture_alias_creates_material_binding() {
     }
 }
 
+void external_wad_texture_resolves_from_safe_search_path() {
+    auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, -1, 0, "dev_grid_32");
+    set_entities(bytes, "{\n\"classname\" \"worldspawn\"\n\"wad\" \"stellar_dev.wad\"\n}\n"
+                        "{\n\"classname\" \"info_player_start\"\n\"origin\" \"0 0 36\"\n}\n");
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, (std::filesystem::current_path() / "wad_external.bsp").string());
+    assert(result);
+    assert(result->asset.geometry.images.size() == 1);
+    assert(result->asset.geometry.textures.size() == 1);
+    assert(result->asset.geometry.images[0].name == "dev_grid_32");
+    assert(result->asset.geometry.images[0].width == 128);
+    assert(result->asset.geometry.images[0].height == 128);
+    assert(result->asset.geometry.materials[0].source_name == "dev_grid_32");
+    for (const auto &diagnostic : result->report.diagnostics) {
+        assert(diagnostic.message.find("rejected") == std::string::npos);
+    }
+}
+
+void missing_and_unsafe_wad_paths_are_diagnosed() {
+    auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, -1, 0, "stone");
+    set_entities(bytes, "{\n\"classname\" \"worldspawn\"\n\"wad\" \"../escape.wad;/tmp/local.wad;missing.wad\"\n}\n"
+                        "{\n\"classname\" \"info_player_start\"\n\"origin\" \"0 0 36\"\n}\n");
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, (std::filesystem::current_path() / "wad_bad.bsp").string());
+    assert(result);
+    bool saw_parent_escape = false;
+    bool saw_absolute = false;
+    bool saw_attempt = false;
+    for (const auto &diagnostic : result->report.diagnostics) {
+        saw_parent_escape = saw_parent_escape || diagnostic.message.find("parent escape") != std::string::npos;
+        saw_absolute = saw_absolute || diagnostic.message.find("rejected absolute WAD path") != std::string::npos;
+        saw_attempt = saw_attempt || diagnostic.message.find("tried WAD path") != std::string::npos;
+    }
+    assert(saw_parent_escape);
+    assert(saw_absolute);
+    assert(saw_attempt);
+}
+
 } // namespace
 
 int main() {
@@ -142,5 +201,7 @@ int main() {
     surface_material_resolves_to_preserved_source_name();
     developer_texture_names_are_known();
     external_developer_texture_alias_creates_material_binding();
+    external_wad_texture_resolves_from_safe_search_path();
+    missing_and_unsafe_wad_paths_are_diagnosed();
     return 0;
 }

@@ -42,14 +42,14 @@ below.
 BSP materials may reference these deterministic developer textures without embedding miptex pixels or
 shipping external WAD files:
 
-| Material name | Slash alias | Intended scale cue |
-| --- | --- | --- |
-| `stellar_dev_grid_12` | `dev/grid_12` | 12 inch / 1 foot grid tile. |
-| `stellar_dev_grid_16` | `dev/grid_16` | 16 inch tile/checker. |
-| `stellar_dev_grid_32` | `dev/grid_32` | 32 inch tile/checker. |
-| `stellar_dev_grid_64` | `dev/grid_64` | 64 inch tile/checker. |
-| `stellar_dev_player_72` | `dev/player_72` | 72 inch player-height reference strip. |
-| `stellar_dev_wall_96` | `dev/wall_96` | 96 inch / 8 foot wall-height reference strip. |
+| Canonical runtime name | Source alias | Compiler/WAD alias | Intended scale cue |
+| --- | --- | --- | --- |
+| `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` | 12 inch / 1 foot grid tile. |
+| `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` | 16 inch tile/checker. |
+| `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` | 32 inch tile/checker. |
+| `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` | 64 inch tile/checker. |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
 
 The importer generates `ImageAsset`/`TextureAsset` data for these names during BSP material fallback,
 uses nearest filtering so markings stay crisp, and uses repeat wrapping so authored texture axes can
@@ -60,6 +60,21 @@ When compiling through VHLT, keep source `.map` files as clean authoring referen
 copies each map into a build/work directory, creates a temporary developer WAD, injects the copied map's
 `wad` key there, and rewrites compiler-facing aliases when required. Do not commit local absolute WAD
 paths or generated compiler edits back into `maps/src/` or `tests/fixtures/trenchbroom/src/`.
+
+External WAD3 texture pixels are now resolved at BSP import time when the compiled `worldspawn` `wad`
+key references safe relative WAD paths. The importer searches the BSP/map directory, roots from
+`STELLAR_WAD_PATH` and `STELLAR_TEXTURE_PATH`, then the packaged developer materials directory. It
+rejects `..` escapes and ignores absolute WAD paths unless `STELLAR_ALLOW_ABSOLUTE_WAD_PATHS` is
+explicitly set for a trusted local workflow. Missing WAD diagnostics list attempted safe paths so editor
+fixes map directly to either a corrected `wad` key or a configured search root.
+
+Run source preflight before compilers for line/column feedback on editor mistakes:
+
+```bash
+python3 tools/bsp/validate_trenchbroom_map_source.py maps/src/test_room.map
+```
+
+The compile wrappers run this automatically unless `--skip-source-preflight` is passed.
 
 ## Entity key reference
 
@@ -304,7 +319,9 @@ authoritative behavior.
 
 ## Validation commands
 
-Map validation is display-free and does not create a window, graphics context, renderer resources, or load external WAD files by default. Use either client validation form:
+Map validation is display-free and does not create a window, graphics context, or renderer resources. It
+may load safe external WAD3 texture pixels referenced by `worldspawn` `wad`; missing WADs are reported as
+actionable diagnostics and fallback material behavior remains deterministic. Use either client validation form:
 
 ```bash
 stellar-client --validate-config --map path/to/map.bsp
@@ -318,7 +335,8 @@ Common diagnostics:
 - `kLumpOutOfBounds` / `kMalformedLumpSize`: BSP binary structure is corrupt or uses unexpected lump sizes.
 - `kInvalidFaceReference` / `kDegenerateFacePolygon`: a face cannot resolve enough valid edges/vertices to form a polygon; affected faces are skipped.
 - `kInvalidVisibilityData`: PVS offsets, decompression rows, or marksurface references are invalid; visibility falls back to all surfaces.
-- `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external or missing; validation uses deterministic fallback materials and does not require WAD files.
+- `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external, missing, or blocked by safe-path
+  rules; validation uses deterministic fallback materials when WAD pixels cannot be resolved.
 - `kInvalidLightingData`: a face light offset or inferred lightmap byte range is outside the lighting lump; the face falls back to unlit material behavior.
 - `kMissingPlayerSpawn`: no `info_player_start` or `info_player_deathmatch` marker exists; import succeeds but gameplay startup may need an explicit spawn policy.
 - `kUnsupportedEntityKey`: malformed authoring values such as `origin`, `stellar.extents`, `stellar.size`, `stellar.once`, or `stellar.enabled` were ignored.

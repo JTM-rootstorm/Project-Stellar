@@ -9,6 +9,7 @@ Usage: tools/bsp/compile_vhlt_bsp30.sh --map path/to/source.map --out path/to/ou
 Options:
   --allow-skip              Exit 77 when required external tools are unavailable.
   --no-stellar-validation   Skip tools/bsp/validate_trenchbroom_bsp30.sh after BSP30 header validation.
+  --skip-source-preflight   Do not run tools/bsp/validate_trenchbroom_map_source.py before VHLT.
 
 Environment overrides:
   STELLAR_VHLT_DIR          Directory containing hlcsg, hlbsp, hlvis, hlrad, and optional ripent.
@@ -248,6 +249,7 @@ out_path=""
 profile=""
 allow_skip="0"
 stellar_validation="1"
+source_preflight="1"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -274,6 +276,10 @@ while [[ $# -gt 0 ]]; do
             stellar_validation="0"
             shift
             ;;
+        --skip-source-preflight)
+            source_preflight="0"
+            shift
+            ;;
         --help|-h)
             usage
             exit 0
@@ -290,7 +296,9 @@ done
 
 root="$(repo_root)"
 validate_script="$root/tools/bsp/validate_trenchbroom_bsp30.sh"
+source_preflight_script="$root/tools/bsp/validate_trenchbroom_map_source.py"
 [[ -f "$validate_script" ]] || fail "validation wrapper missing: $validate_script"
+[[ -f "$source_preflight_script" ]] || fail "source preflight missing: $source_preflight_script"
 
 fixture="$(basename "$out_path")"
 fixture="${fixture%.bsp}"
@@ -300,6 +308,9 @@ if [[ "$profile" != "validate-only" ]]; then
     [[ -n "$map_path" ]] || fail "--map is required for compile profiles"
     [[ -f "$map_path" ]] || fail "MAP does not exist: $map_path"
     [[ "$map_path" == *.map ]] || fail "input must be a .map file: $map_path"
+    if [[ "$source_preflight" == "1" ]]; then
+        python3 "$source_preflight_script" "$map_path"
+    fi
 
     hlcsg="$(find_tool hlcsg "${HLCSG:-}" 1 "$root")"
     hlbsp="$(find_tool hlbsp "${HLBSP:-}" 1 "$root")"
