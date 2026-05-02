@@ -28,7 +28,7 @@ std::filesystem::path temp_root() {
 
 std::filesystem::path write_map(const std::filesystem::path& root,
                                 const std::string& name,
-                                std::string_view fixture = "gameplay_room") {
+                                std::string_view fixture = "minimal_zup_room") {
     const std::filesystem::path path = root / name;
     stellar::tests::fixtures::write_bsp_fixture(path, fixture);
     return path;

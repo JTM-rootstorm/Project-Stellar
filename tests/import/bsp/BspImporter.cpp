@@ -4,10 +4,12 @@
 #include "../../fixtures/BspFixture.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -348,6 +350,54 @@ void bsp30_developer_material_fallback_is_deterministic() {
   assert(result->geometry.images[0].pixels[0] == 255U);
 }
 
+void trenchbroom_entity_matrix_imports_expected_metadata() {
+  auto bytes =
+      stellar::tests::fixtures::build_bsp_trenchbroom_entity_matrix_fixture();
+  auto result = stellar::import::bsp::load_level_from_memory(
+      bytes, "tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp");
+  assert(result);
+
+  std::map<std::string, stellar::assets::WorldMarkerType> markers;
+  for (const auto &marker : result->world_metadata.markers) {
+    markers.emplace(marker.name, marker.type);
+  }
+  assert(markers["MatrixStart"] == stellar::assets::WorldMarkerType::kPlayerSpawn);
+  assert(markers["SpawnCrate"] == stellar::assets::WorldMarkerType::kEntitySpawn);
+  assert(markers["TriggerStellar"] == stellar::assets::WorldMarkerType::kTrigger);
+  assert(markers["TriggerMultiple"] == stellar::assets::WorldMarkerType::kTrigger);
+  assert(markers["TriggerOnce"] == stellar::assets::WorldMarkerType::kTrigger);
+  assert(markers["SpriteStellar"] == stellar::assets::WorldMarkerType::kSprite);
+  assert(markers["SpriteEnv"] == stellar::assets::WorldMarkerType::kSprite);
+  assert(markers["PickupSensor"] == stellar::assets::WorldMarkerType::kObjectCollider);
+  assert(markers["StaticWall"] == stellar::assets::WorldMarkerType::kEntitySpawn);
+  assert(markers["GateDoor"] == stellar::assets::WorldMarkerType::kEntitySpawn);
+  assert(markers["GateButton"] == stellar::assets::WorldMarkerType::kEntitySpawn);
+
+  const auto trigger = std::ranges::find_if(
+      result->world_metadata.markers, [](const auto &marker) {
+        return marker.name == "TriggerStellar";
+      });
+  assert(trigger != result->world_metadata.markers.end());
+  assert(trigger->script.has_value());
+  assert(trigger->script->script_id == "scripts/gate.lua");
+  assert(trigger->script->table_name == "GateTrigger");
+  assert(trigger->scale[0] == 16.0F);
+  bool saw_alias_script = false;
+  for (const auto &property : trigger->properties) {
+    saw_alias_script = saw_alias_script || property.key == "_stellar_script";
+  }
+  assert(saw_alias_script);
+}
+
+void trenchbroom_invalid_script_escape_fails_import() {
+  auto bytes = stellar::tests::fixtures::
+      build_bsp_trenchbroom_invalid_script_escape_fixture();
+  auto result = stellar::import::bsp::load_level_from_memory(
+      bytes, "tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp");
+  assert(!result);
+  assert(result.error().message.find("script binding") != std::string::npos);
+}
+
 void bsp_parser_builds_collision_triangles() {
   auto bytes = minimal_bsp();
   auto result =
@@ -493,6 +543,8 @@ int main() {
   bsp30_zup_room_imports_coordinates_without_axis_swaps();
   bsp30_entity_lump_preserves_dotted_and_alias_keys();
   bsp30_developer_material_fallback_is_deterministic();
+  trenchbroom_entity_matrix_imports_expected_metadata();
+  trenchbroom_invalid_script_escape_fails_import();
   bsp_parser_builds_collision_triangles();
   bsp_entity_parser_preserves_key_values();
   bsp_entity_parser_rejects_malformed_entity_text();

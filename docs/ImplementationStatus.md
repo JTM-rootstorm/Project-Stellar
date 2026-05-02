@@ -68,6 +68,10 @@ Phase 0 baseline audit findings:
   reference, BSP30 compile/validation wrappers, and workflow documentation. The TrenchBroom-facing FGD
   avoids plain placeholder fields such as `stellar_script`; runtime dotted metadata remains supported
   and the wrappers fail clearly when external compiler/runtime tools are unavailable.
+- Phase 6 added TrenchBroom-compatible `.map` source fixtures, Lua fixture scripts, deterministic
+  generated BSP30 outputs under the build tree, fixture README/manual checklist coverage, and
+  display-free client/server/importer/script validation for minimal room, entity matrix, scripted
+  interaction, and invalid script escape cases.
 
 Phase 0 validation:
 
@@ -134,6 +138,18 @@ git grep -n '_stellar_script\|stellar.script' -- tools/trenchbroom docs tests ':
 
 Result: wrapper syntax checks and FGD/key audits passed during implementation. External BSP compiler
 smoke testing remains optional because no compiler is vendored.
+
+Phase 6 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_authoring_smoke|bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|dedicated_server|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+```
+
+Result: focused Phase 6 fixture and end-to-end validation passed during implementation. Source-tree
+fixture maps are human/editor references; deterministic compiled BSP30 fixtures are generated under
+`build/tests/fixtures/trenchbroom/compiled/` for display-free validation.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 

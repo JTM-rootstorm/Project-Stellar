@@ -522,6 +522,7 @@ stellar_add_scripting_test(stellar_script_command_processor_test script_command_
 stellar_add_scripting_test(stellar_scripted_world_session_test scripted_world_session
     tests/scripting/ScriptedWorldSession.cpp
 )
+target_link_libraries(stellar_scripted_world_session_test PRIVATE stellar_import_bsp)
 
 stellar_add_test_executable(stellar_snapshot_codec_test snapshot_codec
     tests/network/SnapshotCodec.cpp
@@ -587,22 +588,39 @@ target_include_directories(stellar_bsp_fixture_writer PRIVATE
     ${CMAKE_SOURCE_DIR}/tests/fixtures
 )
 
+set(STELLAR_TRENCHBROOM_FIXTURE_DIR
+    ${CMAKE_BINARY_DIR}/tests/fixtures/trenchbroom/compiled
+)
 set(STELLAR_CLI_BSP_FIXTURE
-    ${CMAKE_BINARY_DIR}/tests/fixtures/bsp/client_cli_map_validation.bsp
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/minimal_zup_room.bsp
 )
 set(STELLAR_CLI_BAD_BSP_FIXTURE
-    ${CMAKE_BINARY_DIR}/tests/fixtures/bsp/client_cli_bad_map_validation.bsp
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/invalid_script_escape_zup.bsp
+)
+set(STELLAR_TB_ENTITY_MATRIX_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/entity_matrix_zup.bsp
+)
+set(STELLAR_TB_SCRIPTED_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/scripted_interaction_zup.bsp
 )
 
 add_test(NAME bsp_fixture_writer
-    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE} gameplay_room
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE} minimal_zup_room
 )
 set_tests_properties(bsp_fixture_writer PROPERTIES FIXTURES_SETUP bsp_cli_fixture)
 
 add_test(NAME bsp_bad_fixture_writer
-    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BAD_BSP_FIXTURE} invalid_script_path
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BAD_BSP_FIXTURE} invalid_script_escape_zup
 )
 set_tests_properties(bsp_bad_fixture_writer PROPERTIES FIXTURES_SETUP bsp_bad_cli_fixture)
+
+add_test(NAME bsp_authoring_smoke_entity_matrix_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_ENTITY_MATRIX_BSP_FIXTURE} entity_matrix_zup
+)
+
+add_test(NAME bsp_authoring_smoke_scripted_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_SCRIPTED_BSP_FIXTURE} scripted_interaction_zup
+)
 
 add_test(NAME client_cli_map_validation
     COMMAND stellar-client --validate-config --map ${STELLAR_CLI_BSP_FIXTURE}
@@ -669,3 +687,7 @@ target_link_libraries(stellar_bsp_authoring_smoke_test PRIVATE
 )
 
 add_test(NAME bsp_authoring_smoke COMMAND stellar_bsp_authoring_smoke_test)
+
+add_test(NAME bsp_authoring_smoke_compile_wrapper
+    COMMAND bash -c "if command -v ericw-qbsp >/dev/null 2>&1 || command -v qbsp >/dev/null 2>&1 || command -v hqbsp >/dev/null 2>&1 || command -v tyr-qbsp >/dev/null 2>&1 || [[ -n \"$STELLAR_BSP30_COMPILER\" || -n \"$QBSP\" ]]; then STELLAR_CLIENT='${CMAKE_BINARY_DIR}/stellar-client' STELLAR_SERVER='${CMAKE_BINARY_DIR}/stellar-server' '${CMAKE_SOURCE_DIR}/tools/bsp/compile_trenchbroom_bsp30.sh' --map '${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/minimal_zup_room.map' --out '${STELLAR_TRENCHBROOM_FIXTURE_DIR}/compile_wrapper_smoke.bsp' --profile fast; else printf 'Skipping BSP30 compile wrapper smoke: no compiler found.\\n'; fi"
+)

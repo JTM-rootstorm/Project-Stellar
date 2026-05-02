@@ -1,5 +1,9 @@
 #include "stellar/scripting/ScriptedWorldSession.hpp"
 
+#include "stellar/import/bsp/Loader.hpp"
+
+#include "../fixtures/BspFixture.hpp"
+
 #include <array>
 #include <cassert>
 #include <cstdlib>
@@ -615,6 +619,38 @@ void trigger_scripts_and_object_collider_scripts_have_documented_order() {
     assert(frame.script_events[1].name == "object_second");
 }
 
+void trenchbroom_scripted_interaction_fixture_runs_authoritative_scripts() {
+    const auto bytes = stellar::tests::fixtures::
+        build_bsp_trenchbroom_scripted_interaction_fixture();
+    auto scene = stellar::import::bsp::load_level_from_memory(
+        bytes, "tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp");
+    assert(scene.has_value());
+    const auto world = stellar::world::build_runtime_world(*scene);
+    auto registry = registry_with(
+        "scripts/gate.lua",
+        "GateTrigger = {}\n"
+        "function GateTrigger.on_trigger_enter(event)\n"
+        "  stellar.emit_event('collision.set_mesh_enabled', "
+        "{mesh = 'GateDoor', enabled = false})\n"
+        "end\n",
+        "scripts/pickup.lua",
+        "PickupGem = {}\n"
+        "function PickupGem.on_object_collider_enter(event)\n"
+        "  stellar.emit_event('gameplay.collect_pickup', {name = event.collider_name})\n"
+        "end\n");
+    auto session = stellar::scripting::ScriptedWorldSession::create(
+        world, test_session_config(), std::move(registry));
+    assert(session.has_value());
+
+    const auto frame = session->tick({});
+
+    assert(frame.script_errors.empty());
+    assert(frame.snapshot.trigger_events.size() == 1);
+    assert(frame.script_events.size() >= 1);
+    assert(frame.command_results.size() >= 1);
+    assert(frame.command_results[0].applied);
+}
+
 } // namespace
 
 int main() {
@@ -634,5 +670,6 @@ int main() {
     latest_snapshot_does_not_replay_object_collider_scripts();
     repeat_run_produces_same_object_script_events_and_command_results();
     trigger_scripts_and_object_collider_scripts_have_documented_order();
+    trenchbroom_scripted_interaction_fixture_runs_authoritative_scripts();
     return EXIT_SUCCESS;
 }

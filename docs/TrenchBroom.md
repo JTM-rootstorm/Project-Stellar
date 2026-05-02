@@ -163,6 +163,23 @@ export STELLAR_SERVER=/path/to/stellar-server
 Launch commands remain outside this package's compile wrapper. Use the normal client/server commands
 for the current branch after display-free validation passes.
 
+## End-to-end fixtures
+
+Project-owned TrenchBroom compatibility fixtures live in:
+
+```text
+tests/fixtures/trenchbroom/
+```
+
+Use `src/minimal_zup_room.map` as the first manual editor smoke map. It is a 192x192x96 Z-up room with
+floor `z = 0`, ceiling `z = 96`, `info_player_start origin "0 0 36"`, and developer grid/wall
+materials. The fixture README documents the complete fixture matrix, expected entities, expected
+validation outcomes, and the manual open/compile/validate checklist.
+
+Default CTest coverage generates deterministic BSP30 equivalents under `build/tests/fixtures/` so CI
+does not need checked-in binary BSPs, an external compiler, a display, or a GPU. External compiler smoke
+coverage is skipped gracefully when no BSP30 compiler is configured.
+
 ## Unsupported or deferred
 
 - Moving brush simulation for doors, buttons, plats, trains, or rotating entities.

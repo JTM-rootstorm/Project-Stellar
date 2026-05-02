@@ -1,0 +1,32 @@
+// Stellar TrenchBroom fixture: minimal_zup_room
+// Z-up, 192x192x96 inch room. Compile as BSP30.
+{
+"classname" "worldspawn"
+"message" "minimal_zup_room"
+// floor z=0
+{
+( -96 -96 0 ) ( 96 -96 0 ) ( 96 96 0 ) dev/grid_32 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// ceiling z=96
+{
+( -96 96 96 ) ( 96 96 96 ) ( 96 -96 96 ) dev/grid_64 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// west/east/north/south walls
+{
+( -96 -96 0 ) ( -96 96 0 ) ( -96 96 96 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+{
+( 96 96 0 ) ( 96 -96 0 ) ( 96 -96 96 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+{
+( -96 96 0 ) ( 96 96 0 ) ( 96 96 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+{
+( 96 -96 0 ) ( -96 -96 0 ) ( -96 -96 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+}
+{
+"classname" "info_player_start"
+"targetname" "RoomStart"
+"origin" "0 0 36"
+}

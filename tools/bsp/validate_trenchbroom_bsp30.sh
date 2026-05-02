@@ -4,6 +4,7 @@ set -euo pipefail
 usage() {
     cat <<'USAGE'
 Usage: tools/bsp/validate_trenchbroom_bsp30.sh --map path/to/map.bsp
+       tools/bsp/validate_trenchbroom_bsp30.sh path/to/map.bsp
 
 Environment overrides:
   STELLAR_CLIENT  Path to stellar-client (default: build/stellar-client, then PATH)
@@ -64,7 +65,12 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            fail "unknown argument: $1"
+            if [[ -z "$map_path" && "$1" != -* ]]; then
+                map_path="$1"
+                shift
+            else
+                fail "unknown argument: $1"
+            fi
             ;;
     esac
 done

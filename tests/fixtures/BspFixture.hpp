@@ -333,6 +333,103 @@ inline void set_bsp_entities(std::vector<std::byte> &bytes,
                entity_offset, entities.size());
 }
 
+inline std::vector<std::byte> build_bsp_trenchbroom_minimal_zup_room_fixture() {
+  auto bytes = build_bsp_gameplay_room_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"minimal_zup_room\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"targetname\" \"RoomStart\"\n"
+                   "\"origin\" \"0 0 36\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_entity_matrix_fixture() {
+  auto bytes = build_bsp_gameplay_room_fixture();
+  set_bsp_entities(
+      bytes,
+      "{\n\"classname\" \"worldspawn\"\n"
+      "\"message\" \"entity_matrix_zup\"\n}\n"
+      "{\n\"classname\" \"info_player_start\"\n"
+      "\"targetname\" \"MatrixStart\"\n\"origin\" \"0 0 36\"\n}\n"
+      "{\n\"classname\" \"info_stellar_spawn\"\n"
+      "\"targetname\" \"SpawnCrate\"\n\"origin\" \"32 0 16\"\n"
+      "\"archetype\" \"crate\"\n}\n"
+      "{\n\"classname\" \"trigger_stellar\"\n"
+      "\"targetname\" \"TriggerStellar\"\n\"origin\" \"0 -32 36\"\n"
+      "\"_stellar_extents\" \"16 16 24\"\n\"_stellar_once\" \"false\"\n"
+      "\"_stellar_script\" \"scripts/gate.lua\"\n"
+      "\"_stellar_table\" \"GateTrigger\"\n}\n"
+      "{\n\"classname\" \"trigger_multiple\"\n"
+      "\"targetname\" \"TriggerMultiple\"\n\"origin\" \"32 -32 36\"\n"
+      "\"_stellar_extents\" \"16 16 24\"\n\"_stellar_once\" \"false\"\n}\n"
+      "{\n\"classname\" \"trigger_once\"\n"
+      "\"targetname\" \"TriggerOnce\"\n\"origin\" \"64 -32 36\"\n"
+      "\"_stellar_extents\" \"16 16 24\"\n\"_stellar_once\" \"true\"\n}\n"
+      "{\n\"classname\" \"stellar_sprite\"\n"
+      "\"targetname\" \"SpriteStellar\"\n\"origin\" \"-32 32 48\"\n"
+      "\"_stellar_sprite\" \"torch\"\n\"_stellar_texture\" \"sprites/torch.png\"\n"
+      "\"_stellar_size\" \"24 48\"\n}\n"
+      "{\n\"classname\" \"env_sprite\"\n"
+      "\"targetname\" \"SpriteEnv\"\n\"origin\" \"0 32 48\"\n"
+      "\"_stellar_sprite\" \"banner\"\n\"_stellar_texture\" \"sprites/banner.png\"\n"
+      "\"_stellar_size\" \"32 32\"\n}\n"
+      "{\n\"classname\" \"stellar_object_collider\"\n"
+      "\"targetname\" \"PickupSensor\"\n\"origin\" \"-32 -32 36\"\n"
+      "\"archetype\" \"pickup\"\n\"_stellar_extents\" \"8 8 8\"\n"
+      "\"_stellar_collider\" \"object\"\n\"_stellar_enabled\" \"yes\"\n}\n"
+      "{\n\"classname\" \"func_wall\"\n\"targetname\" \"StaticWall\"\n"
+      "\"model\" \"*0\"\n}\n"
+      "{\n\"classname\" \"func_door\"\n\"targetname\" \"GateDoor\"\n"
+      "\"archetype\" \"gate\"\n\"model\" \"*0\"\n}\n"
+      "{\n\"classname\" \"func_button\"\n\"targetname\" \"GateButton\"\n"
+      "\"archetype\" \"button\"\n\"model\" \"*0\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_scripted_interaction_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_version(bytes, 30);
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"scripted_interaction_zup\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"targetname\" \"ScriptStart\"\n"
+                   "\"origin\" \"0 0 36\"\n}\n"
+                   "{\n\"classname\" \"func_door\"\n"
+                   "\"targetname\" \"GateDoor\"\n"
+                   "\"archetype\" \"gate\"\n\"model\" \"*1\"\n}\n"
+                   "{\n\"classname\" \"trigger_stellar\"\n"
+                   "\"targetname\" \"GateOpenTrigger\"\n"
+                   "\"origin\" \"0 0 36\"\n"
+                   "\"_stellar_extents\" \"64 64 64\"\n"
+                   "\"_stellar_script\" \"scripts/gate.lua\"\n"
+                   "\"_stellar_table\" \"GateTrigger\"\n}\n"
+                   "{\n\"classname\" \"stellar_object_collider\"\n"
+                   "\"targetname\" \"PickupGem\"\n"
+                   "\"origin\" \"0 0 36\"\n"
+                   "\"_stellar_extents\" \"64 64 64\"\n"
+                   "\"archetype\" \"pickup\"\n"
+                   "\"_stellar_script\" \"scripts/pickup.lua\"\n"
+                   "\"_stellar_table\" \"PickupGem\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_invalid_script_escape_fixture() {
+  auto bytes = build_bsp_trenchbroom_minimal_zup_room_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"invalid_script_escape_zup\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"origin\" \"0 0 36\"\n}\n"
+                   "{\n\"classname\" \"trigger_stellar\"\n"
+                   "\"targetname\" \"BadScriptTrigger\"\n"
+                   "\"origin\" \"0 0 36\"\n"
+                   "\"_stellar_extents\" \"16 16 16\"\n"
+                   "\"_stellar_script\" \"../escape.lua\"\n}\n");
+  return bytes;
+}
+
 inline std::vector<std::byte> build_bsp_minimal_valid_fixture() {
   return build_bsp_playable_fixture();
 }
@@ -425,6 +522,18 @@ inline std::vector<std::byte> build_named_bsp_fixture(std::string_view name) {
   }
   if (name == "gameplay_room") {
     return build_bsp_gameplay_room_fixture();
+  }
+  if (name == "minimal_zup_room") {
+    return build_bsp_trenchbroom_minimal_zup_room_fixture();
+  }
+  if (name == "entity_matrix_zup") {
+    return build_bsp_trenchbroom_entity_matrix_fixture();
+  }
+  if (name == "scripted_interaction_zup") {
+    return build_bsp_trenchbroom_scripted_interaction_fixture();
+  }
+  if (name == "invalid_script_escape_zup") {
+    return build_bsp_trenchbroom_invalid_script_escape_fixture();
   }
   return build_bsp_playable_fixture();
 }
