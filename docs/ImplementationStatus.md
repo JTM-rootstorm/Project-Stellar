@@ -1,6 +1,230 @@
 # Project Stellar: Implementation Status
 
-Branch target: `bsp-gameplay-loop`
+Branch target: `socket-transport`
+
+## Completed Scope — Socket Transport and Networked Session Lifecycle
+
+Status: complete as of 2026-05-01.
+
+Archived handoff docs:
+
+- `Plans/Archived/socket_transport/SocketTransport-AgentPlan.md`
+- `Plans/Archived/socket_transport/ProjectStellar-SocketTransport-AgentPlan.md`
+- Source plan package archive: `Plans/Archived/socket_transport/kilo_socket_transport_plans/`
+
+The branch completed TCP-first socket transport and networked session lifecycle on top of the
+completed BSP gameplay-loop and BSP presentation/networking polish scopes. Those earlier scopes
+remain archived and must not be restarted.
+
+Current phase status:
+
+- Phase ST-2 — Live client over local networked transport path: complete as of 2026-05-01.
+- Phase ST-3 — Connection and session lifecycle: complete as of 2026-05-01.
+- Phase ST-4 — Remote socket transport: complete as of 2026-05-01.
+- Phase ST-5 — Dedicated server entry point: complete as of 2026-05-01.
+- Phase ST-6 — Client connect mode: complete as of 2026-05-01.
+- Phase ST-7 — Hardening, documentation, validation, and archival: complete as of 2026-05-01.
+
+Phase ST-2 completion notes:
+
+- Added `NetworkedClientRuntime` for mapped local play over
+  `LoopbackTransportPair + LocalServerBridge + ClientWorldReceiver` with monotonic
+  `NetworkPlayerCommand` sequencing and authoritative `NetworkWorldSnapshot` presentation.
+- Added presentation-safe `NetworkWorldSnapshot` overloads for player/camera and gameplay billboard
+  helpers without GPU handles or client authority in snapshots.
+- `prepare_application_runtime()` now creates `networked_runtime` for mapped play by default while
+  preserving `LocalLoopbackRuntime` in the codebase for low-level tests and fallback.
+- Live mapped client rendering now reads from latest authoritative network snapshots. No-map debug
+  fallback remains unchanged.
+- Scripted maps still load Lua through the existing sandboxed server-authoritative registry path and
+  fail deterministically on script load errors.
+
+ST-2 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client stellar_networked_client_runtime_test stellar_client_map_validation_smoke stellar_gameplay_presentation_test stellar_player_presentation_test -j$(nproc)
+ctest --test-dir build -R '^(networked_client_runtime|client_map_validation_smoke|client_cli_map_validation|gameplay_presentation|player_presentation|client_world_receiver|loopback_transport|snapshot_)' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-2 targets built, focused ST-2 CTest passed 12/12, full
+debug build succeeded, and full default CTest passed 49/49 on 2026-05-01.
+
+Phase ST-3 completion notes:
+
+- Added deterministic session protocol contracts in `stellar::network` for `ProtocolVersion`,
+  `SessionId`, `SessionState`, `MapIdentity`, `ClientHello`, and `ServerWelcome`, including a small
+  non-cryptographic deterministic map identity hash helper.
+- Extended the binary codec with bounded little-endian hello/welcome encode/decode paths and clean
+  `std::expected` failures for malformed, truncated, oversized, and unknown packet data.
+- `LocalServerBridge` now requires an accepted hello before input/snapshots, rejects protocol and map
+  mismatches with deterministic `ServerWelcome` diagnostics, and overwrites requested command player
+  ids with the server-assigned authoritative player slot.
+- `NetworkedClientRuntime` sends `ClientHello` on creation, pumps the local bridge until accepted,
+  stores the assigned player id, uses it for commands and presentation lookup, and exposes session
+  state/diagnostics in frame results.
+- Display-free coverage was added for session round trips, accepted welcome/player assignment,
+  protocol mismatch, map mismatch, input before welcome, malformed packets, and assigned-player
+  presentation behavior. Remote sockets remain deferred; there is still no prediction or
+  reconciliation.
+
+ST-3 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_network_session_test stellar_snapshot_codec_test stellar_networked_client_runtime_test stellar_client_world_receiver_test -j$(nproc)
+ctest --test-dir build -R '^(network_session|snapshot_codec|networked_client_runtime|client_world_receiver|loopback_transport)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: focused ST-3 targets built, focused ST-3 CTest passed 5/5, full debug build succeeded, and
+full default CTest passed 50/50 on 2026-05-01.
+
+Phase ST-4 completion notes:
+
+- Added Linux/POSIX TCP socket transport behind the existing transport-neutral
+  `ClientTransport`/`ServerTransport` seam without changing gameplay/message contracts.
+- Added deterministic `host:port` endpoint parsing/formatting and ephemeral bind reporting for
+  localhost tests and future dedicated server startup.
+- Added a compact TCP packet envelope with `STCP` magic, version byte, channel byte, little-endian
+  `uint32` payload length, configurable max payload bound, complete-packet FIFO draining, and bounded
+  partial read/write handling.
+- Implemented a socket client transport plus a single-client socket server transport. Multi-client
+  simulation, UDP, prediction, reconciliation, authentication, encryption, and public Internet
+  discovery remain deferred.
+- Display-free localhost loopback coverage now exercises endpoint parsing, client/server connection,
+  FIFO ordering, packet boundaries, oversized payload rejection, disconnect send diagnostics,
+  hello/welcome round trip, and snapshot delivery into `ClientWorldReceiver`.
+
+ST-4 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_socket_transport_test stellar_network_session_test stellar_snapshot_codec_test -j$(nproc)
+ctest --test-dir build -R '^(socket_transport|network_session|snapshot_codec|loopback_transport)$' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-4 targets built, focused ST-4 CTest passed 4/4, full debug
+build succeeded, and full default CTest passed 51/51 on 2026-05-01.
+
+Phase ST-5 completion notes:
+
+- Added `stellar::server::DedicatedServer` with `DedicatedServerConfig`, bounded `pump_once()` for
+  tests, validate-only startup, and a `stellar-server` CLI target.
+- The dedicated server owns BSP map validation/loading, backend-neutral runtime-world construction,
+  sandboxed authoritative Lua script loading when map metadata references scripts, single player id
+  assignment, authoritative fixed ticks, snapshots/deltas, and server-approved gameplay events.
+- The socket lifecycle accepts one TCP client, waits for `ClientHello`, validates protocol and map
+  identity, sends `ServerWelcome`, rejects/ignores input before welcome, sends the first full snapshot,
+  emits deltas after the baseline, and survives client disconnect without crashing. This is not a true
+  simultaneous multiplayer simulation claim.
+- Added display-free coverage for CLI/config parsing failures, validate-only generated BSP fixtures,
+  missing/non-BSP/invalid map failures, missing script source failures, socket hello/welcome, first full
+  snapshot, input-driven authoritative snapshot updates, and disconnect handling.
+
+ST-5 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-server stellar_dedicated_server_test stellar_socket_transport_test stellar_network_session_test -j$(nproc)
+ctest --test-dir build -R '^(dedicated_server|socket_transport|network_session|snapshot_|scripted_world_session|bsp_)' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-5 targets built, focused ST-5 CTest passed 21/21, full debug
+build succeeded, and full default CTest passed 54/54 on 2026-05-01.
+
+Phase ST-6 completion notes:
+
+- Added `stellar-client --connect HOST:PORT` and `--client-name` configuration parsing for remote
+  presentation mode. `--map` without `--connect` remains local networked runtime mode; `--connect`
+  without `--map` is remote mode; `--map` plus `--connect` is rejected as ambiguous; `--script-root` is
+  invalid in remote mode.
+- Added `RemoteClientRuntime`, which owns a socket `ClientTransport`, sends `ClientHello`, accepts
+  `ServerWelcome`, stores the server-assigned player id, sends input commands only after accepted
+  welcome, drains `ClientWorldReceiver`, and exposes latest authoritative snapshots/events/session
+  diagnostics without prediction, reconciliation, interpolation, local authority, or script loading.
+- The live application now renders remote connect mode from `NetworkWorldSnapshot` camera/billboard
+  presentation and clears safely until a snapshot arrives. Received `GameplayEvent` records are routed
+  to the existing HUD presentation cache and no-op audio event route.
+- Static level rendering policy is intentionally minimal for ST-6: remote mode without `--map` renders
+  network dynamic state/fallback only, and no map transfer/download or presentation-map option was
+  added. The dedicated server accepts an empty requested map id from clients without a local map
+  expectation and still rejects explicit mismatches.
+- Added display-free coverage for CLI connect parsing/conflicts, validate-only remote preparation with
+  no local authority/scripts, remote hello/welcome/input gating, snapshot/player/event exposure, and a
+  bounded in-process localhost `DedicatedServer` integration.
+
+ST-6 validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar-client stellar-server stellar_client_connect_test stellar_dedicated_server_test stellar_socket_transport_test -j$(nproc)
+ctest --test-dir build -R '^(client_connect|dedicated_server|socket_transport|network_session|networked_client_runtime|client_world_receiver|gameplay_presentation|player_presentation)' --output-on-failure
+ctest --test-dir build --output-on-failure
+```
+
+Result: configure succeeded, focused ST-6 targets built, focused ST-6 CTest passed 8/8, full debug
+build succeeded, and full default CTest passed 55/55 on 2026-05-01.
+
+Phase ST-7 completion notes:
+
+- Completed protocol and authority audit for remote client mode, dedicated server session lifecycle,
+  local bridge compatibility, and active docs/tests. No active source path was found where a remote
+  client creates or mutates authoritative gameplay state, loads gameplay scripts, trusts renderer/audio
+  state as authority, sends input before accepted welcome, or assigns its own authoritative player id.
+- Completed network robustness audit for the TCP envelope, codec/session handling, client receiver,
+  dedicated server, and socket tests. Existing coverage verifies malformed packet rejection, oversized
+  payload rejection before allocation, partial envelope handling, bounded nonblocking socket loops,
+  disconnect handling, server-side player id overwrite, full snapshot baseline reset, delta baseline
+  requirements, one-shot gameplay event draining, RAII socket closure, and bounded localhost tests.
+- Finalized branch docs for the implemented Linux/POSIX TCP-first transport, `stellar-server`,
+  `stellar-client --connect HOST:PORT`, single-client/single-active-player limitation, and remote
+  dynamic/fallback rendering policy. No prediction, reconciliation, interpolation, map transfer,
+  authentication, encryption, UDP, or true simultaneous multiplayer implementation is claimed.
+- Archived active socket transport plans under `Plans/Archived/socket_transport/`; root `Plans/` now
+  keeps `NEXT.md` as the current handoff and refers to archived ST material for history.
+
+ST-7 final validation run:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(networked_client_runtime|network_session|socket_transport|dedicated_server|client_connect|client_world_receiver|loopback_transport|snapshot_|bsp_|runtime_world|server_world_session|scripted_world_session|script_command_processor|gameplay_presentation|player_presentation|hud_presentation|audio_event_router)' --output-on-failure
+git grep -n -i 'STELLAR_ENABLE_GLTF\|cgltf\|SceneAsset\|gltf' -- . ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'client-side gameplay scripting\|client gameplay script\|renderer-owned gameplay\|audio-owned gameplay' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'TODO.*prediction\|TODO.*reconciliation\|predict' -- docs include src tests ':!Plans/Archived/**' ':!build*/**'
+git grep -n -i 'LocalLoopbackRuntime' -- src/client include/stellar/client tests/client ':!build*/**'
+git grep -n 'SocketTransport-AgentPlan\|ProjectStellar-SocketTransport-AgentPlan' -- Plans docs ':!Plans/Archived/**'
+```
+
+Result: configure succeeded, full debug build succeeded, full default CTest passed 55/55, and the
+focused ST/BSP/runtime/client/server CTest regex passed 30/30 on 2026-05-01. Retired importer audit
+hits were absent from active source and limited to documentation/history references. Authority and
+prediction audit hits were documentation/test prohibitions or explicit deferred-work statements, not
+active client authority. `LocalLoopbackRuntime` hits were limited to local mapped fallback/tests and
+not used by remote `--connect` mode. After archival, socket plan filename hits outside archives were
+limited to this status file and `Plans/NEXT.md` archive references.
+
+Known post-ST deferred work:
+
+- Client interpolation, prediction/reconciliation, and any presentation smoothing that is explicitly
+  scoped and reconciled against server authority.
+- True simultaneous multiplayer simulation beyond the current single accepted TCP client and one
+  active authoritative player slot.
+- UDP/unreliable transport, transport selection, public Internet deployment, authentication,
+  encryption, matchmaking, and reconnect/resume semantics.
+- Map distribution/caching or a presentation-map workflow for remote clients; remote mode currently
+  renders received dynamic network state/fallback only.
+- Richer HUD/UI/VFX, miniaudio-backed playback integration, sprite atlas/sheet animation, and manual
+  LAN/cross-platform socket validation.
+
+Manual validation and platform limitations: validation was display-free and localhost-only on the
+Linux/POSIX TCP backend. No GPU/display run, public LAN/Internet run, non-POSIX socket backend,
+multi-client soak, authentication/encryption review, or long-duration dedicated-server soak was run.
 
 ## Completed Follow-up Scope — BSP Presentation and Networking Polish
 

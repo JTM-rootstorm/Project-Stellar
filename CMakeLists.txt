@@ -141,6 +141,8 @@ target_link_libraries(stellar_scripting PRIVATE
 add_library(stellar_network
     src/network/LoopbackTransport.cpp
     src/network/Messages.cpp
+    src/network/Session.cpp
+    src/network/SocketTransport.cpp
     src/network/SnapshotCodec.cpp
     src/network/SnapshotDelta.cpp
 )
@@ -151,6 +153,20 @@ target_include_directories(stellar_network PUBLIC
 
 target_link_libraries(stellar_network PUBLIC
     stellar_server_core
+    stellar_scripting
+)
+
+add_library(stellar_dedicated_server
+    src/server/DedicatedServer.cpp
+)
+
+target_include_directories(stellar_dedicated_server PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_dedicated_server PUBLIC
+    stellar_import_bsp
+    stellar_network
     stellar_scripting
 )
 
@@ -202,6 +218,7 @@ add_library(stellar_client_runtime
     src/client/HudPresentation.cpp
     src/client/LocalServerBridge.cpp
     src/client/MovementInputMapper.cpp
+    src/client/NetworkedClientRuntime.cpp
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
     src/client/GameplayPresentation.cpp
@@ -311,6 +328,14 @@ stellar_add_server_test(stellar_server_world_session_test server_world_session
 stellar_add_server_test(stellar_server_gameplay_world_test server_gameplay_world
     tests/server/GameplayWorld.cpp
 )
+
+stellar_add_test_executable(stellar_dedicated_server_test dedicated_server
+    tests/server/DedicatedServer.cpp
+)
+target_include_directories(stellar_dedicated_server_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+)
+target_link_libraries(stellar_dedicated_server_test PRIVATE stellar_dedicated_server)
 
 stellar_add_graphics_test(stellar_render_level_upload_test render_level_upload
     tests/graphics/RenderSceneUpload.cpp
@@ -452,6 +477,21 @@ stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_
     tests/client/ClientWorldReceiver.cpp
 )
 
+stellar_add_client_runtime_test(stellar_networked_client_runtime_test networked_client_runtime
+    tests/client/NetworkedClientRuntime.cpp
+)
+
+stellar_add_test_executable(stellar_client_connect_test client_connect
+    tests/client/ClientConnect.cpp
+)
+target_include_directories(stellar_client_connect_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/fixtures
+)
+target_link_libraries(stellar_client_connect_test PRIVATE
+    stellar_client_config
+    stellar_dedicated_server
+)
+
 stellar_add_client_runtime_test(stellar_hud_presentation_test hud_presentation
     tests/client/HudPresentation.cpp
 )
@@ -486,10 +526,20 @@ stellar_add_test_executable(stellar_snapshot_codec_test snapshot_codec
 )
 target_link_libraries(stellar_snapshot_codec_test PRIVATE stellar_network)
 
+stellar_add_test_executable(stellar_network_session_test network_session
+    tests/network/Session.cpp
+)
+target_link_libraries(stellar_network_session_test PRIVATE stellar_network stellar_client_runtime)
+
 stellar_add_test_executable(stellar_loopback_transport_test loopback_transport
     tests/network/LoopbackTransport.cpp
 )
 target_link_libraries(stellar_loopback_transport_test PRIVATE stellar_network)
+
+stellar_add_test_executable(stellar_socket_transport_test socket_transport
+    tests/network/SocketTransport.cpp
+)
+target_link_libraries(stellar_socket_transport_test PRIVATE stellar_network stellar_client_runtime)
 
 stellar_add_test_executable(stellar_snapshot_delta_test snapshot_delta
     tests/network/SnapshotDelta.cpp
@@ -509,8 +559,21 @@ target_link_libraries(stellar-client PRIVATE
     stellar_client_config
     stellar_client_runtime
     stellar_graphics
+    stellar_audio
     stellar_assets
     miniaudio
+)
+
+add_executable(stellar-server
+    src/server/main.cpp
+)
+
+target_include_directories(stellar-server PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar-server PRIVATE
+    stellar_dedicated_server
 )
 
 add_executable(stellar_bsp_fixture_writer
@@ -553,6 +616,19 @@ add_test(NAME client_cli_map_validation_rejects_bad_map
     COMMAND stellar-client --validate-map ${STELLAR_CLI_BAD_BSP_FIXTURE}
 )
 set_tests_properties(client_cli_map_validation_rejects_bad_map PROPERTIES
+    FIXTURES_REQUIRED bsp_bad_cli_fixture
+    WILL_FAIL TRUE
+)
+
+add_test(NAME server_cli_validate_config
+    COMMAND stellar-server --validate-config --map ${STELLAR_CLI_BSP_FIXTURE}
+)
+set_tests_properties(server_cli_validate_config PROPERTIES FIXTURES_REQUIRED bsp_cli_fixture)
+
+add_test(NAME server_cli_rejects_bad_map
+    COMMAND stellar-server --validate-config --map ${STELLAR_CLI_BAD_BSP_FIXTURE}
+)
+set_tests_properties(server_cli_rejects_bad_map PROPERTIES
     FIXTURES_REQUIRED bsp_bad_cli_fixture
     WILL_FAIL TRUE
 )

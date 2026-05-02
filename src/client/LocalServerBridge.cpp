@@ -38,6 +38,48 @@ void record_error(LocalServerBridgePumpResult& result, std::string code, std::st
     });
 }
 
+[[nodiscard]] stellar::network::ServerWelcome accepted_welcome(
+    const LocalServerBridgeConfig& config,
+    stellar::network::SessionId session_id) {
+    return stellar::network::ServerWelcome{
+        .accepted = true,
+        .protocol_version = stellar::network::kCurrentProtocolVersion,
+        .session_id = session_id,
+        .assigned_player_id = config.session.local_player_id,
+        .map_id = config.map_identity.map_id,
+        .rejection_code = {},
+        .message = "session accepted",
+    };
+}
+
+[[nodiscard]] stellar::network::ServerWelcome rejected_welcome(
+    const LocalServerBridgeConfig& config,
+    std::string code,
+    std::string message) {
+    return stellar::network::ServerWelcome{
+        .accepted = false,
+        .protocol_version = stellar::network::kCurrentProtocolVersion,
+        .session_id = 0,
+        .assigned_player_id = 0,
+        .map_id = config.map_identity.map_id,
+        .rejection_code = std::move(code),
+        .message = std::move(message),
+    };
+}
+
+void send_welcome_or_record(LocalServerBridgePumpResult& result,
+                            stellar::network::ServerTransport& transport,
+                            const stellar::network::ServerWelcome& welcome) {
+    auto encoded = stellar::network::encode_server_welcome(welcome);
+    if (!encoded) {
+        record_error(result, encoded.error().code, encoded.error().message);
+        return;
+    }
+    if (auto sent = send_bytes(transport, std::move(*encoded)); !sent) {
+        record_error(result, sent.error().code, sent.error().message);
+    }
+}
+
 } // namespace
 
 LocalServerBridge::LocalServerBridge(const stellar::world::RuntimeWorld& world,
@@ -64,17 +106,49 @@ const stellar::network::NetworkWorldSnapshot& LocalServerBridge::latest_snapshot
 }
 
 LocalServerBridgePumpResult LocalServerBridge::pump(stellar::network::ServerTransport& transport,
-                                                    float delta_seconds) noexcept {
+                                                     float delta_seconds) noexcept {
     LocalServerBridgePumpResult result;
     for (const stellar::network::TransportPacket& packet : transport.receive_from_client()) {
-        auto command = stellar::network::decode_player_command(stellar::network::from_payload(packet.payload));
+        const std::vector<std::uint8_t> bytes = stellar::network::from_payload(packet.payload);
+        if (auto hello = stellar::network::decode_client_hello(bytes)) {
+            if (hello->protocol_version != stellar::network::kCurrentProtocolVersion) {
+                session_state_ = stellar::network::SessionState::kRejected;
+                send_welcome_or_record(
+                    result, transport,
+                    rejected_welcome(config_, "protocol_mismatch",
+                                     "Client protocol version is unsupported"));
+                continue;
+            }
+            if (hello->requested_map_id != config_.map_identity.map_id) {
+                session_state_ = stellar::network::SessionState::kRejected;
+                send_welcome_or_record(result, transport,
+                                       rejected_welcome(config_, "map_mismatch",
+                                                        "Client requested map does not match server map"));
+                continue;
+            }
+            session_state_ = stellar::network::SessionState::kConnected;
+            send_welcome_or_record(result, transport, accepted_welcome(config_, session_id_));
+            continue;
+        }
+
+        auto command = stellar::network::decode_player_command(bytes);
         if (!command) {
             record_error(result, command.error().code, command.error().message);
+            continue;
+        }
+        if (session_state_ != stellar::network::SessionState::kConnected) {
+            record_error(result, "input_before_welcome",
+                         "Input command arrived before an accepted session welcome");
             continue;
         }
         // The client-provided player id is a request. Local authority owns the actual slot.
         command->player_id = config_.session.local_player_id;
         pending_command_ = *command;
+    }
+
+    result.session_state = session_state_;
+    if (session_state_ != stellar::network::SessionState::kConnected) {
+        return result;
     }
 
     const float fixed_dt = fixed_dt_or_default(config_.session.movement);

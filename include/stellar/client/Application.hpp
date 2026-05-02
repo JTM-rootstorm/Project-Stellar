@@ -5,6 +5,7 @@
 
 #include "stellar/client/ApplicationConfig.hpp"
 #include "stellar/client/LocalLoopbackRuntime.hpp"
+#include "stellar/client/NetworkedClientRuntime.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::client {
@@ -51,6 +52,12 @@ struct PreparedApplicationRuntime {
 
     /** @brief Optional authoritative in-process runtime for mapped local play. */
     std::unique_ptr<LocalLoopbackRuntime> local_loopback_runtime;
+
+    /** @brief Optional transport-backed authoritative runtime for mapped local play. */
+    std::unique_ptr<NetworkedClientRuntime> networked_runtime;
+
+    /** @brief Optional socket-backed presentation-only runtime for remote server play. */
+    std::unique_ptr<RemoteClientRuntime> remote_runtime;
 };
 
 /**

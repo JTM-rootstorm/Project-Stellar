@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "stellar/graphics/BillboardSprite.hpp"
+#include "stellar/network/Messages.hpp"
 #include "stellar/server/WorldSession.hpp"
 
 namespace stellar::client {
@@ -42,6 +43,16 @@ struct GameplayPresentationFrame {
  */
 [[nodiscard]] GameplayPresentationFrame make_gameplay_presentation_frame(
     const stellar::server::WorldSnapshot& snapshot,
+    const GameplayPresentationConfig& config = {}) noexcept;
+
+/**
+ * @brief Convert network authoritative snapshot state into backend-neutral billboard draw data.
+ *
+ * This function consumes presentation-safe transport state only. It does not mutate snapshots,
+ * resolve GPU resources, or own gameplay truth.
+ */
+[[nodiscard]] GameplayPresentationFrame make_gameplay_presentation_frame(
+    const stellar::network::NetworkWorldSnapshot& snapshot,
     const GameplayPresentationConfig& config = {}) noexcept;
 
 } // namespace stellar::client

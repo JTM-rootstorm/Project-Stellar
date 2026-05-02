@@ -142,6 +142,21 @@ void snapshot_presentation_does_not_mutate_authoritative_snapshot() {
     assert(snapshot.players[0].grounded == original.players[0].grounded);
 }
 
+void network_snapshot_extracts_player_state() {
+    stellar::network::NetworkWorldSnapshot snapshot;
+    snapshot.tick = 8;
+    snapshot.players.push_back(make_snapshot_player(11));
+    snapshot.players[0].position = {4.0F, 5.0F, 6.0F};
+
+    const auto missing = stellar::client::make_player_presentation_state(snapshot, 12);
+    const auto state = stellar::client::make_player_presentation_state(snapshot, 11);
+
+    assert(!missing.has_value());
+    assert(state.has_value());
+    assert_vec3(state->position, {4.0F, 5.0F, 6.0F});
+    assert(state->grounded);
+}
+
 } // namespace
 
 int main() {
@@ -152,6 +167,7 @@ int main() {
     camera_frame_sanitizes_non_finite_input();
     camera_near_far_are_clamped_or_preserved_by_documented_policy();
     snapshot_presentation_does_not_mutate_authoritative_snapshot();
+    network_snapshot_extracts_player_state();
 
     return 0;
 }

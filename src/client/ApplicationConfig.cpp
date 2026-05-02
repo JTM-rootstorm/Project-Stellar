@@ -2,11 +2,13 @@
 
 #include "stellar/client/ScriptRegistryLoader.hpp"
 #include "stellar/import/bsp/Validation.hpp"
+#include "stellar/network/SocketTransport.hpp"
 #include "stellar/scripting/ScriptedWorldSession.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -19,6 +21,22 @@ namespace {
 std::expected<ApplicationValidation, stellar::platform::Error>
 load_application_validation(const ApplicationConfig &config) {
   ApplicationValidation validation;
+
+  if (config.connect_endpoint.has_value()) {
+    if (config.map_path.has_value()) {
+      return std::unexpected(stellar::platform::Error(
+          "--map and --connect are ambiguous; remote mode uses authoritative server state"));
+    }
+    if (config.script_root.has_value()) {
+      return std::unexpected(stellar::platform::Error(
+          "--script-root applies only to local --map authoritative runtime, not --connect"));
+    }
+    if (auto parsed = stellar::network::parse_socket_address(*config.connect_endpoint); !parsed) {
+      return std::unexpected(stellar::platform::Error(
+          "Invalid --connect endpoint: " + parsed.error().message));
+    }
+    return validation;
+  }
 
   if (!config.map_path.has_value()) {
     return validation;
@@ -57,6 +75,106 @@ load_application_validation(const ApplicationConfig &config) {
 
 } // namespace
 
+std::expected<ApplicationConfig, stellar::platform::Error>
+parse_application_config(int argc, const char *const argv[]) {
+  ApplicationConfig config;
+
+  for (int i = 1; i < argc; ++i) {
+    auto require_value = [&](const char* name)
+        -> std::expected<std::string, stellar::platform::Error> {
+      if (i + 1 >= argc) {
+        return std::unexpected(stellar::platform::Error(std::string(name) + " requires a value"));
+      }
+      return std::string(argv[++i]);
+    };
+
+    if (std::strcmp(argv[i], "--validate-config") == 0) {
+      config.validate_only = true;
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--validate-map") == 0) {
+      auto value = require_value("--validate-map");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.validate_only = true;
+      config.map_path = std::move(*value);
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--map") == 0) {
+      auto value = require_value("--map");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.map_path = std::move(*value);
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--connect") == 0) {
+      auto value = require_value("--connect");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.connect_endpoint = std::move(*value);
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--client-name") == 0) {
+      auto value = require_value("--client-name");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.client_name = std::move(*value);
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--script-root") == 0) {
+      auto value = require_value("--script-root");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.script_root = std::move(*value);
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--renderer") == 0 ||
+        std::strcmp(argv[i], "--graphics-backend") == 0) {
+      auto value = require_value("--renderer");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      auto backend = stellar::graphics::parse_graphics_backend(*value);
+      if (!backend) {
+        return std::unexpected(backend.error());
+      }
+      config.graphics_backend = *backend;
+      continue;
+    }
+
+    return std::unexpected(stellar::platform::Error("Unknown client argument: " +
+                                                    std::string(argv[i])));
+  }
+
+  if (config.connect_endpoint.has_value() && config.map_path.has_value()) {
+    return std::unexpected(stellar::platform::Error(
+        "--map and --connect are ambiguous; remote mode uses authoritative server state"));
+  }
+  if (config.connect_endpoint.has_value() && config.script_root.has_value()) {
+    return std::unexpected(stellar::platform::Error(
+        "--script-root applies only to local --map authoritative runtime, not --connect"));
+  }
+  if (config.connect_endpoint.has_value()) {
+    if (auto parsed = stellar::network::parse_socket_address(*config.connect_endpoint); !parsed) {
+      return std::unexpected(stellar::platform::Error(
+          "Invalid --connect endpoint: " + parsed.error().message));
+    }
+  }
+
+  return config;
+}
+
 std::expected<ApplicationValidation, stellar::platform::Error>
 validate_application_config(const ApplicationConfig &config) {
   auto validation = load_application_validation(config);
@@ -82,6 +200,23 @@ prepare_application_runtime(const ApplicationConfig &config) {
   prepared.validation =
       std::make_unique<ApplicationValidation>(std::move(*validation));
 
+  if (config.connect_endpoint.has_value()) {
+    if (config.validate_only) {
+      return prepared;
+    }
+    RemoteClientRuntimeConfig remote_config{};
+    remote_config.connect_endpoint = *config.connect_endpoint;
+    remote_config.client_name = config.client_name;
+    auto remote = RemoteClientRuntime::connect(std::move(remote_config));
+    if (!remote) {
+      return std::unexpected(stellar::platform::Error(
+          "Failed to connect remote client: " + remote.error().message));
+    }
+    prepared.remote_runtime =
+        std::make_unique<RemoteClientRuntime>(std::move(*remote));
+    return prepared;
+  }
+
   if (prepared.validation->level.has_value()) {
     prepared.runtime_world = std::make_unique<stellar::world::RuntimeWorld>(
         stellar::world::build_runtime_world(*prepared.validation->level));
@@ -104,6 +239,10 @@ prepare_application_runtime(const ApplicationConfig &config) {
       prepared.validation->loaded_script_ids = registry->loaded_script_ids;
       prepared.validation->script_errors = registry->script_errors;
 
+      NetworkedClientRuntimeConfig runtime_config{};
+      runtime_config.bridge.map_identity =
+          stellar::network::make_map_identity(*prepared.runtime_world);
+
       auto scripted_session = stellar::scripting::ScriptedWorldSession::create(
           *prepared.runtime_world, stellar::server::WorldSessionConfig{},
           std::move(registry->registry));
@@ -114,11 +253,14 @@ prepare_application_runtime(const ApplicationConfig &config) {
             scripted_session.error().message));
       }
       prepared.validation->scripted_runtime_enabled = true;
-      prepared.local_loopback_runtime = std::make_unique<LocalLoopbackRuntime>(
-          std::move(*scripted_session));
+      prepared.networked_runtime = std::make_unique<NetworkedClientRuntime>(
+          std::move(*scripted_session), runtime_config);
     } else {
-      prepared.local_loopback_runtime =
-          std::make_unique<LocalLoopbackRuntime>(*prepared.runtime_world);
+      NetworkedClientRuntimeConfig runtime_config{};
+      runtime_config.bridge.map_identity =
+          stellar::network::make_map_identity(*prepared.runtime_world);
+      prepared.networked_runtime =
+          std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world, runtime_config);
     }
   }
 

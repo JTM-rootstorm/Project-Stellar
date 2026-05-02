@@ -33,8 +33,9 @@ std::array<float, 4> safe_color(std::array<float, 4> color, float alpha) noexcep
     return color;
 }
 
+template <typename Entity>
 stellar::graphics::BillboardSprite make_billboard(
-    const stellar::server::GameplayEntity& entity,
+    const Entity& entity,
     std::array<float, 4> color,
     const GameplayPresentationConfig& config) noexcept {
     stellar::graphics::BillboardSprite sprite;
@@ -69,8 +70,43 @@ GameplayPresentationFrame make_gameplay_presentation_frame(
             break;
         case stellar::server::EntityKind::kDoor:
             if (config.show_debug_interaction_markers) {
-                frame.sprites.push_back(make_billboard(
-                    entity, entity.open ? config.door_open_color : config.door_closed_color, config));
+                const auto color = entity.open ? config.door_open_color : config.door_closed_color;
+                frame.sprites.push_back(make_billboard(entity, color, config));
+            }
+            break;
+        case stellar::server::EntityKind::kPlayer:
+        case stellar::server::EntityKind::kTrigger:
+        case stellar::server::EntityKind::kObjectCollider:
+            break;
+        }
+    }
+
+    return frame;
+}
+
+GameplayPresentationFrame make_gameplay_presentation_frame(
+    const stellar::network::NetworkWorldSnapshot& snapshot,
+    const GameplayPresentationConfig& config) noexcept {
+    GameplayPresentationFrame frame;
+    frame.sprites.reserve(snapshot.entities.size());
+
+    for (const auto& entity : snapshot.entities) {
+        switch (entity.kind) {
+        case stellar::server::EntityKind::kSprite:
+            if (entity.active) {
+                frame.sprites.push_back(
+                    make_billboard(entity, config.default_sprite_color, config));
+            }
+            break;
+        case stellar::server::EntityKind::kPickup:
+            if (entity.active) {
+                frame.sprites.push_back(make_billboard(entity, config.pickup_color, config));
+            }
+            break;
+        case stellar::server::EntityKind::kDoor:
+            if (config.show_debug_interaction_markers) {
+                const auto color = entity.open ? config.door_open_color : config.door_closed_color;
+                frame.sprites.push_back(make_billboard(entity, color, config));
             }
             break;
         case stellar::server::EntityKind::kPlayer:

@@ -53,6 +53,20 @@ std::optional<PlayerPresentationState> make_player_presentation_state(
     return std::nullopt;
 }
 
+std::optional<PlayerPresentationState> make_player_presentation_state(
+    const stellar::network::NetworkWorldSnapshot& snapshot,
+    stellar::server::PlayerId player_id) {
+    for (const stellar::server::PlayerSnapshot& player : snapshot.players) {
+        if (player.player_id == player_id) {
+            return PlayerPresentationState{.position = player.position,
+                                           .rotation = player.rotation,
+                                           .grounded = player.grounded};
+        }
+    }
+
+    return std::nullopt;
+}
+
 PlayerCameraFrame make_player_camera_frame(const PlayerPresentationState& player,
                                            const PlayerCameraConfig& config) noexcept {
     PlayerCameraFrame frame;

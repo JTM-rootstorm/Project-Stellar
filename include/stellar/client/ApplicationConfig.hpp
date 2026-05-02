@@ -33,6 +33,12 @@ struct ApplicationConfig {
 
   /** @brief Optional root used to resolve asset-relative authoritative script ids. */
   std::optional<std::string> script_root;
+
+  /** @brief Optional host:port endpoint for remote presentation-only client mode. */
+  std::optional<std::string> connect_endpoint;
+
+  /** @brief Human-readable client name sent in the remote session hello. */
+  std::string client_name = "local";
 };
 
 /**
@@ -67,5 +73,11 @@ struct ApplicationValidation {
  */
 [[nodiscard]] std::expected<ApplicationValidation, stellar::platform::Error>
 validate_application_config(const ApplicationConfig &config);
+
+/**
+ * @brief Parse stellar-client command-line arguments into application startup configuration.
+ */
+[[nodiscard]] std::expected<ApplicationConfig, stellar::platform::Error>
+parse_application_config(int argc, const char *const argv[]);
 
 } // namespace stellar::client

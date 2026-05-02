@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "stellar/network/Messages.hpp"
+#include "stellar/network/Session.hpp"
 #include "stellar/network/SnapshotDelta.hpp"
 
 namespace stellar::network {
@@ -41,6 +42,26 @@ struct CodecLimits {
 
 /** @brief Decode a client movement command request from deterministic little-endian bytes. */
 [[nodiscard]] std::expected<NetworkPlayerCommand, CodecError> decode_player_command(
+    const std::vector<std::uint8_t>& bytes,
+    CodecLimits limits = {});
+
+/** @brief Encode a client session hello into deterministic little-endian bytes. */
+[[nodiscard]] std::expected<std::vector<std::uint8_t>, CodecError> encode_client_hello(
+    const ClientHello& hello,
+    CodecLimits limits = {});
+
+/** @brief Decode a client session hello from deterministic little-endian bytes. */
+[[nodiscard]] std::expected<ClientHello, CodecError> decode_client_hello(
+    const std::vector<std::uint8_t>& bytes,
+    CodecLimits limits = {});
+
+/** @brief Encode a server session welcome/rejection into deterministic little-endian bytes. */
+[[nodiscard]] std::expected<std::vector<std::uint8_t>, CodecError> encode_server_welcome(
+    const ServerWelcome& welcome,
+    CodecLimits limits = {});
+
+/** @brief Decode a server session welcome/rejection from deterministic little-endian bytes. */
+[[nodiscard]] std::expected<ServerWelcome, CodecError> decode_server_welcome(
     const std::vector<std::uint8_t>& bytes,
     CodecLimits limits = {});
 

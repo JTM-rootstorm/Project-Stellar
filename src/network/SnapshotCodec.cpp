@@ -11,6 +11,8 @@ namespace {
 
 constexpr std::uint32_t kSnapshotMagic = 0x53504E33U;
 constexpr std::uint32_t kCommandMagic = 0x434D4E33U;
+constexpr std::uint32_t kClientHelloMagic = 0x48434E33U;
+constexpr std::uint32_t kServerWelcomeMagic = 0x57534E33U;
 constexpr std::uint32_t kEventMagic = 0x45564E33U;
 constexpr std::uint32_t kDeltaMagic = 0x444C4E33U;
 constexpr std::uint16_t kCodecVersion = 1;
@@ -359,6 +361,61 @@ template <std::size_t Count>
     return command;
 }
 
+[[nodiscard]] std::expected<void, CodecError> write_client_hello_body(
+    Writer& writer,
+    const ClientHello& hello) {
+    TRY_VOID(writer.write_u32(hello.protocol_version));
+    TRY_VOID(writer.write_string(hello.client_name));
+    TRY_VOID(writer.write_string(hello.requested_map_id));
+    TRY_VOID(writer.write_u64(hello.client_nonce));
+    return {};
+}
+
+[[nodiscard]] std::expected<ClientHello, CodecError> read_client_hello_body(Reader& reader) {
+    ClientHello hello{};
+    TRY_VALUE(protocol_version, reader.read_u32());
+    TRY_VALUE(client_name, reader.read_string());
+    TRY_VALUE(requested_map_id, reader.read_string());
+    TRY_VALUE(client_nonce, reader.read_u64());
+    hello.protocol_version = protocol_version;
+    hello.client_name = std::move(client_name);
+    hello.requested_map_id = std::move(requested_map_id);
+    hello.client_nonce = client_nonce;
+    return hello;
+}
+
+[[nodiscard]] std::expected<void, CodecError> write_server_welcome_body(
+    Writer& writer,
+    const ServerWelcome& welcome) {
+    TRY_VOID(writer.write_bool(welcome.accepted));
+    TRY_VOID(writer.write_u32(welcome.protocol_version));
+    TRY_VOID(writer.write_u64(welcome.session_id));
+    TRY_VOID(writer.write_u32(welcome.assigned_player_id));
+    TRY_VOID(writer.write_string(welcome.map_id));
+    TRY_VOID(writer.write_string(welcome.rejection_code));
+    TRY_VOID(writer.write_string(welcome.message));
+    return {};
+}
+
+[[nodiscard]] std::expected<ServerWelcome, CodecError> read_server_welcome_body(Reader& reader) {
+    ServerWelcome welcome{};
+    TRY_VALUE(accepted, reader.read_bool());
+    TRY_VALUE(protocol_version, reader.read_u32());
+    TRY_VALUE(session_id, reader.read_u64());
+    TRY_VALUE(assigned_player_id, reader.read_u32());
+    TRY_VALUE(map_id, reader.read_string());
+    TRY_VALUE(rejection_code, reader.read_string());
+    TRY_VALUE(message, reader.read_string());
+    welcome.accepted = accepted;
+    welcome.protocol_version = protocol_version;
+    welcome.session_id = session_id;
+    welcome.assigned_player_id = assigned_player_id;
+    welcome.map_id = std::move(map_id);
+    welcome.rejection_code = std::move(rejection_code);
+    welcome.message = std::move(message);
+    return welcome;
+}
+
 [[nodiscard]] std::expected<void, CodecError> write_entity(Writer& writer,
                                                            const NetworkGameplayEntity& entity) {
     TRY_VOID(writer.write_u32(entity.id));
@@ -585,6 +642,81 @@ std::expected<NetworkPlayerCommand, CodecError> decode_player_command(
     }
     TRY_DECODE_VOID(require_finished(reader));
     return *command;
+#undef TRY_DECODE_VOID
+}
+
+std::expected<std::vector<std::uint8_t>, CodecError> encode_client_hello(
+    const ClientHello& hello,
+    CodecLimits limits) {
+    Writer writer{limits};
+#define TRY_ENCODE(expr)    \
+    do {                    \
+        auto _result = expr; \
+        if (!_result) {     \
+            return std::unexpected(_result.error()); \
+        }                   \
+    } while (false)
+    TRY_ENCODE(write_header(writer, kClientHelloMagic));
+    TRY_ENCODE(write_client_hello_body(writer, hello));
+    return writer.take_bytes();
+#undef TRY_ENCODE
+}
+
+std::expected<ClientHello, CodecError> decode_client_hello(const std::vector<std::uint8_t>& bytes,
+                                                           CodecLimits limits) {
+    Reader reader{bytes, limits};
+#define TRY_DECODE_VOID(expr) \
+    do {                      \
+        auto _result = expr;   \
+        if (!_result) {       \
+            return std::unexpected(_result.error()); \
+        }                     \
+    } while (false)
+    TRY_DECODE_VOID(read_header(reader, kClientHelloMagic));
+    auto hello = read_client_hello_body(reader);
+    if (!hello) {
+        return std::unexpected(hello.error());
+    }
+    TRY_DECODE_VOID(require_finished(reader));
+    return *hello;
+#undef TRY_DECODE_VOID
+}
+
+std::expected<std::vector<std::uint8_t>, CodecError> encode_server_welcome(
+    const ServerWelcome& welcome,
+    CodecLimits limits) {
+    Writer writer{limits};
+#define TRY_ENCODE(expr)    \
+    do {                    \
+        auto _result = expr; \
+        if (!_result) {     \
+            return std::unexpected(_result.error()); \
+        }                   \
+    } while (false)
+    TRY_ENCODE(write_header(writer, kServerWelcomeMagic));
+    TRY_ENCODE(write_server_welcome_body(writer, welcome));
+    return writer.take_bytes();
+#undef TRY_ENCODE
+}
+
+std::expected<ServerWelcome, CodecError> decode_server_welcome(
+    const std::vector<std::uint8_t>& bytes,
+    CodecLimits limits) {
+    Reader reader{bytes, limits};
+#define TRY_DECODE_VOID(expr) \
+    do {                      \
+        auto _result = expr;   \
+        if (!_result) {       \
+            return std::unexpected(_result.error()); \
+        }                     \
+    } while (false)
+    TRY_DECODE_VOID(read_header(reader, kServerWelcomeMagic));
+    auto welcome = read_server_welcome_body(reader);
+    if (!welcome) {
+        return std::unexpected(welcome.error());
+    }
+    TRY_DECODE_VOID(require_finished(reader));
+    return *welcome;
 #undef TRY_DECODE_VOID
 }
 

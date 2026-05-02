@@ -1,7 +1,4 @@
 #include <cstdlib>
-#include <cstring>
-#include <expected>
-#include <string>
 #include <utility>
 
 #include "stellar/client/Application.hpp"
@@ -9,70 +6,8 @@
 
 #include <cstdio>
 
-namespace {
-
-std::expected<stellar::client::ApplicationConfig, stellar::platform::Error>
-parse_application_config(int argc, char *argv[]) {
-  stellar::client::ApplicationConfig config;
-
-  for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], "--validate-config") == 0) {
-      config.validate_only = true;
-      continue;
-    }
-
-    if (std::strcmp(argv[i], "--validate-map") == 0) {
-      if (i + 1 >= argc) {
-        return std::unexpected(
-            stellar::platform::Error("--validate-map requires a path"));
-      }
-      config.validate_only = true;
-      config.map_path = std::string(argv[++i]);
-      continue;
-    }
-
-    if (std::strcmp(argv[i], "--map") == 0) {
-      if (i + 1 >= argc) {
-        return std::unexpected(
-            stellar::platform::Error("--map requires a path"));
-      }
-      config.map_path = std::string(argv[++i]);
-      continue;
-    }
-
-    if (std::strcmp(argv[i], "--script-root") == 0) {
-      if (i + 1 >= argc) {
-        return std::unexpected(
-            stellar::platform::Error("--script-root requires a path"));
-      }
-      config.script_root = std::string(argv[++i]);
-      continue;
-    }
-
-    if (std::strcmp(argv[i], "--renderer") == 0 ||
-        std::strcmp(argv[i], "--graphics-backend") == 0) {
-      if (i + 1 >= argc) {
-        return std::unexpected(
-            stellar::platform::Error("--renderer requires a backend"));
-      }
-      auto backend = stellar::graphics::parse_graphics_backend(argv[++i]);
-      if (!backend) {
-        return std::unexpected(backend.error());
-      }
-      config.graphics_backend = *backend;
-      continue;
-    }
-
-    return std::unexpected(stellar::platform::Error("Unknown client argument"));
-  }
-
-  return config;
-}
-
-} // namespace
-
 int main(int argc, char *argv[]) {
-  auto config = parse_application_config(argc, argv);
+  auto config = stellar::client::parse_application_config(argc, argv);
   if (!config) {
     std::fprintf(stderr, "Client startup failed: %s\n",
                  config.error().message.c_str());
