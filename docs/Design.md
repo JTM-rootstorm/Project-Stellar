@@ -85,7 +85,7 @@ suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`socket-transport` branch, it is not the highest authority on current implementation status.
+`trenchbroom-compat` branch, it is not the highest authority on current implementation status.
 
 Precedence for resolving conflicts:
 
@@ -105,7 +105,7 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `socket-transport`.
+Current branch: `trenchbroom-compat`.
 
 Primary near-term status: socket transport and networked session lifecycle over the completed BSP
 gameplay loop and presentation/networking polish foundations are complete. The completed scope
@@ -139,8 +139,9 @@ movement/session output, emits primitive script events, and applies only native-
 collision/object-collider commands to server-owned runtime state.
 The live single-player client path can load a configured BSP map, keep the validated `LevelAsset`
 alive for `RuntimeWorld`, instantiate local loopback authoritative runtime state, advance movement from
-captured input, and render the level from the authoritative player presentation camera. The no-map
-debug fallback remains a presentation-only fallback.
+captured input, and render the level from the authoritative player presentation camera. No-map mode
+initializes without authored static geometry and renders a blank/static-less presentation frame until
+authored static geometry or authoritative dynamic snapshot data is available.
 The live client uses the same server-authoritative scripted runtime as display-free tests when a loaded
 BSP map declares trigger or object-collider script bindings. Script sources are loaded for
 authoritative runtime execution only; no client-side gameplay scripting or renderer/audio script
@@ -162,8 +163,9 @@ followed by deltas/events. The `stellar-client --connect HOST:PORT` mode creates
 runtime, sends `ClientHello`, waits for accepted `ServerWelcome`, sends input commands after acceptance,
 and renders camera/billboards from `NetworkWorldSnapshot` through `ClientWorldReceiver`. Remote mode
 does not load maps, load gameplay scripts, construct local authority, transfer maps, predict,
-interpolate, or reconcile. Without a local presentation map feature, remote mode renders dynamic
-network state/fallback only; static BSP map transfer/caching remains deferred. True simultaneous
+interpolate, or reconcile. Without a local presentation map feature, remote mode renders a
+blank/static-less frame plus any available dynamic network state; static BSP map transfer/caching
+remains deferred. True simultaneous
 multiplayer simulation, interpolation, prediction, and reconciliation remain deferred until explicitly
 scoped.
 

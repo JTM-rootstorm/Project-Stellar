@@ -30,7 +30,7 @@ Current branch goals:
 ## Active phase order
 
 1. Phase 0 — branch, handoff, and docs baseline.
-2. Phase 0.5 — remove prototype cube renderer and debug cube fallback.
+2. Phase 0.5 — remove prototype cube renderer and switch no-map rendering to a static-less fallback.
 3. Phase 1 — central Z-up world-axis contract.
 4. Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures.
 5. Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests.

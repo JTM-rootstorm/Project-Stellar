@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "RecordingGraphicsDevice.hpp"
-#include "stellar/graphics/DebugCubeMesh.hpp"
 #include "stellar/graphics/LevelRenderer.hpp"
 
 namespace {
@@ -232,6 +231,47 @@ void verify_billboards_submit_after_static_geometry(
   assert(device->destroyed_materials.size() == 2);
 }
 
+void verify_static_less_level_renders_no_static_surfaces(
+    stellar::platform::Window &window) {
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window,
+                                      stellar::assets::LevelAsset{});
+  render_level.render(64, 64, kIdentity, kIdentity);
+
+  assert(device->mesh_handles.empty());
+  assert(device->material_handles.size() == 1);
+  assert(device->uploaded_materials[0].material.name ==
+         "stellar_default_level_material");
+  assert(device->draw_calls.empty());
+}
+
+void verify_billboards_submit_without_static_geometry(
+    stellar::platform::Window &window) {
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window,
+                                      stellar::assets::LevelAsset{});
+
+  stellar::graphics::BillboardView view;
+  view.view = kIdentity;
+  view.view_projection = kIdentity;
+  view.camera_right = {1.0F, 0.0F, 0.0F};
+  view.camera_up = {0.0F, 1.0F, 0.0F};
+
+  stellar::graphics::BillboardSprite sprite;
+  sprite.position = {0.0F, 0.0F, -2.0F};
+  sprite.texture = stellar::graphics::TextureHandle{333};
+
+  const std::array sprites{sprite};
+  render_level.render(64, 64, kIdentity, kIdentity, std::nullopt, view, sprites);
+
+  assert(device->draw_calls.size() == 1);
+  assert(device->uploaded_materials.size() == 2);
+  assert(device->uploaded_materials[1].base_color_texture->texture ==
+         stellar::graphics::TextureHandle{333});
+  assert(device->destroyed_meshes.size() == 1);
+  assert(device->destroyed_materials.size() == 1);
+}
+
 void verify_level_bounds_and_camera_fit() {
   stellar::assets::LevelAsset level;
   stellar::assets::MeshPrimitive primitive;
@@ -256,8 +296,15 @@ void verify_level_bounds_and_camera_fit() {
 
   const auto empty_bounds =
       stellar::graphics::compute_level_bounds(stellar::assets::LevelAsset{});
+  assert(empty_bounds.min[0] == -0.5F);
+  assert(empty_bounds.max[1] == 0.5F);
   assert(empty_bounds.center[0] == 0.0F);
   assert(empty_bounds.radius == 1.0F);
+
+  const auto empty_camera = stellar::graphics::fit_camera_to_bounds(
+      empty_bounds, 45.0F, 16.0F / 9.0F);
+  assert(empty_camera.target == empty_bounds.center);
+  assert(empty_camera.far_plane > empty_camera.near_plane);
 }
 
 void verify_level_render_state_uses_override_camera_for_culling() {
@@ -317,17 +364,6 @@ void verify_level_renderer_retains_and_clears_presentation_state() {
   assert(renderer.presentation_state().sprites.empty());
 }
 
-void verify_debug_cube_winding_matches_normals() {
-  const auto mesh = stellar::graphics::create_debug_cube_mesh();
-  assert(mesh.has_value());
-  assert(mesh->primitives.size() == 6);
-
-  for (const auto &primitive : mesh->primitives) {
-    assert(primitive.vertices.size() == 4);
-    assert(primitive.indices == std::vector<std::uint32_t>({0, 1, 2, 0, 2, 3}));
-  }
-}
-
 } // namespace
 
 int main() {
@@ -338,11 +374,12 @@ int main() {
   verify_visibility_falls_back_when_camera_leaf_missing(window);
   verify_billboard_quad_generation_sorting_and_fields();
   verify_billboards_submit_after_static_geometry(window);
+  verify_static_less_level_renders_no_static_surfaces(window);
+  verify_billboards_submit_without_static_geometry(window);
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();
   verify_level_render_state_can_disable_culling_for_fallback();
   verify_billboard_view_is_derived_from_render_state();
   verify_level_renderer_retains_and_clears_presentation_state();
-  verify_debug_cube_winding_matches_normals();
   return 0;
 }

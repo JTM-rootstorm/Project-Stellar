@@ -114,7 +114,7 @@ compute_level_bounds(const stellar::assets::LevelAsset &level) noexcept;
 compute_billboard_view(const LevelRenderState &state) noexcept;
 
 /**
- * @brief Generic static level renderer with a debug cube fallback.
+ * @brief Generic static level renderer with an optional level asset.
  */
 class LevelRenderer final : public Renderer {
 public:
@@ -141,7 +141,7 @@ public:
   LevelRenderer &operator=(const LevelRenderer &) = delete;
 
   /**
-   * @brief Initialize GPU resources for the provided level or fallback cube.
+   * @brief Initialize GPU resources for the provided level or an empty/static-less level.
    */
   [[nodiscard]] std::expected<void, stellar::platform::Error>
   initialize(stellar::platform::Window &window) override;
@@ -168,12 +168,6 @@ public:
   [[nodiscard]] const LevelPresentationState &presentation_state() const noexcept;
 
 private:
-  [[nodiscard]] static std::expected<stellar::assets::MeshAsset,
-                                     stellar::platform::Error>
-  create_cube_mesh();
-
-  [[nodiscard]] static stellar::assets::LevelAsset create_cube_level();
-
   GraphicsBackend backend_ = GraphicsBackend::kOpenGL;
   std::optional<stellar::assets::LevelAsset> source_level_;
   std::optional<LevelRenderView> render_view_;

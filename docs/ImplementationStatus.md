@@ -23,7 +23,7 @@ Active handoff docs:
 Phase order:
 
 1. Phase 0 — branch, handoff, and docs baseline.
-2. Phase 0.5 — remove prototype cube renderer and debug cube fallback.
+2. Phase 0.5 — remove prototype cube renderer and switch no-map rendering to a static-less fallback.
 3. Phase 1 — central Z-up world-axis contract.
 4. Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures.
 5. Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests.
@@ -44,9 +44,9 @@ Phase 0 baseline audit findings:
   low-cost legacy BSP29 importer support while making BSP30 the TrenchBroom workflow target in Phase 4.
 - The helper FGD still exposes plain placeholder names such as `stellar_script`; Phase 5 must replace
   TrenchBroom-facing fields with dotted keys or importer-supported aliases.
-- Prototype cube references remain in `CubeRenderer`, `DebugCubeMesh`, `LevelRenderer`, graphics
-  tests, and CMake. Phase 0.5 removes that runtime path and replaces no-map rendering with a
-  static-less fallback.
+- Phase 0.5 removed the old prototype cube renderer and debug cube mesh from active graphics code.
+  No-map and remote-without-presentation-map modes now initialize a blank/static-less presentation
+  frame until authored static geometry or authoritative dynamic snapshot data is available.
 
 Phase 0 validation:
 
@@ -55,7 +55,7 @@ git grep -n -i 'Y is up\|Y-up\|0 36 0\|floor at `y = 0`\|floor at y = 0' -- docs
 git grep -n '0\.0F, 1\.0F, 0\.0F\|0, 1, 0' -- include src tests ':!build*/**'
 git grep -n -i 'BSP29/BSP30\|BSP29\|BSP30' -- docs include src tests tools Plans ':!Plans/Archived/**' ':!build*/**'
 git grep -n 'stellar_script\|stellar_extents\|stellar_sprite\|stellar_collision' -- tools docs tests include src ':!build*/**'
-git grep -n 'CubeRenderer\|DebugCubeMesh\|create_debug_cube_mesh\|debug:cube\|debug_cube\|debug_cube_surface\|debug_red\|debug_green\|debug_blue' -- include src tests CMakeLists.txt docs Plans ':!Plans/Archived/**' ':!build*/**'
+git grep -n '<Phase 0.5 prototype-cube removal audit pattern>' -- include src tests CMakeLists.txt docs Plans ':!Plans/Archived/**' ':!build*/**'
 ```
 
 Result: audit commands were run during Phase 0; findings are summarized above. No runtime behavior was

@@ -10,7 +10,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "stellar/graphics/DebugCubeMesh.hpp"
 #include "stellar/graphics/GraphicsDeviceFactory.hpp"
 
 namespace stellar::graphics {
@@ -210,48 +209,11 @@ LevelRenderer::LevelRenderer(
 
 LevelRenderer::~LevelRenderer() noexcept = default;
 
-std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
-LevelRenderer::create_cube_mesh() {
-  return create_debug_cube_mesh();
-}
-
-stellar::assets::LevelAsset LevelRenderer::create_cube_level() {
-  stellar::assets::LevelAsset level;
-  level.source_uri = "debug:cube";
-  level.geometry.meshes.push_back(create_cube_mesh().value());
-  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = "debug_red",
-      .source_name = "debug_red",
-  });
-  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = "debug_green",
-      .source_name = "debug_green",
-  });
-  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = "debug_blue",
-      .source_name = "debug_blue",
-  });
-  for (std::size_t primitive_index = 0;
-       primitive_index < level.geometry.meshes[0].primitives.size();
-       ++primitive_index) {
-    const auto &primitive =
-        level.geometry.meshes[0].primitives[primitive_index];
-    level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
-        .name = "debug_cube_surface",
-        .mesh_index = 0,
-        .primitive_index = primitive_index,
-        .material_index = primitive.material_index,
-        .bounds_min = primitive.bounds_min,
-        .bounds_max = primitive.bounds_max,
-    });
-  }
-  return level;
-}
-
 std::expected<void, stellar::platform::Error>
 LevelRenderer::initialize(stellar::platform::Window &window) {
-  auto level = source_level_.has_value() ? std::move(*source_level_)
-                                         : create_cube_level();
+  stellar::assets::LevelAsset level = source_level_.has_value()
+                                         ? std::move(*source_level_)
+                                         : stellar::assets::LevelAsset{};
   level_bounds_ = compute_level_bounds(level);
 
   auto device = create_graphics_device(backend_);

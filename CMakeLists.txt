@@ -242,10 +242,8 @@ add_library(stellar_graphics
     src/graphics/RendererFactory.cpp
     src/graphics/GraphicsDeviceFactory.cpp
     src/graphics/BillboardSprite.cpp
-    src/graphics/DebugCubeMesh.cpp
     src/graphics/RenderLevel.cpp
     src/graphics/LevelRenderer.cpp
-    src/graphics/opengl/CubeRenderer.cpp
     src/graphics/opengl/OpenGLGraphicsDevice.cpp
     src/graphics/vulkan/VulkanGraphicsDevice.cpp
     src/graphics/vulkan/VulkanGraphicsDeviceCommon.cpp
