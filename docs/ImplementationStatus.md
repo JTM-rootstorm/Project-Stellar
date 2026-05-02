@@ -64,6 +64,10 @@ Phase 0 baseline audit findings:
   existing BSP29 compatibility path. BSP30 tests now cover Z-up player origins, dotted and underscore
   alias entity keys, deterministic developer material fallback, malformed lump rejection, and explicit
   Source/VBSP unsupported-version diagnostics without hidden axis conversion.
+- Phase 5 added the project-owned TrenchBroom package, underscore-alias FGD, developer material name
+  reference, BSP30 compile/validation wrappers, and workflow documentation. The TrenchBroom-facing FGD
+  avoids plain placeholder fields such as `stellar_script`; runtime dotted metadata remains supported
+  and the wrappers fail clearly when external compiler/runtime tools are unavailable.
 
 Phase 0 validation:
 
@@ -118,6 +122,18 @@ ctest --test-dir build -R '^(bsp_validation|bsp_importer|bsp_authoring_smoke|cli
 
 Result: focused BSP30 importer/validation tests passed during implementation. Full CTest remains part
 of phase-close validation before commit.
+
+Phase 5 validation:
+
+```bash
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+git grep -n 'stellar_script\|stellar_extents\|stellar_sprite\|stellar_collision' -- tools/trenchbroom tools/bsp docs tests ':!build*/**'
+git grep -n '_stellar_script\|stellar.script' -- tools/trenchbroom docs tests ':!build*/**'
+```
+
+Result: wrapper syntax checks and FGD/key audits passed during implementation. External BSP compiler
+smoke testing remains optional because no compiler is vendored.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 

@@ -2,16 +2,18 @@
 
 BSP maps are Stellar's canonical playable level source. Entity keys are imported as backend-neutral world metadata for the authoritative runtime; import never executes scripts and never creates renderer, audio, ECS, or gameplay state directly.
 
-Gameplay authoring uses inch-scale coordinates on the active `trenchbroom-compat` branch: 1 Stellar
-gameplay world unit equals 1 inch, and BSP coordinates are imported 1:1 without hidden scale
-conversion. WIP note: this branch is migrating from the historical Y-up convention to Z-up
-TrenchBroom/BSP30 authoring and runtime defaults. Final examples will use `origin = "0 0 36"` for the
-default player capsule center, but many examples below intentionally remain in their pre-migration
-form until the later runtime/presentation phases update the corresponding behavior.
+For the current TrenchBroom BSP30 editor workflow, package setup, FGD policy, compile wrappers, and
+validation commands, see [`docs/TrenchBroom.md`](TrenchBroom.md). This page remains the lower-level BSP
+entity and runtime metadata reference.
+
+Gameplay authoring uses inch-scale Z-up coordinates on the active `trenchbroom-compat` branch: 1
+Stellar gameplay world unit equals 1 inch, and BSP30 coordinates are imported 1:1 without hidden scale
+conversion. The default player capsule center should be authored at `origin = "0 0 36"` on a floor at
+`z = 0`.
 
 ## Minimal workflow
 
-1. Build a classic BSP29/BSP30-style map in a Quake/GoldSrc-compatible editor or toolchain.
+1. Build a BSP30 map in TrenchBroom or a compatible Quake/GoldSrc-style toolchain.
 2. Author gameplay markers with ordinary entity key/value pairs.
 3. Compile/export the `.bsp`.
 4. Run the display-free validation commands below before using the map in runtime tests.
@@ -19,13 +21,13 @@ form until the later runtime/presentation phases update the corresponding behavi
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD
 definitions, or equivalent editor mechanisms that preserve keys exactly. Dotted Stellar keys such as
 `stellar.script` must reach the compiled BSP entity text as dotted keys or as importer-supported aliases
-such as `_stellar_script`. A small Quake-style helper definition file is available at
-`tools/bsp/stellar_entities.fgd`; its underscore field names are editor-facing placeholders unless the
-editor/toolchain remaps them to dotted keys or supported aliases before export.
+such as `_stellar_script`. The TrenchBroom package at `tools/trenchbroom/Stellar/` uses those
+underscore aliases directly for reliability; `tools/bsp/stellar_entities.fgd` remains a small legacy
+helper with the same alias policy.
 
 For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
 on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
-floor plan with an 8 ft ceiling, a player spawn at `0 36 0`, and developer grid/wall materials listed
+floor plan with an 8 ft ceiling, a player spawn at `0 0 36`, and developer grid/wall materials listed
 below.
 
 ## Procedural developer textures
@@ -109,9 +111,9 @@ The generated `gameplay_room` test fixture is the current Phase 6 smoke-map refe
 the tiny fixtures used by existing importer and scripting tests, but gives runtime/client integration
 a room at gameplay scale:
 
-- 192x192 inch footprint, with `x/z` spanning roughly `-96..96`.
-- Floor at `y = 0`, ceiling at `y = 96`, and static triangle collision for floor, walls, and ceiling.
-- `info_player_start` at `origin = "0 36 0"` for the default 72 inch capsule.
+- 192x192 inch footprint, with `x/y` spanning roughly `-96..96`.
+- Floor at `z = 0`, ceiling at `z = 96`, and static triangle collision for floor, walls, and ceiling.
+- `info_player_start` at `origin = "0 0 36"` for the default 72 inch capsule.
 - Floor/ceiling/walls use Phase 2 procedural developer material aliases such as `dev/grid_32`,
   `dev/grid_64`, and `dev/wall_96`.
 - Includes one sprite marker, one object-collider marker reserved for pickup work, and one trigger
@@ -125,12 +127,12 @@ with authoritative movement input, verifies room-wall containment, and checks de
 ```text
 classname = info_player_start
 targetname = PlayerStart
-origin = "0 36 0"
+origin = "0 0 36"
 angle = "90"
 ```
 
-For the default 72 inch player capsule, use an origin such as `"0 36 0"` when the floor is at
-`y = 0`. The importer preserves the authored origin; it does not lift player spawns automatically.
+For the default 72 inch player capsule, use an origin such as `"0 0 36"` when the floor is at
+`z = 0`. The importer preserves the authored origin; it does not lift player spawns automatically.
 
 ### Trigger script
 

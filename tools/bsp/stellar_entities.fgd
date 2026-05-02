@@ -1,30 +1,30 @@
 // Stellar BSP authoring helper.
 //
-// These underscore field names are editor-facing placeholders for editors that cannot expose dotted
-// keys directly. The compiled BSP must contain dotted Stellar keys such as `stellar.script` or
-// importer-supported aliases such as `_stellar_script`. Configure the editor/export toolchain to
-// remap these fields before BSP export; plain keys such as `stellar_script` are not importer aliases.
+// For TrenchBroom, prefer tools/trenchbroom/Stellar/stellar_entities.fgd. This legacy helper now uses
+// the same importer-supported underscore aliases for reliability with classic map compilers. The
+// importer maps aliases such as _stellar_script to dotted runtime metadata such as stellar.script.
+// Do not author plain placeholder names like stellar_script.
 
 @PointClass base(Targetname, Angles) = info_player_start : "Stellar player start"
 [
     targetname(string) : "Name"
-    origin(string) : "Origin" : "0 36 0"
+    origin(string) : "Origin" : "0 0 36"
 ]
 
 @PointClass base(Targetname) = info_stellar_spawn : "Stellar generic spawn metadata"
 [
     archetype(string) : "Server-side archetype id"
     origin(string) : "Origin"
-    stellar_script(string) : "Authoritative Lua script id (remap to stellar.script)"
-    stellar_table(string) : "Lua table name (remap to stellar.table)"
+    _stellar_script(string) : "Authoritative Lua script id (alias for stellar.script)"
+    _stellar_table(string) : "Lua table name (alias for stellar.table)"
 ]
 
 @SolidClass base(Targetname) = trigger_stellar : "Stellar authoritative trigger volume"
 [
-    stellar_script(string) : "Authoritative Lua script id (remap to stellar.script)"
-    stellar_table(string) : "Lua table name (remap to stellar.table)"
-    stellar_extents(string) : "Point-trigger extents fallback, x y z (remap to stellar.extents)"
-    stellar_once(choices) : "Fire once (remap to stellar.once)" : 0 =
+    _stellar_script(string) : "Authoritative Lua script id (alias for stellar.script)"
+    _stellar_table(string) : "Lua table name (alias for stellar.table)"
+    _stellar_extents(string) : "Point-trigger extents fallback, x y z (alias for stellar.extents)"
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 0 =
     [
         0 : "false"
         1 : "true"
@@ -34,10 +34,10 @@
 @PointClass base(Targetname) = stellar_sprite : "Stellar presentation sprite marker"
 [
     origin(string) : "Origin"
-    stellar_sprite(string) : "Sprite id (remap to stellar.sprite)"
-    stellar_texture(string) : "Texture asset id (remap to stellar.texture)"
-    stellar_size(string) : "Billboard size, width height (remap to stellar.size)"
-    stellar_alpha(choices) : "Alpha mode (remap to stellar.alpha)" : "blend" =
+    _stellar_sprite(string) : "Sprite id (alias for stellar.sprite)"
+    _stellar_texture(string) : "Texture asset id (alias for stellar.texture)"
+    _stellar_size(string) : "Billboard size, width height (alias for stellar.size)"
+    _stellar_alpha(choices) : "Alpha mode (alias for stellar.alpha)" : "blend" =
     [
         "opaque" : "opaque"
         "blend" : "blend"
@@ -48,14 +48,14 @@
 @SolidClass base(Targetname) = stellar_object_collider : "Stellar server-side object sensor"
 [
     archetype(string) : "Gameplay archetype such as pickup or item_health"
-    stellar_collider(choices) : "Collider type (remap to stellar.collider)" : "object" =
+    _stellar_collider(choices) : "Collider type (alias for stellar.collider)" : "object" =
     [
         "object" : "object"
     ]
-    stellar_script(string) : "Authoritative Lua script id (remap to stellar.script)"
-    stellar_table(string) : "Lua table name (remap to stellar.table)"
-    stellar_extents(string) : "Point-collider extents fallback, x y z (remap to stellar.extents)"
-    stellar_enabled(choices) : "Initially enabled (remap to stellar.enabled)" : 1 =
+    _stellar_script(string) : "Authoritative Lua script id (alias for stellar.script)"
+    _stellar_table(string) : "Lua table name (alias for stellar.table)"
+    _stellar_extents(string) : "Point-collider extents fallback, x y z (alias for stellar.extents)"
+    _stellar_enabled(choices) : "Initially enabled (alias for stellar.enabled)" : 1 =
     [
         0 : "false"
         1 : "true"
@@ -64,7 +64,7 @@
 
 @SolidClass base(Targetname) = func_wall : "Stellar static collision brush"
 [
-    stellar_collision(choices) : "Collision extraction behavior (remap to stellar.collision)" :
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" :
         "static" =
     [
         "static" : "static"

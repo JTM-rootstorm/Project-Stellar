@@ -1,0 +1,154 @@
+// Stellar TrenchBroom FGD.
+//
+// Policy: TrenchBroom-facing fields use importer-supported underscore aliases for reliability with
+// classic map compilers. The importer treats these aliases as the corresponding dotted Stellar keys:
+// _stellar_script    -> stellar.script
+// _stellar_table     -> stellar.table
+// _stellar_extents   -> stellar.extents
+// _stellar_once      -> stellar.once
+// _stellar_sprite    -> stellar.sprite
+// _stellar_texture   -> stellar.texture
+// _stellar_size      -> stellar.size
+// _stellar_alpha     -> stellar.alpha
+// _stellar_collider  -> stellar.collider
+// _stellar_enabled   -> stellar.enabled
+// _stellar_collision -> stellar.collision
+//
+// Do not author plain placeholder names such as stellar_script.
+
+@BaseClass = Targetname
+[
+    targetname(string) : "Name"
+]
+
+@BaseClass = Angles
+[
+    angle(string) : "Yaw angle around +Z" : "0"
+]
+
+@BaseClass = StellarScript
+[
+    _stellar_script(string) : "Authoritative Lua script id (alias for stellar.script)"
+    _stellar_table(string) : "Lua table name (alias for stellar.table)"
+]
+
+@BaseClass = StellarExtents
+[
+    _stellar_extents(string) : "Point-volume extents as x y z inches (alias for stellar.extents)"
+]
+
+@SolidClass = worldspawn : "Stellar worldspawn (Z-up, 1 unit = 1 inch)"
+[
+    message(string) : "Map title"
+    wad(string) : "Editor WAD references; runtime can use fallback material names"
+]
+
+@PointClass base(Targetname, Angles) color(0 255 0) size(-16 -16 -36, 16 16 36) = info_player_start : "Stellar player start"
+[
+    origin(string) : "Origin; default capsule center is 36 inches above the floor" : "0 0 36"
+]
+
+@PointClass base(Targetname, StellarScript) color(128 255 128) size(-8 -8 -8, 8 8 8) = info_stellar_spawn : "Stellar generic spawn metadata"
+[
+    archetype(string) : "Server-side archetype id"
+    origin(string) : "Origin" : "0 0 0"
+]
+
+@SolidClass base(Targetname, StellarScript, StellarExtents) color(255 192 64) = trigger_stellar : "Stellar authoritative trigger volume"
+[
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 0 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@SolidClass base(Targetname, StellarScript, StellarExtents) color(255 160 64) = trigger_multiple : "Repeatable Stellar trigger volume"
+[
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 0 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@SolidClass base(Targetname, StellarScript, StellarExtents) color(255 128 64) = trigger_once : "Single-use Stellar trigger volume"
+[
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@PointClass base(Targetname) color(64 192 255) size(-8 -8 -8, 8 8 8) = stellar_sprite : "Stellar presentation sprite marker"
+[
+    origin(string) : "Origin" : "0 0 48"
+    _stellar_sprite(string) : "Sprite id (alias for stellar.sprite)"
+    _stellar_texture(string) : "Texture asset id (alias for stellar.texture)"
+    _stellar_size(string) : "Billboard size, width height (alias for stellar.size)" : "16 16"
+    _stellar_alpha(choices) : "Alpha mode (alias for stellar.alpha)" : "blend" =
+    [
+        "opaque" : "opaque"
+        "blend" : "blend"
+        "masked" : "masked"
+    ]
+]
+
+@PointClass base(Targetname) color(64 160 255) size(-8 -8 -8, 8 8 8) = env_sprite : "Stellar-compatible sprite marker"
+[
+    origin(string) : "Origin" : "0 0 48"
+    _stellar_sprite(string) : "Sprite id (alias for stellar.sprite)"
+    _stellar_texture(string) : "Texture asset id (alias for stellar.texture)"
+    _stellar_size(string) : "Billboard size, width height (alias for stellar.size)" : "16 16"
+    _stellar_alpha(choices) : "Alpha mode (alias for stellar.alpha)" : "blend" =
+    [
+        "opaque" : "opaque"
+        "blend" : "blend"
+        "masked" : "masked"
+    ]
+]
+
+@SolidClass base(Targetname, StellarScript, StellarExtents) color(128 64 255) = stellar_object_collider : "Stellar server-side object sensor; does not block movement"
+[
+    archetype(string) : "Gameplay archetype such as pickup or item_health"
+    _stellar_collider(choices) : "Collider type (alias for stellar.collider)" : "object" =
+    [
+        "object" : "object"
+    ]
+    _stellar_enabled(choices) : "Initially enabled (alias for stellar.enabled)" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@SolidClass base(Targetname) color(160 160 160) = func_wall : "Stellar named static collision brush"
+[
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" : "static" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]
+
+@SolidClass base(Targetname, StellarScript) color(96 160 255) = func_door : "Named static collision metadata; moving brush simulation is deferred"
+[
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" : "static" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]
+
+@SolidClass base(Targetname, StellarScript) color(96 224 255) = func_button : "Named static collision metadata; press/move simulation is deferred"
+[
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" : "static" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]

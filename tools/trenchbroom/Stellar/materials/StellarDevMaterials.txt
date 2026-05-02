@@ -1,0 +1,24 @@
+# Stellar developer material names
+
+The Stellar runtime recognizes these BSP material names and creates deterministic display-free fallback
+material data when embedded miptex pixels or WAD files are unavailable:
+
+- stellar_dev_grid_12
+- stellar_dev_grid_16
+- stellar_dev_grid_32
+- stellar_dev_grid_64
+- stellar_dev_player_72
+- stellar_dev_wall_96
+
+Slash aliases are also accepted where the compiler/editor preserves them:
+
+- dev/grid_12
+- dev/grid_16
+- dev/grid_32
+- dev/grid_64
+- dev/player_72
+- dev/wall_96
+
+Editor-visible WAD3 texture generation is deferred for this phase. If TrenchBroom requires thumbnails,
+create a local WAD with these exact texture names; compiled maps remain valid when the BSP references
+these names because Stellar validation falls back by material name.
