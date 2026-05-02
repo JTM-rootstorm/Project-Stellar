@@ -107,9 +107,12 @@ deferred.
 
 Current branch: `trenchbroom-compat`.
 
-Primary near-term status: socket transport and networked session lifecycle over the completed BSP
-gameplay loop and presentation/networking polish foundations are complete. The completed scope
-includes a Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the
+Primary near-term status: the `trenchbroom-compat` branch is migrating authoring and runtime
+conventions toward TrenchBroom-authored BSP30 maps using a Z-up world-axis contract. Phase 1 makes the
+central axis contract and obvious defaults explicit; full runtime, camera, input, and presentation
+conversion completes in later phases. Socket transport and networked session lifecycle over the
+completed BSP gameplay loop and presentation/networking polish foundations are complete. The completed
+scope includes a Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the
 headless `stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode.
 Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
 and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
@@ -125,8 +128,10 @@ completed presentation/networking polish plans are archived under
 `Plans/Archived/bsp_presentation_networking_polish/`.
 
 Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
-world unit equals 1 inch, Y is up, and BSP authored coordinates import without hidden scale
-conversion. `stellar::core::WorldUnits.hpp` records the shared code constants. The default
+world unit equals 1 inch, the planned end-state is Z-up with BSP30 authored coordinates imported
+without hidden scale conversion, and remaining Y-up runtime/presentation assumptions are being migrated
+across the TrenchBroom compatibility phases. `stellar::core::WorldUnits.hpp` and
+`stellar::core::WorldAxes.hpp` record the shared code constants. The default
 authoritative player capsule is 72 inches tall with a 16 inch radius, so player spawn centers should
 be authored 36 inches above the floor unless a later archetype explicitly changes the capsule.
 Default walk tuning is 160 inches/second max speed, 1200 inches/second² acceleration, 800

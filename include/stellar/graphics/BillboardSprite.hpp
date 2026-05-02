@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "stellar/assets/TextureAsset.hpp"
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/graphics/GraphicsHandles.hpp"
 
 namespace stellar::graphics {
@@ -53,7 +54,7 @@ struct BillboardView {
     std::array<float, 3> camera_right{1.0F, 0.0F, 0.0F};
 
     /** @brief World-space camera up vector. */
-    std::array<float, 3> camera_up{0.0F, 1.0F, 0.0F};
+    std::array<float, 3> camera_up{stellar::core::kWorldUp};
 };
 
 /**

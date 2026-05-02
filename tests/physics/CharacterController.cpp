@@ -11,6 +11,7 @@ namespace {
 using Vec3 = std::array<float, 3>;
 
 constexpr float kTolerance = 2.0e-2F;
+constexpr Vec3 kLegacyYUpFixtureUp{0.0F, 1.0F, 0.0F};
 
 bool nearly_equal(float a, float b, float tolerance = kTolerance) {
     return std::abs(a - b) <= tolerance;
@@ -116,7 +117,10 @@ stellar::physics::CharacterMoveResult move(const stellar::assets::LevelCollision
                                            stellar::physics::CharacterControllerConfig cfg = config()) {
     stellar::physics::CollisionWorld world(asset);
     stellar::physics::CharacterController controller(world);
-    return controller.move({.position = position, .displacement = displacement}, cfg);
+    return controller.move({.position = position,
+                            .displacement = displacement,
+                            .up = kLegacyYUpFixtureUp},
+                           cfg);
 }
 
 void empty_world_movement_passes_through_unchanged() {
@@ -286,7 +290,8 @@ void many_triangle_world_reports_pruned_character_candidates() {
     stellar::physics::CharacterController controller(world);
 
     const auto moved = controller.move({.position = {0.0F, 1.0F, 0.0F},
-                                        .displacement = {5.0F, 0.0F, 0.0F}},
+                                        .displacement = {5.0F, 0.0F, 0.0F},
+                                        .up = kLegacyYUpFixtureUp},
                                        config());
     assert(moved.hit);
     assert(world.stats().triangle_count == 98);
@@ -407,7 +412,8 @@ void disabled_wall_no_longer_blocks_character() {
     const std::vector<bool> enabled{false, true};
 
     const auto moved = controller.move({.position = {0.0F, 1.0F, 0.0F},
-                                        .displacement = {5.0F, 0.0F, 0.0F}},
+                                        .displacement = {5.0F, 0.0F, 0.0F},
+                                        .up = kLegacyYUpFixtureUp},
                                        config(), {.enabled_meshes = &enabled});
 
     assert(!moved.hit);
@@ -421,7 +427,8 @@ void disabled_floor_no_longer_grounds_character() {
     const std::vector<bool> enabled{false, true};
 
     const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
-                                        .displacement = {0.0F, 0.0F, 0.0F}},
+                                        .displacement = {0.0F, 0.0F, 0.0F},
+                                        .up = kLegacyYUpFixtureUp},
                                        config(), {.enabled_meshes = &enabled});
 
     assert(!moved.grounded);
@@ -438,7 +445,8 @@ void step_up_ignores_disabled_step() {
     const std::vector<bool> enabled{false, true};
 
     const auto moved = controller.move({.position = {0.0F, 0.9F, 0.0F},
-                                        .displacement = {1.6F, 0.0F, 0.0F}},
+                                        .displacement = {1.6F, 0.0F, 0.0F},
+                                        .up = kLegacyYUpFixtureUp},
                                        config(), {.enabled_meshes = &enabled});
 
     assert(!moved.stepped);
@@ -453,11 +461,13 @@ void all_enabled_filter_matches_existing_behavior() {
     const std::vector<bool> enabled{true};
 
     const auto unfiltered = controller.move({.position = {0.0F, 1.0F, 0.0F},
-                                            .displacement = {5.0F, 0.0F, 0.0F}},
+                                            .displacement = {5.0F, 0.0F, 0.0F},
+                                            .up = kLegacyYUpFixtureUp},
                                            config());
     const auto filtered = controller.move({.position = {0.0F, 1.0F, 0.0F},
-                                          .displacement = {5.0F, 0.0F, 0.0F}},
-                                         config(), {.enabled_meshes = &enabled});
+                                           .displacement = {5.0F, 0.0F, 0.0F},
+                                           .up = kLegacyYUpFixtureUp},
+                                          config(), {.enabled_meshes = &enabled});
 
     assert(filtered.hit == unfiltered.hit);
     assert(nearly_equal(filtered.position[0], unfiltered.position[0], 0.0F));

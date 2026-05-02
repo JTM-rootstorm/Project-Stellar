@@ -2,11 +2,12 @@
 
 BSP maps are Stellar's canonical playable level source. Entity keys are imported as backend-neutral world metadata for the authoritative runtime; import never executes scripts and never creates renderer, audio, ECS, or gameplay state directly.
 
-Gameplay authoring uses inch-scale coordinates on the active `bsp-gameplay-loop` branch: 1 Stellar
-gameplay world unit equals 1 inch, Y is up, and BSP coordinates are imported 1:1 without hidden scale
-conversion. The default authoritative player capsule is 72 inches tall with a 16 inch radius, 18 inch
-step height, 0.5 inch skin width, and 4 inch ground snap. Player starts should usually place the
-capsule center 36 inches above the floor.
+Gameplay authoring uses inch-scale coordinates on the active `trenchbroom-compat` branch: 1 Stellar
+gameplay world unit equals 1 inch, and BSP coordinates are imported 1:1 without hidden scale
+conversion. WIP note: this branch is migrating from the historical Y-up convention to Z-up
+TrenchBroom/BSP30 authoring and runtime defaults. Final examples will use `origin = "0 0 36"` for the
+default player capsule center, but many examples below intentionally remain in their pre-migration
+form until the later runtime/presentation phases update the corresponding behavior.
 
 ## Minimal workflow
 

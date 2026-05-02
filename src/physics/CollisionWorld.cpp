@@ -1,5 +1,6 @@
 #include "stellar/physics/CollisionWorld.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/math/Geometry3.hpp"
 
 #include <algorithm>
@@ -24,6 +25,8 @@ using stellar::math::normalize_or;
 using stellar::math::sub;
 using stellar::math::Vec3;
 
+constexpr Vec3 kDefaultUp = stellar::core::kWorldUp;
+
 Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
     return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
 }
@@ -40,11 +43,11 @@ Vec3 cross(Vec3 a, Vec3 b) noexcept {
 
 Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcept {
     if (length_squared(triangle.normal) > kEpsilon * kEpsilon) {
-        return normalize_or(triangle.normal, {0.0F, 1.0F, 0.0F});
+        return normalize_or(triangle.normal, kDefaultUp);
     }
 
     return normalize_or(cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a)),
-                        {0.0F, 1.0F, 0.0F});
+                        kDefaultUp);
 }
 
 bool point_in_triangle(Vec3 point, const stellar::assets::CollisionTriangle& triangle) noexcept {

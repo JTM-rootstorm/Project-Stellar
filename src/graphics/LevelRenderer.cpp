@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/graphics/GraphicsDeviceFactory.hpp"
 
 namespace stellar::graphics {
@@ -20,6 +21,10 @@ constexpr float kDefaultFovDegrees = 45.0F;
 
 float finite_or_zero(float value) noexcept {
   return std::isfinite(value) ? value : 0.0F;
+}
+
+glm::vec3 world_axis_glm(const std::array<float, 3> &axis) noexcept {
+  return {axis[0], axis[1], axis[2]};
 }
 
 std::array<float, 16> to_array(const glm::mat4 &matrix) noexcept {
@@ -168,7 +173,12 @@ LevelRenderState compute_level_render_state(const LevelRenderView &view,
   }
   if (!std::isfinite(up.x) || !std::isfinite(up.y) || !std::isfinite(up.z) ||
       glm::length(up) < 0.0001F) {
-    up = glm::vec3(0.0F, 1.0F, 0.0F);
+    up = world_axis_glm(stellar::core::kWorldUp);
+  }
+
+  const glm::vec3 forward = glm::normalize(target - eye);
+  if (glm::length(glm::cross(forward, glm::normalize(up))) < 0.0001F) {
+    up = world_axis_glm(stellar::core::kWorldForward);
   }
 
   const glm::mat4 projection = make_projection_for_backend(

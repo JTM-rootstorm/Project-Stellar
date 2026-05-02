@@ -1,5 +1,6 @@
 #include "stellar/physics/CharacterController.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/math/Geometry3.hpp"
 
 #include <algorithm>
@@ -21,6 +22,7 @@ constexpr float kEpsilon = 1.0e-5F;
 constexpr float kSweepContactOffset = 1.0e-3F;
 constexpr int kSweepSamples = 32;
 constexpr int kRecoveryIterations = 5;
+constexpr Vec3 kDefaultUp = stellar::core::kWorldUp;
 
 Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
     return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
@@ -94,11 +96,11 @@ Vec3 reject_from_normal(Vec3 value, Vec3 normal) noexcept {
 
 Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcept {
     if (length_squared(triangle.normal) > kEpsilon * kEpsilon) {
-        return normalize_or(triangle.normal, {0.0F, 1.0F, 0.0F});
+        return normalize_or(triangle.normal, kDefaultUp);
     }
 
     return normalize_or(cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a)),
-                        {0.0F, 1.0F, 0.0F});
+                        kDefaultUp);
 }
 
 Vec3 closest_point_on_segment(Vec3 point, Vec3 a, Vec3 b) noexcept {
@@ -293,7 +295,7 @@ ClosestPair closest_capsule_segment_triangle(CapsuleEndpoints capsule,
 struct Contact {
     bool hit = false;
     float t = 1.0F;
-    Vec3 normal{0.0F, 1.0F, 0.0F};
+    Vec3 normal = kDefaultUp;
 };
 
 bool capsule_overlaps_triangle(Vec3 center,
@@ -439,7 +441,7 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
 struct SlideResult {
     Vec3 position{};
     Vec3 remaining{};
-    Vec3 last_normal{0.0F, 1.0F, 0.0F};
+    Vec3 last_normal = kDefaultUp;
     bool hit = false;
     int iterations = 0;
 };
@@ -558,7 +560,7 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
                                               const CharacterControllerConfig& config,
                                               CollisionQueryFilter filter) const noexcept {
     CharacterMoveResult result{};
-    const Vec3 up = normalize_or(input.up, {0.0F, 1.0F, 0.0F});
+    const Vec3 up = normalize_or(input.up, kDefaultUp);
     result.position = input.position;
     result.remaining_displacement = input.displacement;
     result.ground_normal = up;

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "RecordingGraphicsDevice.hpp"
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/graphics/LevelRenderer.hpp"
 
 namespace {
@@ -340,7 +341,6 @@ void verify_billboard_view_is_derived_from_render_state() {
   stellar::graphics::LevelRenderView view;
   view.eye = {0.0F, 0.0F, 8.0F};
   view.target = {0.0F, 0.0F, 0.0F};
-  view.up = {0.0F, 1.0F, 0.0F};
 
   const auto state = stellar::graphics::compute_level_render_state(
       view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
@@ -350,6 +350,14 @@ void verify_billboard_view_is_derived_from_render_state() {
   assert(billboard_view.view_projection == state.view_projection);
   assert(billboard_view.camera_right[0] > 0.99F);
   assert(billboard_view.camera_up[1] > 0.99F);
+}
+
+void verify_graphics_up_defaults_use_world_axis_contract() {
+  const stellar::graphics::LevelRenderView level_view;
+  const stellar::graphics::BillboardView billboard_view;
+
+  assert(level_view.up == stellar::core::kWorldUp);
+  assert(billboard_view.camera_up == stellar::core::kWorldUp);
 }
 
 void verify_level_renderer_retains_and_clears_presentation_state() {
@@ -380,6 +388,7 @@ int main() {
   verify_level_render_state_uses_override_camera_for_culling();
   verify_level_render_state_can_disable_culling_for_fallback();
   verify_billboard_view_is_derived_from_render_state();
+  verify_graphics_up_defaults_use_world_axis_contract();
   verify_level_renderer_retains_and_clears_presentation_state();
   return 0;
 }

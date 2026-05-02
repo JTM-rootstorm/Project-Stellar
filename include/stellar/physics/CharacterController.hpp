@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/core/WorldUnits.hpp"
 #include "stellar/physics/CollisionWorld.hpp"
 
@@ -44,7 +45,7 @@ struct CharacterMoveInput {
     std::array<float, 3> displacement{};
 
     /** @brief World-space up direction used for slope checks and ground snapping. */
-    std::array<float, 3> up{0.0F, 1.0F, 0.0F};
+    std::array<float, 3> up = stellar::core::kWorldUp;
 };
 
 /**
@@ -58,7 +59,7 @@ struct CharacterMoveResult {
     std::array<float, 3> remaining_displacement{};
 
     /** @brief Walkable ground normal when grounded, otherwise the configured up direction. */
-    std::array<float, 3> ground_normal{0.0F, 1.0F, 0.0F};
+    std::array<float, 3> ground_normal = stellar::core::kWorldUp;
 
     /** @brief True when movement or recovery touched static collision. */
     bool hit = false;

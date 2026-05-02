@@ -47,6 +47,10 @@ Phase 0 baseline audit findings:
 - Phase 0.5 removed the old prototype cube renderer and debug cube mesh from active graphics code.
   No-map and remote-without-presentation-map modes now initialize a blank/static-less presentation
   frame until authored static geometry or authoritative dynamic snapshot data is available.
+- Phase 1 added the central Z-up world-axis contract in `stellar::core`, converted core
+  character-controller and presentation default-up values to named constants, and added display-free
+  `world_axes` coverage. Remaining server/runtime fixtures, authored map coordinates, and player
+  presentation behavior are scheduled for Phase 2/3 conversion.
 
 Phase 0 validation:
 
@@ -55,17 +59,26 @@ git grep -n -i 'Y is up\|Y-up\|0 36 0\|floor at `y = 0`\|floor at y = 0' -- docs
 git grep -n '0\.0F, 1\.0F, 0\.0F\|0, 1, 0' -- include src tests ':!build*/**'
 git grep -n -i 'BSP29/BSP30\|BSP29\|BSP30' -- docs include src tests tools Plans ':!Plans/Archived/**' ':!build*/**'
 git grep -n 'stellar_script\|stellar_extents\|stellar_sprite\|stellar_collision' -- tools docs tests include src ':!build*/**'
-git grep -n '<Phase 0.5 prototype-cube removal audit pattern>' -- include src tests CMakeLists.txt docs Plans ':!Plans/Archived/**' ':!build*/**'
+git grep -n 'CubeRenderer\|DebugCubeMesh\|create_debug_cube_mesh\|debug:cube\|debug_cube\|debug_cube_surface\|debug_red\|debug_green\|debug_blue' -- include src tests CMakeLists.txt docs Plans ':!Plans/Archived/**' ':!build*/**'
 ```
 
 Result: audit commands were run during Phase 0; findings are summarized above. No runtime behavior was
 changed in Phase 0.
 
+Phase 1 validation:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_core_world_axes_test stellar_character_controller_test stellar_collision_world_test stellar_render_level_inspection_test stellar_gameplay_presentation_test stellar_player_presentation_test -j$(nproc)
+ctest --test-dir build -R '^(world_axes|character_controller|collision_world|collision_validation|render_level_inspection|gameplay_presentation|player_presentation)' --output-on-failure
+```
+
+Result: focused Phase 1 builds and tests passed during implementation. Full CTest remains part of
+phase-close validation before commit.
+
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
 
 Branch target: `socket-transport`
-
-## Completed Scope — Socket Transport and Networked Session Lifecycle
 
 Status: complete as of 2026-05-01.
 

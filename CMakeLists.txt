@@ -311,6 +311,10 @@ stellar_add_world_test(stellar_world_metadata_validation_test world_metadata_val
     tests/world/WorldMetadataValidation.cpp
 )
 
+stellar_add_test_executable(stellar_core_world_axes_test world_axes
+    tests/core/WorldAxes.cpp
+)
+
 stellar_add_server_test(stellar_server_movement_simulation_test server_movement_simulation
     tests/server/MovementSimulation.cpp
 )

@@ -8,6 +8,7 @@
 
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/graphics/RenderLevel.hpp"
 #include "stellar/graphics/Renderer.hpp"
@@ -59,7 +60,7 @@ struct LevelRenderView {
   std::array<float, 3> target{0.0F, 0.0F, 0.0F};
 
   /** @brief Camera up direction in level world space. */
-  std::array<float, 3> up{0.0F, 1.0F, 0.0F};
+  std::array<float, 3> up{stellar::core::kWorldUp};
 
   /** @brief Vertical perspective field of view in degrees. */
   float vertical_fov_degrees = 45.0F;
