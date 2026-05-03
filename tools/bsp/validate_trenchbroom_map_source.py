@@ -39,6 +39,7 @@ DEV_ALIASES = {
     "stellar_dev_grid_12", "stellar_dev_grid_16", "stellar_dev_grid_32", "stellar_dev_grid_64",
     "stellar_dev_player_72", "stellar_dev_wall_96",
 }
+IGNORE_TEXTURES = {"NULL", "CLIP", "SKIP", "ORIGIN", "AAATRIGGER"}
 
 
 @dataclass
@@ -84,10 +85,31 @@ def script_path_escape(value: str) -> bool:
     return any(part == ".." for part in value.replace("\\", "/").split("/"))
 
 
-def validate(path: Path, allow_no_spawn: bool) -> list[Diagnostic]:
+def split_wad_entries(value: str) -> list[str]:
+    return [item.strip() for item in value.split(";") if item.strip()]
+
+
+def texture_known_to_preflight(texture: str, wad_entries: list[str], wad_roots: list[Path]) -> bool:
+    if texture in DEV_ALIASES or texture.upper() in IGNORE_TEXTURES:
+        return True
+    if not wad_entries:
+        return False
+    for entry in wad_entries:
+        entry_path = Path(entry)
+        if entry_path.is_absolute() or script_path_escape(entry):
+            continue
+        for root in wad_roots:
+            if (root / entry_path).is_file():
+                return True
+    return False
+
+
+def validate(path: Path, allow_no_spawn: bool, strict_textures: bool,
+             wad_roots: list[Path]) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
     stack: list[dict[str, object]] = []
     entities: list[dict[str, str]] = []
+    used_textures: list[tuple[str, int, int]] = []
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError as exc:
@@ -145,6 +167,7 @@ def validate(path: Path, allow_no_spawn: bool) -> list[Diagnostic]:
             if parse_floats(face.group(group), 3) is None:
                 diagnostics.append(Diagnostic("error", line_no, 1, "face plane point triple must contain finite numbers"))
         texture = face.group(4)
+        used_textures.append((texture, line_no, raw.find(texture) + 1))
         rewritten = texture.replace("dev/", "dev_", 1) if texture.startswith("dev/") else texture
         if not texture or len(rewritten.encode("ascii", "ignore")) > 15:
             diagnostics.append(Diagnostic("error", line_no, raw.find(texture) + 1, "texture name is missing or exceeds BSP30/WAD 15-byte limit after rewrite"))
@@ -173,6 +196,20 @@ def validate(path: Path, allow_no_spawn: bool) -> list[Diagnostic]:
             if key.startswith("_stellar") or key.startswith("stellar."):
                 if key not in KNOWN_STELLAR_KEYS:
                     diagnostics.append(Diagnostic("warning", 1, 1, f"custom Stellar property on {classname}: {key}"))
+    targetnames = {entity.get("targetname", "") for entity in entities if entity.get("targetname")}
+    for entity in entities:
+        target = entity.get("target")
+        if target and target not in targetnames:
+            diagnostics.append(Diagnostic("error", 1, 1,
+                                          f"target '{target}' on {entity.get('classname', '<unknown>')} does not match any targetname"))
+    if strict_textures:
+        world_wads = split_wad_entries(entities[0].get("wad", "")) if entities else []
+        strict_roots = [path.parent, *wad_roots]
+        for texture, line_no, column in used_textures:
+            if not texture_known_to_preflight(texture, world_wads, strict_roots):
+                diagnostics.append(Diagnostic(
+                    "error", line_no, column,
+                    f"texture '{texture}' is not a known developer texture and was not resolvable from worldspawn wad"))
     return diagnostics
 
 
@@ -180,9 +217,13 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Validate Stellar TrenchBroom .map source before compile.")
     parser.add_argument("map", type=Path)
     parser.add_argument("--allow-no-spawn", action="store_true")
+    parser.add_argument("--strict-textures", action="store_true",
+                        help="Fail when a used texture is neither a known developer alias nor resolvable from worldspawn wad entries.")
+    parser.add_argument("--wad-root", action="append", type=Path, default=[],
+                        help="Additional root to search for relative worldspawn wad entries in strict texture mode.")
     parser.add_argument("--format", choices=("human", "json"), default="human")
     args = parser.parse_args(argv)
-    diagnostics = validate(args.map, args.allow_no_spawn)
+    diagnostics = validate(args.map, args.allow_no_spawn, args.strict_textures, args.wad_root)
     if args.format == "json":
         print(json.dumps({"path": str(args.map), "diagnostics": [asdict(d) for d in diagnostics]}, indent=2))
     else:

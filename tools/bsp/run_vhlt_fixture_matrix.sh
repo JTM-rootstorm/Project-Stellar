@@ -10,6 +10,8 @@ Options:
   --build-root <build>       Build root (default: <source-root>/build).
   --profile full|fast        VHLT compile profile (default: full).
   --keep-going               Continue after fixture failures and report all results.
+  --fixture <name>           Run one fixture from the matrix.
+  --list                     List fixture names and expected outcomes, then exit.
   --stellar-client <path>    Path to stellar-client for validation.
   --stellar-server <path>    Path to stellar-server for validation.
   --help, -h                 Show this help.
@@ -166,7 +168,9 @@ run_positive_fixture() {
 }
 
 run_negative_fixture() {
-    local fixture="invalid_script_escape_zup"
+    local fixture="$1"
+    local expected_regex="$2"
+    local strict_textures="${3:-0}"
     local map_path="$src_dir/$fixture.map"
     local out_path="$compiled_dir/$fixture.bsp"
     local fixture_log_dir="$logs_dir/$fixture"
@@ -181,13 +185,24 @@ run_negative_fixture() {
 
     rm -f "$out_path"
     mkdir -p "$fixture_log_dir"
-    if run_and_log "$preflight_log" python3 "$source_preflight_script" "$map_path"; then
+    local preflight_args=(python3 "$source_preflight_script")
+    if [[ "$strict_textures" == "1" ]]; then
+        preflight_args+=(--strict-textures --wad-root "$source_root/tools/trenchbroom/Stellar/materials")
+    fi
+    preflight_args+=("$map_path")
+
+    if run_and_log "$preflight_log" "${preflight_args[@]}"; then
         record_result "$fixture" "FAIL" "source preflight unexpectedly passed; log=$preflight_log"
         return 1
     fi
-    if grep -Eiq 'script.*path|path.*escape|absolute|\.\.' "$preflight_log"; then
-        record_result "$fixture" "PASS" "source preflight failed for expected script path escape; logs=$fixture_log_dir"
+    if grep -Eiq "$expected_regex" "$preflight_log"; then
+        record_result "$fixture" "PASS" "source preflight failed for expected diagnostic; logs=$fixture_log_dir"
         return 0
+    fi
+
+    if [[ "$fixture" != "invalid_script_escape_zup" ]]; then
+        record_result "$fixture" "FAIL" "expected source preflight diagnostic missing; log=$preflight_log"
+        return 1
     fi
 
     if ! STELLAR_VHLT_KEEP_WORK=1 STELLAR_VHLT_LOG_DIR="$fixture_log_dir" \
@@ -205,7 +220,7 @@ run_negative_fixture() {
         return 1
     fi
 
-    if ! grep -Eiq 'script.*escape|kScriptPathEscape|path.*escape' "$validate_log"; then
+    if ! grep -Eiq "$expected_regex|script.*escape|kScriptPathEscape|path.*escape" "$validate_log"; then
         record_result "$fixture" "FAIL" "expected script path escape diagnostic missing; log=$validate_log"
         return 1
     fi
@@ -220,6 +235,8 @@ profile="full"
 keep_going="0"
 stellar_client_arg=""
 stellar_server_arg=""
+selected_fixture=""
+list_only="0"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -240,6 +257,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --keep-going)
             keep_going="1"
+            shift
+            ;;
+        --fixture)
+            [[ $# -ge 2 ]] || fail "--fixture requires a fixture name"
+            selected_fixture="$2"
+            shift 2
+            ;;
+        --list)
+            list_only="1"
             shift
             ;;
         --stellar-client)
@@ -287,6 +313,41 @@ work_dir="$build_root/tests/fixtures/trenchbroom/vhlt/work"
 summary_log="$logs_dir/matrix_summary.log"
 results=()
 failures=0
+positive_fixtures=(
+    minimal_zup_room
+    entity_matrix_zup
+    scripted_interaction_zup
+    lit_zup_room
+    material_wad_zup
+    moving_door_button_zup
+    point_volume_zup
+    illusionary_static_zup
+)
+negative_fixtures=(
+    invalid_script_escape_zup
+    invalid_incomplete_brush
+    invalid_malformed_brush
+    invalid_missing_target
+    invalid_missing_wad_texture
+)
+declare -A negative_regex=(
+    [invalid_script_escape_zup]='script.*path|path.*escape|absolute|\.\.'
+    [invalid_incomplete_brush]='fewer than 4 planes|unclosed|expected Valve 220'
+    [invalid_malformed_brush]='fewer than 4 planes|unclosed|expected Valve 220|closing brace'
+    [invalid_missing_target]='target.*does not match|MissingDoor'
+    [invalid_missing_wad_texture]='texture.*not.*resolvable|missing_tex|worldspawn wad'
+)
+declare -A negative_strict_textures=(
+    [invalid_missing_wad_texture]=1
+)
+
+if [[ "$list_only" == "1" ]]; then
+    printf 'Positive fixtures:\n'
+    printf '  %s\n' "${positive_fixtures[@]}"
+    printf 'Negative fixtures:\n'
+    printf '  %s\n' "${negative_fixtures[@]}"
+    exit 0
+fi
 
 [[ -f "$compile_script" ]] || fail "missing compile wrapper: $compile_script"
 [[ -f "$validate_script" ]] || fail "missing validation wrapper: $validate_script"
@@ -304,16 +365,24 @@ printf 'Outputs: compiled=%s logs=%s work=%s\n' \
 export STELLAR_CLIENT="${stellar_client_arg:-${STELLAR_CLIENT:-}}"
 export STELLAR_SERVER="${stellar_server_arg:-${STELLAR_SERVER:-}}"
 
-for fixture in minimal_zup_room lit_zup_room entity_matrix_zup scripted_interaction_zup; do
+for fixture in "${positive_fixtures[@]}"; do
+    [[ -z "$selected_fixture" || "$selected_fixture" == "$fixture" ]] || continue
     if ! run_positive_fixture "$fixture"; then
         failures=$((failures + 1))
         [[ "$keep_going" == "1" ]] || exit 1
     fi
 done
 
-if ! run_negative_fixture; then
-    failures=$((failures + 1))
-    [[ "$keep_going" == "1" ]] || exit 1
+for fixture in "${negative_fixtures[@]}"; do
+    [[ -z "$selected_fixture" || "$selected_fixture" == "$fixture" ]] || continue
+    if ! run_negative_fixture "$fixture" "${negative_regex[$fixture]}" "${negative_strict_textures[$fixture]:-0}"; then
+        failures=$((failures + 1))
+        [[ "$keep_going" == "1" ]] || exit 1
+    fi
+done
+
+if [[ -n "$selected_fixture" && ${#results[@]} -eq 0 ]]; then
+    fail "unknown fixture: $selected_fixture"
 fi
 
 printf 'Summary log: %s\n' "$summary_log"

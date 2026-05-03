@@ -19,13 +19,18 @@ and package-local compile/validate shims.
 | Fixture | Source | Generated/compiled BSP | Expected BSP version | Expected outcome |
 | --- | --- | --- | --- | --- |
 | `minimal_zup_room` | `src/minimal_zup_room.map` | `build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp` | 30 | Client/server display-free validation succeeds. |
-| `lit_zup_room` | `src/lit_zup_room.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` | 30 | VHLT full profile bakes a nonempty lighting lump and Stellar imports at least one lightmap. |
+| `lit_zup_room` | `src/lit_zup_room.map` | generated BSP plus optional `build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` | 30 | Generated fixture imports synthetic lightmap metadata; VHLT full profile bakes real lighting. |
 | `entity_matrix_zup` | `src/entity_matrix_zup.map` | `build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp` | 30 | Import succeeds and metadata includes all supported FGD classes. |
 | `scripted_interaction_zup` | `src/scripted_interaction_zup.map` | `build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp` | 30 | Scripted authoritative runtime loads `scripts/gate.lua` and `scripts/pickup.lua`. |
-| `moving_door_button_zup` | `src/moving_door_button_zup.map` | external/VHLT generated | 30 | `func_button` targets server-authoritative `func_door` DoorA; collision and presentation transforms are snapshot-owned. |
-| `point_volume_zup` | `src/point_volume_zup.map` | external/VHLT generated | 30 | Point trigger/object collider aliases preserve Z-up extents without brush solids. |
-| `illusionary_static_zup` | `src/illusionary_static_zup.map` | external/VHLT generated | 30 | `func_wall` is solid/static and `func_illusionary` is visible/nonblocking. |
+| `material_wad_zup` | `src/material_wad_zup.map` | generated BSP plus optional VHLT output | 30 | Relative WAD material workflow resolves safely or falls back deterministically. |
+| `moving_door_button_zup` | `src/moving_door_button_zup.map` | generated BSP plus optional VHLT output | 30 | `func_button` targets server-authoritative `func_door` DoorA; collision and presentation transforms are snapshot-owned. |
+| `point_volume_zup` | `src/point_volume_zup.map` | generated BSP plus optional VHLT output | 30 | Point trigger/object collider aliases preserve Z-up extents without brush solids. |
+| `illusionary_static_zup` | `src/illusionary_static_zup.map` | generated BSP plus optional VHLT output | 30 | `func_wall` is solid/static and `func_illusionary` is visible/nonblocking. |
 | `invalid_script_escape_zup` | `src/invalid_script_escape_zup.map` | `build/tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp` | 30 | Validation fails because `_stellar_script` uses `../escape.lua`. |
+| `invalid_incomplete_brush` | `src/invalid_incomplete_brush.map` | none | n/a | Source preflight fails for fewer than four brush planes. |
+| `invalid_malformed_brush` | `src/invalid_malformed_brush.map` | none | n/a | Source preflight fails for malformed/unclosed brush syntax. |
+| `invalid_missing_target` | `src/invalid_missing_target.map` | none | n/a | Source preflight fails deterministically for unmatched `target`. |
+| `invalid_missing_wad_texture` | `src/invalid_missing_wad_texture.map` | none | n/a | Strict source preflight fails for unresolved WAD texture. |
 
 ## VHLT fixture matrix
 
@@ -45,7 +50,15 @@ directory named by `STELLAR_VHLT_DIR`.
 | `lit_zup_room` | Succeeds with `hlrad` light data. | Succeeds and should import lightmaps. | Positive lighting fixture passes. |
 | `entity_matrix_zup` | Succeeds. | Succeeds with supported entity/FGD metadata preserved. | Positive fixture passes. |
 | `scripted_interaction_zup` | Succeeds. | Succeeds when `scripts/gate.lua` and `scripts/pickup.lua` are copied beside compiled outputs. | Positive scripted fixture passes. |
+| `material_wad_zup` | Succeeds with relative WAD handling. | Succeeds. | Positive material/WAD fixture passes. |
+| `moving_door_button_zup` | Succeeds. | Succeeds with moving brush metadata. | Positive door/button fixture passes. |
+| `point_volume_zup` | Succeeds. | Succeeds with point trigger/object metadata. | Positive point-volume fixture passes. |
+| `illusionary_static_zup` | Succeeds. | Succeeds with static vs illusionary metadata. | Positive static/illusionary fixture passes. |
 | `invalid_script_escape_zup` | Succeeds. | Fails for `_stellar_script "../escape.lua"` / `kScriptPathEscape`. | Negative fixture passes only when validation fails for the expected reason. |
+| `invalid_incomplete_brush` | Source preflight fails before VHLT. | Not run. | Negative fixture passes only for expected brush diagnostic. |
+| `invalid_malformed_brush` | Source preflight fails before VHLT. | Not run. | Negative fixture passes only for expected malformed brush diagnostic. |
+| `invalid_missing_target` | Source preflight fails before VHLT. | Not run. | Negative fixture passes only for expected missing target diagnostic. |
+| `invalid_missing_wad_texture` | Strict source preflight fails before VHLT. | Not run. | Negative fixture passes only for expected unresolved texture diagnostic. |
 
 VHLT matrix outputs are generated under the build tree and should not be committed:
 
@@ -69,6 +82,8 @@ references and compiler-facing texture alias rewrites only into copied work maps
 - `point_volume_zup`: `trigger_multiple_point` and `stellar_object_collider_point` with `_stellar_extents`/`stellar.extents`-compatible metadata.
 - `illusionary_static_zup`: paired `func_wall`/`func_illusionary` brush entities for solid vs visible-nonblocking behavior.
 - `invalid_script_escape_zup`: `trigger_stellar` with invalid `_stellar_script "../escape.lua"`.
+
+Full manual QA is tracked in `docs/TrenchBroomManualQA.md`; this README keeps the fixture-specific quick checklist only.
 
 ## Manual editor checklist
 

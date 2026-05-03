@@ -1,0 +1,21 @@
+// Stellar TrenchBroom negative fixture: invalid_missing_target
+// Expected source preflight failure: func_button target does not match any targetname.
+{
+"classname" "worldspawn"
+"message" "invalid_missing_target"
+{
+( -64 -64 -16 ) ( -64 64 0 ) ( -64 -64 0 ) dev/grid_32 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 64 -64 -16 ) ( 64 -64 0 ) ( 64 64 -16 ) dev/grid_32 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -64 -64 -16 ) ( 64 -64 0 ) ( 64 -64 -16 ) dev/grid_32 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -64 64 -16 ) ( 64 64 0 ) ( -64 64 0 ) dev/grid_32 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 36"
+}
+{
+"classname" "func_button"
+"targetname" "BadButton"
+"target" "MissingDoor"
+}

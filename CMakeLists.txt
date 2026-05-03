@@ -415,6 +415,7 @@ stellar_add_test_executable(stellar_fgd_contract_test fgd_contract
 target_compile_definitions(stellar_fgd_contract_test PRIVATE
     STELLAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
+add_test(NAME trenchbroom_fgd_contract COMMAND stellar_fgd_contract_test)
 
 stellar_add_test_executable(stellar_bsp_visibility_test bsp_visibility
     tests/import/bsp/BspVisibility.cpp
@@ -587,7 +588,7 @@ target_link_libraries(stellar-server PRIVATE
     stellar_dedicated_server
 )
 
-add_test(NAME bsp_authoring_smoke_vhlt_fixture_matrix
+add_test(NAME trenchbroom_vhlt_fixture_matrix
     COMMAND bash "${CMAKE_SOURCE_DIR}/tools/bsp/run_vhlt_fixture_matrix.sh"
         --source-root "${CMAKE_SOURCE_DIR}"
         --build-root "${CMAKE_BINARY_DIR}"
@@ -595,7 +596,7 @@ add_test(NAME bsp_authoring_smoke_vhlt_fixture_matrix
         --stellar-client "$<TARGET_FILE:stellar-client>"
         --stellar-server "$<TARGET_FILE:stellar-server>"
 )
-set_tests_properties(bsp_authoring_smoke_vhlt_fixture_matrix PROPERTIES
+set_tests_properties(trenchbroom_vhlt_fixture_matrix PROPERTIES
     SKIP_RETURN_CODE 77
 )
 
@@ -623,6 +624,21 @@ set(STELLAR_TB_ENTITY_MATRIX_BSP_FIXTURE
 set(STELLAR_TB_SCRIPTED_BSP_FIXTURE
     ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/scripted_interaction_zup.bsp
 )
+set(STELLAR_TB_LIT_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/lit_zup_room.bsp
+)
+set(STELLAR_TB_MATERIAL_WAD_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/material_wad_zup.bsp
+)
+set(STELLAR_TB_MOVING_DOOR_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/moving_door_button_zup.bsp
+)
+set(STELLAR_TB_POINT_VOLUME_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/point_volume_zup.bsp
+)
+set(STELLAR_TB_ILLUSIONARY_STATIC_BSP_FIXTURE
+    ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/illusionary_static_zup.bsp
+)
 
 add_test(NAME bsp_fixture_writer
     COMMAND stellar_bsp_fixture_writer ${STELLAR_CLI_BSP_FIXTURE} minimal_zup_room
@@ -642,6 +658,41 @@ add_test(NAME bsp_authoring_smoke_scripted_fixture_writer
     COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_SCRIPTED_BSP_FIXTURE} scripted_interaction_zup
 )
 
+add_test(NAME bsp_lightmaps_lit_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_LIT_BSP_FIXTURE} lit_zup_room
+)
+set_tests_properties(bsp_lightmaps_lit_fixture_writer PROPERTIES
+    FIXTURES_SETUP bsp_lightmaps_lit_fixture_writer
+)
+
+add_test(NAME trenchbroom_package_material_wad_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_MATERIAL_WAD_BSP_FIXTURE} material_wad_zup
+)
+set_tests_properties(trenchbroom_package_material_wad_fixture_writer PROPERTIES
+    FIXTURES_SETUP trenchbroom_package_material_wad_fixture_writer
+)
+
+add_test(NAME brush_mover_door_button_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_MOVING_DOOR_BSP_FIXTURE} moving_door_button_zup
+)
+set_tests_properties(brush_mover_door_button_fixture_writer PROPERTIES
+    FIXTURES_SETUP brush_mover_door_button_fixture_writer
+)
+
+add_test(NAME bsp_authoring_smoke_point_volume_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_POINT_VOLUME_BSP_FIXTURE} point_volume_zup
+)
+set_tests_properties(bsp_authoring_smoke_point_volume_fixture_writer PROPERTIES
+    FIXTURES_SETUP bsp_authoring_smoke_point_volume_fixture_writer
+)
+
+add_test(NAME bsp_authoring_smoke_illusionary_static_fixture_writer
+    COMMAND stellar_bsp_fixture_writer ${STELLAR_TB_ILLUSIONARY_STATIC_BSP_FIXTURE} illusionary_static_zup
+)
+set_tests_properties(bsp_authoring_smoke_illusionary_static_fixture_writer PROPERTIES
+    FIXTURES_SETUP bsp_authoring_smoke_illusionary_static_fixture_writer
+)
+
 add_test(NAME client_cli_map_validation
     COMMAND stellar-client --validate-config --map ${STELLAR_CLI_BSP_FIXTURE}
 )
@@ -651,6 +702,41 @@ add_test(NAME client_cli_validate_map
     COMMAND stellar-client --validate-map ${STELLAR_CLI_BSP_FIXTURE}
 )
 set_tests_properties(client_cli_validate_map PROPERTIES FIXTURES_REQUIRED bsp_cli_fixture)
+
+add_test(NAME bsp_lightmaps_lit_fixture_validate
+    COMMAND stellar-client --validate-map ${STELLAR_TB_LIT_BSP_FIXTURE}
+)
+set_tests_properties(bsp_lightmaps_lit_fixture_validate PROPERTIES
+    FIXTURES_REQUIRED bsp_lightmaps_lit_fixture_writer
+)
+
+add_test(NAME trenchbroom_package_material_wad_fixture_validate
+    COMMAND stellar-client --validate-map ${STELLAR_TB_MATERIAL_WAD_BSP_FIXTURE}
+)
+set_tests_properties(trenchbroom_package_material_wad_fixture_validate PROPERTIES
+    FIXTURES_REQUIRED trenchbroom_package_material_wad_fixture_writer
+)
+
+add_test(NAME brush_mover_door_button_fixture_validate
+    COMMAND stellar-client --validate-map ${STELLAR_TB_MOVING_DOOR_BSP_FIXTURE}
+)
+set_tests_properties(brush_mover_door_button_fixture_validate PROPERTIES
+    FIXTURES_REQUIRED brush_mover_door_button_fixture_writer
+)
+
+add_test(NAME bsp_authoring_smoke_point_volume_fixture_validate
+    COMMAND stellar-client --validate-map ${STELLAR_TB_POINT_VOLUME_BSP_FIXTURE}
+)
+set_tests_properties(bsp_authoring_smoke_point_volume_fixture_validate PROPERTIES
+    FIXTURES_REQUIRED bsp_authoring_smoke_point_volume_fixture_writer
+)
+
+add_test(NAME bsp_authoring_smoke_illusionary_static_fixture_validate
+    COMMAND stellar-client --validate-map ${STELLAR_TB_ILLUSIONARY_STATIC_BSP_FIXTURE}
+)
+set_tests_properties(bsp_authoring_smoke_illusionary_static_fixture_validate PROPERTIES
+    FIXTURES_REQUIRED bsp_authoring_smoke_illusionary_static_fixture_writer
+)
 
 add_test(NAME client_cli_map_validation_rejects_bad_map
     COMMAND stellar-client --validate-map ${STELLAR_CLI_BAD_BSP_FIXTURE}
@@ -715,6 +801,9 @@ add_test(NAME bsp_authoring_smoke_compile_wrapper
 add_test(NAME trenchbroom_package_path_smoke
     COMMAND ${CMAKE_SOURCE_DIR}/tools/trenchbroom/test_stellar_package_paths.sh ${CMAKE_SOURCE_DIR}
 )
+set_tests_properties(trenchbroom_package_path_smoke PROPERTIES
+    ENVIRONMENT "STELLAR_TEST_BUILD_ROOT=${CMAKE_BINARY_DIR};STELLAR_CLIENT=$<TARGET_FILE:stellar-client>;STELLAR_SERVER=$<TARGET_FILE:stellar-server>"
+)
 
 add_test(NAME trenchbroom_wad_tool_verify
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/create_stellar_dev_wad.py
@@ -726,7 +815,7 @@ add_test(NAME trenchbroom_wad_tool_list
 )
 
 add_test(NAME trenchbroom_source_preflight_fixtures
-    COMMAND bash -c "for f in '${CMAKE_SOURCE_DIR}'/tests/fixtures/trenchbroom/src/*.map; do case \"$f\" in *invalid_malformed_brush.map|*invalid_script_escape_zup.map) continue ;; esac; python3 '${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py' \"$f\" || exit 1; done"
+    COMMAND bash -c "for f in '${CMAKE_SOURCE_DIR}'/tests/fixtures/trenchbroom/src/*.map; do case \"$f\" in *invalid_*.map) continue ;; esac; python3 '${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py' \"$f\" || exit 1; done"
 )
 
 add_test(NAME trenchbroom_source_preflight_rejects_malformed
@@ -734,3 +823,29 @@ add_test(NAME trenchbroom_source_preflight_rejects_malformed
         ${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/invalid_malformed_brush.map
 )
 set_tests_properties(trenchbroom_source_preflight_rejects_malformed PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME trenchbroom_source_preflight_rejects_incomplete_brush
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py
+        ${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/invalid_incomplete_brush.map
+)
+set_tests_properties(trenchbroom_source_preflight_rejects_incomplete_brush PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME trenchbroom_source_preflight_rejects_script_escape
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py
+        ${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/invalid_script_escape_zup.map
+)
+set_tests_properties(trenchbroom_source_preflight_rejects_script_escape PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME trenchbroom_source_preflight_rejects_missing_target
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py
+        ${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/invalid_missing_target.map
+)
+set_tests_properties(trenchbroom_source_preflight_rejects_missing_target PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME trenchbroom_source_preflight_rejects_missing_wad_texture
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py
+        --strict-textures
+        --wad-root ${CMAKE_SOURCE_DIR}/tools/trenchbroom/Stellar/materials
+        ${CMAKE_SOURCE_DIR}/tests/fixtures/trenchbroom/src/invalid_missing_wad_texture.map
+)
+set_tests_properties(trenchbroom_source_preflight_rejects_missing_wad_texture PROPERTIES WILL_FAIL TRUE)

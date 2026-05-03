@@ -2,7 +2,24 @@
 
 Branch target: `trenchbroom-compat`
 
-## In-progress Scope — TB-FULL-05 Runtime Brush Entities and Targets
+## In-progress Scope — TB-FULL-06 Fixtures, CI Gates, and Manual QA
+
+Status: implemented in the working tree for validation.
+
+- Completed positive TrenchBroom source fixture matrix for minimal, entity matrix, scripted
+  interaction, lit, material/WAD, moving door/button, point volume, and illusionary/static behavior.
+- Added deterministic negative source fixtures for script path escape, incomplete/malformed brushes,
+  missing target references, and strict missing WAD texture handling.
+- Expanded generated BSP fixture coverage for synthetic lightmap metadata, material/WAD entity data,
+  door/button brush model metadata, point-volume classes, and illusionary/static brush metadata.
+- Expanded VHLT fixture matrix with all positive fixtures, negative preflight expectations,
+  `--fixture`/`--list`, script copying, and skip code `77` when VHLT tools are unavailable.
+- Added copied-package compile smoke behavior that runs package-local shims and skips the compile
+  sub-step when no external BSP30 compiler is available.
+- Added full manual TrenchBroom QA checklist/reporting template in `docs/TrenchBroomManualQA.md` and
+  regex-friendly CTest groups including `trenchbroom_*`, `bsp_lightmaps_*`, and `brush_mover_*`.
+
+## Completed Scope — TB-FULL-05 Runtime Brush Entities and Targets
 
 Status: implemented in the working tree for validation.
 

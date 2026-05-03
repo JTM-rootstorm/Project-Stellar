@@ -1,0 +1,15 @@
+// Stellar TrenchBroom negative fixture: invalid_incomplete_brush
+// Expected source preflight failure: brush has fewer than four planes.
+{
+"classname" "worldspawn"
+"message" "invalid_incomplete_brush"
+{
+( -16 -16 0 ) ( 16 -16 0 ) ( 16 16 0 ) dev/grid_32 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -16 -16 16 ) ( 16 16 16 ) ( 16 -16 16 ) dev/grid_32 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -16 -16 0 ) ( -16 -16 16 ) ( 16 -16 16 ) dev/grid_32 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 36"
+}

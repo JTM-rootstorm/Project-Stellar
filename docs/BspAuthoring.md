@@ -109,7 +109,7 @@ snapshots only; client rendering remains presentation-only with no prediction or
 | Brush object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker from brush model bounds. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
 | Point object-collider sensor | `stellar_object_collider_point` | `targetname`, `origin`, `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates the same object-collider marker type as brush sensors, using authored origin plus half-extents. |
 | Static brush classes | `func_wall`, `func_illusionary`, `func_detail` | `model="*N"` | `targetname`, `archetype`, `stellar.collision=static|sensor|none` | Imported as brush/static metadata; `func_detail` is primarily compile-time detail geometry. Runtime moving/physics behavior is not implied. |
-| Advertised moving/interactable brush metadata | `func_door`, `func_button` | `model="*N"` | `targetname`, `archetype`, `target`, `killtarget`, `message`, `delay`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Keys are intentionally exposed for the later runtime brush phase. Current import preserves them as metadata/static collision state; no client authority or moving brush simulation is added in Phase 02. |
+| Moving/interactable brush entities | `func_door`, `func_button` | `model="*N"` | `targetname`, `archetype`, `target`, `killtarget`, `message`, `delay`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Imported with brush model ownership so the authoritative server can move collision overlays and replicate presentation transforms. |
 | Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `killtarget`, `message`, `delay`, `spawnflags` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
 
 Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation
@@ -308,7 +308,7 @@ server code validates the mesh name, applies the collision-state change, and mir
 `open` state into server-owned gameplay metadata. Disabling a gate mesh means the blocker is open;
 enabling it means closed.
 
-### Door/button metadata reserved for the runtime brush phase
+### Door/button runtime brush metadata
 
 ```text
 classname = func_door
@@ -324,15 +324,14 @@ stellar.script = "scripts/door.lua"
 stellar.table = "MainDoor"
 ```
 
-`func_door` and `func_button` smart properties are intentionally advertised now so authored maps do not
-depend on raw custom keys before TB-FULL-05. Phase 02 does not add moving brush simulation; imported
-keys remain server-side metadata/static collision inputs until the later runtime phase implements the
-authoritative behavior.
+`func_door` and `func_button` smart properties map to the implemented server-authoritative door/button
+path. Buttons fire their `target`, doors move according to angle/speed/wait/lip metadata, collision is
+updated on the server, and clients observe only snapshot-owned presentation transforms.
 
 ## Unsupported or deferred
 
-- Moving brush simulation for `func_door`, `func_button`, plats, trains, or rotating entities until the
-  later runtime brush phase implements the advertised authoritative behavior.
+- Moving brush simulation for plats, trains, or rotating entities beyond the implemented `func_door` /
+  `func_button` path.
 - Client-side gameplay scripting or presentation script execution.
 - Sprite script callbacks.
 - Renderer-owned or audio-owned gameplay state.
@@ -384,6 +383,16 @@ tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profil
 The matrix compiles positive TrenchBroom fixtures through VHLT, validates the produced BSP30 files with
 Stellar client/server validators, and verifies that the invalid script escape fixture compiles but fails
 Stellar validation for the expected sandbox diagnostic.
+
+For final fixture coverage and CI grouping, use:
+
+```bash
+ctest --test-dir build -R 'trenchbroom|bsp_lightmaps|brush_mover|bsp_authoring|client_cli|server_cli' --output-on-failure
+```
+
+This includes source preflight, generated BSP fixtures for lightmaps/materials/point volumes/brush
+movers, copied-package path smoke, optional VHLT matrix coverage with skip code `77`, and client/server
+CLI validation. The full manual editor checklist is in `docs/TrenchBroomManualQA.md`.
 
 For broad confidence, also run:
 

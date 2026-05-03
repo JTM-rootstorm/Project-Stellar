@@ -18,6 +18,20 @@ compile_shim="$package/bin/stellar_tb_compile.sh"
 validate_shim="$package/bin/stellar_tb_validate.sh"
 install_helper="$repo_root/tools/trenchbroom/install_stellar_game_package.sh"
 
+compiler_available() {
+    [[ -n "${STELLAR_BSP30_COMPILER:-}" || -n "${QBSP:-}" ]] && return 0
+    for compiler in ericw-qbsp qbsp hqbsp tyr-qbsp; do
+        command -v "$compiler" >/dev/null 2>&1 && return 0
+    done
+    if [[ -n "${STELLAR_VHLT_DIR:-}" ]] && [[ -x "$STELLAR_VHLT_DIR/hlcsg" ]] && [[ -x "$STELLAR_VHLT_DIR/hlbsp" ]]; then
+        return 0
+    fi
+    for dir in "$repo_root/tools/bsp" "$repo_root/tools/bsp/vhlt" "$repo_root/tools/bsp/bin"; do
+        [[ -x "$dir/hlcsg" && -x "$dir/hlbsp" ]] && return 0
+    done
+    return 1
+}
+
 for script in \
     "$compile_shim" \
     "$validate_shim" \
@@ -65,6 +79,24 @@ copied_package="$copy_dest/Stellar"
 [[ -f "$copied_package/.stellar_repo_root" ]] || fail "copied package missing .stellar_repo_root"
 STELLAR_REPO_ROOT="$repo_root" "$copied_package/bin/stellar_tb_compile.sh" --help >/dev/null
 STELLAR_REPO_ROOT="$repo_root" "$copied_package/bin/stellar_tb_validate.sh" --help >/dev/null
+
+if compiler_available; then
+    smoke_out="$work_dir/copied package compile/minimal_zup_room.bsp"
+    mkdir -p "$(dirname "$smoke_out")"
+    STELLAR_REPO_ROOT="$repo_root" \
+    STELLAR_CLIENT="${STELLAR_CLIENT:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-client}" \
+    STELLAR_SERVER="${STELLAR_SERVER:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-server}" \
+        "$copied_package/bin/stellar_tb_compile.sh" \
+        --map "$repo_root/tests/fixtures/trenchbroom/src/minimal_zup_room.map" \
+        --out "$smoke_out" \
+        --profile fast
+    STELLAR_REPO_ROOT="$repo_root" \
+    STELLAR_CLIENT="${STELLAR_CLIENT:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-client}" \
+    STELLAR_SERVER="${STELLAR_SERVER:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-server}" \
+        "$copied_package/bin/stellar_tb_validate.sh" --map "$smoke_out"
+else
+    printf 'Skipping copied-package compile sub-step: no external BSP30 compiler found.\n'
+fi
 
 fake_repo="$work_dir/Fake Repo With Spaces"
 mkdir -p "$fake_repo/tools/bsp" "$work_dir/Map Dir With Spaces" "$work_dir/Out Dir With Spaces"

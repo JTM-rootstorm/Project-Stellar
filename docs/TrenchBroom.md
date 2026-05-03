@@ -221,17 +221,20 @@ The Stellar package defines:
 - `trigger_stellar`
 - `trigger_multiple`
 - `trigger_once`
+- `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point`
 - `stellar_sprite`
 - `env_sprite`
 - `stellar_object_collider`
+- `stellar_object_collider_point`
 - `light`, `light_spot`, `light_environment`
 - `func_wall`
+- `func_illusionary`, `func_detail`
 - `func_door`
 - `func_button`
 
 Script bindings are authoritative-runtime metadata only. Import records them but never executes Lua.
-Object-collider sensors do not block movement. `func_door` and `func_button` are named static collision
-metadata only in this branch; moving brush simulation is deferred.
+Object-collider sensors do not block movement. `func_door` and `func_button` are server-authoritative
+runtime brush movers; clients receive only replicated presentation transforms.
 
 ## Compile to BSP30
 
@@ -327,6 +330,12 @@ lighting smoke map. Both are 192x192x96 Z-up rooms with floor `z = 0`, ceiling `
 complete fixture matrix, expected entities, expected validation outcomes, and the manual
 open/compile/validate checklist.
 
+The complete positive source fixture matrix is `minimal_zup_room`, `entity_matrix_zup`,
+`scripted_interaction_zup`, `lit_zup_room`, `material_wad_zup`, `moving_door_button_zup`,
+`point_volume_zup`, and `illusionary_static_zup`. Negative source fixtures cover script escapes,
+incomplete/malformed brushes, missing targets, and strict unresolved WAD textures. A full manual QA
+checklist/reporting template is available in [`docs/TrenchBroomManualQA.md`](TrenchBroomManualQA.md).
+
 Generated fixture policy:
 
 - Source-tree `.map` files are human/editor references and reviewable authoring examples.
@@ -343,6 +352,10 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
 ```
+
+Use CTest group names such as `trenchbroom_package_*`, `trenchbroom_fgd_*`,
+`trenchbroom_source_preflight_*`, `trenchbroom_vhlt_fixture_matrix`, `bsp_lightmaps_*`, and
+`brush_mover_*` for focused CI runs.
 
 ## Troubleshooting
 
@@ -374,7 +387,7 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 
 ## Unsupported or deferred
 
-- Moving brush simulation for doors, buttons, plats, trains, or rotating entities.
+- Moving brush simulation for plats, trains, or rotating entities beyond the implemented door/button path.
 - Client-side gameplay scripting or renderer/audio script authority.
 - Arbitrary unsafe WAD paths. Keep WAD keys relative to the map or configured search roots.
 - Source/VBSP formats and Source-specific entities.

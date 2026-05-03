@@ -43,6 +43,13 @@ inline void set_bsp_lump(std::vector<std::byte> &bytes,
                 static_cast<std::int32_t>(size));
 }
 
+inline std::size_t get_bsp_lump_offset(std::vector<std::byte> &bytes,
+                                       stellar::import::bsp::detail::LumpIndex lump) {
+  std::int32_t offset = 0;
+  std::memcpy(&offset, bytes.data() + bsp_lump_header_offset(lump), sizeof(offset));
+  return static_cast<std::size_t>(offset);
+}
+
 inline void append_bsp_vec3(std::vector<std::byte> &bytes, BspVec3 value) {
   append_bsp_value(bytes, value[0]);
   append_bsp_value(bytes, value[1]);
@@ -430,6 +437,92 @@ inline std::vector<std::byte> build_bsp_trenchbroom_invalid_script_escape_fixtur
   return bytes;
 }
 
+inline void add_synthetic_lightmap(std::vector<std::byte> &bytes) {
+  using stellar::import::bsp::detail::LumpIndex;
+  const std::size_t face_offset = get_bsp_lump_offset(bytes, LumpIndex::kFaces);
+  patch_bsp_i32(bytes, face_offset + 16, 0);
+  const std::size_t lighting_offset = bytes.size();
+  for (std::uint8_t i = 0; i < 12; ++i) {
+    append_bsp_value<std::uint8_t>(bytes, static_cast<std::uint8_t>(64U + i * 8U));
+  }
+  set_bsp_lump(bytes, LumpIndex::kLighting, lighting_offset, 12);
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_lit_room_fixture() {
+  auto bytes = build_bsp_trenchbroom_minimal_zup_room_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"lit_zup_room\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"origin\" \"0 0 36\"\n}\n"
+                   "{\n\"classname\" \"light\"\n"
+                   "\"origin\" \"0 0 72\"\n\"_light\" \"255 240 220 250\"\n}\n"
+                   "{\n\"classname\" \"light_spot\"\n"
+                   "\"origin\" \"48 -48 80\"\n\"angle\" \"135\"\n}\n");
+  add_synthetic_lightmap(bytes);
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_material_wad_fixture() {
+  auto bytes = build_bsp_trenchbroom_minimal_zup_room_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"material_wad_zup\"\n"
+                   "\"wad\" \"stellar_dev.wad\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"targetname\" \"MaterialStart\"\n"
+                   "\"origin\" \"0 0 36\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_moving_door_button_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_version(bytes, 30);
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"moving_door_button_zup\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"origin\" \"-64 0 36\"\n}\n"
+                   "{\n\"classname\" \"func_door\"\n"
+                   "\"targetname\" \"DoorA\"\n\"model\" \"*1\"\n"
+                   "\"angle\" \"0\"\n\"speed\" \"80\"\n\"wait\" \"2\"\n\"lip\" \"8\"\n}\n"
+                   "{\n\"classname\" \"func_button\"\n"
+                   "\"targetname\" \"ButtonA\"\n\"target\" \"DoorA\"\n"
+                   "\"model\" \"*2\"\n\"angle\" \"0\"\n\"speed\" \"40\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_point_volume_fixture() {
+  auto bytes = build_bsp_trenchbroom_minimal_zup_room_fixture();
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"point_volume_zup\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"origin\" \"0 -32 36\"\n}\n"
+                   "{\n\"classname\" \"trigger_multiple_point\"\n"
+                   "\"targetname\" \"PointTriggerA\"\n\"origin\" \"0 0 36\"\n"
+                   "\"stellar.extents\" \"16 16 24\"\n}\n"
+                   "{\n\"classname\" \"stellar_object_collider_point\"\n"
+                   "\"targetname\" \"PointPickupA\"\n\"origin\" \"24 0 36\"\n"
+                   "\"stellar.extents\" \"8 8 8\"\n\"archetype\" \"pickup_health\"\n}\n");
+  return bytes;
+}
+
+inline std::vector<std::byte> build_bsp_trenchbroom_illusionary_static_fixture() {
+  auto bytes = build_bsp_playable_fixture();
+  set_bsp_version(bytes, 30);
+  set_bsp_entities(bytes,
+                   "{\n\"classname\" \"worldspawn\"\n"
+                   "\"message\" \"illusionary_static_zup\"\n}\n"
+                   "{\n\"classname\" \"info_player_start\"\n"
+                   "\"origin\" \"0 0 36\"\n}\n"
+                   "{\n\"classname\" \"func_wall\"\n"
+                   "\"targetname\" \"SolidWallA\"\n\"model\" \"*1\"\n}\n"
+                   "{\n\"classname\" \"func_illusionary\"\n"
+                   "\"targetname\" \"GhostWallA\"\n\"model\" \"*2\"\n}\n");
+  return bytes;
+}
+
 inline std::vector<std::byte> build_bsp_minimal_valid_fixture() {
   return build_bsp_playable_fixture();
 }
@@ -531,6 +624,21 @@ inline std::vector<std::byte> build_named_bsp_fixture(std::string_view name) {
   }
   if (name == "scripted_interaction_zup") {
     return build_bsp_trenchbroom_scripted_interaction_fixture();
+  }
+  if (name == "lit_zup_room") {
+    return build_bsp_trenchbroom_lit_room_fixture();
+  }
+  if (name == "material_wad_zup") {
+    return build_bsp_trenchbroom_material_wad_fixture();
+  }
+  if (name == "moving_door_button_zup") {
+    return build_bsp_trenchbroom_moving_door_button_fixture();
+  }
+  if (name == "point_volume_zup") {
+    return build_bsp_trenchbroom_point_volume_fixture();
+  }
+  if (name == "illusionary_static_zup") {
+    return build_bsp_trenchbroom_illusionary_static_fixture();
   }
   if (name == "invalid_script_escape_zup") {
     return build_bsp_trenchbroom_invalid_script_escape_fixture();
