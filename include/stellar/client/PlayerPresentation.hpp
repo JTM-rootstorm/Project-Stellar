@@ -12,9 +12,9 @@ namespace stellar::client {
 
 /** @brief Z-up camera settings derived from authoritative player snapshots. */
 struct PlayerCameraConfig {
-    /** @brief World-space eye offset from the player center; defaults to +Z eye height. */
+    /** @brief World-space eye offset from the authoritative player center. */
     std::array<float, 3> follow_offset{0.0F, 0.0F,
-                                       stellar::core::kPlayerEyeHeightInches};
+                                       stellar::core::kDefaultCameraEyeOffsetFromCenterInches};
 
     /** @brief Local Z-up forward look distance from the camera eye after rotation is applied. */
     float look_distance = stellar::core::feet_to_units(12.0F);
@@ -69,12 +69,14 @@ struct PlayerCameraFrame {
 /**
  * @brief Compute a deterministic camera frame from player presentation state.
  *
- * The default eye is the authoritative player center plus +Z player eye height. Player rotation is
- * interpreted as an x,y,z,w quaternion in the Z-up world contract: yaw turns on the X/Y horizontal
- * plane and pitch tilts around the camera right vector. Non-finite position, offset, rotation, and
- * distance components are sanitized without mutating authoritative snapshot data. The near plane
- * preserves finite positive input clamped to at least 0.01. The far plane preserves finite input only
- * when it is greater than the sanitized near plane; otherwise it is raised to near + 0.01.
+ * PlayerSnapshot::position is the authoritative character center. The default eye is the player center
+ * plus a +Z center-relative offset that places the camera at the configured player eye height above the
+ * floor when grounded. Player rotation is interpreted as an x,y,z,w quaternion in the Z-up world
+ * contract: yaw turns on the X/Y horizontal plane and pitch tilts around the camera right vector.
+ * Non-finite position, offset, rotation, and distance components are sanitized without mutating
+ * authoritative snapshot data. The near plane preserves finite positive input clamped to at least 0.01.
+ * The far plane preserves finite input only when it is greater than the sanitized near plane; otherwise
+ * it is raised to near + 0.01.
  */
 [[nodiscard]] PlayerCameraFrame make_player_camera_frame(
     const PlayerPresentationState& player,

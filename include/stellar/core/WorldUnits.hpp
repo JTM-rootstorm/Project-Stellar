@@ -11,11 +11,21 @@ inline constexpr float kInchesPerFoot = 12.0F;
 /** @brief Default authoritative player capsule height in inch-scale world units. */
 inline constexpr float kPlayerHeightInches = 72.0F;
 
+/** @brief Default authoritative player capsule half-height in inch-scale world units. */
+inline constexpr float kPlayerHalfHeightInches = kPlayerHeightInches * 0.5F;
+
 /** @brief Default authoritative player capsule radius in inch-scale world units. */
 inline constexpr float kPlayerRadiusInches = 16.0F;
 
-/** @brief Default player eye height in inch-scale world units. */
+/** @brief Legacy human eye height above floor in inch-scale world units. */
 inline constexpr float kPlayerEyeHeightInches = 64.0F;
+
+/** @brief Default camera eye height above the floor when the player is grounded. */
+inline constexpr float kDefaultCameraEyeHeightInches = kPlayerHeightInches;
+
+/** @brief Default camera eye offset from the authoritative character center. */
+inline constexpr float kDefaultCameraEyeOffsetFromCenterInches =
+    kDefaultCameraEyeHeightInches - kPlayerHalfHeightInches;
 
 /** @brief Default authoritative player step height in inch-scale world units. */
 inline constexpr float kPlayerStepHeightInches = 18.0F;

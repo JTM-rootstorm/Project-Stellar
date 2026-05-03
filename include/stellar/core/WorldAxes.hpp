@@ -34,6 +34,6 @@ inline constexpr int kHorizontalPlaneXIndex = kWorldRightIndex;
 inline constexpr int kHorizontalPlaneYIndex = kWorldForwardIndex;
 
 /** @brief Default player center height above the floor in inch-scale world units. */
-inline constexpr float kDefaultPlayerSpawnHeightInches = kPlayerHeightInches * 0.5F;
+inline constexpr float kDefaultPlayerSpawnHeightInches = kPlayerHalfHeightInches;
 
 } // namespace stellar::core

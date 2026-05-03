@@ -456,6 +456,11 @@ stellar_add_physics_test(stellar_collision_performance_regression_test collision
     tests/physics/CollisionPerformanceRegression.cpp
 )
 
+stellar_add_test_executable(stellar_platform_input_test input
+    tests/platform/Input.cpp
+)
+target_link_libraries(stellar_platform_input_test PRIVATE stellar_platform)
+
 add_executable(stellar_client_map_validation_smoke
     tests/client/AssetValidationSmoke.cpp
 )

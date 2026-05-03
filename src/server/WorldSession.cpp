@@ -11,6 +11,10 @@
 namespace stellar::server {
 namespace {
 
+constexpr float kPi = 3.14159265358979323846F;
+constexpr float kMinViewPitchDegrees = -89.0F;
+constexpr float kMaxViewPitchDegrees = 89.0F;
+
 [[nodiscard]] stellar::world::TriggerCapsule make_authoritative_capsule(
     std::array<float, 3> position,
     const MovementSimulationConfig& config) noexcept {
@@ -121,6 +125,56 @@ namespace {
     return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
 }
 
+[[nodiscard]] float normalize_yaw_degrees(float yaw_degrees) noexcept {
+    if (!std::isfinite(yaw_degrees)) {
+        return 0.0F;
+    }
+    float normalized = std::fmod(yaw_degrees, 360.0F);
+    if (normalized < 0.0F) {
+        normalized += 360.0F;
+    }
+    return normalized;
+}
+
+[[nodiscard]] float clamp_pitch_degrees(float pitch_degrees) noexcept {
+    if (!std::isfinite(pitch_degrees)) {
+        return 0.0F;
+    }
+    return std::clamp(pitch_degrees, kMinViewPitchDegrees, kMaxViewPitchDegrees);
+}
+
+[[nodiscard]] std::array<float, 4> multiply_quaternion(std::array<float, 4> a,
+                                                       std::array<float, 4> b) noexcept {
+    return {a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+            a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+            a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+            a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+}
+
+[[nodiscard]] std::array<float, 4> normalize_quaternion(std::array<float, 4> value) noexcept {
+    const float length = std::sqrt(value[0] * value[0] + value[1] * value[1] +
+                                   value[2] * value[2] + value[3] * value[3]);
+    if (!std::isfinite(length) || length < 0.0001F) {
+        return {0.0F, 0.0F, 0.0F, 1.0F};
+    }
+    return {value[0] / length, value[1] / length, value[2] / length, value[3] / length};
+}
+
+[[nodiscard]] std::array<float, 4> view_rotation_quaternion(float yaw_degrees,
+                                                            float pitch_degrees) noexcept {
+    const float yaw = normalize_yaw_degrees(yaw_degrees) * kPi / 180.0F;
+    const float pitch = clamp_pitch_degrees(pitch_degrees) * kPi / 180.0F;
+    const float yaw_half = yaw * 0.5F;
+    const float pitch_half = pitch * 0.5F;
+    const std::array<float, 4> yaw_rotation{0.0F, 0.0F, std::sin(yaw_half),
+                                            std::cos(yaw_half)};
+    const std::array<float, 3> right{std::cos(yaw), std::sin(yaw), 0.0F};
+    const float pitch_sin = std::sin(pitch_half);
+    const std::array<float, 4> pitch_rotation{right[0] * pitch_sin, right[1] * pitch_sin,
+                                              0.0F, std::cos(pitch_half)};
+    return normalize_quaternion(multiply_quaternion(pitch_rotation, yaw_rotation));
+}
+
 } // namespace
 
 WorldSession::WorldSession(const stellar::world::RuntimeWorld& world, WorldSessionConfig config) {
@@ -131,6 +185,8 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
     world_ = &world;
     config_ = config;
     player_state_ = make_spawn_movement_state(world);
+    player_yaw_degrees_ = 0.0F;
+    player_pitch_degrees_ = 0.0F;
     gameplay_world_.reset_from_world(world, config_.local_player_id);
     trigger_tracker_.reset_from_world(world);
     object_collider_system_.set_colliders(stellar::world::build_object_colliders(world));
@@ -243,6 +299,7 @@ WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexce
                                                     mul3(mover.direction, mover.progress));
     }
     const MovementCommand command = select_local_command(commands);
+    apply_view_angles(command);
     const MovementTriggerTickResult result = simulate_movement_tick_and_update_triggers(
         *world_, player_state_, command, config_.movement, &collision_state_, trigger_tracker_);
     player_state_ = result.movement.state;
@@ -405,10 +462,11 @@ WorldSnapshot WorldSession::make_snapshot(
     WorldSnapshot snapshot;
     snapshot.tick = tick_index_;
     snapshot.players.push_back(PlayerSnapshot{.player_id = config_.local_player_id,
-                                               .position = player_state_.position,
-                                               .velocity = player_state_.velocity,
-                                               .rotation = {0.0F, 0.0F, 0.0F, 1.0F},
-                                               .grounded = player_state_.grounded});
+                                                .position = player_state_.position,
+                                                .velocity = player_state_.velocity,
+                                                .rotation = view_rotation_quaternion(
+                                                    player_yaw_degrees_, player_pitch_degrees_),
+                                                .grounded = player_state_.grounded});
     snapshot.trigger_events = std::move(trigger_events);
     snapshot.object_collider_events = std::move(object_collider_events);
     snapshot.gameplay_world = gameplay_world_.snapshot();
@@ -439,6 +497,18 @@ MovementCommand WorldSession::select_local_command(
         }
     }
     return {};
+}
+
+void WorldSession::apply_view_angles(const MovementCommand& command) noexcept {
+    if (!command.has_view_angles) {
+        return;
+    }
+    if (std::isfinite(command.view_yaw_degrees)) {
+        player_yaw_degrees_ = normalize_yaw_degrees(command.view_yaw_degrees);
+    }
+    if (std::isfinite(command.view_pitch_degrees)) {
+        player_pitch_degrees_ = clamp_pitch_degrees(command.view_pitch_degrees);
+    }
 }
 
 } // namespace stellar::server

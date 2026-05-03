@@ -40,6 +40,15 @@ struct MovementCommand {
 
     /** @brief Requested jump intent; currently accepted but not applied by this deterministic seam. */
     bool jump = false;
+
+    /** @brief Requested authoritative view yaw in degrees around +Z. */
+    float view_yaw_degrees = 0.0F;
+
+    /** @brief Requested authoritative view pitch in degrees around camera right. */
+    float view_pitch_degrees = 0.0F;
+
+    /** @brief True when view angles should update the server-owned view state. */
+    bool has_view_angles = false;
 };
 
 /**

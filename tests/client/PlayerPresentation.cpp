@@ -76,13 +76,22 @@ void camera_frame_uses_follow_and_look_offsets() {
     assert_near(frame.far_plane, 300.0F);
 }
 
-void default_camera_config_uses_z_up_eye_height() {
+void default_camera_config_uses_center_relative_eye_offset() {
     const stellar::client::PlayerCameraConfig config;
 
     assert_vec3(config.follow_offset,
-                {0.0F, 0.0F, stellar::core::kPlayerEyeHeightInches});
+                {0.0F, 0.0F, stellar::core::kDefaultCameraEyeOffsetFromCenterInches});
     assert_near(config.look_distance, stellar::core::feet_to_units(12.0F));
     assert_near(config.far_plane, 4096.0F);
+}
+
+void default_camera_for_spawn_center_is_character_height_above_floor() {
+    stellar::client::PlayerPresentationState player;
+    player.position = {0.0F, 0.0F, stellar::core::kPlayerHalfHeightInches};
+
+    const auto frame = stellar::client::make_player_camera_frame(player);
+
+    assert_near(frame.eye[2], stellar::core::kDefaultCameraEyeHeightInches);
 }
 
 void camera_frame_uses_z_up_default_basis() {
@@ -92,10 +101,11 @@ void camera_frame_uses_z_up_default_basis() {
     const auto frame = stellar::client::make_player_camera_frame(player);
 
     assert_vec3(frame.eye,
-                {10.0F, 20.0F, 30.0F + stellar::core::kPlayerEyeHeightInches});
+                {10.0F, 20.0F,
+                 30.0F + stellar::core::kDefaultCameraEyeOffsetFromCenterInches});
     assert_vec3(frame.target,
-                {10.0F, 20.0F + stellar::core::feet_to_units(12.0F),
-                 30.0F + stellar::core::kPlayerEyeHeightInches});
+                 {10.0F, 20.0F + stellar::core::feet_to_units(12.0F),
+                  30.0F + stellar::core::kDefaultCameraEyeOffsetFromCenterInches});
     assert_vec3(frame.up, stellar::core::kWorldUp);
 }
 
@@ -214,7 +224,8 @@ int main() {
     missing_player_snapshot_returns_nullopt();
     player_snapshot_extracts_position_rotation_grounded();
     camera_frame_uses_follow_and_look_offsets();
-    default_camera_config_uses_z_up_eye_height();
+    default_camera_config_uses_center_relative_eye_offset();
+    default_camera_for_spawn_center_is_character_height_above_floor();
     camera_frame_uses_z_up_default_basis();
     camera_frame_yaw_rotates_on_xy_plane();
     camera_frame_pitch_tilts_around_camera_right();

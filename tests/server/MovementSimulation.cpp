@@ -225,6 +225,22 @@ void nan_input_is_sanitized() {
     assert(finite(result.state.velocity));
 }
 
+void non_finite_view_angles_are_sanitized() {
+    const stellar::assets::LevelAsset scene;
+    const auto world = stellar::world::build_runtime_world(scene);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+
+    const auto result = stellar::server::simulate_movement_tick(
+        world, {}, {.view_yaw_degrees = nan,
+                    .view_pitch_degrees = std::numeric_limits<float>::infinity(),
+                    .has_view_angles = true},
+        test_config());
+
+    assert(result.command_was_sanitized);
+    assert(finite(result.state.position));
+    assert(finite(result.state.velocity));
+}
+
 void terminal_fall_speed_is_clamped() {
     const stellar::assets::LevelAsset scene;
     const auto world = stellar::world::build_runtime_world(scene);
@@ -305,6 +321,7 @@ int main() {
     wall_world_blocks_authoritative_movement();
     wish_direction_is_clamped();
     nan_input_is_sanitized();
+    non_finite_view_angles_are_sanitized();
     terminal_fall_speed_is_clamped();
     client_position_is_not_part_of_command();
     runtime_world_collision_optional_is_handled();

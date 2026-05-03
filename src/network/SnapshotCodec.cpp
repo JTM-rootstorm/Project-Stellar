@@ -15,7 +15,7 @@ constexpr std::uint32_t kClientHelloMagic = 0x48434E33U;
 constexpr std::uint32_t kServerWelcomeMagic = 0x57534E33U;
 constexpr std::uint32_t kEventMagic = 0x45564E33U;
 constexpr std::uint32_t kDeltaMagic = 0x444C4E33U;
-constexpr std::uint16_t kCodecVersion = 1;
+constexpr std::uint16_t kCodecVersion = 2;
 
 [[nodiscard]] CodecError error(std::string code, std::string message) {
     return CodecError{std::move(code), std::move(message)};
@@ -328,6 +328,9 @@ template <std::size_t Count>
     const stellar::server::MovementCommand& movement) {
     TRY_VOID(write_float_array(writer, movement.wish_direction));
     TRY_VOID(writer.write_bool(movement.jump));
+    TRY_VOID(writer.write_float(movement.view_yaw_degrees));
+    TRY_VOID(writer.write_float(movement.view_pitch_degrees));
+    TRY_VOID(writer.write_bool(movement.has_view_angles));
     return {};
 }
 
@@ -336,8 +339,14 @@ template <std::size_t Count>
     stellar::server::MovementCommand movement{};
     TRY_VALUE(wish_direction, read_float_array<3>(reader));
     TRY_VALUE(jump, reader.read_bool());
+    TRY_VALUE(view_yaw_degrees, reader.read_float());
+    TRY_VALUE(view_pitch_degrees, reader.read_float());
+    TRY_VALUE(has_view_angles, reader.read_bool());
     movement.wish_direction = wish_direction;
     movement.jump = jump;
+    movement.view_yaw_degrees = view_yaw_degrees;
+    movement.view_pitch_degrees = view_pitch_degrees;
+    movement.has_view_angles = has_view_angles;
     return movement;
 }
 

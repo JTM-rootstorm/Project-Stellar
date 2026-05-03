@@ -163,6 +163,12 @@ using Vec3 = std::array<float, 3>;
     }
     command.wish_direction[stellar::core::kWorldUpIndex] = 0.0F;
     command.wish_direction = clamp_length(command.wish_direction, 1.0F, sanitized);
+    if (command.has_view_angles &&
+        (!is_finite(command.view_yaw_degrees) || !is_finite(command.view_pitch_degrees))) {
+        command.view_yaw_degrees = 0.0F;
+        command.view_pitch_degrees = 0.0F;
+        sanitized = true;
+    }
     return command;
 }
 

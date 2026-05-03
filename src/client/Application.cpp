@@ -10,6 +10,7 @@
 
 #include <SDL2/SDL.h>
 
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -42,6 +43,62 @@ make_level_render_view(const PlayerCameraFrame &camera) noexcept {
   view.far_plane = camera.far_plane;
   view.visibility_culling = true;
   return view;
+}
+
+bool debug_camera_enabled() {
+  const char* value = std::getenv("STELLAR_DEBUG_CAMERA");
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string text(value);
+  return text != "0" && text != "false" && text != "FALSE" && text != "off" && text != "OFF";
+}
+
+void set_mouse_capture(stellar::platform::Window& window,
+                       bool& mouse_captured,
+                       bool enabled) {
+  if (auto result = window.set_relative_mouse_mode(enabled); !result) {
+    std::cerr << "stellar-client: relative mouse capture unavailable: "
+              << result.error().message << '\n';
+    mouse_captured = window.relative_mouse_mode();
+    return;
+  }
+  mouse_captured = enabled;
+}
+
+void handle_mouse_capture_shortcuts(stellar::platform::Window& window,
+                                    const stellar::platform::Input& input,
+                                    bool& mouse_captured) {
+  if (input.was_key_pressed(SDL_SCANCODE_ESCAPE)) {
+    if (mouse_captured) {
+      set_mouse_capture(window, mouse_captured, false);
+    } else {
+      window.request_close();
+    }
+    return;
+  }
+
+  if (input.was_key_pressed(SDL_SCANCODE_F1)) {
+    set_mouse_capture(window, mouse_captured, !mouse_captured);
+    return;
+  }
+
+  if (!mouse_captured && input.was_mouse_button_pressed(SDL_BUTTON_LEFT)) {
+    set_mouse_capture(window, mouse_captured, true);
+  }
+}
+
+void log_debug_camera_frame(const char* runtime_name,
+                            const PlayerPresentationState& player,
+                            const PlayerCameraFrame& camera) {
+  std::cerr << "stellar-client: debug-camera runtime=" << runtime_name
+            << " player_position=(" << player.position[0] << ", " << player.position[1]
+            << ", " << player.position[2] << ") player_rotation=(" << player.rotation[0]
+            << ", " << player.rotation[1] << ", " << player.rotation[2] << ", "
+            << player.rotation[3] << ") eye=(" << camera.eye[0] << ", " << camera.eye[1]
+            << ", " << camera.eye[2] << ") target=(" << camera.target[0] << ", "
+            << camera.target[1] << ", " << camera.target[2] << ") near="
+            << camera.near_plane << " far=" << camera.far_plane << '\n';
 }
 
 std::expected<void, stellar::platform::Error>
@@ -113,11 +170,22 @@ std::expected<void, stellar::platform::Error> Application::run() {
   stellar::audio::AudioEventRouter audio_router;
   stellar::audio::NoOpAudioRequestSink audio_sink;
   Uint32 previous_frame_start = SDL_GetTicks();
+  const bool has_live_runtime = runtime->networked_runtime || runtime->remote_runtime;
+  bool mouse_captured = false;
+  int debug_camera_frames_remaining = debug_camera_enabled() ? 5 : 0;
+  if (has_live_runtime) {
+    set_mouse_capture(window, mouse_captured, true);
+  }
 
   while (!window.should_close()) {
     const Uint32 frame_start = SDL_GetTicks();
 
     window.process_input(input);
+    if (has_live_runtime) {
+      handle_mouse_capture_shortcuts(window, input, mouse_captured);
+    } else if (input.was_key_pressed(SDL_SCANCODE_ESCAPE)) {
+      window.request_close();
+    }
 
     const float elapsed_seconds = static_cast<float>(frame_start) / 1000.0f;
     const float delta_seconds =
@@ -138,8 +206,12 @@ std::expected<void, stellar::platform::Error> Application::run() {
         const auto player_state = make_player_presentation_state(
             *snapshot, runtime->networked_runtime->local_player_id());
         if (player_state.has_value()) {
-          renderer->set_render_view(
-              make_level_render_view(make_player_camera_frame(*player_state)));
+          const PlayerCameraFrame camera_frame = make_player_camera_frame(*player_state);
+          if (debug_camera_frames_remaining > 0) {
+            log_debug_camera_frame("NetworkedClientRuntime", *player_state, camera_frame);
+            --debug_camera_frames_remaining;
+          }
+          renderer->set_render_view(make_level_render_view(camera_frame));
         } else {
           renderer->clear_render_view();
         }
@@ -160,8 +232,12 @@ std::expected<void, stellar::platform::Error> Application::run() {
         const auto player_state = make_player_presentation_state(
             *snapshot, runtime->remote_runtime->local_player_id());
         if (player_state.has_value()) {
-          renderer->set_render_view(
-              make_level_render_view(make_player_camera_frame(*player_state)));
+          const PlayerCameraFrame camera_frame = make_player_camera_frame(*player_state);
+          if (debug_camera_frames_remaining > 0) {
+            log_debug_camera_frame("RemoteClientRuntime", *player_state, camera_frame);
+            --debug_camera_frames_remaining;
+          }
+          renderer->set_render_view(make_level_render_view(camera_frame));
         } else {
           renderer->clear_render_view();
         }

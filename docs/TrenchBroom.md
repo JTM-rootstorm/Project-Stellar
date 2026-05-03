@@ -317,6 +317,15 @@ build/stellar-server --map maps/compiled/test_room.bsp --listen 127.0.0.1:7777
 build/stellar-client --connect 127.0.0.1:7777
 ```
 
+Live play uses FPS-style controls. `W`/`A`/`S`/`D` move relative to the current camera yaw on the X/Y
+floor plane, `Space` submits jump intent, mouse motion turns and looks up/down, arrow keys provide
+keyboard look fallback, `F1` toggles relative mouse capture, left-click recaptures the mouse, and `Esc`
+first releases capture before a second `Esc` exits.
+
+For quick camera diagnostics, set `STELLAR_DEBUG_CAMERA=1` before launching. The client logs the first
+few authoritative camera frames, including runtime mode, player center, snapshot rotation, camera eye,
+camera target, and near/far planes.
+
 `--validate-map` and `stellar-server --validate-config --map` are display-free. `--validate-display`
 is intentionally GUI/display-backed: it creates a small SDL window, initializes the selected graphics
 backend, and exits. Use it to separate map/import validity from Linux display-server authorization or
@@ -413,6 +422,19 @@ Use CTest group names such as `trenchbroom_package_*`, `trenchbroom_fgd_*`,
   build/stellar-client --validate-display
   SDL_VIDEODRIVER=x11 build/stellar-client --validate-display
   SDL_VIDEODRIVER=wayland build/stellar-client --validate-display
+  ```
+
+- VS Code integrated terminals can inherit different display/session variables than a desktop terminal.
+  If launch works in a normal terminal but not in VS Code, compare the runtime environment and consider
+  starting VS Code from the working desktop terminal with `code .`:
+
+  ```bash
+  echo "$DISPLAY"
+  echo "$WAYLAND_DISPLAY"
+  echo "$XAUTHORITY"
+  echo "$XDG_RUNTIME_DIR"
+  build/stellar-client --validate-map maps/compiled/test_room.bsp
+  build/stellar-client --map maps/compiled/test_room.bsp
   ```
 
 ## Non-Goals Outside The Stellar BSP30 Profile

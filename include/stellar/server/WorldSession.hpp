@@ -237,10 +237,13 @@ private:
         std::vector<ObjectColliderEvent> object_collider_events = {}) const;
     [[nodiscard]] MovementCommand select_local_command(
         std::span<const PlayerCommand> commands) const noexcept;
+    void apply_view_angles(const MovementCommand& command) noexcept;
 
     const stellar::world::RuntimeWorld* world_ = nullptr;
     WorldSessionConfig config_{};
     MovementState player_state_{};
+    float player_yaw_degrees_ = 0.0F;
+    float player_pitch_degrees_ = 0.0F;
     GameplayWorld gameplay_world_{};
     MovementTriggerTracker trigger_tracker_{};
     stellar::world::ObjectColliderSystem object_collider_system_{};

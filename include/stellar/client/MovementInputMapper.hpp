@@ -38,6 +38,54 @@ struct MovementInputMapperConfig {
     bool normalize_diagonal = true;
 };
 
+/** @brief Configurable key bindings for keyboard look and mouse capture controls. */
+struct LookInputBindings {
+    /** @brief Key that turns the view left on the Z-up yaw axis. */
+    SDL_Scancode yaw_left = SDL_SCANCODE_LEFT;
+
+    /** @brief Key that turns the view right on the Z-up yaw axis. */
+    SDL_Scancode yaw_right = SDL_SCANCODE_RIGHT;
+
+    /** @brief Key that pitches the view upward. */
+    SDL_Scancode pitch_up = SDL_SCANCODE_UP;
+
+    /** @brief Key that pitches the view downward. */
+    SDL_Scancode pitch_down = SDL_SCANCODE_DOWN;
+
+    /** @brief Key that toggles relative mouse capture in live play. */
+    SDL_Scancode toggle_mouse_capture = SDL_SCANCODE_F1;
+};
+
+/** @brief Options for converting mouse/key deltas into client view-angle commands. */
+struct LookInputMapperConfig {
+    /** @brief Mouse-look sensitivity in degrees per SDL relative-motion pixel. */
+    float mouse_sensitivity_degrees_per_pixel = 0.08F;
+
+    /** @brief Keyboard yaw speed in degrees per second. */
+    float keyboard_yaw_degrees_per_second = 120.0F;
+
+    /** @brief Keyboard pitch speed in degrees per second. */
+    float keyboard_pitch_degrees_per_second = 90.0F;
+
+    /** @brief Minimum allowed pitch angle in degrees. */
+    float min_pitch_degrees = -89.0F;
+
+    /** @brief Maximum allowed pitch angle in degrees. */
+    float max_pitch_degrees = 89.0F;
+
+    /** @brief Platform input bindings for keyboard look and capture toggles. */
+    LookInputBindings bindings{};
+};
+
+/** @brief Client-side accumulated view angles submitted to authoritative server simulation. */
+struct ClientViewState {
+    /** @brief Yaw in degrees around +Z; positive yaw turns +Y forward toward -X. */
+    float yaw_degrees = 0.0F;
+
+    /** @brief Pitch in degrees around camera right; positive pitch looks upward. */
+    float pitch_degrees = 0.0F;
+};
+
 /**
  * @brief Display-free movement button state before conversion to server intent.
  */
@@ -70,6 +118,29 @@ struct MovementInputState {
     const MovementInputMapperConfig& config = {}) noexcept;
 
 /**
+ * @brief Convert input state into camera-relative movement for a server command.
+ *
+ * The supplied yaw rotates movement on the X/Y plane only. Positive yaw turns +Y forward toward -X,
+ * matching PlayerPresentation's Z-up quaternion convention. Pitch does not affect movement.
+ */
+[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+    const MovementInputState& state,
+    float yaw_degrees,
+    const MovementInputMapperConfig& config = {}) noexcept;
+
+/**
+ * @brief Convert input state and view angles into a server-owned command intent.
+ *
+ * Movement is camera-relative on the X/Y plane, and sanitized view angles are attached for
+ * server-authoritative snapshot rotation. The client still performs no local movement or
+ * prediction.
+ */
+[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+    const MovementInputState& state,
+    ClientViewState view_state,
+    const MovementInputMapperConfig& config = {}) noexcept;
+
+/**
  * @brief Convert platform input state into a server-owned movement command intent.
  *
  * Direction convention: forward is positive Y, backward is negative Y, left is negative X,
@@ -79,5 +150,22 @@ struct MovementInputState {
 [[nodiscard]] stellar::server::MovementCommand make_movement_command(
     const stellar::platform::Input& input,
     const MovementInputMapperConfig& config = {}) noexcept;
+
+/** @brief Convert platform input and view angles into a server-owned command intent. */
+[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+    const stellar::platform::Input& input,
+    ClientViewState view_state,
+    const MovementInputMapperConfig& config = {}) noexcept;
+
+/**
+ * @brief Accumulate mouse and keyboard look input into sanitized client view state.
+ *
+ * SDL mouse Y motion is inverted for FPS-style look: moving the mouse upward increases pitch.
+ */
+[[nodiscard]] ClientViewState update_client_view_state(
+    const stellar::platform::Input& input,
+    float delta_seconds,
+    ClientViewState previous,
+    const LookInputMapperConfig& config = {}) noexcept;
 
 } // namespace stellar::client

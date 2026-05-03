@@ -20,12 +20,6 @@ void handle_event(const SDL_Event& event, Input* input, bool& should_close) {
         case SDL_QUIT:
             should_close = true;
             break;
-        case SDL_KEYDOWN:
-            // Exit on ESC key.
-            if (event.key.keysym.sym == SDLK_ESCAPE) {
-                should_close = true;
-            }
-            break;
     }
 }
 
@@ -98,6 +92,9 @@ Window::create(int width, int height, std::string_view title, Uint32 flags) {
 
 void Window::destroy() noexcept {
     if (window_) {
+        if (SDL_GetRelativeMouseMode() == SDL_TRUE) {
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+        }
         SDL_DestroyWindow(window_);
         window_ = nullptr;
     }
@@ -126,6 +123,18 @@ bool Window::should_close() const noexcept {
 
 void Window::request_close() noexcept {
     should_close_ = true;
+}
+
+std::expected<void, Error> Window::set_relative_mouse_mode(bool enabled) noexcept {
+    if (SDL_SetRelativeMouseMode(enabled ? SDL_TRUE : SDL_FALSE) != 0) {
+        return std::unexpected(
+            Error(sdl_startup_error_message("Failed to change SDL relative mouse mode")));
+    }
+    return {};
+}
+
+bool Window::relative_mouse_mode() const noexcept {
+    return SDL_GetRelativeMouseMode() == SDL_TRUE;
 }
 
 SDL_Window* Window::native_handle() const noexcept {

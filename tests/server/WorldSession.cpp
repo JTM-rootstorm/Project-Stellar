@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <initializer_list>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -21,6 +22,13 @@ bool nearly_equal(float a, float b, float tolerance = kTolerance) {
 bool nearly_equal(Vec3 a, Vec3 b, float tolerance = kTolerance) {
     return nearly_equal(a[0], b[0], tolerance) && nearly_equal(a[1], b[1], tolerance) &&
            nearly_equal(a[2], b[2], tolerance);
+}
+
+bool nearly_equal_quat(std::array<float, 4> a,
+                       std::array<float, 4> b,
+                       float tolerance = kTolerance) {
+    return nearly_equal(a[0], b[0], tolerance) && nearly_equal(a[1], b[1], tolerance) &&
+           nearly_equal(a[2], b[2], tolerance) && nearly_equal(a[3], b[3], tolerance);
 }
 
 stellar::assets::CollisionTriangle triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 normal) {
@@ -202,7 +210,11 @@ void tick_with_unknown_player_command_is_ignored() {
     stellar::server::WorldSession unknown_session(world, test_session_config(1));
     stellar::server::WorldSession empty_session(world, test_session_config(1));
     const std::vector<stellar::server::PlayerCommand> commands{
-        {.player_id = 99, .movement = {.wish_direction = {1.0F, 0.0F, 0.0F}}}};
+        {.player_id = 99,
+         .movement = {.wish_direction = {1.0F, 0.0F, 0.0F},
+                      .view_yaw_degrees = 90.0F,
+                      .view_pitch_degrees = 45.0F,
+                      .has_view_angles = true}}};
 
     const auto unknown = unknown_session.tick(commands);
     const auto empty = empty_session.tick({});
@@ -222,6 +234,47 @@ void tick_with_local_player_command_updates_player_snapshot() {
     assert(snapshot.tick == 1);
     assert(only_player(snapshot).position[0] > 0.9F);
     assert(only_player(snapshot).velocity[0] > 9.9F);
+}
+
+void tick_with_local_player_command_updates_authoritative_view_rotation() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config(5));
+    const std::vector<stellar::server::PlayerCommand> commands{
+        {.player_id = 5,
+         .movement = {.view_yaw_degrees = 90.0F,
+                      .view_pitch_degrees = 0.0F,
+                      .has_view_angles = true}}};
+
+    const auto snapshot = session.tick(commands);
+    const auto preserved = session.tick({});
+
+    constexpr float kSinCosHalfTurn = 0.70710678118654752440F;
+    const std::array<float, 4> expected{0.0F, 0.0F, kSinCosHalfTurn, kSinCosHalfTurn};
+    assert(nearly_equal_quat(only_player(snapshot).rotation, expected));
+    assert(nearly_equal_quat(only_player(preserved).rotation, expected));
+}
+
+void non_finite_view_angles_preserve_previous_authoritative_view() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config(5));
+    const std::vector<stellar::server::PlayerCommand> finite{
+        {.player_id = 5,
+         .movement = {.view_yaw_degrees = 90.0F,
+                      .view_pitch_degrees = 0.0F,
+                      .has_view_angles = true}}};
+    const auto first = session.tick(finite);
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const std::vector<stellar::server::PlayerCommand> invalid{
+        {.player_id = 5,
+         .movement = {.view_yaw_degrees = nan,
+                      .view_pitch_degrees = std::numeric_limits<float>::infinity(),
+                      .has_view_angles = true}}};
+    const auto second = session.tick(invalid);
+
+    assert(nearly_equal_quat(only_player(second).rotation, only_player(first).rotation));
 }
 
 void wall_collision_is_authoritative_in_snapshot() {
@@ -536,6 +589,8 @@ int main() {
     tick_without_command_advances_deterministically();
     tick_with_unknown_player_command_is_ignored();
     tick_with_local_player_command_updates_player_snapshot();
+    tick_with_local_player_command_updates_authoritative_view_rotation();
+    non_finite_view_angles_preserve_previous_authoritative_view();
     wall_collision_is_authoritative_in_snapshot();
     trigger_enter_stay_exit_events_are_reported_once_per_tick();
     snapshot_does_not_replay_previous_trigger_events();

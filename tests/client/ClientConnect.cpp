@@ -153,6 +153,9 @@ void remote_runtime_sends_hello_and_gates_input_until_welcome() {
     assert(command->movement.wish_direction[0] == 0.0F);
     assert(command->movement.wish_direction[1] == 1.0F);
     assert(command->movement.wish_direction[2] == 0.0F);
+    assert(command->movement.has_view_angles);
+    assert(command->movement.view_yaw_degrees == 0.0F);
+    assert(command->movement.view_pitch_degrees == 0.0F);
 }
 
 void remote_runtime_exposes_snapshot_player_and_events() {
