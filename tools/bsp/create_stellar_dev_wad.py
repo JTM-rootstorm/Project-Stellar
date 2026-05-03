@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import binascii
 import os
 import struct
 import sys
+import zlib
 from pathlib import Path
 
 TEXTURES = (
@@ -48,6 +50,16 @@ def build_palette() -> bytes:
         (224, 192, 112),
         (128, 48, 48),
         (208, 80, 72),
+        (72, 84, 96),
+        (88, 102, 116),
+        (122, 148, 176),
+        (255, 176, 48),
+        (255, 224, 128),
+        (246, 214, 168),
+        (184, 116, 64),
+        (112, 64, 40),
+        (240, 64, 48),
+        (255, 248, 220),
     ]
     while len(colors) < PALETTE_SIZE:
         i = len(colors)
@@ -86,6 +98,16 @@ def grid_pattern(spacing: int) -> list[int]:
     major = max(spacing, 1) * 4
     for y in range(TEXTURE_SIZE):
         for x in range(TEXTURE_SIZE):
+            if spacing == 64:
+                if x % 64 <= 1 or y % 64 <= 1:
+                    pixels.append(19)
+                elif x % 16 == 0 or y % 16 == 0:
+                    pixels.append(18)
+                elif ((x // 16) + (y // 16)) & 1:
+                    pixels.append(17)
+                else:
+                    pixels.append(16)
+                continue
             if x % major == 0 or y % major == 0:
                 pixels.append(9)
             elif x % spacing == 0 or y % spacing == 0:
@@ -119,21 +141,32 @@ def player_pattern() -> list[int]:
 
 
 def wall_pattern() -> list[int]:
+    """Return the semantic 96-inch wall-height developer reference.
+
+    The WAD/PNG remains 128x128 for BSP30 compatibility. The top 96 pixels are
+    the authored-inch reference that a default 96-inch wall samples at 1:1 scale;
+    the remaining 32 pixels are a darker overflow band so accidental repeats are
+    obvious in runtime and editor previews.
+    """
     pixels: list[int] = []
-    brick_w = 32
-    brick_h = 16
     for y in range(TEXTURE_SIZE):
-        row = y // brick_h
-        offset = 16 if row & 1 else 0
         for x in range(TEXTURE_SIZE):
-            local_x = (x + offset) % brick_w
-            mortar = local_x == 0 or y % brick_h == 0
-            if mortar:
+            if y in (0, 95, 96):
+                pixels.append(24)
+            elif y < 96 and y % 12 == 0:
+                pixels.append(20)
+            elif y < 96 and x in (8, 9, 10, 64):
+                pixels.append(25)
+            elif y < 96 and (x % 32 == 0 or y % 32 == 0):
+                pixels.append(22)
+            elif y > 96 and (y % 8 == 0 or x % 16 == 0):
+                pixels.append(23)
+            elif y > 96:
                 pixels.append(10)
-            elif ((x // 8) + (y // 8)) & 1:
-                pixels.append(12)
+            elif ((x // 16) + (y // 16)) & 1:
+                pixels.append(21)
             else:
-                pixels.append(11)
+                pixels.append(22)
     return pixels
 
 
@@ -193,6 +226,59 @@ def build_wad() -> bytes:
     return bytes(data)
 
 
+def png_chunk(kind: bytes, payload: bytes) -> bytes:
+    crc = binascii.crc32(kind)
+    crc = binascii.crc32(payload, crc) & 0xFFFFFFFF
+    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", crc)
+
+
+def indexed_pixels_to_rgba_rows(pixels: list[int], palette: bytes) -> bytes:
+    rows = bytearray()
+    for y in range(TEXTURE_SIZE):
+        rows.append(0)  # PNG filter: none.
+        for x in range(TEXTURE_SIZE):
+            index = pixels[y * TEXTURE_SIZE + x]
+            offset = index * 3
+            rows += palette[offset : offset + 3]
+            rows.append(255)
+    return bytes(rows)
+
+
+def build_png(name: str) -> bytes:
+    palette = build_palette()
+    payload = indexed_pixels_to_rgba_rows(texture_pixels(name), palette)
+    data = bytearray(b"\x89PNG\r\n\x1a\n")
+    data += png_chunk(b"IHDR", struct.pack(">IIBBBBB", TEXTURE_SIZE, TEXTURE_SIZE, 8, 6, 0, 0, 0))
+    data += png_chunk(b"IDAT", zlib.compress(payload, level=9))
+    data += png_chunk(b"IEND", b"")
+    return bytes(data)
+
+
+def write_png_previews(root: Path) -> None:
+    for name in TEXTURES:
+        if name.startswith("dev/"):
+            path = root / f"{name}.png"
+            write_atomic(path, build_png(name))
+        elif name.startswith("dev_"):
+            canonical = canonical_source_name(name)
+            path = root / f"stellar_dev_{name.removeprefix('dev_')}.png"
+            write_atomic(path, build_png(canonical))
+
+
+def verify_png_previews(root: Path) -> None:
+    for name in TEXTURES:
+        if name.startswith("dev/"):
+            path = root / f"{name}.png"
+            expected = build_png(name)
+        elif name.startswith("dev_"):
+            path = root / f"stellar_dev_{name.removeprefix('dev_')}.png"
+            expected = build_png(canonical_source_name(name))
+        else:
+            continue
+        if path.read_bytes() != expected:
+            raise ValueError(f"PNG preview does not match deterministic generated output: {path}")
+
+
 def inspect_wad(data: bytes) -> list[tuple[str, int, int, int]]:
     if len(data) < 12:
         raise ValueError("WAD is too small")
@@ -230,6 +316,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--list", action="store_true", help="List deterministic developer texture names and dimensions.")
     parser.add_argument("--manifest", type=Path, help="Write a text manifest of generated WAD entries.")
     parser.add_argument("--png-source", type=Path, help="Accepted for workflow documentation; generation is procedural and deterministic.")
+    parser.add_argument("--png-out", type=Path, help="Write deterministic TrenchBroom PNG previews under this materials directory.")
+    parser.add_argument("--verify-png", type=Path, help="Verify deterministic TrenchBroom PNG previews under this materials directory.")
     return parser.parse_args(argv)
 
 
@@ -262,8 +350,20 @@ def main(argv: list[str]) -> int:
             print(f"Verified deterministic Stellar developer WAD: {args.verify}")
         if args.out is not None:
             write_atomic(args.out, generated)
-        if args.out is None and args.verify is None and not args.list and args.manifest is None:
-            raise ValueError("one of --out, --verify, --list, or --manifest is required")
+        if args.png_out is not None:
+            write_png_previews(args.png_out)
+        if args.verify_png is not None:
+            verify_png_previews(args.verify_png)
+            print(f"Verified deterministic Stellar developer PNG previews: {args.verify_png}")
+        if (
+            args.out is None
+            and args.verify is None
+            and not args.list
+            and args.manifest is None
+            and args.png_out is None
+            and args.verify_png is None
+        ):
+            raise ValueError("one of --out, --verify, --list, --manifest, --png-out, or --verify-png is required")
     except (OSError, ValueError, struct.error, UnicodeDecodeError) as exc:
         print(f"create_stellar_dev_wad.py: error: {exc}", file=sys.stderr)
         return 1

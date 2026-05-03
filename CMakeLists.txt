@@ -835,6 +835,11 @@ add_test(NAME trenchbroom_wad_tool_list
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/create_stellar_dev_wad.py --list
 )
 
+add_test(NAME trenchbroom_dev_png_tool_verify
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/create_stellar_dev_wad.py
+        --verify-png ${CMAKE_SOURCE_DIR}/tools/trenchbroom/Stellar/materials
+)
+
 add_test(NAME trenchbroom_vhlt_preserves_valve220_axes
     COMMAND bash ${CMAKE_SOURCE_DIR}/tools/bsp/test_compile_vhlt_texture_axes.sh
         ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}

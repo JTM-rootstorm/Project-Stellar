@@ -550,9 +550,10 @@ struct LightmapRgbStats {
   return "unknown";
 }
 
-void add_texture_diagnostics(const stellar::assets::LevelGeometryAsset &geometry,
-                             const std::string &source_uri,
-                             ImportReport *report) {
+void add_texture_diagnostics(
+    const stellar::assets::LevelGeometryAsset &geometry, const BspMap &map,
+    const std::vector<std::optional<std::size_t>> &face_to_surface,
+    const std::string &source_uri, ImportReport *report) {
   if (report == nullptr || !debug_textures_enabled()) {
     return;
   }
@@ -649,6 +650,27 @@ void add_texture_diagnostics(const stellar::assets::LevelGeometryAsset &geometry
     }
     message << " uv0_min=(" << uv_min[0] << ',' << uv_min[1] << ')'
             << " uv0_max=(" << uv_max[0] << ',' << uv_max[1] << ')';
+    auto face_for_surface = std::find(face_to_surface.begin(), face_to_surface.end(),
+                                      std::optional<std::size_t>{surface_index});
+    if (face_for_surface != face_to_surface.end()) {
+      const std::size_t face_index = static_cast<std::size_t>(
+          std::distance(face_to_surface.begin(), face_for_surface));
+      if (face_index < map.faces.size()) {
+        const Face &face = map.faces[face_index];
+        message << " face_index=" << face_index
+                << " texture_name=" << texture_name_for(map, face);
+        if (face.texinfo < map.texinfos.size()) {
+          const Texinfo &info = map.texinfos[face.texinfo];
+          message << " texinfo_index=" << face.texinfo << " s_vector=("
+                  << info.s[0] << ',' << info.s[1] << ',' << info.s[2] << ','
+                  << info.s[3] << ") t_vector=(" << info.t[0] << ','
+                  << info.t[1] << ',' << info.t[2] << ',' << info.t[3]
+                  << ')';
+        } else {
+          message << " texinfo_index=invalid s_vector=none t_vector=none";
+        }
+      }
+    }
     add_info(report, DiagnosticCode::kTextureStats, source_uri, message.str(),
              static_cast<std::size_t>(LumpIndex::kFaces), surface_index);
   }
@@ -1351,7 +1373,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         .source_uri = level.source_uri});
   }
 
-  add_texture_diagnostics(level.geometry, level.source_uri, report);
+  add_texture_diagnostics(level.geometry, map, face_to_surface, level.source_uri,
+                          report);
   add_lightmap_diagnostics(level.geometry, level.source_uri, report);
 
   return level;

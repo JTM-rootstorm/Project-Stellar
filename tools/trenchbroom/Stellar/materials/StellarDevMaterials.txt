@@ -19,9 +19,19 @@ The WAD3 format limits lump names to 15 bytes, so `materials/stellar_dev.wad` co
 `dev_*` names. The longer `stellar_dev_*` names are runtime fallback aliases and PNG/manual-reference
 names.
 
-The official generated WAD and deterministic runtime fallback are 128x128 pixels for every developer
-texture. Names such as `grid_32` and `wall_96` describe authored scale cues/grid spacing, not bitmap
-dimensions.
+The official generated WAD, TrenchBroom PNG previews, and deterministic runtime fallback are generated
+from the same procedural definitions and are 128x128 pixels for every developer texture to preserve
+BSP30/WAD compatibility. Names such as `grid_32` and `wall_96` describe authored scale cues/grid
+spacing, not bitmap dimensions.
+
+`dev/wall_96` is a semantic 96-inch wall-height ruler encoded inside the 128x128 texture: the first
+96 pixels are the intended authored wall-height reference, with 12-inch ticks, a vertical ruler, and a
+red 96-inch marker. The remaining 32 pixels are a darker overflow band so accidental repeats are
+obvious. Stable semantic sample points are `(24,24) = 12-inch tick`, `(8,49) = vertical ruler`,
+`(64,96) = 96-inch marker`, and `(49,113) = overflow band`.
+
+`dev/grid_64` is a readable 64-inch major grid over a medium slate floor palette. Major grid lines are
+two pixels wide at 64-inch boundaries, with 16-inch minor lines for alignment checks.
 
 ## Tooling
 
@@ -29,6 +39,7 @@ Generate or verify the official deterministic WAD from the repository root:
 
 ```bash
 python3 tools/bsp/create_stellar_dev_wad.py --out /tmp/stellar_dev.wad
+python3 tools/bsp/create_stellar_dev_wad.py --png-out tools/trenchbroom/Stellar/materials
 python3 tools/bsp/create_stellar_dev_wad.py --list
 python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
 ```

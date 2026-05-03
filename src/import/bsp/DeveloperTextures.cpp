@@ -104,13 +104,16 @@ void append_pixel(stellar::assets::ImageAsset &image,
 
 [[nodiscard]] std::array<std::uint8_t, 4> palette_color(
     std::uint8_t index) noexcept {
-  constexpr std::array<std::array<std::uint8_t, 3>, 16> kPalette{{
+  constexpr std::array<std::array<std::uint8_t, 3>, 26> kPalette{{
       {0U, 0U, 0U},       {32U, 32U, 36U},    {72U, 72U, 80U},
       {112U, 112U, 124U}, {176U, 176U, 188U}, {224U, 224U, 232U},
       {32U, 64U, 128U},   {48U, 96U, 192U},   {96U, 144U, 224U},
       {160U, 192U, 240U}, {96U, 64U, 32U},    {144U, 96U, 48U},
       {192U, 144U, 72U},  {224U, 192U, 112U}, {128U, 48U, 48U},
-      {208U, 80U, 72U},
+      {208U, 80U, 72U},   {72U, 84U, 96U},    {88U, 102U, 116U},
+      {122U, 148U, 176U}, {255U, 176U, 48U},  {255U, 224U, 128U},
+      {246U, 214U, 168U}, {184U, 116U, 64U},  {112U, 64U, 40U},
+      {240U, 64U, 48U},   {255U, 248U, 220U},
   }};
   if (index < kPalette.size()) {
     const auto rgb = kPalette[index];
@@ -125,6 +128,15 @@ void append_pixel(stellar::assets::ImageAsset &image,
                                       std::uint32_t spacing) noexcept {
   const std::uint32_t safe_spacing = std::max(spacing, 1U);
   const std::uint32_t major = safe_spacing * 4U;
+  if (spacing == 64U) {
+    if (x % 64U <= 1U || y % 64U <= 1U) {
+      return 19U;
+    }
+    if (x % 16U == 0U || y % 16U == 0U) {
+      return 18U;
+    }
+    return (((x / 16U) + (y / 16U)) & 1U) != 0U ? 17U : 16U;
+  }
   if (x % major == 0U || y % major == 0U) {
     return 9U;
   }
@@ -155,15 +167,29 @@ void append_pixel(stellar::assets::ImageAsset &image,
 
 [[nodiscard]] std::uint8_t wall_index(std::uint32_t x,
                                       std::uint32_t y) noexcept {
-  constexpr std::uint32_t kBrickWidth = 32U;
-  constexpr std::uint32_t kBrickHeight = 16U;
-  const std::uint32_t row = y / kBrickHeight;
-  const std::uint32_t offset = (row & 1U) != 0U ? 16U : 0U;
-  const std::uint32_t local_x = (x + offset) % kBrickWidth;
-  if (local_x == 0U || y % kBrickHeight == 0U) {
+  // dev/wall_96 is a 128x128 BSP30-compatible texture whose first 96 pixels
+  // are an authored-inch ruler. A 96-inch wall using default 1:1 texture axes
+  // samples y=0..96, showing one full semantic wall-height reference instead
+  // of a repeated small brick/checker pattern.
+  if (y == 0U || y == 95U || y == 96U) {
+    return 24U;
+  }
+  if (y < 96U && y % 12U == 0U) {
+    return 20U;
+  }
+  if (y < 96U && (x == 8U || x == 9U || x == 10U || x == 64U)) {
+    return 25U;
+  }
+  if (y < 96U && (x % 32U == 0U || y % 32U == 0U)) {
+    return 22U;
+  }
+  if (y > 96U && (y % 8U == 0U || x % 16U == 0U)) {
+    return 23U;
+  }
+  if (y > 96U) {
     return 10U;
   }
-  return (((x / 8U) + (y / 8U)) & 1U) != 0U ? 12U : 11U;
+  return (((x / 16U) + (y / 16U)) & 1U) != 0U ? 21U : 22U;
 }
 
 [[nodiscard]] std::array<std::uint8_t, 4> texture_color(

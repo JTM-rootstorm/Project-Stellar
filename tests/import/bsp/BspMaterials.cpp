@@ -5,12 +5,24 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 namespace {
+
+void assert_pixel(const stellar::assets::ImageAsset &image, std::uint32_t x,
+                  std::uint32_t y, std::uint8_t r, std::uint8_t g,
+                  std::uint8_t b) {
+    const std::size_t offset = (static_cast<std::size_t>(y) * image.width + x) * 4U;
+    assert(offset + 3U < image.pixels.size());
+    assert(image.pixels[offset] == r);
+    assert(image.pixels[offset + 1U] == g);
+    assert(image.pixels[offset + 2U] == b);
+    assert(image.pixels[offset + 3U] == 255U);
+}
 
 void set_entities(std::vector<std::byte> &bytes, const std::string &entities) {
     const std::size_t entity_offset = bytes.size();
@@ -199,6 +211,28 @@ void developer_wad_and_fallback_pixels_match() {
     }
 }
 
+void semantic_developer_texture_sample_pixels_are_stable() {
+    const auto wall = stellar::import::bsp::detail::make_developer_texture(
+        "dev/wall_96", "semantic_samples.bsp");
+    assert(wall.has_value());
+    assert(wall->image.width == 128);
+    assert(wall->image.height == 128);
+    assert_pixel(wall->image, 24, 24, 255, 224, 128);
+    assert_pixel(wall->image, 8, 49, 255, 248, 220);
+    assert_pixel(wall->image, 64, 96, 240, 64, 48);
+    assert_pixel(wall->image, 49, 113, 96, 64, 32);
+
+    const auto grid = stellar::import::bsp::detail::make_developer_texture(
+        "dev/grid_64", "semantic_samples.bsp");
+    assert(grid.has_value());
+    assert(grid->image.width == 128);
+    assert(grid->image.height == 128);
+    assert_pixel(grid->image, 1, 48, 255, 176, 48);
+    assert_pixel(grid->image, 16, 24, 122, 148, 176);
+    assert_pixel(grid->image, 24, 24, 72, 84, 96);
+    assert_pixel(grid->image, 88, 88, 72, 84, 96);
+}
+
 void shifted_scaled_texinfo_produces_expected_uv0() {
     auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, -1, 0,
                                                              "dev/grid_32");
@@ -264,6 +298,7 @@ int main() {
     external_developer_texture_alias_creates_material_binding();
     external_wad_texture_resolves_from_safe_search_path();
     developer_wad_and_fallback_pixels_match();
+    semantic_developer_texture_sample_pixels_are_stable();
     shifted_scaled_texinfo_produces_expected_uv0();
     missing_and_unsafe_wad_paths_are_diagnosed();
     return 0;

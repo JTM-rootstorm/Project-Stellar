@@ -83,6 +83,35 @@ PY
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
+
+bad_profiles="$work_dir/BadCompilationProfiles.cfg"
+cat > "$bad_profiles" <<'JSON'
+{
+    "version": 1,
+    "profiles": [
+        {
+            "name": "Old Display Name Tool Reference",
+            "workdir": "${WORK_DIR_PATH}",
+            "tasks": [
+                {
+                    "type": "tool",
+                    "tool": "Stellar BSP30 compile wrapper",
+                    "parameters": "--map \"${MAP_FULL_PATH}\""
+                }
+            ]
+        }
+    ]
+}
+JSON
+if python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
+    --game-config "$package/GameConfig.cfg" \
+    --profiles "$bad_profiles" >"$work_dir/bad_profiles.out" 2>&1; then
+    fail "profile linter accepted old display-name tool reference"
+fi
+if ! grep -q 'tool reference contains spaces' "$work_dir/bad_profiles.out"; then
+    fail "profile linter did not explain old display-name tool reference"
+fi
+
 copy_dest="$work_dir/Games With Spaces"
 mkdir -p "$copy_dest"
 "$install_helper" --repo-root "$repo_root" --dest "$copy_dest" --copy >/dev/null
