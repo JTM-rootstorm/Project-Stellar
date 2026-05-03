@@ -311,10 +311,16 @@ Launch commands remain outside this package's compile wrapper. Use the normal cl
 for the current branch after display-free validation passes:
 
 ```bash
+build/stellar-client --validate-display
 build/stellar-client --map maps/compiled/test_room.bsp
 build/stellar-server --map maps/compiled/test_room.bsp --listen 127.0.0.1:7777
 build/stellar-client --connect 127.0.0.1:7777
 ```
+
+`--validate-map` and `stellar-server --validate-config --map` are display-free. `--validate-display`
+is intentionally GUI/display-backed: it creates a small SDL window, initializes the selected graphics
+backend, and exits. Use it to separate map/import validity from Linux display-server authorization or
+OpenGL/Vulkan context startup issues.
 
 ## End-to-end fixtures
 
@@ -385,6 +391,29 @@ Use CTest group names such as `trenchbroom_package_*`, `trenchbroom_fgd_*`,
   values before launching the map.
 - Runtime script missing: place referenced Lua scripts next to the map or configure the runtime script
   root explicitly.
+- Client launch fails with `Authorization required` or an SDL display/startup error: this is a display
+  server authorization issue, not a BSP compile issue, when display-free validation already passes. First
+  confirm the map without opening a window:
+
+  ```bash
+  build/stellar-client --validate-map maps/compiled/test_room.bsp
+  build/stellar-server --validate-config --map maps/compiled/test_room.bsp
+  ```
+
+  Then launch from a desktop terminal as the same user that owns the GUI session; avoid `sudo` for the
+  game client. Capture the display environment and, when diagnosing Wayland/Xwayland selection, try an
+  explicit SDL video driver:
+
+  ```bash
+  whoami
+  echo "$DISPLAY"
+  echo "$WAYLAND_DISPLAY"
+  echo "$XAUTHORITY"
+  echo "$SDL_VIDEODRIVER"
+  build/stellar-client --validate-display
+  SDL_VIDEODRIVER=x11 build/stellar-client --validate-display
+  SDL_VIDEODRIVER=wayland build/stellar-client --validate-display
+  ```
 
 ## Non-Goals Outside The Stellar BSP30 Profile
 

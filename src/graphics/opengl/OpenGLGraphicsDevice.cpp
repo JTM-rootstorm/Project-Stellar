@@ -8,6 +8,7 @@
 #include <string>
 
 #include <GL/glew.h>
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 
 namespace stellar::graphics::opengl {
@@ -194,6 +195,32 @@ std::string program_info_log(GLuint program) {
   glGetProgramInfoLog(program, log_length, &written, log.data());
   log.resize(static_cast<std::size_t>(written));
   return log;
+}
+
+std::string stable_sdl_error_text() {
+  const char *error = SDL_GetError();
+  if (error == nullptr || error[0] == '\0') {
+    return "SDL did not provide an error message";
+  }
+  return error;
+}
+
+std::string current_sdl_video_driver_text() {
+  const char *driver = SDL_GetCurrentVideoDriver();
+  if (driver == nullptr || driver[0] == '\0') {
+    return "uninitialized";
+  }
+  return driver;
+}
+
+std::string opengl_context_failure_message() {
+  std::string message = "Failed to create OpenGL context";
+  message += " (backend=OpenGL, requested_context=4.5 core, depth_bits=24";
+  message += ", sdl_video_driver=";
+  message += current_sdl_video_driver_text();
+  message += "): ";
+  message += stable_sdl_error_text();
+  return message;
 }
 
 std::expected<GLuint, stellar::platform::Error>
@@ -404,7 +431,7 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   context_ = SDL_GL_CreateContext(window_);
   if (!context_) {
     return std::unexpected(
-        stellar::platform::Error("Failed to create OpenGL context"));
+        stellar::platform::Error(opengl_context_failure_message()));
   }
 
   glewExperimental = GL_TRUE;

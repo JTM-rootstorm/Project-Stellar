@@ -19,6 +19,8 @@ option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
        "Build optional OpenGL context/readback smoke tests" OFF)
 option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS
        "Build optional Vulkan context/init smoke tests" OFF)
+option(STELLAR_ENABLE_DISPLAY_STARTUP_TESTS
+       "Run SDL display startup smoke tests" OFF)
 
 function(stellar_add_test_executable target_name test_name)
     add_executable(${target_name} ${ARGN})
@@ -201,6 +203,7 @@ target_link_libraries(stellar_import_bsp PUBLIC
 )
 
 add_library(stellar_platform
+    src/platform/DisplayDiagnostics.cpp
     src/platform/Window.cpp
     src/platform/Input.cpp
 )
@@ -575,6 +578,19 @@ target_link_libraries(stellar-client PRIVATE
     stellar_assets
     miniaudio
 )
+
+if(STELLAR_ENABLE_DISPLAY_STARTUP_TESTS)
+    add_test(NAME client_display_startup_smoke
+        COMMAND bash -c [=[
+if [[ -z "$DISPLAY" && -z "$WAYLAND_DISPLAY" ]]; then
+    printf 'Skipping display startup smoke: DISPLAY and WAYLAND_DISPLAY are unset.\n'
+    exit 77
+fi
+"$1" --validate-display
+]=] bash "$<TARGET_FILE:stellar-client>"
+    )
+    set_tests_properties(client_display_startup_smoke PROPERTIES SKIP_RETURN_CODE 77)
+endif()
 
 add_executable(stellar-server
     src/server/main.cpp

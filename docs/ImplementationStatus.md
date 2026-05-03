@@ -74,6 +74,7 @@ tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profil
 Optional display/GPU smoke commands:
 
 ```bash
+build/stellar-client --validate-display
 build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp
 build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/moving_door_button_zup.bsp
 ```

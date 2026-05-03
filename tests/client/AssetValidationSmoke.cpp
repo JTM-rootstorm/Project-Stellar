@@ -120,6 +120,22 @@ int main() {
   assert(unsupported.error().message.find("Unsupported map extension") !=
          std::string::npos);
 
+  const char *validate_display_args[] = {"stellar-client", "--validate-display"};
+  const auto validate_display_config = stellar::client::parse_application_config(
+      2, validate_display_args);
+  assert(validate_display_config.has_value());
+  assert(validate_display_config->validate_display);
+  assert(!validate_display_config->validate_only);
+  assert(!validate_display_config->map_path.has_value());
+
+  const char *invalid_validate_display_args[] = {
+      "stellar-client", "--validate-display", "--map", "room.bsp"};
+  const auto invalid_validate_display_config =
+      stellar::client::parse_application_config(4, invalid_validate_display_args);
+  assert(!invalid_validate_display_config.has_value());
+  assert(invalid_validate_display_config.error().message.find("--validate-display") !=
+         std::string::npos);
+
   const auto bad_script_path = root / "bad_script.bsp";
   const auto bad_script =
       stellar::tests::fixtures::build_bsp_trenchbroom_invalid_script_escape_fixture();

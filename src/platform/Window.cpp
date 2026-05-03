@@ -1,7 +1,11 @@
 #include "stellar/platform/Window.hpp"
+#include "stellar/platform/DisplayDiagnostics.hpp"
 #include "stellar/platform/Input.hpp"
 
 #include <SDL2/SDL.h>
+
+#include <string>
+#include <utility>
 
 namespace stellar::platform {
 
@@ -23,6 +27,18 @@ void handle_event(const SDL_Event& event, Input* input, bool& should_close) {
             }
             break;
     }
+}
+
+std::string sdl_startup_error_message(const char* fallback) {
+    std::string message(fallback);
+    const char* sdl_error = SDL_GetError();
+    if (sdl_error != nullptr && sdl_error[0] != '\0') {
+        message += ": ";
+        message += sdl_error;
+    } else {
+        message += ": no SDL error detail available";
+    }
+    return append_display_environment_diagnostics(std::move(message));
 }
 
 }  // namespace
@@ -57,7 +73,8 @@ Window::create(int width, int height, std::string_view title, Uint32 flags) {
 
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        return std::unexpected(Error("SDL initialization failed"));
+        return std::unexpected(
+            Error(sdl_startup_error_message("SDL video initialization failed")));
     }
 
     // Create window
@@ -71,7 +88,9 @@ Window::create(int width, int height, std::string_view title, Uint32 flags) {
     );
 
     if (!window_) {
-        return std::unexpected(Error("Failed to create SDL window"));
+        auto message = sdl_startup_error_message("Failed to create SDL window");
+        SDL_Quit();
+        return std::unexpected(Error(std::move(message)));
     }
 
     return {};

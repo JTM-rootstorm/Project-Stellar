@@ -33,6 +33,8 @@ Notes/screenshots:
 - Package mode: repo-local / copied package
 - Compiler/toolchain: generic BSP30 / VHLT fast / VHLT full
 - Graphics backend checked: OpenGL / Vulkan / not launched
+- Display validation result: `build/stellar-client --validate-display` pass / fail / skipped
+- Display env: DISPLAY=, WAYLAND_DISPLAY=, XAUTHORITY=, SDL_VIDEODRIVER=
 - Notes:
 
 ## Checklist
@@ -51,8 +53,9 @@ Notes/screenshots:
 12. Place `func_wall`, `func_illusionary`, `func_door`, and `func_button`; wire the button `target` to the door `targetname`.
 13. Compile through Fast and Full profiles from TrenchBroom.
 14. Validate through the Stellar wrapper: `tools/bsp/validate_trenchbroom_bsp30.sh --map <compiled.bsp>`.
-15. Launch local client with `build/stellar-client --map <compiled.bsp>` and verify materials, lightmaps, collision, trigger activation, pickup collection, door/button movement, and sprite presentation.
-16. Optionally launch local socket mode with `build/stellar-server --map <compiled.bsp> --listen 127.0.0.1:7777` and `build/stellar-client --connect 127.0.0.1:7777`.
+15. Run display startup smoke from a desktop terminal: `build/stellar-client --validate-display`.
+16. Launch local client with `build/stellar-client --map <compiled.bsp>` and verify materials, lightmaps, collision, trigger activation, pickup collection, door/button movement, and sprite presentation.
+17. Optionally launch local socket mode with `build/stellar-server --map <compiled.bsp> --listen 127.0.0.1:7777` and `build/stellar-client --connect 127.0.0.1:7777`.
 
 ## Fixture mapping
 
