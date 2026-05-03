@@ -232,7 +232,8 @@ The Stellar package defines:
 - `func_door`
 - `func_button`
 
-Script bindings are authoritative-runtime metadata only. Import records them but never executes Lua.
+Script bindings are import-time metadata for the authoritative runtime. Import records them but never
+executes Lua.
 Object-collider sensors do not block movement. `func_door` and `func_button` are server-authoritative
 runtime brush movers; clients receive only replicated presentation transforms.
 
@@ -385,9 +386,9 @@ Use CTest group names such as `trenchbroom_package_*`, `trenchbroom_fgd_*`,
 - Runtime script missing: place referenced Lua scripts next to the map or configure the runtime script
   root explicitly.
 
-## Unsupported or deferred
+## Non-Goals Outside The Stellar BSP30 Profile
 
-- Moving brush simulation for plats, trains, or rotating entities beyond the implemented door/button path.
+- Moving brush classes for plats, trains, or rotating entities beyond the implemented door/button path.
 - Client-side gameplay scripting or renderer/audio script authority.
 - Arbitrary unsafe WAD paths. Keep WAD keys relative to the map or configured search roots.
 - Source/VBSP formats and Source-specific entities.

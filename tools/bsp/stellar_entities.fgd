@@ -238,7 +238,7 @@
     ]
 ]
 
-@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 160 255) = func_door : "Advertised door metadata for later runtime brush phase"
+@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 160 255) = func_door : "Server-authoritative sliding brush door; targetname receives trigger/button fires"
 [
     archetype(string) : "Optional gameplay/presentation archetype metadata"
     speed(string) : "Move speed, inches per second" : "100"
@@ -253,7 +253,7 @@
     ]
 ]
 
-@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 224 255) = func_button : "Advertised button metadata for later runtime brush phase"
+@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 224 255) = func_button : "Server-authoritative pressable brush button; fires target after press"
 [
     archetype(string) : "Optional gameplay/presentation archetype metadata"
     speed(string) : "Move speed, inches per second" : "40"

@@ -103,7 +103,7 @@ snapshots only; client rendering remains presentation-only with no prediction or
 | Deathmatch/player spawn | `info_player_deathmatch` | `origin` | `targetname`, `angle`, `angles` | Creates the same player-spawn marker type as `info_player_start`; use for multiplayer/deathmatch spawn pads or maps that only provide DM starts. |
 | Generic spawn | `info_stellar_spawn` | `targetname`, `archetype`, `origin` | `stellar.script`, `stellar.table` | Creates metadata for server-side spawn logic; no entity is spawned during import. |
 | Compile-time lights | `light`, `light_spot`, `light_environment` | `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2` as applicable | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
-| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are metadata only until authoritative runtime invokes them. |
+| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are import-time metadata until authoritative runtime invokes them. |
 | Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
 | Sprite billboard | `stellar_sprite`, `env_sprite`, or any entity with `stellar.sprite` | `targetname`, `origin`, `stellar.sprite` | `stellar.texture`, `stellar.size`, `stellar.alpha` | Creates a sprite marker for presentation. `stellar.script` is unsupported and ignored with a diagnostic. |
 | Brush object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker from brush model bounds. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
@@ -328,9 +328,9 @@ stellar.table = "MainDoor"
 path. Buttons fire their `target`, doors move according to angle/speed/wait/lip metadata, collision is
 updated on the server, and clients observe only snapshot-owned presentation transforms.
 
-## Unsupported or deferred
+## Non-Goals Outside The Stellar BSP30 Profile
 
-- Moving brush simulation for plats, trains, or rotating entities beyond the implemented `func_door` /
+- Moving brush classes for plats, trains, or rotating entities beyond the implemented `func_door` /
   `func_button` path.
 - Client-side gameplay scripting or presentation script execution.
 - Sprite script callbacks.

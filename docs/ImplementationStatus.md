@@ -2,9 +2,113 @@
 
 Branch target: `trenchbroom-compat`
 
-## In-progress Scope — TB-FULL-06 Fixtures, CI Gates, and Manual QA
+## Completed Scope — Full Stellar TrenchBroom BSP30 Compatibility
 
-Status: implemented in the working tree for validation.
+Status: complete as of 2026-05-02.
+
+Final supported Stellar TrenchBroom compatibility scope:
+
+- The project-owned `tools/trenchbroom/Stellar/` game package is the supported editor package for
+  repo-local use and copied-package installs that point back to the checkout with `STELLAR_REPO_ROOT`
+  or package-local `.stellar_repo_root`.
+- The supported editor compile target is classic BSP30 through the Stellar compile/validate shims,
+  generic BSP30 compilers, or the optional VHLT Linux toolchain. Source/VBSP and arbitrary third-party
+  game profiles are outside this Stellar BSP30 profile.
+- Authoring uses Z-up coordinates and 1 editor unit = 1 Stellar gameplay inch. BSP30 coordinates are
+  imported 1:1; the default 72 inch player capsule spawn center is authored at `z = 36` above a floor
+  at `z = 0`.
+- Materials use packaged developer PNGs plus `materials/stellar_dev.wad`, safe WAD3 lookup, and
+  deterministic developer fallback aliases across `stellar_dev_*`, `dev/...`, and `dev_*` names.
+- Compile-time `light`, `light_spot`, and `light_environment` entities are supported for BSP lightmap
+  generation. Imported BSP lightmaps are uploaded and sampled by the renderer, multiplying static
+  surface base material color/texture by baked lighting where valid.
+- Runtime-supported FGD classes are `worldspawn`, `info_player_start`, `info_stellar_spawn`,
+  `trigger_stellar`, `trigger_multiple`, `trigger_once`, point trigger variants, `stellar_sprite`,
+  `env_sprite`, `stellar_object_collider`, `stellar_object_collider_point`, `light`, `light_spot`,
+  `light_environment`, `func_wall`, `func_illusionary`, `func_detail`, `func_door`, and
+  `func_button`.
+- `func_door` and `func_button` are implemented server-authoritative brush movers with target routing,
+  query-time collision overlay transforms, and replicated presentation transforms. Plats, trains,
+  rotators, arbitrary Quake/Half-Life entity parity, and third-party physics are not part of this
+  Stellar profile.
+- Lua gameplay scripting remains mandatory, sandboxed, and server-authoritative. Import records script
+  metadata but never executes scripts; runtime loads only asset-relative scripts.
+- Default validation remains display-free and compiler-independent. External VHLT/display/GPU checks
+  are optional manual or locally run validation, not CI requirements.
+- Manual TrenchBroom GUI QA is user-performed and recorded with `docs/TrenchBroomManualQA.md`; GUI
+  automation is intentionally not required in CI.
+
+Final TB-FULL-07 validation runbook:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R 'trenchbroom|bsp_|client_map_validation|client_cli|server_cli|render_level|brush_mover|world_axes|collision_world|runtime_world|server_world_session|scripted_world_session|networked_client_runtime|dedicated_server' --output-on-failure
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_compile.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_validate.sh
+python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
+for map in \
+  tests/fixtures/trenchbroom/src/minimal_zup_room.map \
+  tests/fixtures/trenchbroom/src/entity_matrix_zup.map \
+  tests/fixtures/trenchbroom/src/scripted_interaction_zup.map \
+  tests/fixtures/trenchbroom/src/lit_zup_room.map \
+  tests/fixtures/trenchbroom/src/material_wad_zup.map \
+  tests/fixtures/trenchbroom/src/moving_door_button_zup.map \
+  tests/fixtures/trenchbroom/src/point_volume_zup.map \
+  tests/fixtures/trenchbroom/src/illusionary_static_zup.map; do
+  python3 tools/bsp/validate_trenchbroom_map_source.py "$map"
+done
+```
+
+Optional VHLT validation when tools are installed:
+
+```bash
+tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full --keep-going
+```
+
+Optional display/GPU smoke commands:
+
+```bash
+build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp
+build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/moving_door_button_zup.bsp
+```
+
+Final TB-FULL-07 audit commands:
+
+```bash
+git grep -n -i 'deferred\|metadata only\|unsupported' -- docs tools/trenchbroom tests/fixtures Plans/NEXT.md ':!Plans/Archived/**'
+git grep -n 'Icon.png' -- tools/trenchbroom/Stellar
+git ls-files 'tools/trenchbroom/Stellar/**'
+git grep -n '_stellar_script\|stellar_script' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'func_door\|func_button\|light_spot\|light_environment' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'dev_grid_\|dev/grid_\|stellar_dev_' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'lightmap' -- include src tests docs ':!Plans/Archived/**'
+```
+
+Audit interpretation recorded for TB-FULL-07:
+
+- Stale active wording for WAD generation, copied-package installs, metadata-only door/button support,
+  and imported-but-unrendered lightmaps has been removed or narrowed to historical phase context.
+- Remaining `unsupported` hits describe diagnostics or true non-goals such as Source/VBSP, unsafe paths,
+  sprite script callbacks, and arbitrary non-Stellar entity parity.
+- Remaining `metadata only` hits describe import-time script metadata before server-authoritative runtime
+  loading, not missing runtime support for advertised FGD gameplay classes.
+- Remaining `deferred` hits are scoped post-branch networking/presentation/audio/history notes or true
+  non-goals outside the Stellar BSP30 profile.
+- `Icon.png`, package shims, templates, FGD, materials, and WAD are expected package files.
+- `_stellar_script` aliases are importer-supported FGD aliases; plain `stellar_script` appears only as a
+  documented negative example.
+- Door/button, light entity, developer material, and lightmap hits are expected implementation, fixture,
+  documentation, and test coverage references.
+
+## Completed Scope — TB-FULL-06 Fixtures, CI Gates, and Manual QA
+
+Status: complete as of 2026-05-02.
 
 - Completed positive TrenchBroom source fixture matrix for minimal, entity matrix, scripted
   interaction, lit, material/WAD, moving door/button, point volume, and illusionary/static behavior.
@@ -21,7 +125,7 @@ Status: implemented in the working tree for validation.
 
 ## Completed Scope — TB-FULL-05 Runtime Brush Entities and Targets
 
-Status: implemented in the working tree for validation.
+Status: complete as of 2026-05-02.
 
 - Preserved imported brush model ownership in source-neutral level geometry metadata.
 - Added query-time server-owned collision mesh translations without mutating immutable level assets.
@@ -31,7 +135,7 @@ Status: implemented in the working tree for validation.
 
 ## Completed Scope — TB-FULL-04 Lighting and Renderer Lightmaps
 
-Status: implemented in the working tree for validation.
+Status: complete as of 2026-05-02.
 
 - Added a TrenchBroom lit room source fixture with `light` and `light_spot` entities.
 - Expanded BSP lightmap/import and display-free RenderLevel material upload coverage.
@@ -39,7 +143,8 @@ Status: implemented in the working tree for validation.
   stable lightstyle multiplier baseline of `1.0`.
 - Updated OpenGL material sampling to multiply static surface base color/texture by imported lightmaps;
   Vulkan material descriptors preserve the same lightmap contract through the shared abstraction.
-- Moving brush runtime behavior remains deferred to TB-FULL-05 and was not introduced here.
+- Moving brush runtime behavior was intentionally not introduced in TB-FULL-04; it was completed later
+  by TB-FULL-05 for the supported `func_door`/`func_button` path.
 
 ## Completed Scope — TrenchBroom BSP30 Compatibility and Z-up Migration
 
@@ -62,8 +167,9 @@ Completed branch outcomes:
 - Server authority, sandboxed Lua, BSP canonical runtime, import-never-executes-scripts behavior,
   and display-free validation remain mandatory.
 - No-map and remote-without-presentation-map paths use a blank/static-less presentation fallback.
-- Source/VBSP, moving brush simulation, dynamic rigid bodies, full PBR, client-side gameplay scripting,
-  map transfer/caching, prediction, and reconciliation remain deferred until explicitly selected.
+- Source/VBSP, moving brush classes beyond the implemented door/button path, dynamic rigid bodies,
+  full PBR, client-side gameplay scripting, map transfer/caching, prediction, and reconciliation remain
+  outside the completed Stellar BSP30 profile unless explicitly selected later.
 
 Phase order:
 
@@ -210,7 +316,7 @@ Final audit interpretation:
 - Active TrenchBroom workflow uses dotted runtime keys or underscore aliases; plain placeholder field
   names are mentioned only as unsupported negative examples.
 - BSP30 is the TrenchBroom target; legacy BSP support remains importer compatibility only, and
-  Source/VBSP remains unsupported/deferred.
+  Source/VBSP remains outside the Stellar BSP30 profile.
 - Prototype cube renderer/debug cube fallback symbols are absent from active source/docs/tests/plans
   outside archived historical plans.
 
@@ -1073,8 +1179,9 @@ Phase 3 completion notes:
   binds lightmaps as backend-neutral material texture bindings on texcoord set 1, and preserves
   deterministic fallback behavior for missing resources.
 - External WAD decoding, palette-accurate miptex color, lightmap atlasing, and shader-side visible
-  lightmap modulation remain deferred; current support records/uploads stable source-neutral data
-  without full PBR or backend-specific APIs.
+  lightmap modulation were not completed in this historical hardening phase. Later TB-FULL work added
+  safe WAD3 lookup and renderer lightmap sampling for the Stellar BSP30 profile without full PBR or
+  backend-specific BSP APIs.
 
 Validation run:
 

@@ -13,19 +13,95 @@ archived under:
 
 ## Completed trenchbroom-compat scope
 
-The branch now uses Z-up runtime and authoring conventions while preserving the 1 Stellar gameplay
-unit = 1 authored inch policy. The supported TrenchBroom workflow targets BSP30-authored maps with
-imported coordinates preserved 1:1.
+Full Stellar TrenchBroom BSP30 compatibility is complete for the project-owned Stellar game package.
+The branch uses Z-up runtime and authoring conventions while preserving the 1 Stellar gameplay unit =
+1 authored inch policy. The supported TrenchBroom workflow targets BSP30-authored maps with imported
+coordinates preserved 1:1.
 
 Completed branch outcomes:
 
-- Runtime, movement, collision, presentation, and BSP fixture assumptions use Z-up.
-- TrenchBroom-authored BSP30 maps are the primary authoring workflow.
+- Runtime, movement, collision, presentation, and BSP fixture assumptions use Z-up; default player
+  spawn centers are authored at `z = 36` above a floor at `z = 0` for the 72 inch capsule.
+- The supported editor workflow is the Stellar TrenchBroom package in repo-local or copied-package
+  mode, with copied packages resolving the checkout through `STELLAR_REPO_ROOT` or `.stellar_repo_root`.
+- TrenchBroom-authored BSP30 maps are the primary authoring workflow. Source/VBSP and arbitrary
+  non-Stellar entity/profile parity are outside the Stellar BSP30 profile.
 - No-map and remote-without-local-map presentation use a blank/static-less fallback.
 - The repo includes a TrenchBroom game config, FGD aliases, developer material references, BSP30
-  compile/validation wrappers, source-map fixtures, and generated BSP30 test fixtures.
+  compile/validation wrappers, source-map fixtures, generated BSP30 test fixtures, package-local
+  compile/validate shims, `Icon.png`, template maps, and manual QA documentation.
+- Materials use packaged developer PNGs and `materials/stellar_dev.wad`; runtime import resolves safe
+  WAD3 textures and deterministic developer fallbacks.
+- `light`, `light_spot`, and `light_environment` feed BSP lightmap generation; imported lightmaps are
+  rendered by multiplying static surface base materials/textures by baked lighting where valid.
+- Runtime-supported Stellar FGD classes are `worldspawn`, `info_player_start`, `info_stellar_spawn`,
+  trigger brush and point variants, `stellar_sprite`, `env_sprite`, brush and point object colliders,
+  compile-time light classes, `func_wall`, `func_illusionary`, `func_detail`, `func_door`, and
+  `func_button`.
+- `func_door` and `func_button` have server-authoritative target routing, movement state, collision
+  overlay transforms, and snapshot-owned presentation transforms.
 - Preserve server authority, mandatory sandboxed Lua, BSP canonical runtime, and display-free
   validation.
+- Manual TrenchBroom GUI QA is user-performed using `docs/TrenchBroomManualQA.md`; GUI automation is
+  not required in CI.
+
+## Final validation and audit runbook
+
+Default/focused validation:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R 'trenchbroom|bsp_|client_map_validation|client_cli|server_cli|render_level|brush_mover|world_axes|collision_world|runtime_world|server_world_session|scripted_world_session|networked_client_runtime|dedicated_server' --output-on-failure
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_compile.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_validate.sh
+python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
+for map in \
+  tests/fixtures/trenchbroom/src/minimal_zup_room.map \
+  tests/fixtures/trenchbroom/src/entity_matrix_zup.map \
+  tests/fixtures/trenchbroom/src/scripted_interaction_zup.map \
+  tests/fixtures/trenchbroom/src/lit_zup_room.map \
+  tests/fixtures/trenchbroom/src/material_wad_zup.map \
+  tests/fixtures/trenchbroom/src/moving_door_button_zup.map \
+  tests/fixtures/trenchbroom/src/point_volume_zup.map \
+  tests/fixtures/trenchbroom/src/illusionary_static_zup.map; do
+  python3 tools/bsp/validate_trenchbroom_map_source.py "$map"
+done
+```
+
+Optional VHLT validation when tools are present:
+
+```bash
+tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full --keep-going
+```
+
+Optional display/GPU smoke commands:
+
+```bash
+build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp
+build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/moving_door_button_zup.bsp
+```
+
+Final audit commands:
+
+```bash
+git grep -n -i 'deferred\|metadata only\|unsupported' -- docs tools/trenchbroom tests/fixtures Plans/NEXT.md ':!Plans/Archived/**'
+git grep -n 'Icon.png' -- tools/trenchbroom/Stellar
+git ls-files 'tools/trenchbroom/Stellar/**'
+git grep -n '_stellar_script\|stellar_script' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'func_door\|func_button\|light_spot\|light_environment' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'dev_grid_\|dev/grid_\|stellar_dev_' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'lightmap' -- include src tests docs ':!Plans/Archived/**'
+```
+
+Audit interpretation: remaining stale-wording hits are scoped to true non-goals, diagnostics,
+historical phase notes, or documented negative examples. Package, FGD alias, material/WAD, lightmap,
+door/button, fixture, and manual QA hits are expected coverage references rather than missing work.
 
 ## Completed phase status
 
@@ -40,10 +116,10 @@ Completed branch outcomes:
 - Phase 6 — exported map fixtures and end-to-end validation: completed.
 - Phase 7 — final documentation, audits, archival, and handoff: completed.
 
-## Deferred post-socket options
+## Completed post-socket context
 
-Socket transport and networked session lifecycle are complete and remain deferred follow-up context,
-not active work. Completed socket transport handoffs are archived under:
+Socket transport and networked session lifecycle are complete context, not active TrenchBroom
+compatibility work. Completed socket transport handoffs are archived under:
 
 - `Plans/Archived/socket_transport/SocketTransport-AgentPlan.md`
 - `Plans/Archived/socket_transport/ProjectStellar-SocketTransport-AgentPlan.md`
@@ -80,7 +156,8 @@ Pick one focused follow-up before implementation starts:
 - Richer HUD/UI/VFX presentation.
 - miniaudio-backed playback integration for server-approved events.
 - Sprite atlas/sheet animation.
-- Moving brush simulation only if explicitly selected later.
+- Moving brush classes beyond the implemented `func_door`/`func_button` path only if explicitly
+  selected later.
 
 ## Completed historical scope
 
@@ -107,4 +184,7 @@ Do not restart completed collision, movement, Lua scripting, object-collider, BS
 - OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
 - No client prediction, interpolation, map transfer, or reconciliation is active in the completed ST scope.
-- Do not add Source/VBSP, dynamic rigid bodies, moving brush simulation, full PBR, client-side gameplay scripting, model/animation systems, or retired importer functionality unless explicitly requested.
+- Do not add Source/VBSP, dynamic rigid bodies, moving brush classes beyond the implemented
+  `func_door`/`func_button` path, full PBR, client-side gameplay scripting, model/animation systems,
+  third-party physics, arbitrary non-Stellar entity parity, or retired importer functionality unless
+  explicitly requested.

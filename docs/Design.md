@@ -180,8 +180,9 @@ and retired importer removal are complete historical implementation steps. Their
 live in `docs/ImplementationStatus.md` and archived plans rather than defining the active scope here.
 
 Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
-client-side scripting, renderer/audio scripting bindings, full PBR, Source/VBSP, moving brush
-simulation, or model/animation systems unless a concrete requirement appears.
+client-side scripting, renderer/audio scripting bindings, full PBR, Source/VBSP, moving brush classes
+beyond the implemented door/button path, or model/animation systems unless a concrete requirement
+appears.
 
 ---
 
@@ -386,28 +387,32 @@ Initial mappings:
 - `env_sprite`, `stellar_sprite`, and entities with `stellar.sprite` create sprite markers.
 - `stellar_object_collider` and entities with `stellar.collider=object` create sensor-style object
   collider markers.
-- Brush entities such as `func_wall`, `func_door`, and `func_button` may contribute named static
-  collision meshes, while moving brush simulation remains deferred.
+- Brush entities such as `func_wall`, `func_illusionary`, and `func_detail` contribute static or
+  nonblocking brush metadata. `func_door` and `func_button` are implemented as server-authoritative
+  brush movers with target routing, collision overlay transforms, and replicated presentation
+  transforms.
 
 Script bindings use BSP entity keys such as `stellar.script`, importer-supported aliases such as
 `_stellar_script`, `stellar.table`, and `_stellar_table`. Dotted Stellar keys must reach the compiled
 BSP as dotted keys or importer-supported aliases; underscore FGD field names are editor-facing
 placeholders unless the editor/toolchain remaps them before export. Import preserves bindings as
-metadata only; the authoritative scripting layer loads and invokes them later. For object colliders,
-native runtime collider ids are assigned
+import-time metadata; the authoritative scripting layer loads and invokes them later. For object
+colliders, native runtime collider ids are assigned
 deterministically from metadata marker order and are used for validated commands rather than
 name-based mutation.
 
 Brush-backed trigger/object-collider markers derive bounds from `model="*N"`; point-authored
 volumes use `origin` plus `stellar.extents`. Sprite script bindings are unsupported and diagnosed.
 
-### 6.3 BSP Deferrals
+### 6.3 BSP Non-Goals
 
-Intentionally deferred unless a concrete requirement appears:
+Outside the current Stellar BSP30 profile unless a concrete requirement appears:
 
 - Source/VBSP support.
-- Full external WAD/material library tooling beyond minimal fallback material behavior.
-- Moving brush simulation.
+- Arbitrary third-party WAD/material library tooling beyond the safe Stellar WAD/developer-material
+  workflow.
+- Moving brush classes beyond the implemented `func_door`/`func_button` path, such as plats, trains,
+  and rotators.
 - Dynamic rigid bodies.
 - Navigation mesh/pathfinding.
 - Full PBR.

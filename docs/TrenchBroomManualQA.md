@@ -2,7 +2,29 @@
 
 Use this report template for human TrenchBroom validation. Automated CI remains display-free and compiler-independent; this checklist covers editor, GUI, external compiler, and launch behavior.
 
-## Environment report
+## Manual TrenchBroom QA Result
+
+Use this compact result block when handing manual editor validation back to agents:
+
+```text
+Manual TrenchBroom QA result
+Date:
+OS:
+TrenchBroom version:
+Compiler/toolchain:
+Install mode: repo-local / copied package
+Map tested:
+Compile profile:
+Validation result:
+Launch result:
+Materials visible: yes/no
+Lightmaps visible: yes/no
+Door/button behavior: yes/no
+Trigger/script behavior: yes/no
+Notes/screenshots:
+```
+
+## Environment Report
 
 - Date:
 - OS / distro:
