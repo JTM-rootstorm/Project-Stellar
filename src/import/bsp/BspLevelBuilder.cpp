@@ -13,6 +13,7 @@
 #include <span>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace stellar::import::bsp::detail {
@@ -476,6 +477,181 @@ struct LightmapRgbStats {
           << " lightmap_size=" << lightmap.size[0] << 'x' << lightmap.size[1]
           << " lightstyle=" << static_cast<int>(lightmap.style);
   return message.str();
+}
+
+[[nodiscard]] bool debug_textures_enabled() noexcept {
+  const char *value = std::getenv("STELLAR_DEBUG_TEXTURES");
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string_view text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
+}
+
+[[nodiscard]] const char *texture_filter_name(
+    stellar::assets::TextureFilter filter) noexcept {
+  switch (filter) {
+  case stellar::assets::TextureFilter::kUnspecified:
+    return "unspecified";
+  case stellar::assets::TextureFilter::kNearest:
+    return "nearest";
+  case stellar::assets::TextureFilter::kLinear:
+    return "linear";
+  case stellar::assets::TextureFilter::kNearestMipmapNearest:
+    return "nearest_mipmap_nearest";
+  case stellar::assets::TextureFilter::kLinearMipmapNearest:
+    return "linear_mipmap_nearest";
+  case stellar::assets::TextureFilter::kNearestMipmapLinear:
+    return "nearest_mipmap_linear";
+  case stellar::assets::TextureFilter::kLinearMipmapLinear:
+    return "linear_mipmap_linear";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *texture_wrap_name(
+    stellar::assets::TextureWrapMode wrap) noexcept {
+  switch (wrap) {
+  case stellar::assets::TextureWrapMode::kClampToEdge:
+    return "clamp_to_edge";
+  case stellar::assets::TextureWrapMode::kMirroredRepeat:
+    return "mirrored_repeat";
+  case stellar::assets::TextureWrapMode::kRepeat:
+    return "repeat";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *image_format_name(
+    stellar::assets::ImageFormat format) noexcept {
+  switch (format) {
+  case stellar::assets::ImageFormat::kUnknown:
+    return "unknown";
+  case stellar::assets::ImageFormat::kR8G8B8:
+    return "r8g8b8";
+  case stellar::assets::ImageFormat::kR8G8B8A8:
+    return "r8g8b8a8";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *texture_source_kind(
+    std::string_view source_uri) noexcept {
+  if (source_uri.find("#miptex/") != std::string_view::npos) {
+    return "embedded_miptex";
+  }
+  if (source_uri.find("#wad3/") != std::string_view::npos) {
+    return "external_wad";
+  }
+  if (source_uri.find("#developer_texture/") != std::string_view::npos) {
+    return "procedural_developer";
+  }
+  return "unknown";
+}
+
+void add_texture_diagnostics(const stellar::assets::LevelGeometryAsset &geometry,
+                             const std::string &source_uri,
+                             ImportReport *report) {
+  if (report == nullptr || !debug_textures_enabled()) {
+    return;
+  }
+
+  std::ostringstream summary;
+  summary << source_uri << ": BSP texture summary materials="
+          << geometry.materials.size() << " textures=" << geometry.textures.size()
+          << " images=" << geometry.images.size()
+          << " samplers=" << geometry.samplers.size()
+          << " surfaces=" << geometry.surfaces.size();
+  add_info(report, DiagnosticCode::kTextureStats, source_uri, summary.str(),
+           static_cast<std::size_t>(LumpIndex::kTextures));
+
+  for (std::size_t material_index = 0;
+       material_index < geometry.materials.size(); ++material_index) {
+    const auto &material = geometry.materials[material_index];
+    std::ostringstream message;
+    message << source_uri << ": BSP texture material material_index="
+            << material_index << " material=" << material.name
+            << " source_material=" << material.source_name;
+    if (!material.texture_index.has_value() ||
+        *material.texture_index >= geometry.textures.size()) {
+      message << " texture_index=none texture=none source_kind=none";
+    } else {
+      const auto &texture = geometry.textures[*material.texture_index];
+      message << " texture_index=" << *material.texture_index
+              << " texture=" << texture.name;
+      if (texture.image_index.has_value() &&
+          *texture.image_index < geometry.images.size()) {
+        const auto &image = geometry.images[*texture.image_index];
+        message << " image_index=" << *texture.image_index
+                << " image=" << image.name
+                << " image_source_uri=" << image.source_uri
+                << " source_kind=" << texture_source_kind(image.source_uri)
+                << " dimensions=" << image.width << 'x' << image.height
+                << " format=" << image_format_name(image.format);
+      } else {
+        message << " image_index=none image=none source_kind=none";
+      }
+      stellar::assets::SamplerAsset sampler;
+      if (texture.sampler_index.has_value() &&
+          *texture.sampler_index < geometry.samplers.size()) {
+        sampler = geometry.samplers[*texture.sampler_index];
+        message << " sampler_index=" << *texture.sampler_index;
+      } else {
+        message << " sampler_index=none";
+      }
+      message << " sampler=" << (sampler.name.empty() ? "<default>" : sampler.name)
+              << " mag=" << texture_filter_name(sampler.mag_filter)
+              << " min=" << texture_filter_name(sampler.min_filter)
+              << " wrap_s=" << texture_wrap_name(sampler.wrap_s)
+              << " wrap_t=" << texture_wrap_name(sampler.wrap_t);
+    }
+    add_info(report, DiagnosticCode::kTextureStats, source_uri, message.str(),
+             static_cast<std::size_t>(LumpIndex::kTextures));
+  }
+
+  for (std::size_t surface_index = 0; surface_index < geometry.surfaces.size();
+       ++surface_index) {
+    const auto &surface = geometry.surfaces[surface_index];
+    if (surface.mesh_index >= geometry.meshes.size()) {
+      continue;
+    }
+    const auto &mesh = geometry.meshes[surface.mesh_index];
+    if (surface.primitive_index >= mesh.primitives.size()) {
+      continue;
+    }
+    const auto &primitive = mesh.primitives[surface.primitive_index];
+    if (primitive.vertices.empty()) {
+      continue;
+    }
+    std::array<float, 2> uv_min{std::numeric_limits<float>::max(),
+                                std::numeric_limits<float>::max()};
+    std::array<float, 2> uv_max{std::numeric_limits<float>::lowest(),
+                                std::numeric_limits<float>::lowest()};
+    for (const auto &vertex : primitive.vertices) {
+      uv_min[0] = std::min(uv_min[0], vertex.uv0[0]);
+      uv_min[1] = std::min(uv_min[1], vertex.uv0[1]);
+      uv_max[0] = std::max(uv_max[0], vertex.uv0[0]);
+      uv_max[1] = std::max(uv_max[1], vertex.uv0[1]);
+    }
+    std::ostringstream message;
+    message << source_uri << ": BSP texture surface surface_index="
+            << surface_index << " surface=" << surface.name
+            << " mesh_index=" << surface.mesh_index
+            << " primitive_index=" << surface.primitive_index;
+    if (surface.material_index.has_value()) {
+      message << " material_index=" << *surface.material_index;
+      if (*surface.material_index < geometry.materials.size()) {
+        message << " material=" << geometry.materials[*surface.material_index].name;
+      }
+    } else {
+      message << " material_index=none material=none";
+    }
+    message << " uv0_min=(" << uv_min[0] << ',' << uv_min[1] << ')'
+            << " uv0_max=(" << uv_max[0] << ',' << uv_max[1] << ')';
+    add_info(report, DiagnosticCode::kTextureStats, source_uri, message.str(),
+             static_cast<std::size_t>(LumpIndex::kFaces), surface_index);
+  }
 }
 
 void add_lightmap_diagnostics(const stellar::assets::LevelGeometryAsset &geometry,
@@ -1175,6 +1351,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         .source_uri = level.source_uri});
   }
 
+  add_texture_diagnostics(level.geometry, level.source_uri, report);
   add_lightmap_diagnostics(level.geometry, level.source_uri, report);
 
   return level;

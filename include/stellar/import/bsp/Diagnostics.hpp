@@ -42,6 +42,7 @@ enum class DiagnosticCode {
     kObjectColliderMissingVolume,
     kTriggerMissingVolume,
     kScriptPathEscape,
+    kTextureStats,
     kLightmapStats,
     kAllBlackLightmap,
 };

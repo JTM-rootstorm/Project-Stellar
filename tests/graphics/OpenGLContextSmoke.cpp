@@ -1,14 +1,22 @@
-#include "stellar/graphics/opengl/OpenGLGraphicsDevice.hpp"
-
+#include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <expected>
 #include <iostream>
+#include <map>
+#include <span>
 #include <string_view>
+#include <vector>
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 
+#include "stellar/graphics/GraphicsDevice.hpp"
 #include "stellar/platform/Window.hpp"
+
+#define private public
+#include "stellar/graphics/opengl/OpenGLGraphicsDevice.hpp"
+#undef private
 
 namespace {
 
@@ -21,6 +29,69 @@ bool context_tests_enabled() noexcept {
 
 bool is_black_clear_pixel(const std::array<unsigned char, 4>& pixel) noexcept {
     return pixel[0] <= 1 && pixel[1] <= 1 && pixel[2] <= 1 && pixel[3] >= 254;
+}
+
+class ScopedPackAlignment {
+public:
+    explicit ScopedPackAlignment(GLint alignment) noexcept {
+        glGetIntegerv(GL_PACK_ALIGNMENT, &previous_alignment_);
+        glPixelStorei(GL_PACK_ALIGNMENT, alignment);
+    }
+
+    ScopedPackAlignment(const ScopedPackAlignment&) = delete;
+    ScopedPackAlignment& operator=(const ScopedPackAlignment&) = delete;
+
+    ~ScopedPackAlignment() noexcept {
+        glPixelStorei(GL_PACK_ALIGNMENT, previous_alignment_);
+    }
+
+private:
+    GLint previous_alignment_ = 4;
+};
+
+stellar::graphics::TextureUpload make_unaligned_rgb_texture_upload() {
+    stellar::graphics::TextureUpload upload;
+    upload.image.name = "unaligned-rgb-upload";
+    upload.image.width = 3;
+    upload.image.height = 2;
+    upload.image.format = stellar::assets::ImageFormat::kR8G8B8;
+    upload.color_space = stellar::assets::TextureColorSpace::kLinear;
+    upload.image.pixels = {
+        255, 0,   0,   0,   255, 0,   0,   0,   255,
+        255, 255, 255, 128, 128, 128, 32,  64,  96,
+    };
+    return upload;
+}
+
+bool texture_level_zero_matches_upload(
+    const stellar::graphics::opengl::OpenGLGraphicsDevice& device,
+    stellar::graphics::TextureHandle texture,
+    const stellar::graphics::TextureUpload& upload) {
+    const auto record = device.textures_.find(texture.value);
+    if (record == device.textures_.end()) {
+        std::cerr << "Uploaded texture handle was not registered by the OpenGL device\n";
+        return false;
+    }
+
+    std::array<unsigned char, 18> pixels{};
+    glBindTexture(GL_TEXTURE_2D, record->second.texture);
+    {
+        const ScopedPackAlignment pack_alignment(1);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    const GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "OpenGL texture readback failed with error " << error << '\n';
+        return false;
+    }
+    if (!std::equal(pixels.begin(), pixels.end(), upload.image.pixels.begin(),
+                    upload.image.pixels.end())) {
+        std::cerr << "Unaligned RGB texture upload readback did not match source pixels\n";
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -60,6 +131,26 @@ int main() {
                   << static_cast<int>(pixel[3]) << '\n';
         return 1;
     }
+
+    auto unaligned_rgb_upload = make_unaligned_rgb_texture_upload();
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    auto texture = device.create_texture(unaligned_rgb_upload);
+    if (!texture) {
+        std::cerr << texture.error().message << '\n';
+        return 1;
+    }
+
+    GLint unpack_alignment = 0;
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack_alignment);
+    if (unpack_alignment != 4) {
+        std::cerr << "Texture upload did not restore GL_UNPACK_ALIGNMENT: "
+                  << unpack_alignment << '\n';
+        return 1;
+    }
+    if (!texture_level_zero_matches_upload(device, *texture, unaligned_rgb_upload)) {
+        return 1;
+    }
+    device.destroy_texture(*texture);
 
     return 0;
 }

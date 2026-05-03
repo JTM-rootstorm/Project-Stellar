@@ -17,6 +17,24 @@ namespace stellar::graphics::opengl {
 
 namespace {
 
+class ScopedUnpackAlignment {
+public:
+  explicit ScopedUnpackAlignment(GLint alignment) noexcept {
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previous_alignment_);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+  }
+
+  ScopedUnpackAlignment(const ScopedUnpackAlignment &) = delete;
+  ScopedUnpackAlignment &operator=(const ScopedUnpackAlignment &) = delete;
+
+  ~ScopedUnpackAlignment() noexcept {
+    glPixelStorei(GL_UNPACK_ALIGNMENT, previous_alignment_);
+  }
+
+private:
+  GLint previous_alignment_ = 4;
+};
+
 constexpr const char *kVertexShader = R"(
 #version 430 core
 
@@ -596,10 +614,13 @@ OpenGLGraphicsDevice::create_texture(const TextureUpload &texture) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexImage2D(GL_TEXTURE_2D, 0, internal_format,
-               static_cast<GLsizei>(image.width),
-               static_cast<GLsizei>(image.height), 0, external_format,
-               GL_UNSIGNED_BYTE, image.pixels.data());
+  {
+    const ScopedUnpackAlignment unpack_alignment(1);
+    glTexImage2D(GL_TEXTURE_2D, 0, internal_format,
+                 static_cast<GLsizei>(image.width),
+                 static_cast<GLsizei>(image.height), 0, external_format,
+                 GL_UNSIGNED_BYTE, image.pixels.data());
+  }
   glGenerateMipmap(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, 0);
 

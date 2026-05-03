@@ -40,6 +40,10 @@ for script in \
     bash -n "$script"
 done
 
+python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
+    --game-config "$package/GameConfig.cfg" \
+    --profiles "$package/CompilationProfiles.cfg" >/dev/null
+
 "$compile_shim" --help >/dev/null
 "$validate_shim" --help >/dev/null
 
@@ -51,6 +55,8 @@ game_config = Path(sys.argv[1]).read_text(encoding="utf-8")
 profiles = Path(sys.argv[2]).read_text(encoding="utf-8")
 required_game_tokens = [
     '"icon": "Icon.png"',
+    '"name": "STELLAR_BSP30_COMPILE"',
+    '"name": "STELLAR_BSP30_VALIDATE"',
     '"path": "bin/stellar_tb_compile.sh"',
     '"path": "bin/stellar_tb_validate.sh"',
     '"root": "materials"',
@@ -59,6 +65,10 @@ for token in required_game_tokens:
     if token not in game_config:
         raise SystemExit(f"GameConfig.cfg missing expected token: {token}")
 for token in [
+    '"version": 1',
+    '"workdir": "${WORK_DIR_PATH}"',
+    '"tool": "${STELLAR_BSP30_COMPILE}"',
+    '"tool": "${STELLAR_BSP30_VALIDATE}"',
     '--map \\"${MAP_FULL_PATH}\\"',
     '--out \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
     '--toolchain vhlt',

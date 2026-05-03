@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <string_view>
 
 #include <glm/glm.hpp>
@@ -135,6 +136,203 @@ void log_lightmap_debug(const stellar::assets::LevelGeometryAsset &geometry,
                  "source=%s lightmap_index=%zu\n",
                  material_index, material.name.c_str(),
                  material.source_name.c_str(), *material.lightmap_index);
+  }
+}
+
+[[nodiscard]] const char *texture_filter_name(
+    stellar::assets::TextureFilter filter) noexcept {
+  switch (filter) {
+  case stellar::assets::TextureFilter::kUnspecified:
+    return "unspecified";
+  case stellar::assets::TextureFilter::kNearest:
+    return "nearest";
+  case stellar::assets::TextureFilter::kLinear:
+    return "linear";
+  case stellar::assets::TextureFilter::kNearestMipmapNearest:
+    return "nearest_mipmap_nearest";
+  case stellar::assets::TextureFilter::kLinearMipmapNearest:
+    return "linear_mipmap_nearest";
+  case stellar::assets::TextureFilter::kNearestMipmapLinear:
+    return "nearest_mipmap_linear";
+  case stellar::assets::TextureFilter::kLinearMipmapLinear:
+    return "linear_mipmap_linear";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *texture_wrap_name(
+    stellar::assets::TextureWrapMode wrap) noexcept {
+  switch (wrap) {
+  case stellar::assets::TextureWrapMode::kClampToEdge:
+    return "clamp_to_edge";
+  case stellar::assets::TextureWrapMode::kMirroredRepeat:
+    return "mirrored_repeat";
+  case stellar::assets::TextureWrapMode::kRepeat:
+    return "repeat";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *texture_color_space_name(
+    stellar::assets::TextureColorSpace color_space) noexcept {
+  switch (color_space) {
+  case stellar::assets::TextureColorSpace::kLinear:
+    return "linear";
+  case stellar::assets::TextureColorSpace::kSrgb:
+    return "srgb";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *image_format_name(
+    stellar::assets::ImageFormat format) noexcept {
+  switch (format) {
+  case stellar::assets::ImageFormat::kUnknown:
+    return "unknown";
+  case stellar::assets::ImageFormat::kR8G8B8:
+    return "r8g8b8";
+  case stellar::assets::ImageFormat::kR8G8B8A8:
+    return "r8g8b8a8";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const char *texture_source_kind(
+    std::string_view source_uri) noexcept {
+  if (source_uri.find("#miptex/") != std::string_view::npos) {
+    return "embedded_miptex";
+  }
+  if (source_uri.find("#wad3/") != std::string_view::npos) {
+    return "external_wad";
+  }
+  if (source_uri.find("#developer_texture/") != std::string_view::npos) {
+    return "procedural_developer";
+  }
+  if (source_uri.find("#lightmap/") != std::string_view::npos) {
+    return "lightmap";
+  }
+  return "unknown";
+}
+
+void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
+                       const std::string &source_uri) noexcept {
+  std::fprintf(stderr,
+               "[stellar][textures] source=%s materials=%zu textures=%zu "
+               "images=%zu samplers=%zu surfaces=%zu\n",
+               source_uri.c_str(), geometry.materials.size(),
+               geometry.textures.size(), geometry.images.size(),
+               geometry.samplers.size(), geometry.surfaces.size());
+
+  for (std::size_t material_index = 0;
+       material_index < geometry.materials.size(); ++material_index) {
+    const auto &material = geometry.materials[material_index];
+    const char *texture_name = "<none>";
+    const char *image_name = "<none>";
+    const char *image_source_uri = "<none>";
+    const char *source_kind = "none";
+    const char *sampler_name = "<default>";
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    stellar::assets::ImageFormat format = stellar::assets::ImageFormat::kUnknown;
+    stellar::assets::TextureColorSpace color_space =
+        stellar::assets::TextureColorSpace::kLinear;
+    stellar::assets::SamplerAsset sampler;
+    std::optional<std::size_t> image_index;
+    std::optional<std::size_t> sampler_index;
+
+    if (material.texture_index.has_value() &&
+        *material.texture_index < geometry.textures.size()) {
+      const auto &texture = geometry.textures[*material.texture_index];
+      texture_name = texture.name.c_str();
+      color_space = texture.color_space;
+      image_index = texture.image_index;
+      sampler_index = texture.sampler_index;
+      if (texture.image_index.has_value() &&
+          *texture.image_index < geometry.images.size()) {
+        const auto &image = geometry.images[*texture.image_index];
+        image_name = image.name.c_str();
+        image_source_uri = image.source_uri.c_str();
+        source_kind = texture_source_kind(image.source_uri);
+        width = image.width;
+        height = image.height;
+        format = image.format;
+      }
+      if (texture.sampler_index.has_value() &&
+          *texture.sampler_index < geometry.samplers.size()) {
+        sampler = geometry.samplers[*texture.sampler_index];
+        sampler_name = sampler.name.c_str();
+      }
+    }
+
+    const std::string texture_index_text = material.texture_index.has_value()
+                                             ? std::to_string(*material.texture_index)
+                                             : "none";
+    const std::string image_index_text = image_index.has_value()
+                                             ? std::to_string(*image_index)
+                                             : "none";
+    const std::string sampler_index_text = sampler_index.has_value()
+                                               ? std::to_string(*sampler_index)
+                                               : "none";
+
+    std::fprintf(stderr,
+                 "[stellar][textures] material_index=%zu material=%s "
+                 "source_material=%s texture_index=%s texture=%s "
+                 "image_index=%s image=%s image_source_uri=%s "
+                 "source_kind=%s dimensions=%ux%u format=%s "
+                 "color_space=%s sampler_index=%s sampler=%s "
+                 "mag=%s min=%s wrap_s=%s wrap_t=%s\n",
+                 material_index, material.name.c_str(),
+                 material.source_name.c_str(), texture_index_text.c_str(),
+                 texture_name, image_index_text.c_str(),
+                 image_name, image_source_uri, source_kind, width, height,
+                 image_format_name(format), texture_color_space_name(color_space),
+                 sampler_index_text.c_str(),
+                 sampler_name, texture_filter_name(sampler.mag_filter),
+                 texture_filter_name(sampler.min_filter),
+                 texture_wrap_name(sampler.wrap_s),
+                 texture_wrap_name(sampler.wrap_t));
+  }
+
+  for (std::size_t surface_index = 0; surface_index < geometry.surfaces.size();
+       ++surface_index) {
+    const auto &surface = geometry.surfaces[surface_index];
+    if (surface.mesh_index >= geometry.meshes.size()) {
+      continue;
+    }
+    const auto &mesh = geometry.meshes[surface.mesh_index];
+    if (surface.primitive_index >= mesh.primitives.size()) {
+      continue;
+    }
+    const auto &primitive = mesh.primitives[surface.primitive_index];
+    if (primitive.vertices.empty()) {
+      continue;
+    }
+    std::array<float, 2> uv_min{std::numeric_limits<float>::max(),
+                                std::numeric_limits<float>::max()};
+    std::array<float, 2> uv_max{std::numeric_limits<float>::lowest(),
+                                std::numeric_limits<float>::lowest()};
+    for (const auto &vertex : primitive.vertices) {
+      uv_min[0] = std::min(uv_min[0], vertex.uv0[0]);
+      uv_min[1] = std::min(uv_min[1], vertex.uv0[1]);
+      uv_max[0] = std::max(uv_max[0], vertex.uv0[0]);
+      uv_max[1] = std::max(uv_max[1], vertex.uv0[1]);
+    }
+
+    const char *material_name = "<none>";
+    if (surface.material_index.has_value() &&
+        *surface.material_index < geometry.materials.size()) {
+      material_name = geometry.materials[*surface.material_index].name.c_str();
+    }
+    const std::string material_index_text = surface.material_index.has_value()
+                                                ? std::to_string(*surface.material_index)
+                                                : "none";
+    std::fprintf(stderr,
+                 "[stellar][textures] surface_index=%zu surface=%s "
+                 "mesh_index=%zu primitive_index=%zu material_index=%s "
+                 "material=%s uv0_min=(%.6g,%.6g) uv0_max=(%.6g,%.6g)\n",
+                 surface_index, surface.name.c_str(), surface.mesh_index,
+                 surface.primitive_index, material_index_text.c_str(),
+                 material_name, uv_min[0], uv_min[1], uv_max[0], uv_max[1]);
   }
 }
 
@@ -327,6 +525,7 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   debug_lightmaps_enabled_ = env_flag_enabled("STELLAR_DEBUG_LIGHTMAPS");
   force_lightmap_visualization_ =
       env_flag_enabled("STELLAR_FORCE_LIGHTMAP_VISUALIZATION");
+  const bool debug_textures_enabled = env_flag_enabled("STELLAR_DEBUG_TEXTURES");
 
   if (auto result = device_->initialize(window); !result) {
     destroy();
@@ -477,6 +676,9 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   if (debug_lightmaps_enabled_) {
     log_lightmap_debug(geometry, level_.source_uri, disable_lightmaps_,
                        force_lightmap_visualization_ && !disable_lightmaps_);
+  }
+  if (debug_textures_enabled) {
+    log_texture_debug(geometry, level_.source_uri);
   }
 
   return {};
