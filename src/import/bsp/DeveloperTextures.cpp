@@ -130,7 +130,7 @@ void append_pixel(stellar::assets::ImageAsset &image,
   const std::uint32_t major = safe_spacing * 4U;
   if (spacing == 64U) {
     if (x % 64U <= 1U || y % 64U <= 1U) {
-      return 19U;
+      return 20U;
     }
     if (x % 16U == 0U || y % 16U == 0U) {
       return 18U;

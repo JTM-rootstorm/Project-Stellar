@@ -241,8 +241,12 @@ int main() {
   assert(mock_ptr->material_uploads.size() == 3);
   assert(mock_ptr->material_uploads[0].material.name ==
          "stellar_default_level_material");
+  assert(mock_ptr->material_uploads[0].material.base_color_factor ==
+         (std::array<float, 4>{0.75F, 0.75F, 0.75F, 1.0F}));
   assert(mock_ptr->material_uploads[0].material.double_sided);
   assert(mock_ptr->material_uploads[1].material.name == "stone");
+  assert(mock_ptr->material_uploads[1].material.base_color_factor ==
+         (std::array<float, 4>{1.0F, 1.0F, 1.0F, 1.0F}));
   assert(mock_ptr->material_uploads[1].material.double_sided);
   assert(mock_ptr->material_uploads[1].base_color_texture.has_value());
   assert(mock_ptr->material_uploads[1].base_color_texture->sampler.wrap_s ==
@@ -254,6 +258,8 @@ int main() {
   assert(mock_ptr->material_uploads[1].material.metallic_factor == 0.0F);
   assert(mock_ptr->material_uploads[1].material.unlit);
   assert(mock_ptr->material_uploads[2].material.name == "missing_texture");
+  assert(mock_ptr->material_uploads[2].material.base_color_factor ==
+         (std::array<float, 4>{0.75F, 0.75F, 0.75F, 1.0F}));
   assert(mock_ptr->material_uploads[2].material.double_sided);
   assert(!mock_ptr->material_uploads[2].base_color_texture.has_value());
   assert(!mock_ptr->material_uploads[2].lightmap_texture.has_value());

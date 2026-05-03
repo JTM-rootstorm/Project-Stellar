@@ -214,6 +214,61 @@ void log_lightmap_debug(const stellar::assets::LevelGeometryAsset &geometry,
   return "unknown";
 }
 
+void log_texture_sample_debug(std::size_t material_index,
+                              const stellar::assets::ImageAsset &image,
+                              std::uint32_t x, std::uint32_t y) noexcept {
+  if (x >= image.width || y >= image.height) {
+    return;
+  }
+  const std::size_t channels =
+      image.format == stellar::assets::ImageFormat::kR8G8B8A8 ? 4U : 3U;
+  if (image.format == stellar::assets::ImageFormat::kUnknown ||
+      image.width == 0U || image.height == 0U) {
+    return;
+  }
+  const std::size_t offset =
+      (static_cast<std::size_t>(y) * image.width + x) * channels;
+  if (offset + channels > image.pixels.size()) {
+    return;
+  }
+  const std::uint8_t alpha = channels == 4U ? image.pixels[offset + 3U] : 255U;
+  std::fprintf(stderr,
+               "[stellar][textures] material_index=%zu image=%s "
+               "sample=(%u,%u) rgba=(%u,%u,%u,%u)\n",
+               material_index, image.name.c_str(), static_cast<unsigned>(x),
+               static_cast<unsigned>(y),
+               static_cast<unsigned>(image.pixels[offset]),
+               static_cast<unsigned>(image.pixels[offset + 1U]),
+               static_cast<unsigned>(image.pixels[offset + 2U]),
+               static_cast<unsigned>(alpha));
+}
+
+void log_texture_samples_debug(std::size_t material_index,
+                               const stellar::assets::ImageAsset &image,
+                               std::string_view material_name,
+                               std::string_view source_name) noexcept {
+  constexpr std::array<std::array<std::uint32_t, 2>, 7> kStandardSamples{{
+      {0U, 0U},     {1U, 1U},     {16U, 16U},  {32U, 32U},
+      {64U, 64U},   {96U, 96U},   {127U, 127U},
+  }};
+  for (const auto &sample : kStandardSamples) {
+    log_texture_sample_debug(material_index, image, sample[0], sample[1]);
+  }
+
+  const bool is_grid_64 =
+      material_name.find("grid_64") != std::string_view::npos ||
+      source_name.find("grid_64") != std::string_view::npos;
+  const bool is_wall_96 =
+      material_name.find("wall_96") != std::string_view::npos ||
+      source_name.find("wall_96") != std::string_view::npos;
+  if (is_grid_64) {
+    log_texture_sample_debug(material_index, image, 64U, 10U);
+  }
+  if (is_wall_96) {
+    log_texture_sample_debug(material_index, image, 8U, 48U);
+  }
+}
+
 void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
                        const std::string &source_uri) noexcept {
   std::fprintf(stderr,
@@ -237,6 +292,7 @@ void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
     stellar::assets::TextureColorSpace color_space =
         stellar::assets::TextureColorSpace::kLinear;
     stellar::assets::SamplerAsset sampler;
+    const stellar::assets::ImageAsset *sample_image = nullptr;
     std::optional<std::size_t> image_index;
     std::optional<std::size_t> sampler_index;
 
@@ -256,6 +312,7 @@ void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
         width = image.width;
         height = image.height;
         format = image.format;
+        sample_image = &image;
       }
       if (texture.sampler_index.has_value() &&
           *texture.sampler_index < geometry.samplers.size()) {
@@ -271,8 +328,12 @@ void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
                                              ? std::to_string(*image_index)
                                              : "none";
     const std::string sampler_index_text = sampler_index.has_value()
-                                               ? std::to_string(*sampler_index)
-                                               : "none";
+                                                 ? std::to_string(*sampler_index)
+                                                 : "none";
+    const std::array<float, 4> base_color_factor =
+        sample_image != nullptr
+            ? std::array<float, 4>{1.0F, 1.0F, 1.0F, 1.0F}
+            : std::array<float, 4>{0.75F, 0.75F, 0.75F, 1.0F};
 
     std::fprintf(stderr,
                  "[stellar][textures] material_index=%zu material=%s "
@@ -280,7 +341,8 @@ void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
                  "image_index=%s image=%s image_source_uri=%s "
                  "source_kind=%s dimensions=%ux%u format=%s "
                  "color_space=%s sampler_index=%s sampler=%s "
-                 "mag=%s min=%s wrap_s=%s wrap_t=%s\n",
+                 "mag=%s min=%s wrap_s=%s wrap_t=%s "
+                 "base_color_factor=(%.3g,%.3g,%.3g,%.3g)\n",
                  material_index, material.name.c_str(),
                  material.source_name.c_str(), texture_index_text.c_str(),
                  texture_name, image_index_text.c_str(),
@@ -290,7 +352,14 @@ void log_texture_debug(const stellar::assets::LevelGeometryAsset &geometry,
                  sampler_name, texture_filter_name(sampler.mag_filter),
                  texture_filter_name(sampler.min_filter),
                  texture_wrap_name(sampler.wrap_s),
-                 texture_wrap_name(sampler.wrap_t));
+                 texture_wrap_name(sampler.wrap_t), base_color_factor[0],
+                 base_color_factor[1], base_color_factor[2],
+                 base_color_factor[3]);
+
+    if (sample_image != nullptr) {
+      log_texture_samples_debug(material_index, *sample_image, material.name,
+                                material.source_name);
+    }
   }
 
   for (std::size_t surface_index = 0; surface_index < geometry.surfaces.size();
@@ -615,6 +684,9 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       };
       upload.base_color_texture = resolve_level_texture_binding(
           *surface_material.texture_index, geometry, texture_handles_);
+      if (upload.base_color_texture.has_value()) {
+        upload.material.base_color_factor = {1.0F, 1.0F, 1.0F, 1.0F};
+      }
     }
     std::optional<MaterialTextureBinding> lightmap_binding;
     if (!disable_lightmaps_ && surface_material.lightmap_index.has_value()) {

@@ -218,6 +218,7 @@ void semantic_developer_texture_sample_pixels_are_stable() {
     assert(wall->image.width == 128);
     assert(wall->image.height == 128);
     assert_pixel(wall->image, 24, 24, 255, 224, 128);
+    assert_pixel(wall->image, 8, 48, 255, 224, 128);
     assert_pixel(wall->image, 8, 49, 255, 248, 220);
     assert_pixel(wall->image, 64, 96, 240, 64, 48);
     assert_pixel(wall->image, 49, 113, 96, 64, 32);
@@ -227,7 +228,8 @@ void semantic_developer_texture_sample_pixels_are_stable() {
     assert(grid.has_value());
     assert(grid->image.width == 128);
     assert(grid->image.height == 128);
-    assert_pixel(grid->image, 1, 48, 255, 176, 48);
+    assert_pixel(grid->image, 1, 48, 255, 224, 128);
+    assert_pixel(grid->image, 64, 10, 255, 224, 128);
     assert_pixel(grid->image, 16, 24, 122, 148, 176);
     assert_pixel(grid->image, 24, 24, 72, 84, 96);
     assert_pixel(grid->image, 88, 88, 72, 84, 96);

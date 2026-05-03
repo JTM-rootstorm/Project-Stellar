@@ -30,6 +30,21 @@ WAD3_MIPTEX_TYPE = 0x43
 PALETTE_SIZE = 256
 TEXTURE_SIZE = 128
 
+STANDARD_SAMPLE_COORDINATES = (
+    (0, 0),
+    (1, 1),
+    (16, 16),
+    (32, 32),
+    (64, 64),
+    (96, 96),
+    (127, 127),
+)
+
+TEXTURE_SAMPLE_COORDINATES = {
+    "dev/grid_64": ((64, 10),),
+    "dev/wall_96": ((8, 48),),
+}
+
 
 def build_palette() -> bytes:
     """Return a fixed 256-color RGB palette."""
@@ -67,6 +82,12 @@ def build_palette() -> bytes:
     return b"".join(bytes(rgb) for rgb in colors)
 
 
+def palette_color(index: int, palette: bytes) -> tuple[int, int, int, int]:
+    """Return an RGBA color tuple for a palette index."""
+    offset = index * 3
+    return (palette[offset], palette[offset + 1], palette[offset + 2], 255)
+
+
 def validate_texture_name(name: str) -> bytes:
     encoded = name.encode("ascii")
     if not encoded or len(encoded) > 15:
@@ -100,7 +121,7 @@ def grid_pattern(spacing: int) -> list[int]:
         for x in range(TEXTURE_SIZE):
             if spacing == 64:
                 if x % 64 <= 1 or y % 64 <= 1:
-                    pixels.append(19)
+                    pixels.append(20)
                 elif x % 16 == 0 or y % 16 == 0:
                     pixels.append(18)
                 elif ((x // 16) + (y // 16)) & 1:
@@ -226,6 +247,31 @@ def build_wad() -> bytes:
     return bytes(data)
 
 
+def sample_coordinates(name: str) -> tuple[tuple[int, int], ...]:
+    """Return deterministic sample coordinates for manifest color checks."""
+    normalized_name = canonical_source_name(name)
+    coordinates = list(STANDARD_SAMPLE_COORDINATES)
+    specific_coordinates = TEXTURE_SAMPLE_COORDINATES.get(normalized_name, ())
+    for coordinate in specific_coordinates:
+        if coordinate not in coordinates:
+            coordinates.append(coordinate)
+    return tuple(coordinates)
+
+
+def build_manifest(entries: list[tuple[str, int, int, int]]) -> str:
+    """Return deterministic texture metadata and sample-color manifest text."""
+    palette = build_palette()
+    lines: list[str] = []
+    for name, width, height, size in entries:
+        lines.append(f"{name} {width}x{height} {size}")
+        pixels = texture_pixels(name)
+        for x, y in sample_coordinates(name):
+            index = pixels[y * TEXTURE_SIZE + x]
+            r, g, b, a = palette_color(index, palette)
+            lines.append(f"sample {name} {x},{y} rgba={r},{g},{b},{a} palette={index}")
+    return "\n".join(lines) + "\n"
+
+
 def png_chunk(kind: bytes, payload: bytes) -> bytes:
     crc = binascii.crc32(kind)
     crc = binascii.crc32(payload, crc) & 0xFFFFFFFF
@@ -341,7 +387,7 @@ def main(argv: list[str]) -> int:
             for name, width, height, _size in entries:
                 print(f"{name} {width}x{height}")
         if args.manifest is not None:
-            write_atomic(args.manifest, "".join(f"{n} {w}x{h} {s}\n" for n, w, h, s in entries).encode("utf-8"))
+            write_atomic(args.manifest, build_manifest(entries).encode("utf-8"))
         if args.verify is not None:
             actual = args.verify.read_bytes()
             inspect_wad(actual)

@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <expected>
 #include <string>
@@ -457,6 +458,8 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+  const int srgb_capable_request_result =
+      SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
   context_ = SDL_GL_CreateContext(window_);
   if (!context_) {
@@ -489,6 +492,27 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
+
+  GLint framebuffer_srgb_capable = 0;
+  const int srgb_capable_query_result = SDL_GL_GetAttribute(
+      SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, &framebuffer_srgb_capable);
+  const bool framebuffer_srgb_disabled =
+      env_flag_enabled("STELLAR_DISABLE_FRAMEBUFFER_SRGB");
+  if (!framebuffer_srgb_disabled) {
+    glEnable(GL_FRAMEBUFFER_SRGB);
+  }
+  const GLboolean framebuffer_srgb_enabled = glIsEnabled(GL_FRAMEBUFFER_SRGB);
+
+  if (env_flag_enabled("STELLAR_DEBUG_RENDER")) {
+    std::fprintf(stderr,
+                 "[stellar][render][opengl] framebuffer_srgb_request=%d "
+                 "framebuffer_srgb_query=%d framebuffer_srgb_capable=%d "
+                 "framebuffer_srgb_disabled=%d framebuffer_srgb_enabled=%d\n",
+                 srgb_capable_request_result == 0 ? 1 : 0,
+                 srgb_capable_query_result == 0 ? 1 : 0,
+                 framebuffer_srgb_capable, framebuffer_srgb_disabled ? 1 : 0,
+                 framebuffer_srgb_enabled == GL_TRUE ? 1 : 0);
+  }
 
   return {};
 }
