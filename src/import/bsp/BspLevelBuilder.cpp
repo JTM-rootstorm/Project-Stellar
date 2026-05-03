@@ -3,6 +3,7 @@
 #include "Wad3Reader.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -49,11 +50,38 @@ using Vec3 = std::array<float, 3>;
 }
 
 [[nodiscard]] std::string string_or_alias(const Entity &entity,
-                                          std::string_view key,
-                                          std::string_view alias,
-                                          std::string fallback = {}) {
+                                           std::string_view key,
+                                           std::string_view alias,
+                                           std::string fallback = {}) {
   if (const std::string *value = value_for_alias(entity, key, alias)) {
     return *value;
+  }
+  return fallback;
+}
+
+struct CanonicalEntityName {
+  std::string value;
+  std::string_view key;
+};
+
+constexpr std::array<std::string_view, 4> kEntityNameKeys{
+    "targetname", "_stellar_name", "stellar.name", "name"};
+
+[[nodiscard]] std::optional<CanonicalEntityName>
+canonical_entity_name_for(const Entity &entity) {
+  for (std::string_view key : kEntityNameKeys) {
+    if (const std::string *value = value_for(entity, key);
+        value != nullptr && !value->empty()) {
+      return CanonicalEntityName{.value = *value, .key = key};
+    }
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] std::string canonical_entity_name_or(const Entity &entity,
+                                                    std::string fallback) {
+  if (auto name = canonical_entity_name_for(entity)) {
+    return name->value;
   }
   return fallback;
 }
@@ -1191,21 +1219,51 @@ void copy_properties(stellar::assets::WorldMarker &marker,
   }
 }
 
+void warn_canonical_name_aliases(const Entity &entity, ImportReport *report,
+                                 const std::string &source_uri,
+                                 std::size_t entity_index) {
+  if (report == nullptr) {
+    return;
+  }
+  const auto selected = canonical_entity_name_for(entity);
+  if (!selected.has_value()) {
+    return;
+  }
+  for (std::string_view key : kEntityNameKeys) {
+    const std::string *value = value_for(entity, key);
+    if (value == nullptr || value->empty() || key == selected->key) {
+      continue;
+    }
+    if (*value != selected->value) {
+      add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey, source_uri,
+                         entity_index,
+                         source_uri + ": BSP entity name alias '" + std::string(key) +
+                             "' conflicts with canonical '" +
+                             std::string(selected->key) + "'; using '" +
+                             selected->value + "'");
+    }
+  }
+  if (selected->key == "name") {
+    add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey, source_uri,
+                       entity_index,
+                       source_uri +
+                           ": BSP entity uses legacy name without targetname; "
+                           "targetname is the canonical targetable identity");
+  }
+}
+
 [[nodiscard]] bool is_brush_class(std::string_view classname) noexcept {
   return classname.starts_with("func_") || classname.starts_with("trigger_");
 }
 
 [[nodiscard]] std::string collision_name_for(const Entity &entity,
-                                             int model_index) {
-  if (const std::string *targetname = value_for(entity, "targetname");
-      targetname != nullptr && !targetname->empty()) {
-    return *targetname;
-  }
+                                              int model_index) {
   if (const std::string *classname = value_for(entity, "classname");
       classname != nullptr && !classname->empty()) {
-    return *classname + "_" + std::to_string(model_index);
+    return canonical_entity_name_or(entity,
+                                    *classname + "_" + std::to_string(model_index));
   }
-  return "bsp_model_" + std::to_string(model_index);
+  return canonical_entity_name_or(entity, "bsp_model_" + std::to_string(model_index));
 }
 
 void add_visibility_warning(ImportReport *report, const std::string &source_uri,
@@ -1254,6 +1312,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                     static_cast<std::size_t>(LumpIndex::kTextures));
       }
     }
+  }
+
+  for (std::size_t entity_index = 0; entity_index < entities.size(); ++entity_index) {
+    warn_canonical_name_aliases(entities[entity_index], report, level.source_uri,
+                                entity_index);
   }
 
   stellar::assets::LevelCollisionAsset collision{};
@@ -1418,7 +1481,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         const Entity &entity = *found->second;
         stellar::assets::LevelBrushEntity brush{};
         brush.classname = string_or(entity, "classname", "func_unknown");
-        brush.targetname = string_or(entity, "targetname");
+        brush.targetname = canonical_entity_name_or(entity, {});
         brush.target = string_or(entity, "target");
         brush.model = string_or(entity, "model");
         brush.name = brush.targetname.empty() ? collision_mesh.name : brush.targetname;
@@ -1520,10 +1583,10 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                 classname == "info_player_deathmatch") {
       has_player_spawn = true;
       marker.type = stellar::assets::WorldMarkerType::kPlayerSpawn;
-      marker.name = string_or(entity, "targetname", "Player");
+      marker.name = canonical_entity_name_or(entity, "Player");
     } else if (classname == "info_stellar_spawn") {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = string_or(entity, "archetype");
     } else if (classname == "trigger_multiple" || classname == "trigger_once" ||
                classname == "trigger_stellar" ||
@@ -1531,11 +1594,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                classname == "trigger_multiple_point" ||
                classname == "trigger_once_point") {
       marker.type = stellar::assets::WorldMarkerType::kTrigger;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
     } else if (classname == "env_sprite" || classname == "stellar_sprite" ||
                value_for_alias(entity, "stellar.sprite", "_stellar_sprite") != nullptr) {
       marker.type = stellar::assets::WorldMarkerType::kSprite;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = string_or(
           entity, "archetype",
           string_or_alias(entity, "stellar.sprite", "_stellar_sprite"));
@@ -1544,15 +1607,15 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                string_or_alias(entity, "stellar.collider", "_stellar_collider") ==
                    "object") {
       marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = string_or(entity, "archetype");
     } else if (is_brush_class(classname)) {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = classname;
     } else {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = classname;
     }
     if (!emit) {

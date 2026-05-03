@@ -25,8 +25,9 @@ KNOWN_STELLAR_KEYS = {
     "stellar.enabled", "_stellar_enabled", "stellar.collider", "_stellar_collider",
     "stellar.sprite", "_stellar_sprite", "stellar.texture", "_stellar_texture",
     "stellar.size", "_stellar_size", "stellar.alpha", "_stellar_alpha",
-    "stellar.collision", "_stellar_collision",
+    "stellar.collision", "_stellar_collision", "stellar.name", "_stellar_name",
 }
+ENTITY_NAME_KEYS = ("targetname", "_stellar_name", "stellar.name", "name")
 FACE_RE = re.compile(
     r"^\s*\(([^)]*)\)\s*\(([^)]*)\)\s*\(([^)]*)\)\s+([^\s]+)\s+"
     r"\[([^]]*)\]\s+\[([^]]*)\]\s+([-+]?\d+(?:\.\d+)?)\s+"
@@ -117,6 +118,36 @@ def validate_light_angles(entity: dict[str, str], lines_by_key: dict[str, int], 
         diagnostics.append(Diagnostic(
             "warning", lines_by_key.get("target", entity_line), 1,
             "targeted light_spot may ignore angle fields in VHLT; target is preserved"))
+
+
+def canonical_entity_name(entity: dict[str, str]) -> tuple[str, str] | None:
+    for key in ENTITY_NAME_KEYS:
+        value = entity.get(key, "")
+        if value:
+            return key, value
+    return None
+
+
+def validate_name_aliases(entity: dict[str, str], lines_by_key: dict[str, int], entity_line: int,
+                          diagnostics: list[Diagnostic]) -> None:
+    selected = canonical_entity_name(entity)
+    if selected is None:
+        return
+    selected_key, selected_value = selected
+    for key in ENTITY_NAME_KEYS:
+        value = entity.get(key, "")
+        if not value or key == selected_key:
+            continue
+        if value != selected_value:
+            diagnostics.append(Diagnostic(
+                "warning", lines_by_key.get(key, entity_line), 1,
+                f"entity name alias '{key}' conflicts with canonical '{selected_key}'; "
+                f"using '{selected_value}'"))
+    if selected_key == "name":
+        diagnostics.append(Diagnostic(
+            "warning", lines_by_key.get("name", entity_line), 1,
+            "entity uses legacy name without targetname; targetname is the canonical "
+            "targetable identity"))
 
 
 def script_path_escape(value: str) -> bool:
@@ -242,11 +273,13 @@ def validate(path: Path, allow_no_spawn: bool, strict_textures: bool,
         elif classname not in KNOWN_CLASSES:
             diagnostics.append(Diagnostic("warning", 1, 1, f"entity {index} uses custom classname: {classname}"))
         validate_light_angles(entity, key_lines, int(entity_record["line"]), diagnostics)
+        validate_name_aliases(entity, key_lines, int(entity_record["line"]), diagnostics)
         for key in entity:
             if key.startswith("_stellar") or key.startswith("stellar."):
                 if key not in KNOWN_STELLAR_KEYS:
                     diagnostics.append(Diagnostic("warning", 1, 1, f"custom Stellar property on {classname}: {key}"))
-    targetnames = {entity.get("targetname", "") for entity in entity_pairs if entity.get("targetname")}
+    targetnames = {name for _, name in (canonical_entity_name(entity) or (None, "")
+                                        for entity in entity_pairs) if name}
     for entity in entity_pairs:
         target = entity.get("target")
         if target and target not in targetnames:

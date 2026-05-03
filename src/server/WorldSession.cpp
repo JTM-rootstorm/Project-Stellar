@@ -192,6 +192,7 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
     object_collider_system_.set_colliders(stellar::world::build_object_colliders(world));
     collision_state_ = stellar::world::RuntimeCollisionState::from_world(world);
     brush_movers_.clear();
+    target_relays_.clear();
     scheduled_target_fires_.clear();
     target_diagnostics_.clear();
     if (world.level_asset != nullptr && world.level_asset->level_collision.has_value()) {
@@ -245,8 +246,25 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
                                                .distance = std::max(0.0F, axis_size - lip),
                                                .speed = speed_text == nullptr ? 100.0F : parse_float_or(*speed_text, 100.0F),
                                                .wait = wait_text == nullptr ? 1.0F : parse_float_or(*wait_text, 1.0F),
-                                               .delay = delay_text == nullptr ? 0.0F : parse_float_or(*delay_text, 0.0F)});
+                                                .delay = delay_text == nullptr ? 0.0F : parse_float_or(*delay_text, 0.0F)});
         }
+    }
+    for (const auto& marker : world.world_metadata.markers) {
+        if (marker.archetype != "target_stellar_relay") {
+            continue;
+        }
+        const auto& props = marker.properties;
+        const std::string* target_text = props.empty() ? nullptr
+            : marker_property(props.data(), props.data() + props.size(), "target");
+        if (target_text == nullptr || target_text->empty()) {
+            continue;
+        }
+        const std::string* delay_text = props.empty() ? nullptr
+            : marker_property(props.data(), props.data() + props.size(), "delay");
+        target_relays_.push_back(TargetRelay{
+            .name = marker.name,
+            .target = *target_text,
+            .delay = delay_text == nullptr ? 0.0F : parse_float_or(*delay_text, 0.0F)});
     }
     tick_index_ = 0;
 }
@@ -426,6 +444,18 @@ bool WorldSession::fire_target(std::string_view targetname) noexcept {
             }
         } else {
             mover.phase = BrushMoverPhase::kOpening;
+        }
+    }
+    for (const TargetRelay& relay : target_relays_) {
+        if (relay.name != targetname) {
+            continue;
+        }
+        matched = true;
+        if (relay.delay > 0.0F) {
+            scheduled_target_fires_.push_back({.targetname = relay.target,
+                                               .remaining_seconds = relay.delay});
+        } else {
+            (void)fire_target(relay.target);
         }
     }
     if (!matched) {

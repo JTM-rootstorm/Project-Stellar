@@ -41,8 +41,9 @@ Manual editor checklist:
 - Confirm the grid and entity coordinates use X/Y for the floor plan and Z for height.
 - Confirm the first room has floor `z = 0`, ceiling `z = 96`, and player origin `0 0 36`.
 - Confirm gameplay metadata uses dotted keys or Stellar FGD underscore aliases.
-- Confirm moving brush interactions use `func_door`/`func_button` with `targetname`/`target`; runtime
-  movement and collision are server-authoritative and replicated to clients as presentation transforms.
+- Confirm triggers/buttons use `target` to fire another entity's `targetname`; doors are opened by
+  firing their `targetname`. Runtime movement and collision are server-authoritative and replicated to
+  clients as presentation transforms.
 - Confirm compile output is written outside the source `.map` directory, normally under
   `maps/compiled/`.
 
@@ -228,6 +229,10 @@ created by light entities.
 The TrenchBroom-facing FGD uses importer-supported underscore aliases rather than plain placeholder
 field names. This avoids compiler/editor ambiguity while preserving the same runtime metadata as dotted
 keys.
+
+Entity targeting uses the classic BSP contract: `classname` selects the entity type, `targetname` is the
+entity's targetable Name, and `target` points to another entity's `targetname`. Multiple entities may
+share a `targetname` for group firing.
 
 | FGD alias | Runtime metadata key |
 | --- | --- |

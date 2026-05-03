@@ -87,14 +87,20 @@ geometry without authoritative collision. `func_door` and `func_button` preserve
 so the server can move their collision overlays and replicate presentation transforms without mutating the
 immutable `LevelAsset`.
 
-Supported moving-brush keys are `targetname`, `target`, `delay`, `angle`, `speed`, `wait`, and `lip`. Doors open
-when their `targetname` is fired by a trigger/button; buttons press along their movement direction and may
-fire `target`. `angle = -1` moves up, `angle = -2` moves down, and other angles move in the X/Y plane.
-Missing targets are server diagnostics, not fatal import/runtime errors.
+Entity targeting uses the classic BSP contract: `classname` selects the entity type, `targetname` is the
+entity's targetable Name, and `target` points to another entity's `targetname`. Multiple entities may
+share a `targetname` for group firing.
 
-Trigger entities (`trigger_stellar`, `trigger_multiple`, and `trigger_once`) may set `target` to fire named
-brush movers through the server-owned router. Clients receive resulting transforms through authoritative
-snapshots only; client rendering remains presentation-only with no prediction or gameplay authority.
+Supported door keys are `targetname`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, and
+`stellar.collision`. Doors open when their `targetname` is fired by a trigger/button. Supported button
+output keys are `target` and `delay`; buttons press along their movement direction and may fire `target`.
+`angle = -1` moves up, `angle = -2` moves down, and other angles move in the X/Y plane. Missing targets
+are server diagnostics, not fatal import/runtime errors.
+
+Trigger entities (`trigger_stellar`, `trigger_multiple`, and `trigger_once`) may set `target` and `delay`
+to fire named brush movers through the server-owned router. Clients receive resulting transforms through
+authoritative snapshots only; client rendering remains presentation-only with no prediction or gameplay
+authority.
 
 ## Entity key reference
 
@@ -104,15 +110,16 @@ snapshots only; client rendering remains presentation-only with no prediction or
 | Player spawn | `info_player_start` | `origin` | `targetname`, `angle`, `angles` | Creates a player spawn marker. |
 | Deathmatch/player spawn | `info_player_deathmatch` | `origin` | `targetname`, `angle`, `angles` | Creates the same player-spawn marker type as `info_player_start`; use for multiplayer/deathmatch spawn pads or maps that only provide DM starts. |
 | Generic spawn | `info_stellar_spawn` | `targetname`, `archetype`, `origin` | `stellar.script`, `stellar.table` | Creates metadata for server-side spawn logic; no entity is spawned during import. |
-| Compile-time lights | `light`, `light_spot`, `light_environment` | `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2` as applicable | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
-| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are import-time metadata until authoritative runtime invokes them. |
-| Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
+| Compile-time lights | `light`, `light_spot`, `light_environment` | `targetname`, `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2`, `target` on `light_spot` only | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
+| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `target`, `delay`, `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are import-time metadata until authoritative runtime invokes them. |
+| Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `target`, `delay`, `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
 | Sprite billboard | `stellar_sprite`, `env_sprite`, or any entity with `stellar.sprite` | `targetname`, `origin`, `stellar.sprite` | `stellar.texture`, `stellar.size`, `stellar.alpha` | Creates a sprite marker for presentation. `stellar.script` is unsupported and ignored with a diagnostic. |
 | Brush object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker from brush model bounds. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
 | Point object-collider sensor | `stellar_object_collider_point` | `targetname`, `origin`, `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates the same object-collider marker type as brush sensors, using authored origin plus half-extents. |
 | Static brush classes | `func_wall`, `func_illusionary`, `func_detail` | `model="*N"` | `targetname`, `archetype`, `stellar.collision=static|sensor|none` | Imported as brush/static metadata; `func_detail` is primarily compile-time detail geometry. Runtime moving/physics behavior is not implied. |
-| Moving/interactable brush entities | `func_door`, `func_button` | `model="*N"` | `targetname`, `archetype`, `target`, `killtarget`, `message`, `delay`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Imported with brush model ownership so the authoritative server can move collision overlays and replicate presentation transforms. |
-| Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `killtarget`, `message`, `delay`, `spawnflags` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
+| Door brush entity | `func_door` | `model="*N"`, `targetname` where fired | `archetype`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Imported with brush model ownership so the authoritative server can move collision overlays and replicate presentation transforms. Door output fields are not exposed until implemented. |
+| Button brush entity | `func_button` | `model="*N"` | `targetname`, `target`, `delay`, `archetype`, `angle`, `angles`, `speed`, `wait`, `lip`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Pressable brush mover that may fire another entity by `targetname`. |
+| Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `delay` on relay; `origin` on `info_null` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
 
 Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation
 is enabled, including unsupported keys.

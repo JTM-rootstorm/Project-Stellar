@@ -23,15 +23,28 @@
 
 @BaseClass = Targetname
 [
-    targetname(string) : "Name"
+    targetname(string) : "Name / targetname used by target fields"
 ]
 
-@BaseClass = TargetRouting
+@BaseClass = FiresTarget
 [
-    target(string) : "Target entity to fire"
-    killtarget(string) : "Target entity to remove/disable when supported"
-    message(string) : "Message or presentation text"
+    target(string) : "Targetname to fire"
     delay(string) : "Delay before firing target, seconds" : "0"
+]
+
+@BaseClass = KillTarget
+[
+    killtarget(string) : "Targetname to remove/disable when supported"
+]
+
+@BaseClass = MessageText
+[
+    message(string) : "Message or presentation text"
+]
+
+@BaseClass = AimTarget
+[
+    target(string) : "Targetname to aim at; compiler may ignore pitch/yaw when set"
 ]
 
 @BaseClass = Angles
@@ -86,7 +99,6 @@
 
 @BaseClass = LightKeys
 [
-    targetname(string) : "Name"
     origin(string) : "Origin" : "0 0 64"
     _light(string) : "Compiler light color/intensity: r g b brightness" : "255 255 255 200"
     light(string) : "Compiler light brightness or color/intensity alias" : "200"
@@ -130,23 +142,23 @@
     origin(string) : "Origin" : "0 0 0"
 ]
 
-@PointClass base(LightKeys) color(255 255 128) size(-8 -8 -8, 8 8 8) = light : "Compile-time point light; imported as non-runtime metadata"
+@PointClass base(Targetname, LightKeys) color(255 255 128) size(-8 -8 -8, 8 8 8) = light : "Compile-time point light; imported as non-runtime metadata"
 [
 ]
 
-@PointClass base(LightKeys, Angles) color(255 224 128) size(-8 -8 -8, 8 8 8) = light_spot : "Compile-time spot light; imported as non-runtime metadata"
+@PointClass base(Targetname, LightKeys, Angles, AimTarget) color(255 224 128) size(-8 -8 -8, 8 8 8) = light_spot : "Compile-time spot light; imported as non-runtime metadata"
 [
     pitch(string) : "Spot pitch in TrenchBroom degrees; 90 points down, 270/-90 points up, 0 is horizontal" : "90"
     _cone(string) : "Inner cone angle" : "30"
     _cone2(string) : "Outer cone angle" : "45"
 ]
 
-@PointClass base(LightKeys, Angles) color(255 240 160) size(-8 -8 -8, 8 8 8) = light_environment : "Compile-time sun/environment light; imported as non-runtime metadata"
+@PointClass base(Targetname, LightKeys, Angles) color(255 240 160) size(-8 -8 -8, 8 8 8) = light_environment : "Compile-time sun/environment light; imported as non-runtime metadata"
 [
     pitch(string) : "Sun pitch in TrenchBroom degrees; 45 is a downward sun, 315/-45 points upward" : "45"
 ]
 
-@PointClass color(255 255 200) size(-8 -8 -8, 8 8 8) = stellar_global_light : "Stellar runtime global ambient light"
+@PointClass base(Targetname) color(255 255 200) size(-8 -8 -8, 8 8 8) = stellar_global_light : "Stellar runtime global ambient light"
 [
     origin(string) : "Origin; ignored for ambient lighting" : "0 0 0"
     _stellar_color(string) : "Global ambient RGB, 0-255" : "255 255 255"
@@ -158,15 +170,15 @@
     ]
 ]
 
-@SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 192 64) = trigger_stellar : "Stellar authoritative brush trigger volume"
+@SolidClass base(Targetname, FiresTarget, StellarScript, TriggerKeys) color(255 192 64) = trigger_stellar : "Stellar authoritative brush trigger volume"
 [
 ]
 
-@SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 160 64) = trigger_multiple : "Repeatable Stellar brush trigger volume"
+@SolidClass base(Targetname, FiresTarget, StellarScript, TriggerKeys) color(255 160 64) = trigger_multiple : "Repeatable Stellar brush trigger volume"
 [
 ]
 
-@SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 128 64) = trigger_once : "Single-use Stellar brush trigger volume"
+@SolidClass base(Targetname, FiresTarget, StellarScript) color(255 128 64) = trigger_once : "Single-use Stellar brush trigger volume"
 [
     _stellar_once(choices) : "Fire once (alias for stellar.once)" : 1 =
     [
@@ -175,17 +187,17 @@
     ]
 ]
 
-@PointClass base(Targetname, StellarScript, StellarExtents, TriggerKeys) color(255 192 96) size(-8 -8 -8, 8 8 8) = trigger_stellar_point : "Stellar authoritative point-authored trigger volume"
+@PointClass base(Targetname, FiresTarget, StellarScript, StellarExtents, TriggerKeys) color(255 192 96) size(-8 -8 -8, 8 8 8) = trigger_stellar_point : "Stellar authoritative point-authored trigger volume"
 [
     origin(string) : "Origin" : "0 0 0"
 ]
 
-@PointClass base(Targetname, StellarScript, StellarExtents, TriggerKeys) color(255 160 96) size(-8 -8 -8, 8 8 8) = trigger_multiple_point : "Repeatable point-authored trigger volume"
+@PointClass base(Targetname, FiresTarget, StellarScript, StellarExtents, TriggerKeys) color(255 160 96) size(-8 -8 -8, 8 8 8) = trigger_multiple_point : "Repeatable point-authored trigger volume"
 [
     origin(string) : "Origin" : "0 0 0"
 ]
 
-@PointClass base(Targetname, StellarScript, StellarExtents) color(255 128 96) size(-8 -8 -8, 8 8 8) = trigger_once_point : "Single-use point-authored trigger volume"
+@PointClass base(Targetname, FiresTarget, StellarScript, StellarExtents) color(255 128 96) size(-8 -8 -8, 8 8 8) = trigger_once_point : "Single-use point-authored trigger volume"
 [
     origin(string) : "Origin" : "0 0 0"
     _stellar_once(choices) : "Fire once (alias for stellar.once)" : 1 =
@@ -259,7 +271,7 @@
     ]
 ]
 
-@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 160 255) = func_door : "Server-authoritative sliding brush door; targetname receives trigger/button fires"
+@SolidClass base(Targetname, Angles, StellarScript, StellarCollision) color(96 160 255) = func_door : "Server-authoritative sliding brush door; targetname receives trigger/button fires"
 [
     archetype(string) : "Optional gameplay/presentation archetype metadata"
     speed(string) : "Move speed, inches per second" : "100"
@@ -274,7 +286,7 @@
     ]
 ]
 
-@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 224 255) = func_button : "Server-authoritative pressable brush button; fires target after press"
+@SolidClass base(Targetname, FiresTarget, Angles, StellarScript, StellarCollision) color(96 224 255) = func_button : "Server-authoritative pressable brush button; fires target after press"
 [
     archetype(string) : "Optional gameplay/presentation archetype metadata"
     speed(string) : "Move speed, inches per second" : "40"
@@ -287,13 +299,9 @@
     ]
 ]
 
-@PointClass base(Targetname, TargetRouting) color(192 192 255) size(-8 -8 -8, 8 8 8) = target_stellar_relay : "Minimal target relay metadata for later target routing"
+@PointClass base(Targetname, FiresTarget) color(192 192 255) size(-8 -8 -8, 8 8 8) = target_stellar_relay : "Minimal target relay metadata for target routing"
 [
     origin(string) : "Origin" : "0 0 0"
-    spawnflags(flags) : "Relay spawn flags" =
-    [
-        1 : "Remove after fire" : 0
-    ]
 ]
 
 @PointClass base(Targetname) color(128 128 255) size(-4 -4 -4, 4 4 4) = info_null : "Compile-time point helper; imported as non-runtime metadata"

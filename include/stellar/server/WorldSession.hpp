@@ -267,7 +267,13 @@ private:
         std::string targetname;
         float remaining_seconds = 0.0F;
     };
+    struct TargetRelay {
+        std::string name;
+        std::string target;
+        float delay = 0.0F;
+    };
     std::vector<BrushMover> brush_movers_;
+    std::vector<TargetRelay> target_relays_;
     std::vector<ScheduledTargetFire> scheduled_target_fires_;
     std::vector<std::string> target_diagnostics_;
     std::uint64_t tick_index_ = 0;

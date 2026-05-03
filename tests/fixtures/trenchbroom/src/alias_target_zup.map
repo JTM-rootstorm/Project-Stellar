@@ -1,0 +1,20 @@
+// Stellar TrenchBroom fixture: alias_target_zup
+// Preflight-only source fixture for canonical targetname alias resolution.
+{
+"classname" "worldspawn"
+"message" "alias_target_zup"
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 36"
+}
+{
+"classname" "info_stellar_spawn"
+"_stellar_name" "AliasTarget"
+"origin" "16 0 36"
+}
+{
+"classname" "info_stellar_spawn"
+"target" "AliasTarget"
+"origin" "32 0 36"
+}

@@ -349,6 +349,75 @@ void unsupported_sprite_script_binding_is_diagnosed_and_ignored() {
   assert(level->world_metadata.markers[1].properties.size() == 6);
 }
 
+void canonical_name_aliases_follow_precedence_and_preserve_raw_properties() {
+  std::vector<stellar::import::bsp::detail::Entity> entities;
+  entities.push_back(entity({{"classname", "worldspawn"}}));
+  entities.push_back(entity({{"classname", "info_player_start"},
+                             {"targetname", "CanonicalSpawn"},
+                             {"_stellar_name", "StellarSpawn"},
+                             {"stellar.name", "DottedSpawn"},
+                             {"name", "LegacySpawn"},
+                             {"origin", "0 0 36"}}));
+  entities.push_back(entity({{"classname", "trigger_multiple"},
+                             {"_stellar_name", "AliasTrigger"},
+                             {"stellar.name", "DottedTrigger"},
+                             {"name", "LegacyTrigger"},
+                             {"target", "CanonicalSpawn"},
+                             {"origin", "8 0 36"},
+                             {"stellar.extents", "4 4 4"}}));
+  entities.push_back(entity({{"classname", "stellar_sprite"},
+                             {"stellar.name", "DottedSprite"},
+                             {"name", "LegacySprite"},
+                             {"origin", "16 0 36"},
+                             {"stellar.sprite", "spark"}}));
+  entities.push_back(entity({{"classname", "info_stellar_spawn"},
+                             {"name", "LegacyOnlySpawn"},
+                             {"origin", "24 0 36"}}));
+
+  stellar::import::bsp::ImportReport report;
+  auto level = stellar::import::bsp::detail::build_level_asset(
+      map_with_models(), std::move(entities), "name_aliases.bsp", {}, &report);
+  assert(level.has_value());
+  assert(level->world_metadata.markers.size() == 4);
+  assert(level->world_metadata.markers[0].name == "CanonicalSpawn");
+  assert(level->world_metadata.markers[1].name == "AliasTrigger");
+  assert(level->world_metadata.markers[2].name == "DottedSprite");
+  assert(level->world_metadata.markers[3].name == "LegacyOnlySpawn");
+  assert(has_diagnostic(report, "conflicts with canonical"));
+  assert(has_diagnostic(report, "legacy name without targetname"));
+
+  const auto &trigger = level->world_metadata.markers[1];
+  bool preserved_target = false;
+  bool preserved_alias = false;
+  for (const auto &property : trigger.properties) {
+    preserved_target = preserved_target ||
+                       (property.key == "target" && property.value == "CanonicalSpawn");
+    preserved_alias = preserved_alias ||
+                      (property.key == "_stellar_name" && property.value == "AliasTrigger");
+  }
+  assert(preserved_target);
+  assert(preserved_alias);
+}
+
+void brush_entity_identity_uses_canonical_aliases() {
+  std::vector<stellar::import::bsp::detail::Entity> entities;
+  entities.push_back(entity({{"classname", "worldspawn"}}));
+  entities.push_back(entity({{"classname", "info_player_start"}, {"origin", "0 0 36"}}));
+  entities.push_back(entity({{"classname", "func_door"},
+                             {"_stellar_name", "AliasDoor"},
+                             {"model", "*1"}}));
+
+  stellar::import::bsp::ImportReport report;
+  auto level = stellar::import::bsp::detail::build_level_asset(
+      map_with_models(), std::move(entities), "brush_alias.bsp", {}, &report);
+  assert(level.has_value());
+  assert(has_only_lightmap_info_diagnostics(report));
+  assert(level->geometry.brush_entities.size() == 1);
+  assert(level->geometry.brush_entities[0].name == "AliasDoor");
+  assert(level->geometry.brush_entities[0].targetname == "AliasDoor");
+  assert(level->geometry.brush_entities[0].collision_mesh_name == "AliasDoor");
+}
+
 } // namespace
 
 int main() {
@@ -360,5 +429,7 @@ int main() {
   malformed_vectors_and_booleans_emit_diagnostics();
   script_path_escape_is_rejected();
   unsupported_sprite_script_binding_is_diagnosed_and_ignored();
+  canonical_name_aliases_follow_precedence_and_preserve_raw_properties();
+  brush_entity_identity_uses_canonical_aliases();
   return 0;
 }
