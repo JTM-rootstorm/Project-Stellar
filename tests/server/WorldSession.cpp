@@ -474,6 +474,60 @@ void same_collision_state_and_inputs_produce_same_snapshots() {
     assert_same_snapshot(a.tick({}), b.tick({}));
 }
 
+stellar::assets::LevelAsset scene_with_func_door() {
+    auto scene = scene_with_named_collision_meshes("DoorA", 0.8F, {0.0F, 0.0F, 0.5F});
+    scene.geometry.brush_entities.push_back(stellar::assets::LevelBrushEntity{
+        .name = "DoorA",
+        .classname = "func_door",
+        .targetname = "DoorA",
+        .bsp_model_index = 0,
+        .collision_mesh_name = "DoorA",
+        .bounds_min = {0.8F, -2.0F, -4.0F},
+        .bounds_max = {8.8F, 4.0F, 4.0F},
+        .properties = {{.key = "angle", .value = "0"},
+                       {.key = "speed", .value = "80"},
+                       {.key = "wait", .value = "-1"},
+                       {.key = "lip", .value = "0"}}});
+    stellar::assets::WorldMarker door_marker;
+    door_marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
+    door_marker.name = "DoorA";
+    door_marker.archetype = "func_door";
+    door_marker.position = {0.8F, 0.0F, 0.0F};
+    door_marker.scale = {0.0F, 6.0F, 8.0F};
+    scene.world_metadata.markers.push_back(door_marker);
+    return scene;
+}
+
+void func_door_target_moves_collision_and_snapshot_transform() {
+    const auto scene = scene_with_func_door();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+
+    assert(session.fire_target("DoorA"));
+    const auto moved = session.tick({});
+
+    assert(moved.brush_movers.size() == 1);
+    assert(moved.brush_movers[0].name == "DoorA");
+    assert(moved.brush_movers[0].translation[0] > 0.0F);
+    assert(!moved.gameplay_world.entities.empty());
+    bool saw_moved_door = false;
+    for (const auto& entity : moved.gameplay_world.entities) {
+        if (entity.metadata.name == "DoorA") {
+            saw_moved_door = saw_moved_door || entity.transform.position[0] > 0.8F;
+        }
+    }
+    assert(saw_moved_door);
+}
+
+void missing_target_is_diagnostic_not_crash() {
+    const auto scene = scene_with_func_door();
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+
+    assert(!session.fire_target("MissingDoor"));
+    assert(session.target_diagnostics().size() == 1);
+}
+
 } // namespace
 
 int main() {
@@ -495,5 +549,7 @@ int main() {
     world_session_collision_state_resets_with_world();
     snapshot_does_not_apply_or_replay_collision_mutation();
     same_collision_state_and_inputs_produce_same_snapshots();
+    func_door_target_moves_collision_and_snapshot_transform();
+    missing_target_is_diagnostic_not_crash();
     return 0;
 }

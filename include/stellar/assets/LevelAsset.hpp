@@ -75,6 +75,50 @@ struct LevelSurface {
 
     /** @brief Source format surface flags preserved for importer-specific tooling. */
     std::uint32_t source_flags = 0;
+
+    /** @brief Source-neutral brush/model index that owns this surface; worldspawn is model 0. */
+    std::uint32_t brush_model_index = 0;
+};
+
+/**
+ * @brief Source-neutral imported brush model entity with independent runtime ownership.
+ */
+struct LevelBrushEntity {
+    /** @brief Stable brush entity name, usually targetname or generated model name. */
+    std::string name;
+
+    /** @brief Authored entity classname such as func_door, func_button, or func_wall. */
+    std::string classname;
+
+    /** @brief Authored targetname used by server-authoritative target routing. */
+    std::string targetname;
+
+    /** @brief Authored target fired by triggers/buttons where applicable. */
+    std::string target;
+
+    /** @brief Original source model token such as *1 when available. */
+    std::string model;
+
+    /** @brief Source-neutral brush model index; worldspawn is model 0 and brush entities are > 0. */
+    std::uint32_t bsp_model_index = 0;
+
+    /** @brief Mesh index in LevelGeometryAsset::meshes containing renderable faces for this brush. */
+    std::size_t mesh_index = 0;
+
+    /** @brief Collision mesh name that runtime collision overlays can target. */
+    std::string collision_mesh_name;
+
+    /** @brief Initial server-owned translation for this brush entity. */
+    std::array<float, 3> origin{0.0F, 0.0F, 0.0F};
+
+    /** @brief Imported local/world bounds minimum before runtime movement. */
+    std::array<float, 3> bounds_min{};
+
+    /** @brief Imported local/world bounds maximum before runtime movement. */
+    std::array<float, 3> bounds_max{};
+
+    /** @brief Ordered inert source properties preserved for runtime binding and diagnostics. */
+    std::vector<WorldEntityProperty> properties;
 };
 
 /**
@@ -104,6 +148,9 @@ struct LevelGeometryAsset {
 
     /** @brief Raw source lighting bytes retained for later lightmap import phases. */
     std::vector<std::byte> raw_lighting;
+
+    /** @brief Imported brush entities with independently transformable render/collision ownership. */
+    std::vector<LevelBrushEntity> brush_entities;
 };
 
 /**

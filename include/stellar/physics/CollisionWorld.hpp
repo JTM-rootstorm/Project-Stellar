@@ -147,6 +147,14 @@ struct CollisionQueryFilter {
      * unrepresented collision meshes.
      */
     const std::vector<bool>* enabled_meshes = nullptr;
+
+    /**
+     * @brief Optional server-owned per-mesh translation overlay indexed by collision mesh.
+     *
+     * Null or missing entries mean identity. Transforms are query-only overlays and never mutate the
+     * immutable collision asset. This phase intentionally supports deterministic translations only.
+     */
+    const std::vector<std::array<float, 3>>* mesh_translations = nullptr;
 };
 
 /** @brief Return true when a collision mesh index participates in filtered queries. */
@@ -218,6 +226,10 @@ public:
     /** @brief Return static collision triangle candidates that pass an optional mesh filter. */
     [[nodiscard]] std::vector<CollisionTriangleCandidate>
     query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter filter) const;
+
+    /** @brief Return a collision triangle with any query-time mesh translation applied. */
+    [[nodiscard]] stellar::assets::CollisionTriangle
+    triangle(CollisionTriangleCandidate candidate, CollisionQueryFilter filter = {}) const noexcept;
 
     /**
      * @brief Return the immutable static collision asset backing this query world.

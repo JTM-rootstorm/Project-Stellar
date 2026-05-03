@@ -41,6 +41,8 @@ Manual editor checklist:
 - Confirm the grid and entity coordinates use X/Y for the floor plan and Z for height.
 - Confirm the first room has floor `z = 0`, ceiling `z = 96`, and player origin `0 0 36`.
 - Confirm gameplay metadata uses dotted keys or Stellar FGD underscore aliases.
+- Confirm moving brush interactions use `func_door`/`func_button` with `targetname`/`target`; runtime
+  movement and collision are server-authoritative and replicated to clients as presentation transforms.
 - Confirm compile output is written outside the source `.map` directory, normally under
   `maps/compiled/`.
 

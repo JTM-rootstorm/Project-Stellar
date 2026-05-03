@@ -78,6 +78,22 @@ python3 tools/bsp/validate_trenchbroom_map_source.py maps/src/test_room.map
 
 The compile wrappers run this automatically unless `--skip-source-preflight` is passed.
 
+## Runtime brush entities and target routing
+
+`func_wall` imports as a visible, solid static brush entity. `func_illusionary` imports as visible brush
+geometry without authoritative collision. `func_door` and `func_button` preserve BSP brush model ownership
+so the server can move their collision overlays and replicate presentation transforms without mutating the
+immutable `LevelAsset`.
+
+Supported moving-brush keys are `targetname`, `target`, `delay`, `angle`, `speed`, `wait`, and `lip`. Doors open
+when their `targetname` is fired by a trigger/button; buttons press along their movement direction and may
+fire `target`. `angle = -1` moves up, `angle = -2` moves down, and other angles move in the X/Y plane.
+Missing targets are server diagnostics, not fatal import/runtime errors.
+
+Trigger entities (`trigger_stellar`, `trigger_multiple`, and `trigger_once`) may set `target` to fire named
+brush movers through the server-owned router. Clients receive resulting transforms through authoritative
+snapshots only; client rendering remains presentation-only with no prediction or gameplay authority.
+
 ## Entity key reference
 
 | Purpose | Class/key | Required keys | Optional keys | Runtime semantics |

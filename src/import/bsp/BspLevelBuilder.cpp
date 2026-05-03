@@ -551,9 +551,6 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
   level.visibility.available = map.has_visibility;
   level.visibility.compressed_pvs = std::move(map.visibility_bytes);
   level.geometry.raw_lighting = std::move(map.lighting_bytes);
-  stellar::assets::MeshAsset mesh{};
-  mesh.name = "worldspawn";
-  mesh.source_uri = level.source_uri;
   std::map<std::string, std::size_t> material_indices;
   std::map<std::string, std::size_t> texture_indices;
   std::unordered_map<std::string, WadTextureAsset> wad_textures;
@@ -594,6 +591,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
             ? Model{.first_face = 0,
                     .face_count = static_cast<std::int32_t>(map.faces.size())}
             : map.models[model_index];
+    stellar::assets::MeshAsset mesh{};
+    mesh.name = model_index == 0 ? "worldspawn"
+                                 : "bsp_model_" + std::to_string(model_index);
+    mesh.source_uri = level.source_uri;
+    const std::size_t output_mesh_index = level.geometry.meshes.size();
     stellar::assets::CollisionMesh collision_mesh{};
     collision_mesh.name = model_index == 0
                               ? "worldspawn"
@@ -603,6 +605,16 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       collision_mesh.name =
           collision_name_for(*found->second, static_cast<int>(model_index));
     }
+    const Entity *owning_entity = nullptr;
+    if (auto found = model_entities.find(static_cast<int>(model_index)); found != model_entities.end()) {
+      owning_entity = found->second;
+    }
+    const std::string owning_class = owning_entity == nullptr
+                                         ? std::string{}
+                                         : string_or(*owning_entity, "classname");
+    const bool build_model_collision = model_index == 0 ||
+                                       (owning_class != "func_illusionary" &&
+                                        !owning_class.starts_with("trigger_"));
     collision_mesh.bounds_min = {std::numeric_limits<float>::max(),
                                  std::numeric_limits<float>::max(),
                                  std::numeric_limits<float>::max()};
@@ -687,7 +699,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         primitive.indices.push_back(0);
         primitive.indices.push_back(i);
         primitive.indices.push_back(i + 1);
-        if (options.build_triangle_collision_from_faces) {
+        if (options.build_triangle_collision_from_faces && build_model_collision) {
           collision_mesh.triangles.push_back(
               stellar::assets::CollisionTriangle{.a = polygon[0],
                                                  .b = polygon[i],
@@ -701,7 +713,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       face_to_surface[static_cast<std::size_t>(face_index)] = surface_index;
       level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
           .name = "face_" + std::to_string(face_index),
-          .mesh_index = 0,
+          .mesh_index = output_mesh_index,
           .primitive_index = primitive_index,
           .material_index = mat,
           .bounds_min = mesh.primitives.back().bounds_min,
@@ -709,15 +721,38 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
           .source_flags =
               face.texinfo < map.texinfos.size()
                   ? static_cast<std::uint32_t>(map.texinfos[face.texinfo].flags)
-                  : 0U});
+                  : 0U,
+          .brush_model_index = static_cast<std::uint32_t>(model_index)});
+    }
+    if (model_index > 0) {
+      if (auto found = model_entities.find(static_cast<int>(model_index));
+          found != model_entities.end()) {
+        const Entity &entity = *found->second;
+        stellar::assets::LevelBrushEntity brush{};
+        brush.classname = string_or(entity, "classname", "func_unknown");
+        brush.targetname = string_or(entity, "targetname");
+        brush.target = string_or(entity, "target");
+        brush.model = string_or(entity, "model");
+        brush.name = brush.targetname.empty() ? collision_mesh.name : brush.targetname;
+        brush.bsp_model_index = static_cast<std::uint32_t>(model_index);
+        brush.mesh_index = output_mesh_index;
+        brush.collision_mesh_name = collision_mesh.name;
+        brush.origin = model.origin;
+        brush.bounds_min = model.mins;
+        brush.bounds_max = model.maxs;
+        for (const auto &pair : entity.pairs) {
+          brush.properties.push_back(stellar::assets::WorldEntityProperty{.key = pair.key,
+                                                                          .value = pair.value});
+        }
+        level.geometry.brush_entities.push_back(std::move(brush));
+      }
     }
     if (!collision_mesh.triangles.empty()) {
       collision.meshes.push_back(std::move(collision_mesh));
     }
-  }
-
-  if (!mesh.primitives.empty()) {
-    level.geometry.meshes.push_back(std::move(mesh));
+    if (!mesh.primitives.empty()) {
+      level.geometry.meshes.push_back(std::move(mesh));
+    }
   }
   if (!collision.meshes.empty()) {
     level.level_collision = std::move(collision);

@@ -22,6 +22,9 @@ and package-local compile/validate shims.
 | `lit_zup_room` | `src/lit_zup_room.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` | 30 | VHLT full profile bakes a nonempty lighting lump and Stellar imports at least one lightmap. |
 | `entity_matrix_zup` | `src/entity_matrix_zup.map` | `build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp` | 30 | Import succeeds and metadata includes all supported FGD classes. |
 | `scripted_interaction_zup` | `src/scripted_interaction_zup.map` | `build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp` | 30 | Scripted authoritative runtime loads `scripts/gate.lua` and `scripts/pickup.lua`. |
+| `moving_door_button_zup` | `src/moving_door_button_zup.map` | external/VHLT generated | 30 | `func_button` targets server-authoritative `func_door` DoorA; collision and presentation transforms are snapshot-owned. |
+| `point_volume_zup` | `src/point_volume_zup.map` | external/VHLT generated | 30 | Point trigger/object collider aliases preserve Z-up extents without brush solids. |
+| `illusionary_static_zup` | `src/illusionary_static_zup.map` | external/VHLT generated | 30 | `func_wall` is solid/static and `func_illusionary` is visible/nonblocking. |
 | `invalid_script_escape_zup` | `src/invalid_script_escape_zup.map` | `build/tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp` | 30 | Validation fails because `_stellar_script` uses `../escape.lua`. |
 
 ## VHLT fixture matrix
@@ -62,6 +65,9 @@ references and compiler-facing texture alias rewrites only into copied work maps
 - `lit_zup_room`: `worldspawn`, `info_player_start origin "0 0 36"`, `light`, `light_spot`; room bounds match `minimal_zup_room` and are intended for VHLT lightmap generation.
 - `entity_matrix_zup`: `info_player_start`, `info_stellar_spawn`, `trigger_stellar`, `trigger_multiple`, `trigger_once`, `stellar_sprite`, `env_sprite`, `stellar_object_collider`, `func_wall`, `func_door`, `func_button`.
 - `scripted_interaction_zup`: `trigger_stellar` bound to `scripts/gate.lua`, `stellar_object_collider` bound to `scripts/pickup.lua`, named static blocker `GateDoor`.
+- `moving_door_button_zup`: `func_door targetname "DoorA"`, `func_button target "DoorA"`, and baked light entity for TB-FULL-04 compatibility.
+- `point_volume_zup`: `trigger_multiple_point` and `stellar_object_collider_point` with `_stellar_extents`/`stellar.extents`-compatible metadata.
+- `illusionary_static_zup`: paired `func_wall`/`func_illusionary` brush entities for solid vs visible-nonblocking behavior.
 - `invalid_script_escape_zup`: `trigger_stellar` with invalid `_stellar_script "../escape.lua"`.
 
 ## Manual editor checklist

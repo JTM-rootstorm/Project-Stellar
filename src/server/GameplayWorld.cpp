@@ -36,7 +36,7 @@ using stellar::assets::WorldMarkerType;
 [[nodiscard]] bool is_door_or_gate(std::string_view value) {
     const std::string lowered = lowercase(value);
     return lowered == "door" || lowered == "gate" || lowered == "func_door" ||
-           lowered == "func_wall" || lowered.find("door") != std::string::npos ||
+           lowered == "func_button" || lowered == "func_wall" || lowered.find("door") != std::string::npos ||
            lowered.find("gate") != std::string::npos;
 }
 
@@ -250,7 +250,7 @@ bool GameplayWorld::deactivate_pickup_by_collider(std::uint32_t collider_id) noe
 }
 
 bool GameplayWorld::set_door_open_by_collision_mesh_name(std::string_view mesh_name,
-                                                         bool open) noexcept {
+                                                          bool open) noexcept {
     bool matched = false;
     for (GameplayEntity& entity : entities_) {
         if (entity.kind == EntityKind::kDoor && entity.metadata.name == mesh_name) {
@@ -260,6 +260,20 @@ bool GameplayWorld::set_door_open_by_collision_mesh_name(std::string_view mesh_n
         }
     }
     return matched;
+}
+
+bool GameplayWorld::update_brush_entity(EntityId id,
+                                        std::array<float, 3> position,
+                                        bool open) noexcept {
+    for (GameplayEntity& entity : entities_) {
+        if (entity.id == id) {
+            entity.transform.position = position;
+            entity.open = open;
+            entity.active = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 GameplayWorldSnapshot GameplayWorld::snapshot() const {

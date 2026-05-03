@@ -2,6 +2,10 @@
 
 #include "stellar/core/WorldAxes.hpp"
 
+#include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <string>
 #include <utility>
 
 namespace stellar::server {
@@ -76,6 +80,47 @@ namespace {
                                         fallback_colliders)};
 }
 
+[[nodiscard]] const std::string* marker_property(
+    const stellar::assets::WorldEntityProperty* begin,
+    const stellar::assets::WorldEntityProperty* end,
+    std::string_view key) noexcept {
+    for (auto* it = begin; it != end; ++it) {
+        if (it->key == key) {
+            return &it->value;
+        }
+    }
+    return nullptr;
+}
+
+[[nodiscard]] float parse_float_or(std::string_view value, float fallback) noexcept {
+    float parsed = fallback;
+    const auto* begin = value.data();
+    const auto* end = begin + value.size();
+    const auto result = std::from_chars(begin, end, parsed);
+    return (result.ec == std::errc{} && result.ptr == end) ? parsed : fallback;
+}
+
+[[nodiscard]] std::array<float, 3> direction_from_angle(float angle_degrees) noexcept {
+    if (std::abs(angle_degrees + 1.0F) < 0.001F) {
+        return stellar::core::kWorldUp;
+    }
+    if (std::abs(angle_degrees + 2.0F) < 0.001F) {
+        return stellar::core::kWorldDown;
+    }
+    constexpr float kPi = 3.14159265358979323846F;
+    const float radians = angle_degrees * kPi / 180.0F;
+    return {std::cos(radians), std::sin(radians), 0.0F};
+}
+
+[[nodiscard]] std::array<float, 3> mul3(std::array<float, 3> value, float scale) noexcept {
+    return {value[0] * scale, value[1] * scale, value[2] * scale};
+}
+
+[[nodiscard]] std::array<float, 3> add3(std::array<float, 3> a,
+                                        std::array<float, 3> b) noexcept {
+    return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
+}
+
 } // namespace
 
 WorldSession::WorldSession(const stellar::world::RuntimeWorld& world, WorldSessionConfig config) {
@@ -90,6 +135,63 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
     trigger_tracker_.reset_from_world(world);
     object_collider_system_.set_colliders(stellar::world::build_object_colliders(world));
     collision_state_ = stellar::world::RuntimeCollisionState::from_world(world);
+    brush_movers_.clear();
+    scheduled_target_fires_.clear();
+    target_diagnostics_.clear();
+    if (world.level_asset != nullptr && world.level_asset->level_collision.has_value()) {
+        for (const auto& brush : world.level_asset->geometry.brush_entities) {
+            if (brush.classname != "func_door" && brush.classname != "func_button") {
+                continue;
+            }
+            const auto& props = brush.properties;
+            const std::string* angle_text = props.empty() ? nullptr
+                : marker_property(props.data(), props.data() + props.size(), "angle");
+            const std::string* speed_text = props.empty() ? nullptr
+                : marker_property(props.data(), props.data() + props.size(), "speed");
+            const std::string* wait_text = props.empty() ? nullptr
+                : marker_property(props.data(), props.data() + props.size(), "wait");
+            const std::string* lip_text = props.empty() ? nullptr
+                : marker_property(props.data(), props.data() + props.size(), "lip");
+            const std::string* delay_text = props.empty() ? nullptr
+                : marker_property(props.data(), props.data() + props.size(), "delay");
+            const float angle = angle_text == nullptr ? 0.0F : parse_float_or(*angle_text, 0.0F);
+            const auto direction = direction_from_angle(angle);
+            const std::array<float, 3> extents{brush.bounds_max[0] - brush.bounds_min[0],
+                                               brush.bounds_max[1] - brush.bounds_min[1],
+                                               brush.bounds_max[2] - brush.bounds_min[2]};
+            const float axis_size = std::abs(direction[0]) * extents[0] +
+                                    std::abs(direction[1]) * extents[1] +
+                                    std::abs(direction[2]) * extents[2];
+            const float lip = lip_text == nullptr ? 8.0F : parse_float_or(*lip_text, 8.0F);
+            std::uint32_t mesh_index = brush.bsp_model_index;
+            if (world.level_asset->level_collision.has_value()) {
+                const auto& meshes = world.level_asset->level_collision->meshes;
+                for (std::size_t index = 0; index < meshes.size(); ++index) {
+                    if (meshes[index].name == brush.collision_mesh_name) {
+                        mesh_index = static_cast<std::uint32_t>(index);
+                        break;
+                    }
+                }
+            }
+            EntityId entity_id = 0;
+            for (const auto& entity : gameplay_world_.entities()) {
+                if (entity.metadata.name == brush.collision_mesh_name || entity.metadata.name == brush.name) {
+                    entity_id = entity.id;
+                    break;
+                }
+            }
+            brush_movers_.push_back(BrushMover{.entity_id = entity_id,
+                                               .collision_mesh_index = mesh_index,
+                                               .name = brush.name,
+                                               .classname = brush.classname,
+                                               .target = brush.target,
+                                               .direction = direction,
+                                               .distance = std::max(0.0F, axis_size - lip),
+                                               .speed = speed_text == nullptr ? 100.0F : parse_float_or(*speed_text, 100.0F),
+                                               .wait = wait_text == nullptr ? 1.0F : parse_float_or(*wait_text, 1.0F),
+                                               .delay = delay_text == nullptr ? 0.0F : parse_float_or(*delay_text, 0.0F)});
+        }
+    }
     tick_index_ = 0;
 }
 
@@ -106,6 +208,40 @@ std::optional<EntityId> WorldSession::entity_for_player(PlayerId player_id) cons
 }
 
 WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexcept {
+    const float dt = sanitize_movement_simulation_config(config_.movement).value.fixed_dt;
+    for (auto it = scheduled_target_fires_.begin(); it != scheduled_target_fires_.end();) {
+        it->remaining_seconds -= dt;
+        if (it->remaining_seconds <= 0.0F) {
+            const std::string target = it->targetname;
+            it = scheduled_target_fires_.erase(it);
+            (void)fire_target(target);
+        } else {
+            ++it;
+        }
+    }
+    for (BrushMover& mover : brush_movers_) {
+        if (mover.phase == BrushMoverPhase::kOpening || mover.phase == BrushMoverPhase::kPressed) {
+            mover.progress = std::min(mover.distance, mover.progress + std::max(0.0F, mover.speed) * dt);
+            if (mover.progress >= mover.distance) {
+                mover.phase = BrushMoverPhase::kOpen;
+                mover.wait_remaining = std::max(0.0F, mover.wait);
+            }
+        } else if (mover.phase == BrushMoverPhase::kOpen) {
+            if (mover.wait >= 0.0F) {
+                mover.wait_remaining -= dt;
+                if (mover.wait_remaining <= 0.0F) {
+                    mover.phase = BrushMoverPhase::kClosing;
+                }
+            }
+        } else if (mover.phase == BrushMoverPhase::kClosing) {
+            mover.progress = std::max(0.0F, mover.progress - std::max(0.0F, mover.speed) * dt);
+            if (mover.progress <= 0.0F) {
+                mover.phase = BrushMoverPhase::kClosed;
+            }
+        }
+        (void)collision_state_.set_mesh_translation(mover.collision_mesh_index,
+                                                    mul3(mover.direction, mover.progress));
+    }
     const MovementCommand command = select_local_command(commands);
     const MovementTriggerTickResult result = simulate_movement_tick_and_update_triggers(
         *world_, player_state_, command, config_.movement, &collision_state_, trigger_tracker_);
@@ -114,6 +250,30 @@ WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexce
         config_.local_player_id, object_collider_system_,
         object_collider_system_.update_player_capsule(
             make_authoritative_capsule(player_state_.position, config_.movement)));
+    for (const MovementTriggerEvent& event : result.trigger_events) {
+        if (event.entered) {
+            for (const auto& marker : world_->world_metadata.markers) {
+                if (marker.name == event.trigger_name) {
+                    for (const auto& prop : marker.properties) {
+                        if (prop.key == "target" && !prop.value.empty()) {
+                            float delay = 0.0F;
+                            for (const auto& delay_prop : marker.properties) {
+                                if (delay_prop.key == "delay") {
+                                    delay = parse_float_or(delay_prop.value, 0.0F);
+                                }
+                            }
+                            if (delay > 0.0F) {
+                                scheduled_target_fires_.push_back({.targetname = prop.value,
+                                                                   .remaining_seconds = delay});
+                            } else {
+                                (void)fire_target(prop.value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     ++tick_index_;
     return make_snapshot(result.trigger_events, std::move(object_events));
 }
@@ -186,6 +346,41 @@ PickupCollectionResult WorldSession::collect_pickup(std::uint32_t collider_id) n
                                       std::move(disabled.object_collider_events)};
 }
 
+bool WorldSession::fire_target(std::string_view targetname) noexcept {
+    if (targetname.empty()) {
+        target_diagnostics_.push_back("target router ignored empty targetname");
+        return false;
+    }
+    bool matched = false;
+    for (BrushMover& mover : brush_movers_) {
+        if (mover.name != targetname) {
+            continue;
+        }
+        matched = true;
+        if (mover.classname == "func_button") {
+            mover.phase = BrushMoverPhase::kPressed;
+            if (!mover.target.empty()) {
+                if (mover.delay > 0.0F) {
+                    scheduled_target_fires_.push_back({.targetname = mover.target,
+                                                       .remaining_seconds = mover.delay});
+                } else {
+                    (void)fire_target(mover.target);
+                }
+            }
+        } else {
+            mover.phase = BrushMoverPhase::kOpening;
+        }
+    }
+    if (!matched) {
+        target_diagnostics_.push_back("target router missing target: " + std::string(targetname));
+    }
+    return matched;
+}
+
+std::span<const std::string> WorldSession::target_diagnostics() const noexcept {
+    return target_diagnostics_;
+}
+
 ObjectColliderMutationResult WorldSession::upsert_object_collider(
     const stellar::world::ObjectCollider& collider) noexcept {
     const std::vector<stellar::world::ObjectCollider> old_colliders =
@@ -217,6 +412,22 @@ WorldSnapshot WorldSession::make_snapshot(
     snapshot.trigger_events = std::move(trigger_events);
     snapshot.object_collider_events = std::move(object_collider_events);
     snapshot.gameplay_world = gameplay_world_.snapshot();
+    for (const BrushMover& mover : brush_movers_) {
+        const auto translation = mul3(mover.direction, mover.progress);
+        snapshot.brush_movers.push_back(BrushMoverSnapshot{.entity_id = mover.entity_id,
+                                                           .name = mover.name,
+                                                           .classname = mover.classname,
+                                                           .translation = translation,
+                                                           .open = mover.progress >= mover.distance});
+    }
+    for (BrushMoverSnapshot& mover : snapshot.brush_movers) {
+        for (stellar::server::GameplayEntity& entity : snapshot.gameplay_world.entities) {
+            if (entity.id == mover.entity_id) {
+                entity.transform.position = add3(entity.transform.position, mover.translation);
+                entity.open = mover.open;
+            }
+        }
+    }
     return snapshot;
 }
 

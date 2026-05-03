@@ -394,8 +394,6 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
                                  Vec3 up,
                                  CollisionQueryFilter filter) noexcept {
     RecoveryResult result{.position = position};
-    const auto& asset = world.asset();
-
     for (int iteration = 0; iteration < kRecoveryIterations; ++iteration) {
         float deepest = 0.0F;
         Vec3 push_normal = up;
@@ -404,8 +402,7 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
         const auto candidates = world.query_triangles(capsule_bounds(result.position, up, radius, height),
                                                       filter);
         for (const auto& candidate : candidates) {
-            const auto& triangle =
-                asset.meshes[candidate.mesh_index].triangles[candidate.triangle_index];
+            const auto triangle = world.triangle(candidate, filter);
             const ClosestPair closest = closest_capsule_segment_triangle(
                 capsule_endpoints(result.position, up, radius, height), triangle);
             const float dist = std::sqrt(std::max(closest.distance_sq, 0.0F));
@@ -455,7 +452,6 @@ SlideResult slide_move(const CollisionWorld& world,
                        int max_iterations,
                        CollisionQueryFilter filter) noexcept {
     SlideResult result{.position = start, .remaining = displacement};
-    const auto& asset = world.asset();
     const int iterations = std::clamp(max_iterations, 0, 8);
 
     for (int iteration = 0; iteration < iterations; ++iteration) {
@@ -468,8 +464,7 @@ SlideResult slide_move(const CollisionWorld& world,
         const auto candidates = world.query_triangles(
             swept_capsule_bounds(result.position, result.remaining, up, radius, height), filter);
         for (const auto& candidate : candidates) {
-            const auto& triangle =
-                asset.meshes[candidate.mesh_index].triangles[candidate.triangle_index];
+            const auto triangle = world.triangle(candidate, filter);
             const Contact contact = sweep_capsule_triangle(result.position, result.remaining,
                                                            up, radius, height, triangle);
             if (contact.hit && contact.t < nearest.t) {

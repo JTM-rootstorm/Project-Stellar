@@ -232,7 +232,8 @@ MovementTickResult simulate_movement_tick(
                                                            .up = stellar::core::kWorldUp};
         if (collision_state != nullptr) {
             const stellar::physics::CollisionQueryFilter filter{
-                .enabled_meshes = &collision_state->enabled_meshes()};
+                .enabled_meshes = &collision_state->enabled_meshes(),
+                .mesh_translations = &collision_state->mesh_translations()};
             result.collision = controller.move(input, cfg.character, filter);
         } else {
             result.collision = controller.move(input, cfg.character);

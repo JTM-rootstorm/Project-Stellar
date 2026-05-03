@@ -105,6 +105,33 @@ struct PickupCollectionResult {
     std::vector<ObjectColliderEvent> object_collider_events;
 };
 
+/** @brief Authoritative runtime state for a transformable brush model. */
+enum class BrushMoverPhase : std::uint8_t {
+    kClosed,
+    kOpening,
+    kOpen,
+    kClosing,
+    kPressed,
+};
+
+/** @brief Server-owned moving brush snapshot replicated to clients as gameplay entities. */
+struct BrushMoverSnapshot {
+    /** @brief Stable authoritative entity id associated with this mover. */
+    EntityId entity_id = 0;
+
+    /** @brief Authored targetname or generated name. */
+    std::string name;
+
+    /** @brief Authored class such as func_door or func_button. */
+    std::string classname;
+
+    /** @brief Current server-owned translation relative to imported closed position. */
+    std::array<float, 3> translation{0.0F, 0.0F, 0.0F};
+
+    /** @brief True when the mover has reached its activated/open extent. */
+    bool open = false;
+};
+
 /** @brief Snapshot emitted by the authoritative world session after a tick. */
 struct WorldSnapshot {
     /** @brief Number of completed authoritative simulation ticks. */
@@ -121,6 +148,9 @@ struct WorldSnapshot {
 
     /** @brief Display-free server-owned gameplay entity snapshot. */
     GameplayWorldSnapshot gameplay_world;
+
+    /** @brief Server-owned moving brush transforms visible to presentation-only clients. */
+    std::vector<BrushMoverSnapshot> brush_movers;
 };
 
 /** @brief Deterministic config for a local authoritative world session. */
@@ -184,6 +214,12 @@ public:
     /** @brief Collect an active pickup by object-collider id and disable its server collider. */
     [[nodiscard]] PickupCollectionResult collect_pickup(std::uint32_t collider_id) noexcept;
 
+    /** @brief Fire an authored targetname through the server-owned target router. */
+    [[nodiscard]] bool fire_target(std::string_view targetname) noexcept;
+
+    /** @brief Return deterministic target/mover diagnostics accumulated by this session. */
+    [[nodiscard]] std::span<const std::string> target_diagnostics() const noexcept;
+
     /** @brief Insert or replace one collider and synchronously return mutation exits only. */
     [[nodiscard]] ObjectColliderMutationResult upsert_object_collider(
         const stellar::world::ObjectCollider& collider) noexcept;
@@ -209,6 +245,28 @@ private:
     MovementTriggerTracker trigger_tracker_{};
     stellar::world::ObjectColliderSystem object_collider_system_{};
     stellar::world::RuntimeCollisionState collision_state_{};
+    struct BrushMover {
+        EntityId entity_id = 0;
+        std::uint32_t collision_mesh_index = 0;
+        std::string name;
+        std::string classname;
+        std::string target;
+        std::array<float, 3> direction{0.0F, 1.0F, 0.0F};
+        float distance = 0.0F;
+        float speed = 100.0F;
+        float wait = 1.0F;
+        float delay = 0.0F;
+        float progress = 0.0F;
+        float wait_remaining = 0.0F;
+        BrushMoverPhase phase = BrushMoverPhase::kClosed;
+    };
+    struct ScheduledTargetFire {
+        std::string targetname;
+        float remaining_seconds = 0.0F;
+    };
+    std::vector<BrushMover> brush_movers_;
+    std::vector<ScheduledTargetFire> scheduled_target_fires_;
+    std::vector<std::string> target_diagnostics_;
     std::uint64_t tick_index_ = 0;
 };
 

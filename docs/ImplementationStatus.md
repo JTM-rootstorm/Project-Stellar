@@ -2,7 +2,17 @@
 
 Branch target: `trenchbroom-compat`
 
-## In-progress Scope — TB-FULL-04 Lighting and Renderer Lightmaps
+## In-progress Scope — TB-FULL-05 Runtime Brush Entities and Targets
+
+Status: implemented in the working tree for validation.
+
+- Preserved imported brush model ownership in source-neutral level geometry metadata.
+- Added query-time server-owned collision mesh translations without mutating immutable level assets.
+- Added minimal server-authoritative `func_door`/`func_button` mover state and target firing diagnostics.
+- Replicated moving brush transforms through authoritative snapshots/gameplay entity presentation state.
+- Added source fixtures for moving door/button, point volumes, and static illusionary behavior.
+
+## Completed Scope — TB-FULL-04 Lighting and Renderer Lightmaps
 
 Status: implemented in the working tree for validation.
 
