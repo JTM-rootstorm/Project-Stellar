@@ -1,0 +1,34 @@
+# Stellar developer material names
+
+The Stellar runtime recognizes these BSP material aliases and creates deterministic display-free fallback
+material data when embedded miptex pixels or safe external WAD3 files are unavailable. Authored/source
+material names are preserved on imported surface materials.
+
+## Official aliases
+
+| Canonical runtime name | TrenchBroom/source alias | Compiler/WAD alias |
+| --- | --- | --- |
+| `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` |
+| `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` |
+| `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` |
+| `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` |
+
+The WAD3 format limits lump names to 15 bytes, so `materials/stellar_dev.wad` contains the `dev/...` and
+`dev_*` names. The longer `stellar_dev_*` names are runtime fallback aliases and PNG/manual-reference
+names.
+
+## Tooling
+
+Generate or verify the official deterministic WAD from the repository root:
+
+```bash
+python3 tools/bsp/create_stellar_dev_wad.py --out /tmp/stellar_dev.wad
+python3 tools/bsp/create_stellar_dev_wad.py --list
+python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
+```
+
+TrenchBroom-visible PNGs are stored under `materials/dev/` for `dev/...` browsing and as root-level
+`stellar_dev_*` references. If TrenchBroom still shows gray faces after copying this package, reload the
+Stellar game profile or restart TrenchBroom so it rescans `GameConfig.cfg`, PNGs, and the WAD.

@@ -27,6 +27,8 @@ struct MaterialUpload {
     std::optional<MaterialTextureBinding> base_color_texture;
     /** @brief Optional static level lightmap sampled from secondary UVs. */
     std::optional<MaterialTextureBinding> lightmap_texture;
+    /** @brief Static BSP lightstyle multiplier applied to lightmap samples. */
+    float lightmap_multiplier = 1.0F;
     std::optional<MaterialTextureBinding> normal_texture;
     std::optional<MaterialTextureBinding> metallic_roughness_texture;
     std::optional<MaterialTextureBinding> occlusion_texture;

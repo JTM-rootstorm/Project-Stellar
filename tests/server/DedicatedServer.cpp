@@ -28,7 +28,7 @@ std::filesystem::path temp_root() {
 
 std::filesystem::path write_map(const std::filesystem::path& root,
                                 const std::string& name,
-                                std::string_view fixture = "gameplay_room") {
+                                std::string_view fixture = "minimal_zup_room") {
     const std::filesystem::path path = root / name;
     stellar::tests::fixtures::write_bsp_fixture(path, fixture);
     return path;
@@ -212,12 +212,13 @@ void input_updates_authoritative_snapshot() {
     pump_until_packets(server, *client, 0.0F, packets);
     const auto first = expect_snapshot(packets);
 
-    auto command_bytes = stellar::network::encode_player_command(stellar::network::NetworkPlayerCommand{
-        .player_id = 999,
-        .command_sequence = 1,
-        .movement = stellar::server::MovementCommand{.wish_direction = {1.0F, 0.0F, 0.0F},
-                                                     .jump = false},
-    });
+    stellar::network::NetworkPlayerCommand command{};
+    command.player_id = 999;
+    command.command_sequence = 1;
+    command.movement.wish_direction = {1.0F, 0.0F, 0.0F};
+    command.movement.view_yaw_degrees = 90.0F;
+    command.movement.has_view_angles = true;
+    auto command_bytes = stellar::network::encode_player_command(command);
     assert(command_bytes.has_value());
     auto sent = client->send_to_server(stellar::network::TransportPacket{
         .channel = stellar::network::TransportChannel::kReliable,
@@ -248,6 +249,7 @@ void input_updates_authoritative_snapshot() {
     assert(saw_delta);
     assert(current.tick > first.tick);
     assert(current.players[0].position[0] > first.players[0].position[0]);
+    assert(current.players[0].rotation != first.players[0].rotation);
 }
 
 void disconnect_does_not_crash() {

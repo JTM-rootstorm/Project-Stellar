@@ -69,6 +69,15 @@ public:
     void request_close() noexcept;
 
     /**
+     * @brief Enable or disable SDL relative mouse mode for camera-look capture.
+     * @return std::expected<void, Error> with SDL diagnostics on failure.
+     */
+    [[nodiscard]] std::expected<void, Error> set_relative_mouse_mode(bool enabled) noexcept;
+
+    /** @brief Return true when SDL relative mouse mode is currently enabled. */
+    [[nodiscard]] bool relative_mouse_mode() const noexcept;
+
+    /**
      * @brief Get the underlying SDL window handle.
      */
     [[nodiscard]] SDL_Window* native_handle() const noexcept;

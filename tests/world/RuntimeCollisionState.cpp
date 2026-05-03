@@ -9,8 +9,8 @@ namespace {
 stellar::assets::CollisionTriangle make_triangle() {
     return stellar::assets::CollisionTriangle{.a = {0.0F, 0.0F, 0.0F},
                                               .b = {1.0F, 0.0F, 0.0F},
-                                              .c = {0.0F, 0.0F, 1.0F},
-                                              .normal = {0.0F, 1.0F, 0.0F}};
+                                              .c = {0.0F, 1.0F, 0.0F},
+                                              .normal = {0.0F, 0.0F, 1.0F}};
 }
 
 stellar::assets::CollisionMesh make_mesh(std::string_view name) {
@@ -18,7 +18,7 @@ stellar::assets::CollisionMesh make_mesh(std::string_view name) {
     mesh.name = std::string{name};
     mesh.triangles = {make_triangle()};
     mesh.bounds_min = {0.0F, 0.0F, 0.0F};
-    mesh.bounds_max = {1.0F, 0.0F, 1.0F};
+    mesh.bounds_max = {1.0F, 1.0F, 0.0F};
     return mesh;
 }
 

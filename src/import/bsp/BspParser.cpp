@@ -241,7 +241,8 @@ parse_bsp(std::span<const std::byte> bytes, std::string_view source_uri,
   if (map.version != kBspVersionQuake && map.version != kBspVersionGoldSrc) {
     return std::unexpected(stellar::platform::Error(
         std::string(source_uri) + ": unsupported BSP version " +
-        std::to_string(map.version)));
+        std::to_string(map.version) +
+        " (supported classic BSP versions are BSP29 and BSP30; Source/VBSP is unsupported)"));
   }
 
   for (std::size_t i = 0; i < kLumpCount; ++i) {

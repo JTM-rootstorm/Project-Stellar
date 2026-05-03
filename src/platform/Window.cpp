@@ -1,7 +1,11 @@
 #include "stellar/platform/Window.hpp"
+#include "stellar/platform/DisplayDiagnostics.hpp"
 #include "stellar/platform/Input.hpp"
 
 #include <SDL2/SDL.h>
+
+#include <string>
+#include <utility>
 
 namespace stellar::platform {
 
@@ -16,13 +20,19 @@ void handle_event(const SDL_Event& event, Input* input, bool& should_close) {
         case SDL_QUIT:
             should_close = true;
             break;
-        case SDL_KEYDOWN:
-            // Exit on ESC key.
-            if (event.key.keysym.sym == SDLK_ESCAPE) {
-                should_close = true;
-            }
-            break;
     }
+}
+
+std::string sdl_startup_error_message(const char* fallback) {
+    std::string message(fallback);
+    const char* sdl_error = SDL_GetError();
+    if (sdl_error != nullptr && sdl_error[0] != '\0') {
+        message += ": ";
+        message += sdl_error;
+    } else {
+        message += ": no SDL error detail available";
+    }
+    return append_display_environment_diagnostics(std::move(message));
 }
 
 }  // namespace
@@ -57,7 +67,8 @@ Window::create(int width, int height, std::string_view title, Uint32 flags) {
 
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        return std::unexpected(Error("SDL initialization failed"));
+        return std::unexpected(
+            Error(sdl_startup_error_message("SDL video initialization failed")));
     }
 
     // Create window
@@ -71,7 +82,9 @@ Window::create(int width, int height, std::string_view title, Uint32 flags) {
     );
 
     if (!window_) {
-        return std::unexpected(Error("Failed to create SDL window"));
+        auto message = sdl_startup_error_message("Failed to create SDL window");
+        SDL_Quit();
+        return std::unexpected(Error(std::move(message)));
     }
 
     return {};
@@ -79,6 +92,9 @@ Window::create(int width, int height, std::string_view title, Uint32 flags) {
 
 void Window::destroy() noexcept {
     if (window_) {
+        if (SDL_GetRelativeMouseMode() == SDL_TRUE) {
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+        }
         SDL_DestroyWindow(window_);
         window_ = nullptr;
     }
@@ -107,6 +123,18 @@ bool Window::should_close() const noexcept {
 
 void Window::request_close() noexcept {
     should_close_ = true;
+}
+
+std::expected<void, Error> Window::set_relative_mouse_mode(bool enabled) noexcept {
+    if (SDL_SetRelativeMouseMode(enabled ? SDL_TRUE : SDL_FALSE) != 0) {
+        return std::unexpected(
+            Error(sdl_startup_error_message("Failed to change SDL relative mouse mode")));
+    }
+    return {};
+}
+
+bool Window::relative_mouse_mode() const noexcept {
+    return SDL_GetRelativeMouseMode() == SDL_TRUE;
 }
 
 SDL_Window* Window::native_handle() const noexcept {

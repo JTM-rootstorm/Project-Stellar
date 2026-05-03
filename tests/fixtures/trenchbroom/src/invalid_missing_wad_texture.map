@@ -1,0 +1,17 @@
+// Stellar TrenchBroom negative fixture: invalid_missing_wad_texture
+// Expected strict source preflight failure: unknown texture cannot resolve from relative WAD.
+{
+"classname" "worldspawn"
+"message" "invalid_missing_wad_texture"
+"wad" "missing_textures.wad"
+{
+( -64 -64 -16 ) ( -64 64 0 ) ( -64 -64 0 ) missing_tex [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 64 -64 -16 ) ( 64 -64 0 ) ( 64 64 -16 ) missing_tex [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -64 -64 -16 ) ( 64 -64 0 ) ( 64 -64 -16 ) missing_tex [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -64 64 -16 ) ( 64 64 0 ) ( -64 64 0 ) missing_tex [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+}
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 36"
+}

@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "RecordingGraphicsDevice.hpp"
-#include "stellar/graphics/DebugCubeMesh.hpp"
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/graphics/LevelRenderer.hpp"
 
 namespace {
@@ -160,7 +160,7 @@ void verify_billboard_quad_generation_sorting_and_fields() {
   view.view = kIdentity;
   view.view_projection = kIdentity;
   view.camera_right = {1.0F, 0.0F, 0.0F};
-  view.camera_up = {0.0F, 2.0F, 0.0F};
+  view.camera_up = {0.0F, 0.0F, 2.0F};
 
   stellar::graphics::BillboardSprite masked;
   masked.position = {0.0F, 0.0F, -2.0F};
@@ -189,7 +189,7 @@ void verify_billboard_quad_generation_sorting_and_fields() {
   assert(quads[0].size[1] == 3.0F);
   assert(quads[0].alpha_cutoff == 0.375F);
   assert(quads[0].positions[0][0] == -1.0F);
-  assert(quads[0].positions[2][1] == 3.0F);
+  assert(quads[0].positions[2][2] == 1.0F);
   assert(quads[1].texture == stellar::graphics::TextureHandle{66});
   assert(quads[2].texture == stellar::graphics::TextureHandle{55});
 }
@@ -206,7 +206,7 @@ void verify_billboards_submit_after_static_geometry(
   view.view = kIdentity;
   view.view_projection = kIdentity;
   view.camera_right = {1.0F, 0.0F, 0.0F};
-  view.camera_up = {0.0F, 1.0F, 0.0F};
+  view.camera_up = stellar::core::kWorldUp;
 
   stellar::graphics::BillboardSprite near_blend;
   near_blend.position = {0.0F, 0.0F, -1.0F};
@@ -232,6 +232,90 @@ void verify_billboards_submit_after_static_geometry(
   assert(device->destroyed_materials.size() == 2);
 }
 
+void verify_static_less_level_renders_no_static_surfaces(
+    stellar::platform::Window &window) {
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window,
+                                      stellar::assets::LevelAsset{});
+  render_level.render(64, 64, kIdentity, kIdentity);
+
+  assert(device->mesh_handles.empty());
+  assert(device->material_handles.size() == 1);
+  assert(device->uploaded_materials[0].material.name ==
+         "stellar_default_level_material");
+  assert(device->draw_calls.empty());
+}
+
+void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.geometry.images = {
+      stellar::assets::ImageAsset{.name = "base",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "lightmap",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8,
+                                  .pixels = {128, 128, 128}},
+  };
+  level.geometry.samplers.push_back(stellar::assets::SamplerAsset{});
+  level.geometry.textures.push_back(stellar::assets::TextureAsset{
+      .name = "base", .image_index = 0, .sampler_index = 0,
+      .color_space = stellar::assets::TextureColorSpace::kSrgb});
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 1, .size = {1, 1}, .style = 2, .source_name = "face_0"});
+  level.geometry.materials[0].texture_index = 0;
+  level.geometry.materials[0].lightmap_index = 0;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 2);
+  assert(device->uploaded_textures[0].color_space ==
+         stellar::assets::TextureColorSpace::kSrgb);
+  assert(device->uploaded_textures[1].color_space ==
+         stellar::assets::TextureColorSpace::kLinear);
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.base_color_texture.has_value());
+  assert(upload.lightmap_texture.has_value());
+  assert(upload.base_color_texture->texcoord_set == 0);
+  assert(upload.lightmap_texture->texcoord_set == 1);
+  assert(upload.lightmap_texture->sampler.min_filter ==
+         stellar::assets::TextureFilter::kLinear);
+  assert(upload.lightmap_texture->sampler.wrap_s ==
+         stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(upload.lightmap_multiplier == 1.0F);
+}
+
+void verify_billboards_submit_without_static_geometry(
+    stellar::platform::Window &window) {
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window,
+                                      stellar::assets::LevelAsset{});
+
+  stellar::graphics::BillboardView view;
+  view.view = kIdentity;
+  view.view_projection = kIdentity;
+  view.camera_right = {1.0F, 0.0F, 0.0F};
+  view.camera_up = stellar::core::kWorldUp;
+
+  stellar::graphics::BillboardSprite sprite;
+  sprite.position = {0.0F, 0.0F, -2.0F};
+  sprite.texture = stellar::graphics::TextureHandle{333};
+
+  const std::array sprites{sprite};
+  render_level.render(64, 64, kIdentity, kIdentity, std::nullopt, view, sprites);
+
+  assert(device->draw_calls.size() == 1);
+  assert(device->uploaded_materials.size() == 2);
+  assert(device->uploaded_materials[1].base_color_texture->texture ==
+         stellar::graphics::TextureHandle{333});
+  assert(device->destroyed_meshes.size() == 1);
+  assert(device->destroyed_materials.size() == 1);
+}
+
 void verify_level_bounds_and_camera_fit() {
   stellar::assets::LevelAsset level;
   stellar::assets::MeshPrimitive primitive;
@@ -252,12 +336,20 @@ void verify_level_bounds_and_camera_fit() {
       stellar::graphics::fit_camera_to_bounds(bounds, 45.0F, 16.0F / 9.0F);
   assert(camera.target[0] == 0.0F);
   assert(camera.eye[2] > bounds.max[2]);
+  assert(camera.eye[1] < bounds.min[1]);
   assert(camera.far_plane > camera.near_plane);
 
   const auto empty_bounds =
       stellar::graphics::compute_level_bounds(stellar::assets::LevelAsset{});
+  assert(empty_bounds.min[0] == -0.5F);
+  assert(empty_bounds.max[1] == 0.5F);
   assert(empty_bounds.center[0] == 0.0F);
   assert(empty_bounds.radius == 1.0F);
+
+  const auto empty_camera = stellar::graphics::fit_camera_to_bounds(
+      empty_bounds, 45.0F, 16.0F / 9.0F);
+  assert(empty_camera.target == empty_bounds.center);
+  assert(empty_camera.far_plane > empty_camera.near_plane);
 }
 
 void verify_level_render_state_uses_override_camera_for_culling() {
@@ -291,9 +383,8 @@ void verify_level_render_state_can_disable_culling_for_fallback() {
 
 void verify_billboard_view_is_derived_from_render_state() {
   stellar::graphics::LevelRenderView view;
-  view.eye = {0.0F, 0.0F, 8.0F};
+  view.eye = {0.0F, -8.0F, 4.0F};
   view.target = {0.0F, 0.0F, 0.0F};
-  view.up = {0.0F, 1.0F, 0.0F};
 
   const auto state = stellar::graphics::compute_level_render_state(
       view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
@@ -302,7 +393,15 @@ void verify_billboard_view_is_derived_from_render_state() {
   assert(billboard_view.view == state.view);
   assert(billboard_view.view_projection == state.view_projection);
   assert(billboard_view.camera_right[0] > 0.99F);
-  assert(billboard_view.camera_up[1] > 0.99F);
+  assert(billboard_view.camera_up[2] > 0.85F);
+}
+
+void verify_graphics_up_defaults_use_world_axis_contract() {
+  const stellar::graphics::LevelRenderView level_view;
+  const stellar::graphics::BillboardView billboard_view;
+
+  assert(level_view.up == stellar::core::kWorldUp);
+  assert(billboard_view.camera_up == stellar::core::kWorldUp);
 }
 
 void verify_level_renderer_retains_and_clears_presentation_state() {
@@ -317,17 +416,6 @@ void verify_level_renderer_retains_and_clears_presentation_state() {
   assert(renderer.presentation_state().sprites.empty());
 }
 
-void verify_debug_cube_winding_matches_normals() {
-  const auto mesh = stellar::graphics::create_debug_cube_mesh();
-  assert(mesh.has_value());
-  assert(mesh->primitives.size() == 6);
-
-  for (const auto &primitive : mesh->primitives) {
-    assert(primitive.vertices.size() == 4);
-    assert(primitive.indices == std::vector<std::uint32_t>({0, 1, 2, 0, 2, 3}));
-  }
-}
-
 } // namespace
 
 int main() {
@@ -338,11 +426,14 @@ int main() {
   verify_visibility_falls_back_when_camera_leaf_missing(window);
   verify_billboard_quad_generation_sorting_and_fields();
   verify_billboards_submit_after_static_geometry(window);
+  verify_static_less_level_renders_no_static_surfaces(window);
+  verify_level_lightmap_material_upload(window);
+  verify_billboards_submit_without_static_geometry(window);
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();
   verify_level_render_state_can_disable_culling_for_fallback();
   verify_billboard_view_is_derived_from_render_state();
+  verify_graphics_up_defaults_use_world_axis_contract();
   verify_level_renderer_retains_and_clears_presentation_state();
-  verify_debug_cube_winding_matches_normals();
   return 0;
 }

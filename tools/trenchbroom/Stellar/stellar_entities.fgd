@@ -1,0 +1,281 @@
+// Stellar TrenchBroom FGD.
+//
+// tools/trenchbroom/Stellar/stellar_entities.fgd is the authoritative editor contract. The
+// compatibility copy at tools/bsp/stellar_entities.fgd must expose the same concrete classes and
+// keys; display-free FGD lint verifies this coverage.
+//
+// Policy: TrenchBroom-facing Stellar metadata fields use importer-supported underscore aliases for
+// reliability with classic map compilers. The importer treats these aliases as the corresponding
+// dotted Stellar keys:
+// _stellar_script    -> stellar.script
+// _stellar_table     -> stellar.table
+// _stellar_extents   -> stellar.extents
+// _stellar_once      -> stellar.once
+// _stellar_sprite    -> stellar.sprite
+// _stellar_texture   -> stellar.texture
+// _stellar_size      -> stellar.size
+// _stellar_alpha     -> stellar.alpha
+// _stellar_collider  -> stellar.collider
+// _stellar_enabled   -> stellar.enabled
+// _stellar_collision -> stellar.collision
+//
+// Do not author plain placeholder names such as stellar_script.
+
+@BaseClass = Targetname
+[
+    targetname(string) : "Name"
+]
+
+@BaseClass = TargetRouting
+[
+    target(string) : "Target entity to fire"
+    killtarget(string) : "Target entity to remove/disable when supported"
+    message(string) : "Message or presentation text"
+    delay(string) : "Delay before firing target, seconds" : "0"
+]
+
+@BaseClass = Angles
+[
+    angle(string) : "Yaw angle around +Z" : "0"
+    angles(string) : "Pitch yaw roll, degrees" : "0 0 0"
+]
+
+@BaseClass = StellarScript
+[
+    _stellar_script(string) : "Authoritative Lua script id (alias for stellar.script)"
+    _stellar_table(string) : "Lua table name (alias for stellar.table)"
+]
+
+@BaseClass = StellarExtents
+[
+    _stellar_extents(string) : "Point-volume extents as x y z inches (alias for stellar.extents)"
+]
+
+@BaseClass = StellarCollision
+[
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" : "static" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]
+
+@BaseClass = TriggerKeys
+[
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 0 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@BaseClass = ObjectColliderKeys
+[
+    archetype(string) : "Gameplay archetype such as pickup or item_health"
+    _stellar_collider(choices) : "Collider type (alias for stellar.collider)" : "object" =
+    [
+        "object" : "object"
+    ]
+    _stellar_enabled(choices) : "Initially enabled (alias for stellar.enabled)" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@BaseClass = LightKeys
+[
+    targetname(string) : "Name"
+    origin(string) : "Origin" : "0 0 64"
+    _light(string) : "Compiler light color/intensity: r g b brightness" : "255 255 255 200"
+    light(string) : "Compiler light brightness or color/intensity alias" : "200"
+    style(string) : "Compile-time light style" : "0"
+    pattern(string) : "Compile-time custom light pattern"
+    spawnflags(flags) : "Compile-time light flags" =
+    [
+        1 : "Initially dark" : 0
+    ]
+]
+
+@SolidClass = worldspawn : "Stellar worldspawn (Z-up, 1 unit = 1 inch)"
+[
+    message(string) : "Map title"
+    wad(string) : "Editor WAD references; runtime can use fallback material names"
+    _light(string) : "Optional global compile-time light color/intensity"
+]
+
+@PointClass base(Targetname, Angles) color(0 255 0) size(-16 -16 -36, 16 16 36) = info_player_start : "Stellar player start"
+[
+    origin(string) : "Origin; default capsule center is 36 inches above the floor" : "0 0 36"
+]
+
+@PointClass base(Targetname, Angles) color(32 255 32) size(-16 -16 -36, 16 16 36) = info_player_deathmatch : "Stellar multiplayer/deathmatch player start"
+[
+    origin(string) : "Origin; default capsule center is 36 inches above the floor" : "0 0 36"
+]
+
+@PointClass base(Targetname, StellarScript) color(128 255 128) size(-8 -8 -8, 8 8 8) = info_stellar_spawn : "Stellar generic spawn metadata"
+[
+    archetype(string) : "Server-side archetype id"
+    origin(string) : "Origin" : "0 0 0"
+]
+
+@PointClass base(LightKeys) color(255 255 128) size(-8 -8 -8, 8 8 8) = light : "Compile-time point light; imported as non-runtime metadata"
+[
+]
+
+@PointClass base(LightKeys, Angles) color(255 224 128) size(-8 -8 -8, 8 8 8) = light_spot : "Compile-time spot light; imported as non-runtime metadata"
+[
+    pitch(string) : "Spot pitch in degrees" : "-90"
+    _cone(string) : "Inner cone angle" : "30"
+    _cone2(string) : "Outer cone angle" : "45"
+]
+
+@PointClass base(LightKeys, Angles) color(255 240 160) size(-8 -8 -8, 8 8 8) = light_environment : "Compile-time sun/environment light; imported as non-runtime metadata"
+[
+    pitch(string) : "Sun pitch in degrees" : "-45"
+]
+
+@SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 192 64) = trigger_stellar : "Stellar authoritative brush trigger volume"
+[
+]
+
+@SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 160 64) = trigger_multiple : "Repeatable Stellar brush trigger volume"
+[
+]
+
+@SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 128 64) = trigger_once : "Single-use Stellar brush trigger volume"
+[
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@PointClass base(Targetname, StellarScript, StellarExtents, TriggerKeys) color(255 192 96) size(-8 -8 -8, 8 8 8) = trigger_stellar_point : "Stellar authoritative point-authored trigger volume"
+[
+    origin(string) : "Origin" : "0 0 0"
+]
+
+@PointClass base(Targetname, StellarScript, StellarExtents, TriggerKeys) color(255 160 96) size(-8 -8 -8, 8 8 8) = trigger_multiple_point : "Repeatable point-authored trigger volume"
+[
+    origin(string) : "Origin" : "0 0 0"
+]
+
+@PointClass base(Targetname, StellarScript, StellarExtents) color(255 128 96) size(-8 -8 -8, 8 8 8) = trigger_once_point : "Single-use point-authored trigger volume"
+[
+    origin(string) : "Origin" : "0 0 0"
+    _stellar_once(choices) : "Fire once (alias for stellar.once)" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
+]
+
+@PointClass base(Targetname) color(64 192 255) size(-8 -8 -8, 8 8 8) = stellar_sprite : "Stellar presentation sprite marker"
+[
+    origin(string) : "Origin" : "0 0 48"
+    _stellar_sprite(string) : "Sprite id (alias for stellar.sprite)"
+    _stellar_texture(string) : "Texture asset id (alias for stellar.texture)"
+    _stellar_size(string) : "Billboard size, width height (alias for stellar.size)" : "16 16"
+    _stellar_alpha(choices) : "Alpha mode (alias for stellar.alpha)" : "blend" =
+    [
+        "opaque" : "opaque"
+        "blend" : "blend"
+        "masked" : "masked"
+    ]
+]
+
+@PointClass base(Targetname) color(64 160 255) size(-8 -8 -8, 8 8 8) = env_sprite : "Stellar-compatible sprite marker"
+[
+    origin(string) : "Origin" : "0 0 48"
+    _stellar_sprite(string) : "Sprite id (alias for stellar.sprite)"
+    _stellar_texture(string) : "Texture asset id (alias for stellar.texture)"
+    _stellar_size(string) : "Billboard size, width height (alias for stellar.size)" : "16 16"
+    _stellar_alpha(choices) : "Alpha mode (alias for stellar.alpha)" : "blend" =
+    [
+        "opaque" : "opaque"
+        "blend" : "blend"
+        "masked" : "masked"
+    ]
+]
+
+@SolidClass base(Targetname, StellarScript, ObjectColliderKeys) color(128 64 255) = stellar_object_collider : "Stellar brush object sensor; does not block movement"
+[
+]
+
+@PointClass base(Targetname, StellarScript, StellarExtents, ObjectColliderKeys) color(144 80 255) size(-8 -8 -8, 8 8 8) = stellar_object_collider_point : "Stellar point-authored object sensor; does not block movement"
+[
+    origin(string) : "Origin" : "0 0 0"
+]
+
+@SolidClass base(Targetname, StellarCollision) color(160 160 160) = func_wall : "Stellar named static collision brush"
+[
+    archetype(string) : "Optional gameplay/presentation archetype metadata"
+]
+
+@SolidClass base(Targetname) color(128 128 128) = func_illusionary : "Non-solid visible brush metadata"
+[
+    archetype(string) : "Optional gameplay/presentation archetype metadata"
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" : "none" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]
+
+@SolidClass base(Targetname) color(96 96 96) = func_detail : "Compile-time detail brush metadata"
+[
+    archetype(string) : "Optional gameplay/presentation archetype metadata"
+    _stellar_collision(choices) : "Collision extraction behavior (alias for stellar.collision)" : "static" =
+    [
+        "static" : "static"
+        "sensor" : "sensor"
+        "none" : "none"
+    ]
+]
+
+@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 160 255) = func_door : "Server-authoritative sliding brush door; targetname receives trigger/button fires"
+[
+    archetype(string) : "Optional gameplay/presentation archetype metadata"
+    speed(string) : "Move speed, inches per second" : "100"
+    wait(string) : "Wait before returning; -1 means stay" : "4"
+    lip(string) : "Remaining visible lip distance" : "8"
+    dmg(string) : "Damage when blocked, if supported" : "0"
+    spawnflags(flags) : "Door spawn flags" =
+    [
+        1 : "Starts open" : 0
+        4 : "No auto return" : 0
+        32 : "Toggle" : 0
+    ]
+]
+
+@SolidClass base(Targetname, TargetRouting, Angles, StellarScript, StellarCollision) color(96 224 255) = func_button : "Server-authoritative pressable brush button; fires target after press"
+[
+    archetype(string) : "Optional gameplay/presentation archetype metadata"
+    speed(string) : "Move speed, inches per second" : "40"
+    wait(string) : "Wait before returning; -1 means stay" : "1"
+    lip(string) : "Remaining visible lip distance" : "4"
+    spawnflags(flags) : "Button spawn flags" =
+    [
+        1 : "Starts pressed" : 0
+        32 : "Toggle" : 0
+    ]
+]
+
+@PointClass base(Targetname, TargetRouting) color(192 192 255) size(-8 -8 -8, 8 8 8) = target_stellar_relay : "Minimal target relay metadata for later target routing"
+[
+    origin(string) : "Origin" : "0 0 0"
+    spawnflags(flags) : "Relay spawn flags" =
+    [
+        1 : "Remove after fire" : 0
+    ]
+]
+
+@PointClass base(Targetname) color(128 128 255) size(-4 -4 -4, 4 4 4) = info_null : "Compile-time point helper; imported as non-runtime metadata"
+[
+    origin(string) : "Origin" : "0 0 0"
+]

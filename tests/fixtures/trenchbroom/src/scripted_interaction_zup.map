@@ -1,0 +1,99 @@
+// Stellar TrenchBroom fixture: scripted_interaction_zup
+// Valid asset-relative script bindings plus a named static gate blocker.
+// Brush solids are complete 6-plane convex boxes.
+{
+"classname" "worldspawn"
+"message" "scripted_interaction_zup"
+// floor slab; visible interior top is z=0
+{
+( -112 -112 -16 ) ( -112 112 0 ) ( -112 -112 0 ) dev/grid_32 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 112 -112 -16 ) ( 112 -112 0 ) ( 112 112 -16 ) dev/grid_32 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 -16 ) ( 112 -112 0 ) ( 112 -112 -16 ) dev/grid_32 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 112 -16 ) ( 112 112 0 ) ( -112 112 0 ) dev/grid_32 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 -16 ) ( 112 112 -16 ) ( -112 112 -16 ) dev/grid_32 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -112 -112 0 ) ( 112 112 0 ) ( 112 -112 0 ) dev/grid_32 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// ceiling slab; visible interior bottom is z=96
+{
+( -112 -112 96 ) ( -112 112 112 ) ( -112 -112 112 ) dev/grid_64 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 112 -112 96 ) ( 112 -112 112 ) ( 112 112 96 ) dev/grid_64 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 96 ) ( 112 -112 112 ) ( 112 -112 96 ) dev/grid_64 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 112 96 ) ( 112 112 112 ) ( -112 112 112 ) dev/grid_64 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 96 ) ( 112 112 96 ) ( -112 112 96 ) dev/grid_64 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -112 -112 112 ) ( 112 112 112 ) ( 112 -112 112 ) dev/grid_64 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// west wall slab; visible interior face is x=-96
+{
+( -112 -112 0 ) ( -112 112 96 ) ( -112 -112 96 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -96 -112 0 ) ( -96 -112 96 ) ( -96 112 0 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 0 ) ( -96 -112 96 ) ( -96 -112 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 112 0 ) ( -96 112 96 ) ( -112 112 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 0 ) ( -96 112 0 ) ( -112 112 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -112 -112 96 ) ( -96 112 96 ) ( -96 -112 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// east wall slab; visible interior face is x=96
+{
+( 96 -112 0 ) ( 96 112 96 ) ( 96 -112 96 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 112 -112 0 ) ( 112 -112 96 ) ( 112 112 0 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 96 -112 0 ) ( 112 -112 96 ) ( 112 -112 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 96 112 0 ) ( 112 112 96 ) ( 96 112 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 96 -112 0 ) ( 112 112 0 ) ( 96 112 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( 96 -112 96 ) ( 112 112 96 ) ( 112 -112 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// north wall slab; visible interior face is y=96
+{
+( -112 96 0 ) ( -112 112 96 ) ( -112 96 96 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 112 96 0 ) ( 112 96 96 ) ( 112 112 0 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 96 0 ) ( 112 96 96 ) ( 112 96 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 112 0 ) ( 112 112 96 ) ( -112 112 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 96 0 ) ( 112 112 0 ) ( -112 112 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -112 96 96 ) ( 112 112 96 ) ( 112 96 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+// south wall slab; visible interior face is y=-96
+{
+( -112 -112 0 ) ( -112 -96 96 ) ( -112 -112 96 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 112 -112 0 ) ( 112 -112 96 ) ( 112 -96 0 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 0 ) ( 112 -112 96 ) ( 112 -112 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -96 0 ) ( 112 -96 96 ) ( -112 -96 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( -112 -112 0 ) ( 112 -96 0 ) ( -112 -96 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( -112 -112 96 ) ( 112 -96 96 ) ( 112 -112 96 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+}
+{
+"classname" "info_player_start"
+"targetname" "ScriptStart"
+"origin" "0 0 36"
+}
+{
+"classname" "trigger_stellar"
+"targetname" "GateOpenTrigger"
+"origin" "0 -40 36"
+"_stellar_extents" "24 16 36"
+"_stellar_script" "scripts/gate.lua"
+"_stellar_table" "GateTrigger"
+}
+{
+"classname" "stellar_object_collider"
+"targetname" "PickupGem"
+"origin" "-32 0 36"
+"archetype" "pickup"
+"_stellar_extents" "8 8 8"
+"_stellar_collider" "object"
+"_stellar_enabled" "yes"
+"_stellar_script" "scripts/pickup.lua"
+"_stellar_table" "PickupGem"
+}
+{
+"classname" "func_door"
+"targetname" "GateDoor"
+"archetype" "gate"
+// GateDoor model brush
+{
+( 48 -8 0 ) ( 48 8 64 ) ( 48 -8 64 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 72 -8 0 ) ( 72 -8 64 ) ( 72 8 0 ) dev/wall_96 [ 0 1 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 48 -8 0 ) ( 72 -8 64 ) ( 72 -8 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 48 8 0 ) ( 72 8 64 ) ( 48 8 64 ) dev/wall_96 [ 1 0 0 0 ] [ 0 0 1 0 ] 0 1 1
+( 48 -8 0 ) ( 72 8 0 ) ( 48 8 0 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( 48 -8 64 ) ( 72 8 64 ) ( 72 -8 64 ) dev/wall_96 [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+}
+}

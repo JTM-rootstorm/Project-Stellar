@@ -16,8 +16,8 @@ using Vec3 = std::array<float, 3>;
 stellar::assets::CollisionTriangle triangle() {
     return stellar::assets::CollisionTriangle{.a = {0.0F, 0.0F, 0.0F},
                                               .b = {1.0F, 0.0F, 0.0F},
-                                              .c = {0.0F, 0.0F, 1.0F},
-                                              .normal = {0.0F, 1.0F, 0.0F}};
+                                              .c = {0.0F, 1.0F, 0.0F},
+                                              .normal = {0.0F, 0.0F, 1.0F}};
 }
 
 stellar::assets::CollisionMesh mesh(std::string name) {

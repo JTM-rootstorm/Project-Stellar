@@ -2,29 +2,41 @@
 
 BSP maps are Stellar's canonical playable level source. Entity keys are imported as backend-neutral world metadata for the authoritative runtime; import never executes scripts and never creates renderer, audio, ECS, or gameplay state directly.
 
-Gameplay authoring uses inch-scale coordinates on the active `bsp-gameplay-loop` branch: 1 Stellar
-gameplay world unit equals 1 inch, Y is up, and BSP coordinates are imported 1:1 without hidden scale
-conversion. The default authoritative player capsule is 72 inches tall with a 16 inch radius, 18 inch
-step height, 0.5 inch skin width, and 4 inch ground snap. Player starts should usually place the
-capsule center 36 inches above the floor.
+For the current TrenchBroom BSP30 editor workflow, package setup, FGD policy, compile wrappers, and
+validation commands, see [`docs/TrenchBroom.md`](TrenchBroom.md). This page remains the lower-level BSP
+entity and runtime metadata reference.
+
+Gameplay authoring uses inch-scale Z-up coordinates on the active `trenchbroom-compat` branch: 1
+Stellar gameplay world unit equals 1 inch, and BSP30 coordinates are imported 1:1 without hidden scale
+conversion. The default player capsule center should be authored at `origin = "0 0 36"` on a floor at
+`z = 0`.
 
 ## Minimal workflow
 
-1. Build a classic BSP29/BSP30-style map in a Quake/GoldSrc-compatible editor or toolchain.
-2. Author gameplay markers with ordinary entity key/value pairs.
-3. Compile/export the `.bsp`.
-4. Run the display-free validation commands below before using the map in runtime tests.
+1. Create a TrenchBroom map with the Stellar game profile and BSP30 map format.
+2. Build the first sealed room with an X/Y floor footprint, floor at `z = 0`, and ceiling at `z = 96`.
+3. Place `info_player_start` at `origin = "0 0 36"` for the default 72 inch player capsule.
+4. Use developer materials such as `dev/grid_32`, `dev/grid_64`, and `dev/wall_96` while blocking out.
+5. Add compile-time `light`, `light_spot`, or `light_environment` entities when the map should bake
+   static BSP lightmaps.
+6. Author gameplay markers with ordinary entity key/value pairs or the Stellar FGD aliases.
+7. Compile/export the `.bsp` as BSP30.
+8. Run the display-free validation commands below before using the map in runtime tests.
+
+VHLT compile success is not sufficient by itself. Always run Stellar client/server validation after
+compile because the runtime importer can still reject unsupported BSP structure, missing gameplay
+requirements, or sandbox-unsafe script ids.
 
 The conventions do not require one editor. Use custom key/value fields, smart-edit modes, FGD
 definitions, or equivalent editor mechanisms that preserve keys exactly. Dotted Stellar keys such as
 `stellar.script` must reach the compiled BSP entity text as dotted keys or as importer-supported aliases
-such as `_stellar_script`. A small Quake-style helper definition file is available at
-`tools/bsp/stellar_entities.fgd`; its underscore field names are editor-facing placeholders unless the
-editor/toolchain remaps them to dotted keys or supported aliases before export.
+such as `_stellar_script`. The TrenchBroom package at `tools/trenchbroom/Stellar/` uses those
+underscore aliases directly for reliability. It is the authoritative FGD; `tools/bsp/stellar_entities.fgd`
+is a compatibility copy with the same concrete class/key contract, verified by display-free FGD lint.
 
 For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
 on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
-floor plan with an 8 ft ceiling, a player spawn at `0 36 0`, and developer grid/wall materials listed
+floor plan with an 8 ft ceiling, a player spawn at `0 0 36`, and developer grid/wall materials listed
 below.
 
 ## Procedural developer textures
@@ -32,30 +44,73 @@ below.
 BSP materials may reference these deterministic developer textures without embedding miptex pixels or
 shipping external WAD files:
 
-| Material name | Slash alias | Intended scale cue |
-| --- | --- | --- |
-| `stellar_dev_grid_12` | `dev/grid_12` | 12 inch / 1 foot grid tile. |
-| `stellar_dev_grid_16` | `dev/grid_16` | 16 inch tile/checker. |
-| `stellar_dev_grid_32` | `dev/grid_32` | 32 inch tile/checker. |
-| `stellar_dev_grid_64` | `dev/grid_64` | 64 inch tile/checker. |
-| `stellar_dev_player_72` | `dev/player_72` | 72 inch player-height reference strip. |
-| `stellar_dev_wall_96` | `dev/wall_96` | 96 inch / 8 foot wall-height reference strip. |
+| Canonical runtime name | Source alias | Compiler/WAD alias | Intended scale cue |
+| --- | --- | --- | --- |
+| `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` | 12 inch / 1 foot grid tile. |
+| `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` | 16 inch tile/checker. |
+| `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` | 32 inch tile/checker. |
+| `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` | 64 inch tile/checker. |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
 
 The importer generates `ImageAsset`/`TextureAsset` data for these names during BSP material fallback,
 uses nearest filtering so markings stay crisp, and uses repeat wrapping so authored texture axes can
 tile across room surfaces. With standard BSP texture axes, one texel/texture unit corresponds to one
 world inch; changing editor texture scale changes the visible inch marks accordingly.
 
+When compiling through VHLT, keep source `.map` files as clean authoring references. The VHLT wrapper
+copies each map into a build/work directory, creates a temporary developer WAD, injects the copied map's
+`wad` key there, and rewrites compiler-facing aliases when required. Do not commit local absolute WAD
+paths or generated compiler edits back into `maps/src/` or `tests/fixtures/trenchbroom/src/`.
+
+External WAD3 texture pixels are now resolved at BSP import time when the compiled `worldspawn` `wad`
+key references safe relative WAD paths. The importer searches the BSP/map directory, roots from
+`STELLAR_WAD_PATH` and `STELLAR_TEXTURE_PATH`, then the packaged developer materials directory. It
+rejects `..` escapes and ignores absolute WAD paths unless `STELLAR_ALLOW_ABSOLUTE_WAD_PATHS` is
+explicitly set for a trusted local workflow. Missing WAD diagnostics list attempted safe paths so editor
+fixes map directly to either a corrected `wad` key or a configured search root.
+
+Run source preflight before compilers for line/column feedback on editor mistakes:
+
+```bash
+python3 tools/bsp/validate_trenchbroom_map_source.py maps/src/test_room.map
+```
+
+The compile wrappers run this automatically unless `--skip-source-preflight` is passed.
+
+## Runtime brush entities and target routing
+
+`func_wall` imports as a visible, solid static brush entity. `func_illusionary` imports as visible brush
+geometry without authoritative collision. `func_door` and `func_button` preserve BSP brush model ownership
+so the server can move their collision overlays and replicate presentation transforms without mutating the
+immutable `LevelAsset`.
+
+Supported moving-brush keys are `targetname`, `target`, `delay`, `angle`, `speed`, `wait`, and `lip`. Doors open
+when their `targetname` is fired by a trigger/button; buttons press along their movement direction and may
+fire `target`. `angle = -1` moves up, `angle = -2` moves down, and other angles move in the X/Y plane.
+Missing targets are server diagnostics, not fatal import/runtime errors.
+
+Trigger entities (`trigger_stellar`, `trigger_multiple`, and `trigger_once`) may set `target` to fire named
+brush movers through the server-owned router. Clients receive resulting transforms through authoritative
+snapshots only; client rendering remains presentation-only with no prediction or gameplay authority.
+
 ## Entity key reference
 
 | Purpose | Class/key | Required keys | Optional keys | Runtime semantics |
 | --- | --- | --- | --- | --- |
-| Player spawn | `info_player_start` | `origin` | `targetname`, `angle` | Creates a player spawn marker. |
+| World setup | `worldspawn` | none | `message`, `wad`, `_light` | Defines world entity data for BSP compilers/import. No runtime marker is emitted. |
+| Player spawn | `info_player_start` | `origin` | `targetname`, `angle`, `angles` | Creates a player spawn marker. |
+| Deathmatch/player spawn | `info_player_deathmatch` | `origin` | `targetname`, `angle`, `angles` | Creates the same player-spawn marker type as `info_player_start`; use for multiplayer/deathmatch spawn pads or maps that only provide DM starts. |
 | Generic spawn | `info_stellar_spawn` | `targetname`, `archetype`, `origin` | `stellar.script`, `stellar.table` | Creates metadata for server-side spawn logic; no entity is spawned during import. |
-| Trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` or `origin` + `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker. Script ids are metadata only until authoritative runtime invokes them. |
+| Compile-time lights | `light`, `light_spot`, `light_environment` | `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2` as applicable | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
+| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are import-time metadata until authoritative runtime invokes them. |
+| Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
 | Sprite billboard | `stellar_sprite`, `env_sprite`, or any entity with `stellar.sprite` | `targetname`, `origin`, `stellar.sprite` | `stellar.texture`, `stellar.size`, `stellar.alpha` | Creates a sprite marker for presentation. `stellar.script` is unsupported and ignored with a diagnostic. |
-| Object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"` or `origin` + `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
-| Static collision brush | `func_wall`, `func_door`, `func_button`, `trigger_*` | `model="*N"` | `targetname`, `stellar.collision=static|sensor|none` | Contributes named static collision where collision extraction supports it. Moving brush simulation is deferred. |
+| Brush object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker from brush model bounds. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
+| Point object-collider sensor | `stellar_object_collider_point` | `targetname`, `origin`, `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates the same object-collider marker type as brush sensors, using authored origin plus half-extents. |
+| Static brush classes | `func_wall`, `func_illusionary`, `func_detail` | `model="*N"` | `targetname`, `archetype`, `stellar.collision=static|sensor|none` | Imported as brush/static metadata; `func_detail` is primarily compile-time detail geometry. Runtime moving/physics behavior is not implied. |
+| Moving/interactable brush entities | `func_door`, `func_button` | `model="*N"` | `targetname`, `archetype`, `target`, `killtarget`, `message`, `delay`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Imported with brush model ownership so the authoritative server can move collision overlays and replicate presentation transforms. |
+| Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `killtarget`, `message`, `delay`, `spawnflags` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
 
 Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation
 is enabled, including unsupported keys.
@@ -64,6 +119,8 @@ is enabled, including unsupported keys.
 
 - `origin` and `stellar.extents` are three floats: `"x y z"`.
 - `stellar.size` is two floats: `"width height"`.
+- Light `_light` commonly uses compiler-compatible `"r g b brightness"` text; plain `light` is
+  retained as a compiler compatibility key when a compile path expects it.
 - Boolean-like values accept only `1`, `0`, `true`, `false`, `yes`, and `no`.
 - Script ids must be asset-relative identifiers or paths. Absolute paths, drive-letter paths, and `..` parent escapes are rejected.
 - Dotted key aliases currently supported by the importer include `_stellar_script`, `_stellar_table`,
@@ -108,9 +165,9 @@ The generated `gameplay_room` test fixture is the current Phase 6 smoke-map refe
 the tiny fixtures used by existing importer and scripting tests, but gives runtime/client integration
 a room at gameplay scale:
 
-- 192x192 inch footprint, with `x/z` spanning roughly `-96..96`.
-- Floor at `y = 0`, ceiling at `y = 96`, and static triangle collision for floor, walls, and ceiling.
-- `info_player_start` at `origin = "0 36 0"` for the default 72 inch capsule.
+- 192x192 inch footprint, with `x/y` spanning roughly `-96..96`.
+- Floor at `z = 0`, ceiling at `z = 96`, and static triangle collision for floor, walls, and ceiling.
+- `info_player_start` at `origin = "0 0 36"` for the default 72 inch capsule.
 - Floor/ceiling/walls use Phase 2 procedural developer material aliases such as `dev/grid_32`,
   `dev/grid_64`, and `dev/wall_96`.
 - Includes one sprite marker, one object-collider marker reserved for pickup work, and one trigger
@@ -119,17 +176,51 @@ a room at gameplay scale:
 Display-free validation imports this room, builds `RuntimeWorld`, advances `LocalLoopbackRuntime`
 with authoritative movement input, verifies room-wall containment, and checks deterministic snapshots.
 
+### First TrenchBroom room checklist
+
+Use this geometry as the manual editor smoke test before adding scripted interactions:
+
+- X/Y footprint: `-96..96` on both axes.
+- Floor plane: `z = 0`.
+- Ceiling plane: `z = 96`.
+- Player start: `info_player_start` with `origin = "0 0 36"` and an `angle` facing into the room.
+- Materials: `dev/grid_32` or `stellar_dev_grid_32` on the floor, `dev/grid_64` or
+  `stellar_dev_grid_64` on the ceiling, and `dev/wall_96` or `stellar_dev_wall_96` on walls.
+- Compile target: BSP30.
+- Required validation: wrapper validation plus `stellar-client --validate-map`.
+
 ### Player spawn
 
 ```text
 classname = info_player_start
 targetname = PlayerStart
-origin = "0 36 0"
+origin = "0 0 36"
 angle = "90"
 ```
 
-For the default 72 inch player capsule, use an origin such as `"0 36 0"` when the floor is at
-`y = 0`. The importer preserves the authored origin; it does not lift player spawns automatically.
+For the default 72 inch player capsule, use an origin such as `"0 0 36"` when the floor is at
+`z = 0`. The importer preserves the authored origin; it does not lift player spawns automatically.
+`info_player_deathmatch` follows the same Z-up origin policy and maps to the same player-spawn marker
+type; use it for deathmatch/multiplayer spawn pads or compatibility with BSP compile/editor workflows
+that prefer the traditional DM classname.
+
+### Compile-time lights
+
+```text
+classname = light
+targetname = KeyLight
+origin = "0 0 80"
+_light = "255 240 220 300"
+style = "0"
+```
+
+`light`, `light_spot`, and `light_environment` are compile-time entities for BSP lighting tools. VHLT
+`hlrad` writes the BSP lighting lump; Stellar imports those bytes into `LevelLightmap` records, generates
+secondary UVs, uploads lightmap textures as linear clamp-to-edge images, and multiplies static surface
+base color/texture by the lightmap in OpenGL and Vulkan. Faces with missing or invalid light offsets fall
+back to unlit/fullbright material behavior with a warning. Classic nonzero light styles are preserved on
+the imported lightmap and currently render with a deterministic static multiplier of `1.0` until a later
+server-authoritative gameplay phase explicitly animates styles.
 
 ### Trigger script
 
@@ -147,7 +238,7 @@ stellar.once = "false"
 Point-authored fallback trigger:
 
 ```text
-classname = trigger_stellar
+classname = trigger_stellar_point
 targetname = PickupArea
 origin = "128 64 32"
 stellar.extents = "16 16 24"
@@ -174,6 +265,19 @@ Do not attach `stellar.script` to sprite markers; sprite script bindings are uns
 ```text
 classname = stellar_object_collider
 targetname = PickupGem
+model = "*3"
+stellar.collider = "object"
+archetype = "pickup"
+stellar.script = "scripts/pickup.lua"
+stellar.table = "PickupGem"
+stellar.enabled = "yes"
+```
+
+Point-authored object collider:
+
+```text
+classname = stellar_object_collider_point
+targetname = PickupGemPoint
 origin = "96 64 32"
 stellar.extents = "8 8 8"
 stellar.collider = "object"
@@ -204,9 +308,30 @@ server code validates the mesh name, applies the collision-state change, and mir
 `open` state into server-owned gameplay metadata. Disabling a gate mesh means the blocker is open;
 enabling it means closed.
 
-## Unsupported or deferred
+### Door/button runtime brush metadata
 
-- Moving brush simulation for `func_door`, `func_button`, plats, trains, or rotating entities.
+```text
+classname = func_door
+targetname = MainDoor
+model = "*4"
+target = "DoorOpenedRelay"
+angle = "90"
+speed = "100"
+wait = "4"
+lip = "8"
+stellar.collision = "static"
+stellar.script = "scripts/door.lua"
+stellar.table = "MainDoor"
+```
+
+`func_door` and `func_button` smart properties map to the implemented server-authoritative door/button
+path. Buttons fire their `target`, doors move according to angle/speed/wait/lip metadata, collision is
+updated on the server, and clients observe only snapshot-owned presentation transforms.
+
+## Non-Goals Outside The Stellar BSP30 Profile
+
+- Moving brush classes for plats, trains, or rotating entities beyond the implemented `func_door` /
+  `func_button` path.
 - Client-side gameplay scripting or presentation script execution.
 - Sprite script callbacks.
 - Renderer-owned or audio-owned gameplay state.
@@ -215,7 +340,9 @@ enabling it means closed.
 
 ## Validation commands
 
-Map validation is display-free and does not create a window, graphics context, renderer resources, or load external WAD files by default. Use either client validation form:
+Map validation is display-free and does not create a window, graphics context, or renderer resources. It
+may load safe external WAD3 texture pixels referenced by `worldspawn` `wad`; missing WADs are reported as
+actionable diagnostics and fallback material behavior remains deterministic. Use either client validation form:
 
 ```bash
 stellar-client --validate-config --map path/to/map.bsp
@@ -229,7 +356,8 @@ Common diagnostics:
 - `kLumpOutOfBounds` / `kMalformedLumpSize`: BSP binary structure is corrupt or uses unexpected lump sizes.
 - `kInvalidFaceReference` / `kDegenerateFacePolygon`: a face cannot resolve enough valid edges/vertices to form a polygon; affected faces are skipped.
 - `kInvalidVisibilityData`: PVS offsets, decompression rows, or marksurface references are invalid; visibility falls back to all surfaces.
-- `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external or missing; validation uses deterministic fallback materials and does not require WAD files.
+- `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external, missing, or blocked by safe-path
+  rules; validation uses deterministic fallback materials when WAD pixels cannot be resolved.
 - `kInvalidLightingData`: a face light offset or inferred lightmap byte range is outside the lighting lump; the face falls back to unlit material behavior.
 - `kMissingPlayerSpawn`: no `info_player_start` or `info_player_deathmatch` marker exists; import succeeds but gameplay startup may need an explicit spawn policy.
 - `kUnsupportedEntityKey`: malformed authoring values such as `origin`, `stellar.extents`, `stellar.size`, `stellar.once`, or `stellar.enabled` were ignored.
@@ -240,7 +368,31 @@ Common diagnostics:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 ctest --test-dir build -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
 ```
+
+Run the VHLT fixture matrix when VHLT tools are installed locally or provided through
+`STELLAR_VHLT_DIR`:
+
+```bash
+tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full
+```
+
+The matrix compiles positive TrenchBroom fixtures through VHLT, validates the produced BSP30 files with
+Stellar client/server validators, and verifies that the invalid script escape fixture compiles but fails
+Stellar validation for the expected sandbox diagnostic.
+
+For final fixture coverage and CI grouping, use:
+
+```bash
+ctest --test-dir build -R 'trenchbroom|bsp_lightmaps|brush_mover|bsp_authoring|client_cli|server_cli' --output-on-failure
+```
+
+This includes source preflight, generated BSP fixtures for lightmaps/materials/point volumes/brush
+movers, copied-package path smoke, optional VHLT matrix coverage with skip code `77`, and client/server
+CLI validation. The full manual editor checklist is in `docs/TrenchBroomManualQA.md`.
 
 For broad confidence, also run:
 

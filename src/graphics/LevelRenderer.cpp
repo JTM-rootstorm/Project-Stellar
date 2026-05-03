@@ -10,7 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "stellar/graphics/DebugCubeMesh.hpp"
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/graphics/GraphicsDeviceFactory.hpp"
 
 namespace stellar::graphics {
@@ -21,6 +21,10 @@ constexpr float kDefaultFovDegrees = 45.0F;
 
 float finite_or_zero(float value) noexcept {
   return std::isfinite(value) ? value : 0.0F;
+}
+
+glm::vec3 world_axis_glm(const std::array<float, 3> &axis) noexcept {
+  return {axis[0], axis[1], axis[2]};
 }
 
 std::array<float, 16> to_array(const glm::mat4 &matrix) noexcept {
@@ -131,9 +135,14 @@ LevelCameraFit fit_camera_to_bounds(const LevelBounds &bounds,
 
   LevelCameraFit fit;
   fit.target = bounds.center;
-  fit.eye = {bounds.center[0], bounds.center[1], bounds.center[2] + distance};
-  fit.near_plane = std::max(0.01F, distance - radius * 2.0F);
-  fit.far_plane = std::max(fit.near_plane + 1.0F, distance + radius * 2.0F);
+  const float vertical_offset = distance * 0.5F;
+  const float horizontal_offset = distance;
+  const float camera_distance = std::sqrt(horizontal_offset * horizontal_offset +
+                                          vertical_offset * vertical_offset);
+  fit.eye = {bounds.center[0], bounds.center[1] - horizontal_offset,
+             bounds.center[2] + vertical_offset};
+  fit.near_plane = std::max(0.01F, camera_distance - radius * 2.0F);
+  fit.far_plane = std::max(fit.near_plane + 1.0F, camera_distance + radius * 2.0F);
   return fit;
 }
 
@@ -169,7 +178,12 @@ LevelRenderState compute_level_render_state(const LevelRenderView &view,
   }
   if (!std::isfinite(up.x) || !std::isfinite(up.y) || !std::isfinite(up.z) ||
       glm::length(up) < 0.0001F) {
-    up = glm::vec3(0.0F, 1.0F, 0.0F);
+    up = world_axis_glm(stellar::core::kWorldUp);
+  }
+
+  const glm::vec3 forward = glm::normalize(target - eye);
+  if (glm::length(glm::cross(forward, glm::normalize(up))) < 0.0001F) {
+    up = world_axis_glm(stellar::core::kWorldForward);
   }
 
   const glm::mat4 projection = make_projection_for_backend(
@@ -210,48 +224,11 @@ LevelRenderer::LevelRenderer(
 
 LevelRenderer::~LevelRenderer() noexcept = default;
 
-std::expected<stellar::assets::MeshAsset, stellar::platform::Error>
-LevelRenderer::create_cube_mesh() {
-  return create_debug_cube_mesh();
-}
-
-stellar::assets::LevelAsset LevelRenderer::create_cube_level() {
-  stellar::assets::LevelAsset level;
-  level.source_uri = "debug:cube";
-  level.geometry.meshes.push_back(create_cube_mesh().value());
-  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = "debug_red",
-      .source_name = "debug_red",
-  });
-  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = "debug_green",
-      .source_name = "debug_green",
-  });
-  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = "debug_blue",
-      .source_name = "debug_blue",
-  });
-  for (std::size_t primitive_index = 0;
-       primitive_index < level.geometry.meshes[0].primitives.size();
-       ++primitive_index) {
-    const auto &primitive =
-        level.geometry.meshes[0].primitives[primitive_index];
-    level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
-        .name = "debug_cube_surface",
-        .mesh_index = 0,
-        .primitive_index = primitive_index,
-        .material_index = primitive.material_index,
-        .bounds_min = primitive.bounds_min,
-        .bounds_max = primitive.bounds_max,
-    });
-  }
-  return level;
-}
-
 std::expected<void, stellar::platform::Error>
 LevelRenderer::initialize(stellar::platform::Window &window) {
-  auto level = source_level_.has_value() ? std::move(*source_level_)
-                                         : create_cube_level();
+  stellar::assets::LevelAsset level = source_level_.has_value()
+                                         ? std::move(*source_level_)
+                                         : stellar::assets::LevelAsset{};
   level_bounds_ = compute_level_bounds(level);
 
   auto device = create_graphics_device(backend_);

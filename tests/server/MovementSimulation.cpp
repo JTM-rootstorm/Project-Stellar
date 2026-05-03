@@ -33,14 +33,14 @@ stellar::assets::CollisionTriangle triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 normal)
     return stellar::assets::CollisionTriangle{.a = a, .b = b, .c = c, .normal = normal};
 }
 
-stellar::assets::CollisionTriangle floor_triangle_a(float y = 0.0F) {
-    return triangle({-10.0F, y, -10.0F}, {10.0F, y, -10.0F}, {10.0F, y, 10.0F},
-                    {0.0F, 1.0F, 0.0F});
+stellar::assets::CollisionTriangle floor_triangle_a(float z = 0.0F) {
+    return triangle({-10.0F, -10.0F, z}, {10.0F, -10.0F, z}, {10.0F, 10.0F, z},
+                    {0.0F, 0.0F, 1.0F});
 }
 
-stellar::assets::CollisionTriangle floor_triangle_b(float y = 0.0F) {
-    return triangle({-10.0F, y, -10.0F}, {10.0F, y, 10.0F}, {-10.0F, y, 10.0F},
-                    {0.0F, 1.0F, 0.0F});
+stellar::assets::CollisionTriangle floor_triangle_b(float z = 0.0F) {
+    return triangle({-10.0F, -10.0F, z}, {10.0F, 10.0F, z}, {-10.0F, 10.0F, z},
+                    {0.0F, 0.0F, 1.0F});
 }
 
 stellar::assets::CollisionTriangle wall_x_triangle_a(float x = 1.0F) {
@@ -75,7 +75,7 @@ stellar::assets::LevelAsset scene_with_collision(
     mesh.name = "collision";
     mesh.triangles.assign(triangles.begin(), triangles.end());
     scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {mesh}};
-    scene.world_metadata.markers.push_back(player_spawn({0.0F, 0.5F, 0.0F}));
+    scene.world_metadata.markers.push_back(player_spawn({0.0F, 0.0F, 0.5F}));
     return scene;
 }
 
@@ -88,7 +88,7 @@ stellar::assets::LevelAsset scene_with_named_collision_meshes() {
     floor.name = "Floor";
     floor.triangles = {floor_triangle_a(-5.0F), floor_triangle_b(-5.0F)};
     scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {wall, floor}};
-    scene.world_metadata.markers.push_back(player_spawn({0.0F, 1.0F, 0.0F}));
+    scene.world_metadata.markers.push_back(player_spawn({0.0F, 0.0F, 1.0F}));
     return scene;
 }
 
@@ -156,7 +156,7 @@ void empty_world_moves_without_collision() {
     assert(!result.collision.hit);
     assert(!result.state.grounded);
     assert(result.state.position[0] > previous.position[0]);
-    assert(nearly_equal(result.state.position[1], previous.position[1]));
+    assert(nearly_equal(result.state.position[2], previous.position[2]));
     assert(finite(result.state.position));
 }
 
@@ -164,15 +164,15 @@ void floor_world_applies_gravity_and_becomes_grounded() {
     const auto scene = scene_with_collision({floor_triangle_a(), floor_triangle_b()});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::MovementState previous;
-    previous.position = {0.0F, 0.55F, 0.0F};
+    previous.position = {0.0F, 0.0F, 0.55F};
     previous.grounded = false;
 
     const auto result = stellar::server::simulate_movement_tick(world, previous, {}, test_config());
 
     assert(result.state.grounded);
     assert(result.collision.grounded);
-    assert(nearly_equal(result.state.position[1], 0.5F, 0.04F));
-    assert(nearly_equal(result.state.velocity[1], 0.0F, 0.01F));
+    assert(nearly_equal(result.state.position[2], 0.5F, 0.04F));
+    assert(nearly_equal(result.state.velocity[2], 0.0F, 0.01F));
 }
 
 void wall_world_blocks_authoritative_movement() {
@@ -182,7 +182,7 @@ void wall_world_blocks_authoritative_movement() {
     config.fixed_dt = 0.1F;
     config.acceleration = 100.0F;
     stellar::server::MovementState previous;
-    previous.position = {0.0F, 1.0F, 0.0F};
+    previous.position = {0.0F, 0.0F, 1.0F};
     previous.grounded = true;
 
     const auto result = stellar::server::simulate_movement_tick(
@@ -200,8 +200,11 @@ void wish_direction_is_clamped() {
     config.acceleration = 1000.0F;
     config.fixed_dt = 0.1F;
 
+    stellar::server::MovementState previous;
+    previous.grounded = true;
+
     const auto result = stellar::server::simulate_movement_tick(
-        world, {}, {.wish_direction = {10.0F, 5.0F, 0.0F}}, config);
+        world, previous, {.wish_direction = {10.0F, 5.0F, 5.0F}}, config);
 
     assert(result.command_was_sanitized);
     assert(result.state.velocity[0] <= config.max_speed + 0.001F);
@@ -214,7 +217,23 @@ void nan_input_is_sanitized() {
     const float nan = std::numeric_limits<float>::quiet_NaN();
 
     const auto result = stellar::server::simulate_movement_tick(
-        world, {}, {.wish_direction = {nan, 0.0F, std::numeric_limits<float>::infinity()}},
+        world, {}, {.wish_direction = {nan, std::numeric_limits<float>::infinity(), 0.0F}},
+        test_config());
+
+    assert(result.command_was_sanitized);
+    assert(finite(result.state.position));
+    assert(finite(result.state.velocity));
+}
+
+void non_finite_view_angles_are_sanitized() {
+    const stellar::assets::LevelAsset scene;
+    const auto world = stellar::world::build_runtime_world(scene);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+
+    const auto result = stellar::server::simulate_movement_tick(
+        world, {}, {.view_yaw_degrees = nan,
+                    .view_pitch_degrees = std::numeric_limits<float>::infinity(),
+                    .has_view_angles = true},
         test_config());
 
     assert(result.command_was_sanitized);
@@ -228,12 +247,12 @@ void terminal_fall_speed_is_clamped() {
     auto config = test_config();
     config.terminal_fall_speed = 10.0F;
     stellar::server::MovementState previous;
-    previous.velocity = {0.0F, -1000.0F, 0.0F};
+    previous.velocity = {0.0F, 0.0F, -1000.0F};
     previous.grounded = false;
 
     const auto result = stellar::server::simulate_movement_tick(world, previous, {}, config);
 
-    assert(result.state.velocity[1] >= -10.001F);
+    assert(result.state.velocity[2] >= -10.001F);
 }
 
 void client_position_is_not_part_of_command() {
@@ -256,12 +275,12 @@ void fixed_dt_repeatability_same_inputs_same_outputs() {
     const auto scene = scene_with_collision({floor_triangle_a(), floor_triangle_b()});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::MovementState previous;
-    previous.position = {0.0F, 0.55F, 0.0F};
+    previous.position = {0.0F, 0.0F, 0.55F};
 
     const auto a = stellar::server::simulate_movement_tick(
-        world, previous, {.wish_direction = {0.75F, 0.0F, 0.25F}}, test_config());
+        world, previous, {.wish_direction = {0.75F, 0.25F, 0.0F}}, test_config());
     const auto b = stellar::server::simulate_movement_tick(
-        world, previous, {.wish_direction = {0.75F, 0.0F, 0.25F}}, test_config());
+        world, previous, {.wish_direction = {0.75F, 0.25F, 0.0F}}, test_config());
 
     assert(nearly_equal(a.state.position, b.state.position, 0.0F));
     assert(nearly_equal(a.state.velocity, b.state.velocity, 0.0F));
@@ -279,7 +298,7 @@ void collision_state_filter_affects_authoritative_movement() {
     config.fixed_dt = 0.1F;
     config.acceleration = 100.0F;
     stellar::server::MovementState previous;
-    previous.position = {0.0F, 1.0F, 0.0F};
+    previous.position = {0.0F, 0.0F, 1.0F};
     previous.grounded = true;
 
     const auto filtered = stellar::server::simulate_movement_tick(
@@ -302,6 +321,7 @@ int main() {
     wall_world_blocks_authoritative_movement();
     wish_direction_is_clamped();
     nan_input_is_sanitized();
+    non_finite_view_angles_are_sanitized();
     terminal_fall_speed_is_clamped();
     client_position_is_not_part_of_command();
     runtime_world_collision_optional_is_handled();

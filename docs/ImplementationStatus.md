@@ -1,8 +1,355 @@
 # Project Stellar: Implementation Status
 
-Branch target: `socket-transport`
+Branch target: `trenchbroom-compat`
+
+## Completed Scope — Full Stellar TrenchBroom BSP30 Compatibility
+
+Status: complete as of 2026-05-02.
+
+Final supported Stellar TrenchBroom compatibility scope:
+
+- The project-owned `tools/trenchbroom/Stellar/` game package is the supported editor package for
+  repo-local use and copied-package installs that point back to the checkout with `STELLAR_REPO_ROOT`
+  or package-local `.stellar_repo_root`.
+- The supported editor compile target is classic BSP30 through the Stellar compile/validate shims,
+  generic BSP30 compilers, or the optional VHLT Linux toolchain. Source/VBSP and arbitrary third-party
+  game profiles are outside this Stellar BSP30 profile.
+- Authoring uses Z-up coordinates and 1 editor unit = 1 Stellar gameplay inch. BSP30 coordinates are
+  imported 1:1; the default 72 inch player capsule spawn center is authored at `z = 36` above a floor
+  at `z = 0`.
+- Materials use packaged developer PNGs plus `materials/stellar_dev.wad`, safe WAD3 lookup, and
+  deterministic developer fallback aliases across `stellar_dev_*`, `dev/...`, and `dev_*` names.
+- Compile-time `light`, `light_spot`, and `light_environment` entities are supported for BSP lightmap
+  generation. Imported BSP lightmaps are uploaded and sampled by the renderer, multiplying static
+  surface base material color/texture by baked lighting where valid.
+- Runtime-supported FGD classes are `worldspawn`, `info_player_start`, `info_stellar_spawn`,
+  `trigger_stellar`, `trigger_multiple`, `trigger_once`, point trigger variants, `stellar_sprite`,
+  `env_sprite`, `stellar_object_collider`, `stellar_object_collider_point`, `light`, `light_spot`,
+  `light_environment`, `func_wall`, `func_illusionary`, `func_detail`, `func_door`, and
+  `func_button`.
+- `func_door` and `func_button` are implemented server-authoritative brush movers with target routing,
+  query-time collision overlay transforms, and replicated presentation transforms. Plats, trains,
+  rotators, arbitrary Quake/Half-Life entity parity, and third-party physics are not part of this
+  Stellar profile.
+- Lua gameplay scripting remains mandatory, sandboxed, and server-authoritative. Import records script
+  metadata but never executes scripts; runtime loads only asset-relative scripts.
+- Default validation remains display-free and compiler-independent. External VHLT/display/GPU checks
+  are optional manual or locally run validation, not CI requirements.
+- Manual TrenchBroom GUI QA is user-performed and recorded with `docs/TrenchBroomManualQA.md`; GUI
+  automation is intentionally not required in CI.
+
+Final TB-FULL-07 validation runbook:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R 'trenchbroom|bsp_|client_map_validation|client_cli|server_cli|render_level|brush_mover|world_axes|collision_world|runtime_world|server_world_session|scripted_world_session|networked_client_runtime|dedicated_server' --output-on-failure
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_compile.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_validate.sh
+python3 tools/bsp/create_stellar_dev_wad.py --verify tools/trenchbroom/Stellar/materials/stellar_dev.wad
+for map in \
+  tests/fixtures/trenchbroom/src/minimal_zup_room.map \
+  tests/fixtures/trenchbroom/src/entity_matrix_zup.map \
+  tests/fixtures/trenchbroom/src/scripted_interaction_zup.map \
+  tests/fixtures/trenchbroom/src/lit_zup_room.map \
+  tests/fixtures/trenchbroom/src/material_wad_zup.map \
+  tests/fixtures/trenchbroom/src/moving_door_button_zup.map \
+  tests/fixtures/trenchbroom/src/point_volume_zup.map \
+  tests/fixtures/trenchbroom/src/illusionary_static_zup.map; do
+  python3 tools/bsp/validate_trenchbroom_map_source.py "$map"
+done
+```
+
+Optional VHLT validation when tools are installed:
+
+```bash
+tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full --keep-going
+```
+
+Optional display/GPU smoke commands:
+
+```bash
+build/stellar-client --validate-display
+build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp
+build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/moving_door_button_zup.bsp
+```
+
+Final TB-FULL-07 audit commands:
+
+```bash
+git grep -n -i 'deferred\|metadata only\|unsupported' -- docs tools/trenchbroom tests/fixtures Plans/NEXT.md ':!Plans/Archived/**'
+git grep -n 'Icon.png' -- tools/trenchbroom/Stellar
+git ls-files 'tools/trenchbroom/Stellar/**'
+git grep -n '_stellar_script\|stellar_script' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'func_door\|func_button\|light_spot\|light_environment' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'dev_grid_\|dev/grid_\|stellar_dev_' -- tools docs src tests ':!Plans/Archived/**'
+git grep -n 'lightmap' -- include src tests docs ':!Plans/Archived/**'
+```
+
+Audit interpretation recorded for TB-FULL-07:
+
+- Stale active wording for WAD generation, copied-package installs, metadata-only door/button support,
+  and imported-but-unrendered lightmaps has been removed or narrowed to historical phase context.
+- Remaining `unsupported` hits describe diagnostics or true non-goals such as Source/VBSP, unsafe paths,
+  sprite script callbacks, and arbitrary non-Stellar entity parity.
+- Remaining `metadata only` hits describe import-time script metadata before server-authoritative runtime
+  loading, not missing runtime support for advertised FGD gameplay classes.
+- Remaining `deferred` hits are scoped post-branch networking/presentation/audio/history notes or true
+  non-goals outside the Stellar BSP30 profile.
+- `Icon.png`, package shims, templates, FGD, materials, and WAD are expected package files.
+- `_stellar_script` aliases are importer-supported FGD aliases; plain `stellar_script` appears only as a
+  documented negative example.
+- Door/button, light entity, developer material, and lightmap hits are expected implementation, fixture,
+  documentation, and test coverage references.
+
+## Completed Scope — TB-FULL-06 Fixtures, CI Gates, and Manual QA
+
+Status: complete as of 2026-05-02.
+
+- Completed positive TrenchBroom source fixture matrix for minimal, entity matrix, scripted
+  interaction, lit, material/WAD, moving door/button, point volume, and illusionary/static behavior.
+- Added deterministic negative source fixtures for script path escape, incomplete/malformed brushes,
+  missing target references, and strict missing WAD texture handling.
+- Expanded generated BSP fixture coverage for synthetic lightmap metadata, material/WAD entity data,
+  door/button brush model metadata, point-volume classes, and illusionary/static brush metadata.
+- Expanded VHLT fixture matrix with all positive fixtures, negative preflight expectations,
+  `--fixture`/`--list`, script copying, and skip code `77` when VHLT tools are unavailable.
+- Added copied-package compile smoke behavior that runs package-local shims and skips the compile
+  sub-step when no external BSP30 compiler is available.
+- Added full manual TrenchBroom QA checklist/reporting template in `docs/TrenchBroomManualQA.md` and
+  regex-friendly CTest groups including `trenchbroom_*`, `bsp_lightmaps_*`, and `brush_mover_*`.
+
+## Completed Scope — TB-FULL-05 Runtime Brush Entities and Targets
+
+Status: complete as of 2026-05-02.
+
+- Preserved imported brush model ownership in source-neutral level geometry metadata.
+- Added query-time server-owned collision mesh translations without mutating immutable level assets.
+- Added minimal server-authoritative `func_door`/`func_button` mover state and target firing diagnostics.
+- Replicated moving brush transforms through authoritative snapshots/gameplay entity presentation state.
+- Added source fixtures for moving door/button, point volumes, and static illusionary behavior.
+
+## Completed Scope — TB-FULL-04 Lighting and Renderer Lightmaps
+
+Status: complete as of 2026-05-02.
+
+- Added a TrenchBroom lit room source fixture with `light` and `light_spot` entities.
+- Expanded BSP lightmap/import and display-free RenderLevel material upload coverage.
+- Wired static BSP lightmaps through linear/clamp texture upload, secondary-UV material bindings, and a
+  stable lightstyle multiplier baseline of `1.0`.
+- Updated OpenGL material sampling to multiply static surface base color/texture by imported lightmaps;
+  Vulkan material descriptors preserve the same lightmap contract through the shared abstraction.
+- Moving brush runtime behavior was intentionally not introduced in TB-FULL-04; it was completed later
+  by TB-FULL-05 for the supported `func_door`/`func_button` path.
+
+## Completed Scope — TrenchBroom BSP30 Compatibility and Z-up Migration
+
+Status: complete as of 2026-05-01.
+
+Archived handoff docs:
+
+- `Plans/Archived/trenchbroom_compat/TrenchBroomCompat-AgentPlan.md`
+- `Plans/Archived/trenchbroom_compat/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
+
+Completed branch outcomes:
+
+- Active gameplay/runtime/world authoring uses Z-up coordinates.
+- 1 Stellar unit remains 1 authored inch.
+- The primary editor workflow targets TrenchBroom-authored BSP30 maps imported 1:1.
+- The default player capsule is 72 inches tall, so player spawn centers are authored at `z = 36`
+  above a floor at `z = 0`.
+- The project now owns a TrenchBroom game package, FGD aliases, developer material references,
+  BSP30 compile/validation wrappers, source-map fixtures, and generated BSP30 test fixtures.
+- Server authority, sandboxed Lua, BSP canonical runtime, import-never-executes-scripts behavior,
+  and display-free validation remain mandatory.
+- No-map and remote-without-presentation-map paths use a blank/static-less presentation fallback.
+- Source/VBSP, moving brush classes beyond the implemented door/button path, dynamic rigid bodies,
+  full PBR, client-side gameplay scripting, map transfer/caching, prediction, and reconciliation remain
+  outside the completed Stellar BSP30 profile unless explicitly selected later.
+
+Phase order:
+
+1. Phase 0 — branch, handoff, and docs baseline.
+2. Phase 0.5 — remove prototype cube renderer and switch no-map rendering to a static-less fallback.
+3. Phase 1 — central Z-up world-axis contract.
+4. Phase 2 — Z-up runtime, collision, movement, scripting metadata, and fixtures.
+5. Phase 3 — Z-up presentation, camera, input mapping, snapshots, and network-adjacent tests.
+6. Phase 4 — BSP30 import/validation lockdown.
+7. Phase 5 — TrenchBroom package, FGD, material/editor assets, and compile wrappers.
+8. Phase 6 — exported map fixtures and end-to-end validation.
+9. Phase 7 — final documentation, audits, archival, and handoff.
+
+Phase completion notes:
+
+- Phase 0 — established the branch handoff and baseline audit. The audit identified axis, BSP wording,
+  FGD alias, and prototype fallback cleanup targets without changing runtime behavior.
+- Phase 0.5 — removed the prototype cube renderer/debug cube mesh path. No-map and
+  remote-without-presentation-map modes now initialize a blank/static-less presentation frame until
+  authored static geometry or authoritative dynamic snapshot data is available.
+- Phase 1 — added the central Z-up world-axis contract in `stellar::core`, converted core
+  character-controller and presentation default-up values to named constants, and added display-free
+  `world_axes` coverage.
+- Phase 2 — converted authoritative runtime movement, physics collision queries,
+  trigger/object-collider capsule defaults, collision validation, script-facing event tests, and
+  generated BSP gameplay fixtures to Z-up semantics. Gravity applies along `-Z`, horizontal movement
+  uses the X/Y plane, and importer/entity parsing preserves authored `x y z` ordering without hidden
+  axis swaps.
+- Phase 3 — converted client-side presentation and network-adjacent expectations to Z-up semantics.
+  Player camera eye offset is along +Z, default forward is +Y on the X/Y plane, yaw rotates around +Z,
+  input commands map W/S to +/-Y and A/D to +/-X, and snapshots remain raw server-authored data
+  carriers with no prediction, interpolation, reconciliation, or client authority.
+- Phase 4 — locked importer validation around BSP30 as the TrenchBroom target while preserving the
+  existing legacy BSP compatibility path. BSP30 tests cover Z-up player origins, dotted and underscore
+  alias entity keys, deterministic developer material fallback, malformed lump rejection, and explicit
+  Source/VBSP unsupported-version diagnostics without hidden axis conversion.
+- Phase 5 — added the project-owned TrenchBroom package, underscore-alias FGD, developer material name
+  reference, BSP30 compile/validation wrappers, and workflow documentation. Runtime dotted metadata
+  remains supported and wrappers fail clearly when external compiler/runtime tools are unavailable.
+- Phase 6 — added TrenchBroom-compatible `.map` source fixtures, Lua fixture scripts, deterministic
+  generated BSP30 outputs under the build tree, fixture README/manual checklist coverage, and
+  display-free client/server/importer/script validation for minimal room, entity matrix, scripted
+  interaction, and invalid script escape cases.
+- Phase 7 — finalized active docs and handoff, archived the completed plan package, reran final audits,
+  reran full/focused CTest, and validated generated BSP30 fixtures with the wrapper.
+
+Phase 0 validation:
+
+```bash
+git grep audits for retired axis wording, forward/up vector literals, FGD placeholder names,
+legacy BSP wording, and prototype cube fallback symbols across active docs/source/tests/tools/plans.
+```
+
+Result: audit commands were run during Phase 0; findings are summarized above. No runtime behavior was
+changed in Phase 0.
+
+Phase 1 validation:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target stellar_core_world_axes_test stellar_character_controller_test stellar_collision_world_test stellar_render_level_inspection_test stellar_gameplay_presentation_test stellar_player_presentation_test -j$(nproc)
+ctest --test-dir build -R '^(world_axes|character_controller|collision_world|collision_validation|render_level_inspection|gameplay_presentation|player_presentation)' --output-on-failure
+```
+
+Result: focused Phase 1 builds and tests passed during implementation. Full CTest remains part of
+phase-close validation before commit.
+
+Phase 2 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(character_controller|collision_world|collision_performance_regression|collision_validation|runtime_world|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|bsp_playable_world_smoke|movement_simulation|movement_trigger_integration|trigger_system|object_collider|runtime_collision_state)' --output-on-failure
+```
+
+Result: focused Phase 2 physics/runtime/gameplay tests passed during implementation. Full CTest remains
+part of phase-close validation before commit.
+
+Phase 3 validation:
+
+```bash
+cmake --build build --target stellar_player_presentation_test stellar_gameplay_presentation_test stellar_render_level_inspection_test stellar_client_movement_input_mapper_test stellar_client_world_receiver_test stellar_networked_client_runtime_test stellar_client_connect_test stellar_snapshot_delta_test stellar_snapshot_codec_test -j$(nproc)
+ctest --test-dir build -R '^(player_presentation|gameplay_presentation|render_level_inspection|client_movement_input_mapper|client_world_receiver|networked_client_runtime|client_connect|snapshot_)' --output-on-failure
+```
+
+Result: focused Phase 3 presentation, input, and network-adjacent tests passed during implementation.
+Full CTest remains part of phase-close validation before commit.
+
+Phase 4 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_validation|bsp_importer|bsp_authoring_smoke|client_map_validation_smoke|client_cli_map_validation|dedicated_server)' --output-on-failure
+```
+
+Result: focused BSP30 importer/validation tests passed during implementation. Full CTest remains part
+of phase-close validation before commit.
+
+Phase 5 validation:
+
+```bash
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+git grep audits for TrenchBroom FGD aliases and runtime dotted metadata keys across active
+tools/docs/tests.
+```
+
+Result: wrapper syntax checks and FGD/key audits passed during implementation. External BSP compiler
+smoke testing remains optional because no compiler is vendored.
+
+Phase 6 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build -R '^(bsp_authoring_smoke|bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|dedicated_server|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+```
+
+Result: focused Phase 6 fixture and end-to-end validation passed during implementation. Source-tree
+fixture maps are human/editor references; deterministic compiled BSP30 fixtures are generated under
+`build/tests/fixtures/trenchbroom/compiled/` for display-free validation.
+
+Phase 7 validation:
+
+```bash
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^(world_axes|character_controller|collision_validation|runtime_world|server_world_session|scripted_world_session|trigger_script|object_collider_script|script_command_processor|bsp_|client_map_validation_smoke|client_cli_map_validation|dedicated_server|player_presentation|gameplay_presentation|render_level|graphics_backend_selection|client_world_receiver|networked_client_runtime|snapshot_|hud_presentation|audio_event_router)' --output-on-failure
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
+tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
+```
+
+Result: final Phase 7 validation passed on 2026-05-01. Full debug build succeeded with no work to do,
+full default CTest passed 59/59, focused TrenchBroom/BSP30/Z-up CTest passed 40/40, and wrapper
+validation passed for all three generated BSP30 fixtures. The two script-bound generated fixtures
+required the existing fixture Lua scripts to be present beside the generated BSPs under
+`build/tests/fixtures/trenchbroom/compiled/scripts/`, matching runtime script-root behavior.
+
+Final audit interpretation:
+
+- Active docs present Z-up as current and do not describe the retired axis convention as active.
+- Remaining `{0, 1, 0}` source/test hits are forward +Y vectors, triangle vertices, colors, or generic
+  math fallbacks; they are not up-axis contracts.
+- Active TrenchBroom workflow uses dotted runtime keys or underscore aliases; plain placeholder field
+  names are mentioned only as unsupported negative examples.
+- BSP30 is the TrenchBroom target; legacy BSP support remains importer compatibility only, and
+  Source/VBSP remains outside the Stellar BSP30 profile.
+- Prototype cube renderer/debug cube fallback symbols are absent from active source/docs/tests/plans
+  outside archived historical plans.
+
+## Completed Follow-up Scope — VHLT BSP Toolchain Testing
+
+Status: complete as of 2026-05-02.
+
+- Added VHLT-aware BSP30 compile routing over `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` while preserving
+  the generic single-compiler wrapper path.
+- Added deterministic developer WAD generation and transient build/work-map WAD injection for
+  TrenchBroom source-map compilation.
+- Added display-free VHLT fixture matrix coverage for the positive TrenchBroom fixtures and the invalid
+  script path negative fixture.
+- Updated TrenchBroom workflow, BSP authoring, and fixture documentation for VHLT tool discovery,
+  generated artifact locations, and client/server validation requirements.
+- Default tests skip clearly when VHLT tools are unavailable and remain display-free.
+
+Validation summary:
+
+```bash
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+```
+
+Result: wrapper syntax checks passed. Documentation checks confirmed VHLT wrapper commands are present
+and the updated documentation does not introduce absolute local paths.
 
 ## Completed Scope — Socket Transport and Networked Session Lifecycle
+
+Branch target: `socket-transport`
 
 Status: complete as of 2026-05-01.
 
@@ -480,9 +827,10 @@ Completed implementation plan:
 - `Plans/Archived/bsp_gameplay_loop/ProjectStellar-BSP-GameplayLoop-AgentPlan.md` — detailed
   historical master plan.
 
-Branch gameplay unit policy: 1 Stellar gameplay world unit equals 1 inch, Y is up, BSP authored
-coordinates import without scale conversion, and player capsule center spawns should be half the
-capsule height above the floor.
+Archived branch gameplay unit policy: 1 Stellar gameplay world unit equaled 1 inch, authored BSP
+coordinates imported without scale conversion, and player capsule center spawns were authored half the
+capsule height above the floor. Current active authoring policy is Z-up and documented in the completed
+`trenchbroom-compat` section above.
 
 Follow-up implementation should use `Plans/NEXT.md` for the next recommended post-PN options and this
 file as the source of truth for branch completion notes. Archived phase plans under `Plans/Archived/`
@@ -672,8 +1020,8 @@ Phase 6 completion notes:
 
 - Added the `gameplay_room` generated BSP fixture as an inch-scale single-room map while preserving
   the existing tiny playable fixtures for focused importer/script tests.
-- The fixture is a 192x192 inch room from roughly `x/z = -96..96`, with floor `y = 0`, ceiling
-  `y = 96`, a center `info_player_start` at `0 36 0`, static collision floor/walls/ceiling, one
+- The fixture is a 192x192 inch room from roughly `x/y = -96..96`, with floor `z = 0`, ceiling
+  `z = 96`, a center `info_player_start` at `0 0 36`, static collision floor/walls/ceiling, one
   sprite marker, one future pickup object-collider marker, and one future door/gate trigger marker.
 - Display-free smoke coverage now imports the room BSP, builds `RuntimeWorld`, advances a
   `LocalLoopbackRuntime` with forward/right authoritative input, verifies movement direction and room
@@ -832,8 +1180,9 @@ Phase 3 completion notes:
   binds lightmaps as backend-neutral material texture bindings on texcoord set 1, and preserves
   deterministic fallback behavior for missing resources.
 - External WAD decoding, palette-accurate miptex color, lightmap atlasing, and shader-side visible
-  lightmap modulation remain deferred; current support records/uploads stable source-neutral data
-  without full PBR or backend-specific APIs.
+  lightmap modulation were not completed in this historical hardening phase. Later TB-FULL work added
+  safe WAD3 lookup and renderer lightmap sampling for the Stellar BSP30 profile without full PBR or
+  backend-specific BSP APIs.
 
 Validation run:
 
@@ -997,7 +1346,7 @@ default CTest passed 26/26.
 
 Phase BSP-2 is complete as of 2026-05-01:
 
-- Added mandatory `stellar_import_bsp` loader for the classic BSP29/BSP30 family.
+- Added mandatory `stellar_import_bsp` loader for the legacy id Software BSP family.
 - Added safe lump parsing, entity key/value parsing, and BSP-to-`LevelAsset` conversion.
 - Built static geometry, named collision meshes, world metadata markers, and script bindings from
   BSP data.

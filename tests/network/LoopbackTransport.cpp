@@ -60,8 +60,11 @@ void client_input_command_serializes_crosses_and_decodes() {
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 777;
     command.command_sequence = 42;
-    command.movement.wish_direction = {1.0F, 0.0F, -1.0F};
+    command.movement.wish_direction = {1.0F, 1.0F, 0.0F};
     command.movement.jump = true;
+    command.movement.view_yaw_degrees = 270.0F;
+    command.movement.view_pitch_degrees = -15.0F;
+    command.movement.has_view_angles = true;
 
     auto encoded = stellar::network::encode_player_command(command);
     assert(encoded.has_value());
@@ -79,6 +82,9 @@ void client_input_command_serializes_crosses_and_decodes() {
     assert(decoded->command_sequence == 42);
     assert(decoded->movement.wish_direction == command.movement.wish_direction);
     assert(decoded->movement.jump);
+    assert(decoded->movement.view_yaw_degrees == command.movement.view_yaw_degrees);
+    assert(decoded->movement.view_pitch_degrees == command.movement.view_pitch_degrees);
+    assert(decoded->movement.has_view_angles);
 }
 
 } // namespace

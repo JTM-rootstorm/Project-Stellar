@@ -120,6 +120,30 @@ void gameplay_event_round_trip() {
     assert(decoded->message == event.message);
 }
 
+void player_command_round_trip_includes_view_angles() {
+    stellar::network::NetworkPlayerCommand command{};
+    command.player_id = 3;
+    command.command_sequence = 7;
+    command.movement.wish_direction = {0.25F, 0.5F, 0.0F};
+    command.movement.jump = true;
+    command.movement.view_yaw_degrees = 123.0F;
+    command.movement.view_pitch_degrees = -45.0F;
+    command.movement.has_view_angles = true;
+
+    auto encoded = stellar::network::encode_player_command(command);
+    assert(encoded.has_value());
+    auto decoded = stellar::network::decode_player_command(*encoded);
+    assert(decoded.has_value());
+
+    assert(decoded->player_id == command.player_id);
+    assert(decoded->command_sequence == command.command_sequence);
+    assert(decoded->movement.wish_direction == command.movement.wish_direction);
+    assert(decoded->movement.jump == command.movement.jump);
+    assert(decoded->movement.view_yaw_degrees == command.movement.view_yaw_degrees);
+    assert(decoded->movement.view_pitch_degrees == command.movement.view_pitch_degrees);
+    assert(decoded->movement.has_view_angles == command.movement.has_view_angles);
+}
+
 void invalid_and_truncated_data_fail_cleanly() {
     assert(!stellar::network::decode_snapshot({}).has_value());
     auto encoded = stellar::network::encode_snapshot(stellar::network::NetworkWorldSnapshot{});
@@ -134,9 +158,9 @@ void oversized_string_and_vector_fail_cleanly() {
     assert(!stellar::network::encode_gameplay_event(
                 event, stellar::network::CodecLimits{.max_string_bytes = 8}).has_value());
 
-    std::vector<std::uint8_t> bytes = {0x33, 0x4E, 0x50, 0x53, 0x01, 0x00,
-                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                       0x00, 0x00, 0x02, 0x00, 0x00, 0x00};
+    std::vector<std::uint8_t> bytes = {0x33, 0x4E, 0x50, 0x53, 0x02, 0x00,
+                                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                        0x00, 0x00, 0x02, 0x00, 0x00, 0x00};
     assert(!stellar::network::decode_snapshot(
                 bytes, stellar::network::CodecLimits{.max_vector_count = 1}).has_value());
 }
@@ -146,6 +170,11 @@ void non_finite_float_rejected() {
     snapshot.players.push_back(player(1));
     snapshot.players[0].position[0] = std::numeric_limits<float>::infinity();
     assert(!stellar::network::encode_snapshot(snapshot).has_value());
+
+    stellar::network::NetworkPlayerCommand command{};
+    command.movement.view_yaw_degrees = std::numeric_limits<float>::infinity();
+    command.movement.has_view_angles = true;
+    assert(!stellar::network::encode_player_command(command).has_value());
 
     auto clean = stellar::network::encode_snapshot(stellar::network::NetworkWorldSnapshot{});
     assert(clean.has_value());
@@ -171,6 +200,7 @@ int main() {
     snapshot_round_trip_with_player_and_no_entities();
     snapshot_round_trip_with_sprite_pickup_and_door_entities();
     gameplay_event_round_trip();
+    player_command_round_trip_includes_view_angles();
     invalid_and_truncated_data_fail_cleanly();
     oversized_string_and_vector_fail_cleanly();
     non_finite_float_rejected();

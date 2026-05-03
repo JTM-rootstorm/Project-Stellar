@@ -138,6 +138,11 @@ public:
     [[nodiscard]] bool set_door_open_by_collision_mesh_name(std::string_view mesh_name,
                                                             bool open) noexcept;
 
+    /** @brief Authoritatively update an entity transform and optional open state by id. */
+    [[nodiscard]] bool update_brush_entity(EntityId id,
+                                           std::array<float, 3> position,
+                                           bool open) noexcept;
+
     /** @brief Return a display-free serializable entity snapshot. */
     [[nodiscard]] GameplayWorldSnapshot snapshot() const;
 

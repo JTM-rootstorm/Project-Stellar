@@ -142,6 +142,7 @@ private:
 
   std::unique_ptr<GraphicsDevice> device_;
   stellar::assets::LevelAsset level_;
+  std::array<float, 256> lightstyle_multipliers_{};
   std::vector<MeshHandle> mesh_handles_;
   std::vector<TextureHandle> texture_handles_;
   std::vector<TextureHandle> lightmap_texture_handles_;

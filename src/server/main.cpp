@@ -17,7 +17,8 @@ int main(int argc, const char* const argv[]) {
 
     if (config->validate_only) {
         const stellar::server::DedicatedServerStatus status = server->status();
-        std::cout << "stellar-server: configuration valid for map " << status.map_id << '\n';
+        std::cout << "stellar-server: configuration valid for BSP map " << status.map_id
+                  << " (BSP30 TrenchBroom target; legacy BSP29 supported)\n";
         return 0;
     }
 

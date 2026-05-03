@@ -8,6 +8,7 @@
 #include <string>
 
 #include <GL/glew.h>
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 
 namespace stellar::graphics::opengl {
@@ -49,17 +50,20 @@ constexpr const char *kFragmentShader = R"(
 
 uniform vec4 u_base_color;
 uniform sampler2D u_base_color_texture;
+uniform sampler2D u_lightmap_texture;
 uniform sampler2D u_normal_texture;
 uniform sampler2D u_metallic_roughness_texture;
 uniform sampler2D u_occlusion_texture;
 uniform sampler2D u_emissive_texture;
 uniform bool u_has_base_color_texture;
+uniform bool u_has_lightmap_texture;
 uniform bool u_has_normal_texture;
 uniform bool u_has_metallic_roughness_texture;
 uniform bool u_has_occlusion_texture;
 uniform bool u_has_emissive_texture;
 uniform bool u_has_vertex_color;
 uniform int u_base_color_texcoord_set;
+uniform int u_lightmap_texcoord_set;
 uniform int u_normal_texcoord_set;
 uniform int u_metallic_roughness_texcoord_set;
 uniform int u_occlusion_texcoord_set;
@@ -70,6 +74,8 @@ uniform float u_metallic_factor;
 uniform float u_roughness_factor;
 uniform float u_normal_scale;
 uniform float u_occlusion_strength;
+uniform float u_lightmap_intensity;
+uniform float u_lightmap_min;
 uniform vec3 u_emissive_factor;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
@@ -139,7 +145,12 @@ void main() {
         emissive *= texture(u_emissive_texture,
             transformed_uv_for_slot(u_emissive_texcoord_set, 4)).rgb;
     }
-    if (u_unlit) {
+    if (u_has_lightmap_texture) {
+        vec3 lightmap = texture(u_lightmap_texture,
+            uv_for_set(u_lightmap_texcoord_set)).rgb;
+        frag_color = vec4(color.rgb * max(lightmap * u_lightmap_intensity,
+            vec3(u_lightmap_min)) + emissive, color.a);
+    } else if (u_unlit) {
         frag_color = vec4(color.rgb + emissive, color.a);
     } else {
         vec3 light_dir = normalize(vec3(0.35, 0.8, 0.45));
@@ -184,6 +195,32 @@ std::string program_info_log(GLuint program) {
   glGetProgramInfoLog(program, log_length, &written, log.data());
   log.resize(static_cast<std::size_t>(written));
   return log;
+}
+
+std::string stable_sdl_error_text() {
+  const char *error = SDL_GetError();
+  if (error == nullptr || error[0] == '\0') {
+    return "SDL did not provide an error message";
+  }
+  return error;
+}
+
+std::string current_sdl_video_driver_text() {
+  const char *driver = SDL_GetCurrentVideoDriver();
+  if (driver == nullptr || driver[0] == '\0') {
+    return "uninitialized";
+  }
+  return driver;
+}
+
+std::string opengl_context_failure_message() {
+  std::string message = "Failed to create OpenGL context";
+  message += " (backend=OpenGL, requested_context=4.5 core, depth_bits=24";
+  message += ", sdl_video_driver=";
+  message += current_sdl_video_driver_text();
+  message += "): ";
+  message += stable_sdl_error_text();
+  return message;
 }
 
 std::expected<GLuint, stellar::platform::Error>
@@ -394,7 +431,7 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   context_ = SDL_GL_CreateContext(window_);
   if (!context_) {
     return std::unexpected(
-        stellar::platform::Error("Failed to create OpenGL context"));
+        stellar::platform::Error(opengl_context_failure_message()));
   }
 
   glewExperimental = GL_TRUE;
@@ -662,6 +699,13 @@ void OpenGLGraphicsDevice::draw_mesh(
           bind_texture(material->upload.base_color_texture, GL_TEXTURE0);
     }
 
+    bool has_lightmap_texture = false;
+    if (material != nullptr &&
+        material->upload.lightmap_texture.has_value()) {
+      has_lightmap_texture =
+          bind_texture(material->upload.lightmap_texture, GL_TEXTURE5);
+    }
+
     bool has_normal_texture = false;
     if (material != nullptr && primitive.has_tangents) {
       has_normal_texture =
@@ -690,6 +734,8 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_base_color");
     const GLint texture_loc =
         glGetUniformLocation(shader_program_, "u_base_color_texture");
+    const GLint lightmap_texture_loc =
+        glGetUniformLocation(shader_program_, "u_lightmap_texture");
     const GLint normal_texture_loc =
         glGetUniformLocation(shader_program_, "u_normal_texture");
     const GLint mr_texture_loc =
@@ -700,6 +746,8 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_emissive_texture");
     const GLint has_texture_loc =
         glGetUniformLocation(shader_program_, "u_has_base_color_texture");
+    const GLint has_lightmap_loc =
+        glGetUniformLocation(shader_program_, "u_has_lightmap_texture");
     const GLint has_normal_loc =
         glGetUniformLocation(shader_program_, "u_has_normal_texture");
     const GLint has_mr_loc = glGetUniformLocation(
@@ -712,6 +760,8 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_has_vertex_color");
     const GLint base_color_texcoord_loc =
         glGetUniformLocation(shader_program_, "u_base_color_texcoord_set");
+    const GLint lightmap_texcoord_loc =
+        glGetUniformLocation(shader_program_, "u_lightmap_texcoord_set");
     const GLint normal_texcoord_loc =
         glGetUniformLocation(shader_program_, "u_normal_texcoord_set");
     const GLint mr_texcoord_loc = glGetUniformLocation(
@@ -728,6 +778,10 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_normal_scale");
     const GLint occlusion_strength_loc =
         glGetUniformLocation(shader_program_, "u_occlusion_strength");
+    const GLint lightmap_intensity_loc =
+        glGetUniformLocation(shader_program_, "u_lightmap_intensity");
+    const GLint lightmap_min_loc =
+        glGetUniformLocation(shader_program_, "u_lightmap_min");
     const GLint emissive_factor_loc =
         glGetUniformLocation(shader_program_, "u_emissive_factor");
     const GLint alpha_mode_loc =
@@ -741,11 +795,13 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_texture_transform1[0]");
     glUniform4fv(base_color_loc, 1, base_color.data());
     glUniform1i(texture_loc, 0);
+    glUniform1i(lightmap_texture_loc, 5);
     glUniform1i(normal_texture_loc, 1);
     glUniform1i(mr_texture_loc, 2);
     glUniform1i(occlusion_texture_loc, 3);
     glUniform1i(emissive_texture_loc, 4);
     glUniform1i(has_texture_loc, has_base_color_texture ? 1 : 0);
+    glUniform1i(has_lightmap_loc, has_lightmap_texture ? 1 : 0);
     glUniform1i(has_normal_loc, has_normal_texture ? 1 : 0);
     glUniform1i(has_mr_loc, has_metallic_roughness_texture ? 1 : 0);
     glUniform1i(has_occlusion_loc, has_occlusion_texture ? 1 : 0);
@@ -757,6 +813,10 @@ void OpenGLGraphicsDevice::draw_mesh(
                     ? static_cast<int>(
                           material->upload.base_color_texture->texcoord_set)
                     : 0);
+    glUniform1i(lightmap_texcoord_loc,
+                has_lightmap_texture && material->upload.lightmap_texture.has_value()
+                    ? static_cast<int>(material->upload.lightmap_texture->texcoord_set)
+                    : 1);
     glUniform1i(
         normal_texcoord_loc,
         has_normal_texture && material->upload.normal_texture.has_value()
@@ -794,6 +854,9 @@ void OpenGLGraphicsDevice::draw_mesh(
                 material != nullptr
                     ? material->upload.material.occlusion_strength
                     : 1.0f);
+    glUniform1f(lightmap_intensity_loc,
+                material != nullptr ? material->upload.lightmap_multiplier : 1.0F);
+    glUniform1f(lightmap_min_loc, 0.08F);
     const std::array<float, 3> emissive_factor =
         material != nullptr ? material->upload.material.emissive_factor
                             : std::array<float, 3>{0.0f, 0.0f, 0.0f};
@@ -839,6 +902,8 @@ void OpenGLGraphicsDevice::draw_mesh(
     glBindVertexArray(primitive.vao);
     glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT,
                    nullptr);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE3);

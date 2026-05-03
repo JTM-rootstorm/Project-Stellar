@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,9 +43,21 @@ public:
     /** @brief Return the authoritative enabled mask indexed by collision mesh index. */
     [[nodiscard]] const std::vector<bool>& enabled_meshes() const noexcept;
 
+    /** @brief Return authoritative per-mesh translations indexed by collision mesh index. */
+    [[nodiscard]] const std::vector<std::array<float, 3>>& mesh_translations() const noexcept;
+
     /** @brief Enable or disable all collision meshes with the supplied authored name. */
     [[nodiscard]] RuntimeCollisionStateResult set_mesh_enabled(std::string_view name,
-                                                               bool enabled) noexcept;
+                                                                bool enabled) noexcept;
+
+    /** @brief Set deterministic query-time translation for all collision meshes with the name. */
+    [[nodiscard]] RuntimeCollisionStateResult set_mesh_translation(
+        std::string_view name,
+        std::array<float, 3> translation) noexcept;
+
+    /** @brief Set deterministic query-time translation for one collision mesh index. */
+    [[nodiscard]] bool set_mesh_translation(std::size_t mesh_index,
+                                            std::array<float, 3> translation) noexcept;
 
     /** @brief Return authored collision mesh names and indices in deterministic mesh-index order. */
     [[nodiscard]] std::vector<RuntimeCollisionMeshRef> meshes() const;
@@ -54,6 +67,7 @@ public:
 
 private:
     std::vector<bool> enabled_meshes_;
+    std::vector<std::array<float, 3>> mesh_translations_;
     std::vector<RuntimeCollisionMeshRef> mesh_refs_;
 };
 

@@ -21,6 +21,9 @@ struct LocalLoopbackRuntimeConfig {
     /** @brief Input mapper configuration used to convert client input to server intent. */
     MovementInputMapperConfig input_mapper{};
 
+    /** @brief Look mapper configuration used to submit authoritative view angles. */
+    LookInputMapperConfig look_mapper{};
+
     /** @brief Maximum fixed authoritative ticks allowed during one client frame update. */
     int max_ticks_per_frame = 4;
 };
@@ -91,6 +94,7 @@ private:
     LocalLoopbackRuntimeConfig config_{};
     std::variant<stellar::server::WorldSession, stellar::scripting::ScriptedWorldSession> session_;
     stellar::server::WorldSnapshot latest_snapshot_{};
+    ClientViewState view_state_{};
     float accumulated_seconds_ = 0.0F;
 };
 

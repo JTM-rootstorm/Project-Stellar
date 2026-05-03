@@ -1,5 +1,6 @@
 #include "stellar/physics/CharacterController.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/math/Geometry3.hpp"
 
 #include <algorithm>
@@ -21,6 +22,7 @@ constexpr float kEpsilon = 1.0e-5F;
 constexpr float kSweepContactOffset = 1.0e-3F;
 constexpr int kSweepSamples = 32;
 constexpr int kRecoveryIterations = 5;
+constexpr Vec3 kDefaultUp = stellar::core::kWorldUp;
 
 Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
     return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
@@ -94,11 +96,11 @@ Vec3 reject_from_normal(Vec3 value, Vec3 normal) noexcept {
 
 Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcept {
     if (length_squared(triangle.normal) > kEpsilon * kEpsilon) {
-        return normalize_or(triangle.normal, {0.0F, 1.0F, 0.0F});
+        return normalize_or(triangle.normal, kDefaultUp);
     }
 
     return normalize_or(cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a)),
-                        {0.0F, 1.0F, 0.0F});
+                        kDefaultUp);
 }
 
 Vec3 closest_point_on_segment(Vec3 point, Vec3 a, Vec3 b) noexcept {
@@ -293,7 +295,7 @@ ClosestPair closest_capsule_segment_triangle(CapsuleEndpoints capsule,
 struct Contact {
     bool hit = false;
     float t = 1.0F;
-    Vec3 normal{0.0F, 1.0F, 0.0F};
+    Vec3 normal = kDefaultUp;
 };
 
 bool capsule_overlaps_triangle(Vec3 center,
@@ -392,8 +394,6 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
                                  Vec3 up,
                                  CollisionQueryFilter filter) noexcept {
     RecoveryResult result{.position = position};
-    const auto& asset = world.asset();
-
     for (int iteration = 0; iteration < kRecoveryIterations; ++iteration) {
         float deepest = 0.0F;
         Vec3 push_normal = up;
@@ -402,8 +402,7 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
         const auto candidates = world.query_triangles(capsule_bounds(result.position, up, radius, height),
                                                       filter);
         for (const auto& candidate : candidates) {
-            const auto& triangle =
-                asset.meshes[candidate.mesh_index].triangles[candidate.triangle_index];
+            const auto triangle = world.triangle(candidate, filter);
             const ClosestPair closest = closest_capsule_segment_triangle(
                 capsule_endpoints(result.position, up, radius, height), triangle);
             const float dist = std::sqrt(std::max(closest.distance_sq, 0.0F));
@@ -439,7 +438,7 @@ RecoveryResult recover_overlaps(const CollisionWorld& world,
 struct SlideResult {
     Vec3 position{};
     Vec3 remaining{};
-    Vec3 last_normal{0.0F, 1.0F, 0.0F};
+    Vec3 last_normal = kDefaultUp;
     bool hit = false;
     int iterations = 0;
 };
@@ -453,7 +452,6 @@ SlideResult slide_move(const CollisionWorld& world,
                        int max_iterations,
                        CollisionQueryFilter filter) noexcept {
     SlideResult result{.position = start, .remaining = displacement};
-    const auto& asset = world.asset();
     const int iterations = std::clamp(max_iterations, 0, 8);
 
     for (int iteration = 0; iteration < iterations; ++iteration) {
@@ -466,8 +464,7 @@ SlideResult slide_move(const CollisionWorld& world,
         const auto candidates = world.query_triangles(
             swept_capsule_bounds(result.position, result.remaining, up, radius, height), filter);
         for (const auto& candidate : candidates) {
-            const auto& triangle =
-                asset.meshes[candidate.mesh_index].triangles[candidate.triangle_index];
+            const auto triangle = world.triangle(candidate, filter);
             const Contact contact = sweep_capsule_triangle(result.position, result.remaining,
                                                            up, radius, height, triangle);
             if (contact.hit && contact.t < nearest.t) {
@@ -558,7 +555,7 @@ CharacterMoveResult CharacterController::move(const CharacterMoveInput& input,
                                               const CharacterControllerConfig& config,
                                               CollisionQueryFilter filter) const noexcept {
     CharacterMoveResult result{};
-    const Vec3 up = normalize_or(input.up, {0.0F, 1.0F, 0.0F});
+    const Vec3 up = normalize_or(input.up, kDefaultUp);
     result.position = input.position;
     result.remaining_displacement = input.displacement;
     result.ground_normal = up;

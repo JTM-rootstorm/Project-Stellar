@@ -1,6 +1,7 @@
 #include "VulkanGraphicsDevicePrivate.hpp"
 
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <limits>
 
@@ -17,9 +18,10 @@ constexpr std::uint32_t kHasNormalTexture = 1U << 1U;
 constexpr std::uint32_t kHasMetallicRoughnessTexture = 1U << 2U;
 constexpr std::uint32_t kHasOcclusionTexture = 1U << 3U;
 constexpr std::uint32_t kHasEmissiveTexture = 1U << 4U;
-constexpr std::uint32_t kHasVertexColor = 1U << 5U;
-constexpr std::uint32_t kHasTangents = 1U << 6U;
-constexpr std::uint32_t kUnlitMaterial = 1U << 7U;
+constexpr std::uint32_t kHasLightmapTexture = 1U << 5U;
+constexpr std::uint32_t kHasVertexColor = 1U << 6U;
+constexpr std::uint32_t kHasTangents = 1U << 7U;
+constexpr std::uint32_t kUnlitMaterial = 1U << 8U;
 
 std::uint32_t alpha_mode_value(stellar::assets::AlphaMode mode) noexcept {
     switch (mode) {
@@ -261,6 +263,8 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
             has_live_texture(textures_, material->upload.occlusion_texture);
         const bool has_emissive_texture = material != nullptr &&
             has_live_texture(textures_, material->upload.emissive_texture);
+        const bool has_lightmap_texture = material != nullptr &&
+            has_live_texture(textures_, material->upload.lightmap_texture);
         const auto alpha_mode = material != nullptr ? material->upload.material.alpha_mode
                                                     : stellar::assets::AlphaMode::kOpaque;
         const bool alpha_blend = alpha_mode == stellar::assets::AlphaMode::kBlend;
@@ -282,6 +286,7 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         texture_flags |= has_metallic_roughness_texture ? kHasMetallicRoughnessTexture : 0U;
         texture_flags |= has_occlusion_texture ? kHasOcclusionTexture : 0U;
         texture_flags |= has_emissive_texture ? kHasEmissiveTexture : 0U;
+        texture_flags |= has_lightmap_texture ? kHasLightmapTexture : 0U;
         texture_flags |= primitive.has_colors ? kHasVertexColor : 0U;
         texture_flags |= primitive.has_tangents ? kHasTangents : 0U;
         texture_flags |= material != nullptr && material->upload.material.unlit ? kUnlitMaterial
@@ -294,6 +299,7 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
             uv_flags |= uv_bit(material->upload.metallic_roughness_texture, 2U);
             uv_flags |= uv_bit(material->upload.occlusion_texture, 3U);
             uv_flags |= uv_bit(material->upload.emissive_texture, 4U);
+            uv_flags |= uv_bit(material->upload.lightmap_texture, 5U);
         }
 
         const std::array<float, 3> emissive = material != nullptr
@@ -315,7 +321,9 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
                         material != nullptr ? material->upload.material.roughness_factor : 1.0F,
                         normal_scale,
                         material != nullptr ? material->upload.material.occlusion_strength : 1.0F},
-            .flags = {texture_flags, uv_flags, alpha_mode_value(alpha_mode), 0U},
+            .flags = {texture_flags, uv_flags, alpha_mode_value(alpha_mode),
+                      std::bit_cast<std::uint32_t>(
+                          material != nullptr ? material->upload.lightmap_multiplier : 1.0F)},
         };
         const VkDescriptorSet descriptor_set = material != nullptr &&
                 material->descriptor_set != VK_NULL_HANDLE
@@ -327,6 +335,8 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         vkCmdPushConstants(command_buffer, pipeline_layout_,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                            sizeof(VulkanDrawPushConstants), &push_constants);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
 
         const VkBuffer vertex_buffers[] = {primitive.vertex_buffer};
         const VkDeviceSize offsets[] = {0};

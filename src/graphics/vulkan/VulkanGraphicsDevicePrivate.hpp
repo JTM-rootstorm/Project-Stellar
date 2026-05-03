@@ -21,11 +21,11 @@ struct VulkanDrawPushConstants {
 static_assert(sizeof(VulkanDrawPushConstants) == 128);
 
 struct VulkanMaterialUniform {
-    std::array<std::array<float, 4>, 5> transform0{};
-    std::array<std::array<float, 4>, 5> transform1{};
+    std::array<std::array<float, 4>, 6> transform0{};
+    std::array<std::array<float, 4>, 6> transform1{};
 };
 
-static_assert(sizeof(VulkanMaterialUniform) == 160);
+static_assert(sizeof(VulkanMaterialUniform) == 192);
 
 stellar::platform::Error vulkan_error(const char* operation, VkResult result);
 void log_vulkan_message(std::string_view message) noexcept;

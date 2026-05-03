@@ -1,5 +1,6 @@
 #include "stellar/physics/CollisionWorld.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/math/Geometry3.hpp"
 
 #include <algorithm>
@@ -24,6 +25,8 @@ using stellar::math::normalize_or;
 using stellar::math::sub;
 using stellar::math::Vec3;
 
+constexpr Vec3 kDefaultUp = stellar::core::kWorldUp;
+
 Vec3 min_vec(Vec3 a, Vec3 b) noexcept {
     return {std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2])};
 }
@@ -40,11 +43,11 @@ Vec3 cross(Vec3 a, Vec3 b) noexcept {
 
 Vec3 triangle_normal(const stellar::assets::CollisionTriangle& triangle) noexcept {
     if (length_squared(triangle.normal) > kEpsilon * kEpsilon) {
-        return normalize_or(triangle.normal, {0.0F, 1.0F, 0.0F});
+        return normalize_or(triangle.normal, kDefaultUp);
     }
 
     return normalize_or(cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a)),
-                        {0.0F, 1.0F, 0.0F});
+                        kDefaultUp);
 }
 
 bool point_in_triangle(Vec3 point, const stellar::assets::CollisionTriangle& triangle) noexcept {
@@ -245,7 +248,7 @@ CollisionWorld::CollisionWorld(const stellar::assets::LevelCollisionAsset& asset
 }
 
 bool collision_mesh_passes_filter(const CollisionQueryFilter& filter,
-                                  std::size_t mesh_index) noexcept {
+                                   std::size_t mesh_index) noexcept {
     if (filter.enabled_meshes == nullptr || filter.enabled_meshes->empty()) {
         return true;
     }
@@ -253,6 +256,26 @@ bool collision_mesh_passes_filter(const CollisionQueryFilter& filter,
         return false;
     }
     return (*filter.enabled_meshes)[mesh_index];
+}
+
+Vec3 mesh_translation_for(const CollisionQueryFilter& filter, std::size_t mesh_index) noexcept {
+    if (filter.mesh_translations == nullptr || mesh_index >= filter.mesh_translations->size()) {
+        return {0.0F, 0.0F, 0.0F};
+    }
+    return (*filter.mesh_translations)[mesh_index];
+}
+
+Aabb translated_bounds(Aabb bounds, Vec3 translation) noexcept {
+    return {.min = add(bounds.min, translation), .max = add(bounds.max, translation)};
+}
+
+stellar::assets::CollisionTriangle translated_triangle(
+    const stellar::assets::CollisionTriangle& triangle,
+    Vec3 translation) noexcept {
+    return {.a = add(triangle.a, translation),
+            .b = add(triangle.b, translation),
+            .c = add(triangle.c, translation),
+            .normal = triangle.normal};
 }
 
 void CollisionWorld::build_broadphase() noexcept {
@@ -359,7 +382,7 @@ RaycastHit CollisionWorld::raycast(Vec3 origin,
         const std::uint32_t node_index = stack.back();
         stack.pop_back();
         const BvhNode& node = bvh_nodes_[node_index];
-        if (!segment_aabb(origin, delta, node.bounds)) {
+        if (filter.mesh_translations == nullptr && !segment_aabb(origin, delta, node.bounds)) {
             continue;
         }
 
@@ -375,14 +398,17 @@ RaycastHit CollisionWorld::raycast(Vec3 origin,
 
         for (std::uint32_t index = node.first; index < node.first + node.count; ++index) {
             const TriangleRef& ref = triangle_refs_[index];
-            if (!segment_aabb(origin, delta, ref.bounds)) {
+            const Vec3 translation = mesh_translation_for(filter, ref.mesh_index);
+            const Aabb ref_bounds = translated_bounds(ref.bounds, translation);
+            if (!segment_aabb(origin, delta, ref_bounds)) {
                 continue;
             }
             if (!collision_mesh_passes_filter(filter, ref.mesh_index)) {
                 continue;
             }
 
-            const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
+            const auto triangle = translated_triangle(
+                asset_->meshes[ref.mesh_index].triangles[ref.triangle_index], translation);
             ++stats_.last_query_candidate_count;
             ++stats_.last_query_triangle_tests;
             float t = 0.0F;
@@ -434,7 +460,7 @@ CollisionWorld::query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter 
         const std::uint32_t node_index = stack.back();
         stack.pop_back();
         const BvhNode& node = bvh_nodes_[node_index];
-        if (!intersects(node.bounds, query)) {
+        if (filter.mesh_translations == nullptr && !intersects(node.bounds, query)) {
             continue;
         }
 
@@ -450,7 +476,8 @@ CollisionWorld::query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter 
 
         for (std::uint32_t index = node.first; index < node.first + node.count; ++index) {
             const TriangleRef& ref = triangle_refs_[index];
-            if (!intersects(ref.bounds, query)) {
+            const Aabb ref_bounds = translated_bounds(ref.bounds, mesh_translation_for(filter, ref.mesh_index));
+            if (!intersects(ref_bounds, query)) {
                 continue;
             }
             if (!collision_mesh_passes_filter(filter, ref.mesh_index)) {
@@ -472,22 +499,22 @@ CollisionWorld::query_triangles(CollisionQueryAabb bounds, CollisionQueryFilter 
 }
 
 GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
-                                            float max_distance,
-                                            float min_floor_normal_y) const noexcept {
-    return probe_ground(origin, max_distance, min_floor_normal_y, {});
+                                             float max_distance,
+                                             float min_floor_normal_up) const noexcept {
+    return probe_ground(origin, max_distance, min_floor_normal_up, {});
 }
 
 GroundProbeHit CollisionWorld::probe_ground(Vec3 origin,
-                                            float max_distance,
-                                            float min_floor_normal_y,
-                                            CollisionQueryFilter filter) const noexcept {
+                                             float max_distance,
+                                             float min_floor_normal_up,
+                                             CollisionQueryFilter filter) const noexcept {
     GroundProbeHit result{};
     if (max_distance <= 0.0F) {
         return result;
     }
 
-    const RaycastHit hit = raycast(origin, {0.0F, -max_distance, 0.0F}, filter);
-    if (!hit.hit || hit.normal[1] < min_floor_normal_y) {
+    const RaycastHit hit = raycast(origin, mul(stellar::core::kWorldDown, max_distance), filter);
+    if (!hit.hit || dot(hit.normal, kDefaultUp) < min_floor_normal_up) {
         return result;
     }
 
@@ -546,7 +573,8 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
             const std::uint32_t node_index = stack.back();
             stack.pop_back();
             const BvhNode& node = bvh_nodes_[node_index];
-            if (!segment_aabb(current_position, remaining, expand(node.bounds, safe_radius)) &&
+            if (filter.mesh_translations == nullptr &&
+                !segment_aabb(current_position, remaining, expand(node.bounds, safe_radius)) &&
                 !intersects(node.bounds, sweep_bounds)) {
                 continue;
             }
@@ -563,14 +591,17 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
 
             for (std::uint32_t index = node.first; index < node.first + node.count; ++index) {
                 const TriangleRef& ref = triangle_refs_[index];
-                if (!segment_aabb(current_position, remaining, expand(ref.bounds, safe_radius))) {
+                const Vec3 translation = mesh_translation_for(filter, ref.mesh_index);
+                const Aabb ref_bounds = translated_bounds(ref.bounds, translation);
+                if (!segment_aabb(current_position, remaining, expand(ref_bounds, safe_radius))) {
                     continue;
                 }
                 if (!collision_mesh_passes_filter(filter, ref.mesh_index)) {
                     continue;
                 }
 
-                const auto& triangle = asset_->meshes[ref.mesh_index].triangles[ref.triangle_index];
+                const auto triangle = translated_triangle(
+                    asset_->meshes[ref.mesh_index].triangles[ref.triangle_index], translation);
                 ++stats_.last_query_candidate_count;
                 ++stats_.last_query_triangle_tests;
                 const SweepHit candidate =
@@ -616,6 +647,17 @@ MoveResult CollisionWorld::move_sphere(Vec3 position,
 
 const stellar::assets::LevelCollisionAsset& CollisionWorld::asset() const noexcept {
     return *asset_;
+}
+
+stellar::assets::CollisionTriangle
+CollisionWorld::triangle(CollisionTriangleCandidate candidate,
+                         CollisionQueryFilter filter) const noexcept {
+    if (asset_ == nullptr || candidate.mesh_index >= asset_->meshes.size() ||
+        candidate.triangle_index >= asset_->meshes[candidate.mesh_index].triangles.size()) {
+        return {};
+    }
+    return translated_triangle(asset_->meshes[candidate.mesh_index].triangles[candidate.triangle_index],
+                               mesh_translation_for(filter, candidate.mesh_index));
 }
 
 CollisionWorldStats CollisionWorld::stats() const noexcept {

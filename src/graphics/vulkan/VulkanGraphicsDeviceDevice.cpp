@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
 namespace stellar::graphics::vulkan {
@@ -43,6 +44,46 @@ bool supports_required_queue(VkPhysicalDevice physical_device,
     return false;
 }
 
+std::string stable_sdl_error_text() {
+    const char* error = SDL_GetError();
+    if (error == nullptr || error[0] == '\0') {
+        return "SDL did not provide an error message";
+    }
+    return error;
+}
+
+std::string current_sdl_video_driver_text() {
+    const char* driver = SDL_GetCurrentVideoDriver();
+    if (driver == nullptr || driver[0] == '\0') {
+        return "uninitialized";
+    }
+    return driver;
+}
+
+std::string sdl_vulkan_failure_message(const char* operation) {
+    std::string message(operation);
+    message += " failed (backend=Vulkan, sdl_video_driver=";
+    message += current_sdl_video_driver_text();
+    message += "): ";
+    message += stable_sdl_error_text();
+    return message;
+}
+
+std::string sdl_vulkan_extensions_failure_message(const char* operation,
+                                                  unsigned int extension_count) {
+    std::string message = sdl_vulkan_failure_message(operation);
+    message += "; requested_extension_count=";
+    message += std::to_string(extension_count);
+    return message;
+}
+
+std::string sdl_vulkan_surface_failure_message() {
+    std::string message = sdl_vulkan_failure_message("SDL_Vulkan_CreateSurface");
+    message += "; VkResult unavailable because SDL_Vulkan_CreateSurface returns ";
+    message += "SDL_bool";
+    return message;
+}
+
 } // namespace
 
 std::expected<void, stellar::platform::Error>
@@ -50,17 +91,17 @@ VulkanGraphicsDevice::create_instance(stellar::platform::Window& window) {
     unsigned int extension_count = 0;
     if (SDL_Vulkan_GetInstanceExtensions(window.native_handle(), &extension_count, nullptr) !=
         SDL_TRUE) {
-        std::string message = "Failed to query SDL Vulkan instance extensions: ";
-        message += SDL_GetError();
-        return std::unexpected(stellar::platform::Error(std::move(message)));
+        return std::unexpected(stellar::platform::Error(
+            sdl_vulkan_extensions_failure_message("SDL_Vulkan_GetInstanceExtensions query",
+                                                  extension_count)));
     }
 
     std::vector<const char*> extensions(extension_count);
     if (SDL_Vulkan_GetInstanceExtensions(window.native_handle(), &extension_count,
                                          extensions.data()) != SDL_TRUE) {
-        std::string message = "Failed to get SDL Vulkan instance extensions: ";
-        message += SDL_GetError();
-        return std::unexpected(stellar::platform::Error(std::move(message)));
+        return std::unexpected(stellar::platform::Error(
+            sdl_vulkan_extensions_failure_message("SDL_Vulkan_GetInstanceExtensions get",
+                                                  extension_count)));
     }
 
     const VkApplicationInfo application_info{
@@ -90,9 +131,8 @@ VulkanGraphicsDevice::create_instance(stellar::platform::Window& window) {
 std::expected<void, stellar::platform::Error>
 VulkanGraphicsDevice::create_surface(stellar::platform::Window& window) {
     if (SDL_Vulkan_CreateSurface(window.native_handle(), instance_, &surface_) != SDL_TRUE) {
-        std::string message = "Failed to create SDL Vulkan surface: ";
-        message += SDL_GetError();
-        return std::unexpected(stellar::platform::Error(std::move(message)));
+        return std::unexpected(
+            stellar::platform::Error(sdl_vulkan_surface_failure_message()));
     }
     return {};
 }

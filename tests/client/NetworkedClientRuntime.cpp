@@ -94,6 +94,15 @@ void synthesize_key(stellar::platform::Input& input, SDL_Scancode scancode, Uint
     input.process_event(event);
 }
 
+void synthesize_mouse_motion(stellar::platform::Input& input, int xrel, int yrel) {
+    SDL_Event event{};
+    event.type = SDL_MOUSEMOTION;
+    event.motion.type = SDL_MOUSEMOTION;
+    event.motion.xrel = xrel;
+    event.motion.yrel = yrel;
+    input.process_event(event);
+}
+
 stellar::platform::Input input_with_key(SDL_Scancode scancode) {
     stellar::platform::Input input;
     synthesize_key(input, scancode, SDL_KEYDOWN);
@@ -128,11 +137,33 @@ void movement_input_changes_authoritative_network_snapshot() {
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::client::NetworkedClientRuntime runtime(world, test_config());
 
-    const auto frame = runtime.update(input_with_key(SDL_SCANCODE_D), 0.1F);
+    const auto frame = runtime.update(input_with_key(SDL_SCANCODE_W), 0.1F);
 
     assert(frame.ticks_run == 1);
     assert(runtime.latest_snapshot().has_value());
-    assert(runtime.latest_snapshot()->players[0].position[0] > 0.9F);
+    assert(runtime.latest_snapshot()->players[0].position[0] == 0.0F);
+    assert(runtime.latest_snapshot()->players[0].position[1] > 0.9F);
+    assert(runtime.latest_snapshot()->players[0].position[2] == 0.0F);
+}
+
+void look_input_changes_authoritative_network_snapshot_rotation() {
+    const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::client::NetworkedClientRuntime runtime(world, test_config());
+    stellar::platform::Input input;
+    synthesize_mouse_motion(input, -100, 0);
+
+    const auto frame = runtime.update(input, 0.1F);
+
+    assert(frame.ticks_run == 1);
+    assert(runtime.latest_snapshot().has_value());
+    const auto& player = runtime.latest_snapshot()->players[0];
+    assert(player.rotation != (std::array<float, 4>{0.0F, 0.0F, 0.0F, 1.0F}));
+    const auto presentation = stellar::client::make_player_presentation_state(
+        *runtime.latest_snapshot(), runtime.local_player_id());
+    assert(presentation.has_value());
+    const auto camera = stellar::client::make_player_camera_frame(*presentation);
+    assert(camera.target[0] < camera.eye[0]);
 }
 
 void assigned_player_id_is_used_for_presentation() {
@@ -204,6 +235,7 @@ void command_sequence_increments_deterministically() {
 int main() {
     local_runtime_emits_first_snapshot_after_frame();
     movement_input_changes_authoritative_network_snapshot();
+    look_input_changes_authoritative_network_snapshot_rotation();
     assigned_player_id_is_used_for_presentation();
     script_events_queue_through_receiver();
     malformed_packets_are_rejected_without_crash();

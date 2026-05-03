@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.8 (socket transport scope complete)
+**Version:** 0.2.9 (TrenchBroom BSP30 Z-up scope complete)
 **Last Updated:** 2026-05-01
 
 ---
@@ -85,7 +85,7 @@ suitable for game content.
 ## 2. Documentation Authority
 
 This file describes broad architecture and long-term design intent. For the
-`socket-transport` branch, it is not the highest authority on current implementation status.
+`trenchbroom-compat` branch, it is not the highest authority on implementation status.
 
 Precedence for resolving conflicts:
 
@@ -105,14 +105,19 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `socket-transport`.
+Current branch: `trenchbroom-compat`.
 
-Primary near-term status: socket transport and networked session lifecycle over the completed BSP
-gameplay loop and presentation/networking polish foundations are complete. The completed scope
-includes a Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the
-headless `stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode.
-Completed collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
-and BSP gameplay-loop work should be treated as foundational historical context, not restarted.
+Primary near-term status: the `trenchbroom-compat` branch has completed the Z-up migration and
+TrenchBroom BSP30 authoring workflow. Active runtime, collision, movement, presentation, tests, and map
+fixtures use the central Z-up world-axis contract. TrenchBroom-authored BSP30 maps are the supported
+editor workflow, and imported BSP coordinates are preserved 1:1 as Stellar gameplay inches. Socket
+transport and networked session lifecycle over the completed BSP gameplay loop and
+presentation/networking polish foundations are also complete. The completed scope includes a
+Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the headless
+`stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode. Completed
+collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
+BSP gameplay-loop, socket transport, and TrenchBroom compatibility work should be treated as
+foundational historical context, not restarted.
 
 Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
@@ -124,11 +129,12 @@ The completed gameplay-loop plans are archived under `Plans/Archived/bsp_gamepla
 completed presentation/networking polish plans are archived under
 `Plans/Archived/bsp_presentation_networking_polish/`.
 
-Gameplay authoring and runtime tuning for this branch use inch-scale world units: 1 Stellar gameplay
-world unit equals 1 inch, Y is up, and BSP authored coordinates import without hidden scale
-conversion. `stellar::core::WorldUnits.hpp` records the shared code constants. The default
-authoritative player capsule is 72 inches tall with a 16 inch radius, so player spawn centers should
-be authored 36 inches above the floor unless a later archetype explicitly changes the capsule.
+Gameplay authoring and runtime tuning for this branch use inch-scale Z-up world units: 1 Stellar
+gameplay world unit equals 1 inch, BSP30 authored coordinates are imported without hidden scale or axis
+conversion, and `stellar::core::WorldUnits.hpp` plus `stellar::core::WorldAxes.hpp` record the shared
+code constants. The default authoritative player capsule is 72 inches tall with a 16 inch radius, so
+player spawn centers should be authored at `z = 36` above a floor at `z = 0` unless a later archetype
+explicitly changes the capsule.
 Default walk tuning is 160 inches/second max speed, 1200 inches/second² acceleration, 800
 inches/second² gravity, and 2400 inches/second terminal fall speed; these are game-feel defaults, not
 real-world simulation claims.
@@ -139,8 +145,9 @@ movement/session output, emits primitive script events, and applies only native-
 collision/object-collider commands to server-owned runtime state.
 The live single-player client path can load a configured BSP map, keep the validated `LevelAsset`
 alive for `RuntimeWorld`, instantiate local loopback authoritative runtime state, advance movement from
-captured input, and render the level from the authoritative player presentation camera. The no-map
-debug fallback remains a presentation-only fallback.
+captured input, and render the level from the authoritative player presentation camera. No-map mode
+initializes without authored static geometry and renders a blank/static-less presentation frame until
+authored static geometry or authoritative dynamic snapshot data is available.
 The live client uses the same server-authoritative scripted runtime as display-free tests when a loaded
 BSP map declares trigger or object-collider script bindings. Script sources are loaded for
 authoritative runtime execution only; no client-side gameplay scripting or renderer/audio script
@@ -162,8 +169,9 @@ followed by deltas/events. The `stellar-client --connect HOST:PORT` mode creates
 runtime, sends `ClientHello`, waits for accepted `ServerWelcome`, sends input commands after acceptance,
 and renders camera/billboards from `NetworkWorldSnapshot` through `ClientWorldReceiver`. Remote mode
 does not load maps, load gameplay scripts, construct local authority, transfer maps, predict,
-interpolate, or reconcile. Without a local presentation map feature, remote mode renders dynamic
-network state/fallback only; static BSP map transfer/caching remains deferred. True simultaneous
+interpolate, or reconcile. Without a local presentation map feature, remote mode renders a
+blank/static-less frame plus any available dynamic network state; static BSP map transfer/caching
+remains deferred. True simultaneous
 multiplayer simulation, interpolation, prediction, and reconciliation remain deferred until explicitly
 scoped.
 
@@ -172,8 +180,9 @@ and retired importer removal are complete historical implementation steps. Their
 live in `docs/ImplementationStatus.md` and archived plans rather than defining the active scope here.
 
 Avoid spending the next implementation slices on third-party physics, dynamic rigid bodies,
-client-side scripting, renderer/audio scripting bindings, full PBR, Source/VBSP, moving brush
-simulation, or model/animation systems unless a concrete requirement appears.
+client-side scripting, renderer/audio scripting bindings, full PBR, Source/VBSP, moving brush classes
+beyond the implemented door/button path, or model/animation systems unless a concrete requirement
+appears.
 
 ---
 
@@ -356,8 +365,8 @@ family.
 
 Current BSP support covers:
 
-- BSP29 and BSP30-style headers, lump tables, geometry, texture names, entities, visibility, and
-  lighting data where available.
+- Legacy BSP and BSP30 headers, lump tables, geometry, texture names, entities, visibility, and
+  lighting data where available. BSP30 is the TrenchBroom workflow target.
 - Static world geometry represented as backend-neutral mesh primitives.
 - Static collision represented as named triangle collision meshes and optional BSP hull data.
 - Entity key/value metadata for player spawns, generic spawns, triggers, sprite markers,
@@ -378,28 +387,32 @@ Initial mappings:
 - `env_sprite`, `stellar_sprite`, and entities with `stellar.sprite` create sprite markers.
 - `stellar_object_collider` and entities with `stellar.collider=object` create sensor-style object
   collider markers.
-- Brush entities such as `func_wall`, `func_door`, and `func_button` may contribute named static
-  collision meshes, while moving brush simulation remains deferred.
+- Brush entities such as `func_wall`, `func_illusionary`, and `func_detail` contribute static or
+  nonblocking brush metadata. `func_door` and `func_button` are implemented as server-authoritative
+  brush movers with target routing, collision overlay transforms, and replicated presentation
+  transforms.
 
 Script bindings use BSP entity keys such as `stellar.script`, importer-supported aliases such as
 `_stellar_script`, `stellar.table`, and `_stellar_table`. Dotted Stellar keys must reach the compiled
 BSP as dotted keys or importer-supported aliases; underscore FGD field names are editor-facing
 placeholders unless the editor/toolchain remaps them before export. Import preserves bindings as
-metadata only; the authoritative scripting layer loads and invokes them later. For object colliders,
-native runtime collider ids are assigned
+import-time metadata; the authoritative scripting layer loads and invokes them later. For object
+colliders, native runtime collider ids are assigned
 deterministically from metadata marker order and are used for validated commands rather than
 name-based mutation.
 
 Brush-backed trigger/object-collider markers derive bounds from `model="*N"`; point-authored
 volumes use `origin` plus `stellar.extents`. Sprite script bindings are unsupported and diagnosed.
 
-### 6.3 BSP Deferrals
+### 6.3 BSP Non-Goals
 
-Intentionally deferred unless a concrete requirement appears:
+Outside the current Stellar BSP30 profile unless a concrete requirement appears:
 
 - Source/VBSP support.
-- Full external WAD/material library tooling beyond minimal fallback material behavior.
-- Moving brush simulation.
+- Arbitrary third-party WAD/material library tooling beyond the safe Stellar WAD/developer-material
+  workflow.
+- Moving brush classes beyond the implemented `func_door`/`func_button` path, such as plats, trains,
+  and rotators.
 - Dynamic rigid bodies.
 - Navigation mesh/pathfinding.
 - Full PBR.
@@ -1138,7 +1151,7 @@ Representative coverage:
 
 Importer tests should cover:
 
-- BSP29/BSP30 version handling.
+- Legacy BSP and BSP30 version handling.
 - Header and lump bounds validation.
 - Geometry, face triangulation, texture/material name preservation, and bounds.
 - Static collision mesh extraction.

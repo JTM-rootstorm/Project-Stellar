@@ -192,8 +192,8 @@ void trigger_update_uses_radius_from_config_or_documented_policy() {
 }
 
 void movement_trigger_tracker_uses_character_capsule_height() {
-    const auto scene = scene_with_triggers({trigger_marker("High", {0.0F, 1.75F, 0.0F},
-                                                            {0.2F, 0.05F, 0.2F})});
+    const auto scene = scene_with_triggers({trigger_marker("High", {0.0F, 0.0F, 1.75F},
+                                                            {0.2F, 0.2F, 0.05F})});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::MovementTriggerTracker tracker;
     tracker.reset_from_world(world);
@@ -207,8 +207,8 @@ void movement_trigger_tracker_uses_character_capsule_height() {
 }
 
 void movement_trigger_tracker_reset_preserves_capsule_behavior() {
-    const auto scene = scene_with_triggers({trigger_marker("Low", {0.0F, -1.75F, 0.0F},
-                                                           {0.2F, 0.05F, 0.2F})});
+    const auto scene = scene_with_triggers({trigger_marker("Low", {0.0F, 0.0F, -1.75F},
+                                                           {0.2F, 0.2F, 0.05F})});
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::server::MovementTriggerTracker tracker;
     tracker.reset_from_world(world);
@@ -224,8 +224,8 @@ void movement_trigger_tracker_reset_preserves_capsule_behavior() {
 }
 
 void simulate_trigger_update_uses_sanitized_character_capsule_height() {
-    const auto scene = scene_with_triggers({trigger_marker("Top", {0.0F, 0.65F, 0.0F},
-                                                           {0.2F, 0.05F, 0.2F})});
+    const auto scene = scene_with_triggers({trigger_marker("Top", {0.0F, 0.0F, 0.65F},
+                                                           {0.2F, 0.2F, 0.05F})});
     const auto world = stellar::world::build_runtime_world(scene);
     auto config = trigger_test_config();
     config.character.radius = 0.5F;

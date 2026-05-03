@@ -103,6 +103,11 @@ parse_application_config(int argc, const char *const argv[]) {
       continue;
     }
 
+    if (std::strcmp(argv[i], "--validate-display") == 0) {
+      config.validate_display = true;
+      continue;
+    }
+
     if (std::strcmp(argv[i], "--map") == 0) {
       auto value = require_value("--map");
       if (!value) {
@@ -160,6 +165,17 @@ parse_application_config(int argc, const char *const argv[]) {
   if (config.connect_endpoint.has_value() && config.map_path.has_value()) {
     return std::unexpected(stellar::platform::Error(
         "--map and --connect are ambiguous; remote mode uses authoritative server state"));
+  }
+  if (config.validate_display) {
+    if (config.validate_only) {
+      return std::unexpected(stellar::platform::Error(
+          "--validate-display cannot be combined with --validate-config or --validate-map"));
+    }
+    if (config.map_path.has_value() || config.connect_endpoint.has_value() ||
+        config.script_root.has_value()) {
+      return std::unexpected(stellar::platform::Error(
+          "--validate-display does not require --map, --connect, or --script-root"));
+    }
   }
   if (config.connect_endpoint.has_value() && config.script_root.has_value()) {
     return std::unexpected(stellar::platform::Error(

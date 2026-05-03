@@ -1,5 +1,6 @@
 #include "stellar/world/TriggerSystem.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
 #include "stellar/math/Geometry3.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
@@ -24,13 +25,13 @@ using stellar::math::sanitized_half_extent;
 using stellar::math::sanitized_radius;
 using stellar::math::sub;
 
-std::array<float, 3> normalized_or_world_y(std::array<float, 3> value) noexcept {
+std::array<float, 3> normalized_or_world_up(std::array<float, 3> value) noexcept {
     if (!is_finite(value)) {
-        return {0.0F, 1.0F, 0.0F};
+        return stellar::core::kWorldUp;
     }
     const float len_sq = length_squared(value);
     if (len_sq <= 0.0F) {
-        return {0.0F, 1.0F, 0.0F};
+        return stellar::core::kWorldUp;
     }
     const float inv_len = 1.0F / std::sqrt(len_sq);
     return mul(value, inv_len);
@@ -86,7 +87,7 @@ bool capsule_overlaps_aabb_inclusive(const TriggerVolume& trigger,
 
     const float radius = sanitized_radius(capsule.radius);
     const float height = sanitized_capsule_height(capsule.height, radius);
-    const auto up = normalized_or_world_y(capsule.up);
+    const auto up = normalized_or_world_up(capsule.up);
     const float half_segment_length = std::max(0.0F, (height - 2.0F * radius) * 0.5F);
     const auto start = sub(capsule.center, mul(up, half_segment_length));
     const auto end = add(capsule.center, mul(up, half_segment_length));

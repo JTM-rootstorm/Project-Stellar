@@ -199,6 +199,7 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
 
   device_ = std::move(device);
   level_ = std::move(level);
+  lightstyle_multipliers_.fill(1.0F);
 
   if (auto result = device_->initialize(window); !result) {
     destroy();
@@ -286,6 +287,10 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
     if (surface_material.lightmap_index.has_value()) {
       upload.lightmap_texture = resolve_level_lightmap_binding(
           *surface_material.lightmap_index, geometry, lightmap_texture_handles_);
+      if (*surface_material.lightmap_index < geometry.lightmaps.size()) {
+        const auto style = geometry.lightmaps[*surface_material.lightmap_index].style;
+        upload.lightmap_multiplier = lightstyle_multipliers_[style];
+      }
     }
 
     auto handle = device_->create_material(upload);

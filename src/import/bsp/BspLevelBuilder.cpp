@@ -1,10 +1,12 @@
 #include "BspBinary.hpp"
 #include "DeveloperTextures.hpp"
+#include "Wad3Reader.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <limits>
 #include <map>
 #include <optional>
@@ -18,7 +20,7 @@ namespace {
 using Vec3 = std::array<float, 3>;
 
 [[nodiscard]] const std::string *value_for(const Entity &entity,
-                                           std::string_view key) noexcept {
+                                            std::string_view key) noexcept {
   for (const auto &pair : entity.pairs) {
     if (pair.key == key) {
       return &pair.value;
@@ -27,9 +29,28 @@ using Vec3 = std::array<float, 3>;
   return nullptr;
 }
 
-[[nodiscard]] std::string string_or(const Entity &entity, std::string_view key,
-                                    std::string fallback = {}) {
+[[nodiscard]] const std::string *value_for_alias(const Entity &entity,
+                                                 std::string_view key,
+                                                 std::string_view alias) noexcept {
   if (const std::string *value = value_for(entity, key)) {
+    return value;
+  }
+  return value_for(entity, alias);
+}
+
+[[nodiscard]] std::string string_or(const Entity &entity, std::string_view key,
+                                     std::string fallback = {}) {
+  if (const std::string *value = value_for(entity, key)) {
+    return *value;
+  }
+  return fallback;
+}
+
+[[nodiscard]] std::string string_or_alias(const Entity &entity,
+                                          std::string_view key,
+                                          std::string_view alias,
+                                          std::string fallback = {}) {
+  if (const std::string *value = value_for_alias(entity, key, alias)) {
     return *value;
   }
   return fallback;
@@ -210,9 +231,19 @@ struct TextureBuildResult {
   std::optional<std::array<std::uint32_t, 2>> texel_size;
 };
 
+[[nodiscard]] std::string texture_lookup_key(std::string_view name) {
+  std::string key;
+  key.reserve(name.size());
+  for (const char ch : name) {
+    key.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+  }
+  return key;
+}
+
 [[nodiscard]] TextureBuildResult
 texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
                     std::map<std::string, std::size_t> &textures,
+                    const std::unordered_map<std::string, WadTextureAsset> &wad_textures,
                     const std::string &texture_name,
                     const Miptex *miptex, const std::string &source_uri,
                     ImportReport *report) {
@@ -260,6 +291,34 @@ texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
     return TextureBuildResult{.texture_index = texture_index,
                               .texel_size = std::array<std::uint32_t, 2>{
                                   miptex->width, miptex->height}};
+  }
+
+  if (const auto wad = wad_textures.find(texture_lookup_key(texture_name));
+      wad != wad_textures.end()) {
+    stellar::assets::ImageAsset image = wad->second.image;
+    image.name = texture_name;
+    const std::size_t image_index = geometry.images.size();
+    const std::array<std::uint32_t, 2> texel_size{image.width, image.height};
+    geometry.images.push_back(std::move(image));
+
+    stellar::assets::SamplerAsset sampler;
+    sampler.name = texture_name + "_wad_repeat";
+    sampler.mag_filter = stellar::assets::TextureFilter::kNearest;
+    sampler.min_filter = stellar::assets::TextureFilter::kNearest;
+    sampler.wrap_s = stellar::assets::TextureWrapMode::kRepeat;
+    sampler.wrap_t = stellar::assets::TextureWrapMode::kRepeat;
+    const std::size_t sampler_index = geometry.samplers.size();
+    geometry.samplers.push_back(std::move(sampler));
+
+    const std::size_t texture_index = geometry.textures.size();
+    geometry.textures.push_back(stellar::assets::TextureAsset{
+        .name = texture_name,
+        .image_index = image_index,
+        .sampler_index = sampler_index,
+        .color_space = stellar::assets::TextureColorSpace::kSrgb});
+    textures.emplace(texture_name, texture_index);
+    return TextureBuildResult{.texture_index = texture_index,
+                              .texel_size = texel_size};
   }
 
   if (auto developer_texture = make_developer_texture(texture_name, source_uri)) {
@@ -400,17 +459,13 @@ struct LightmapBuildResult {
 
 [[nodiscard]] std::optional<stellar::assets::WorldScriptBinding>
 script_binding_for(const Entity &entity) {
-  const std::string *script = value_for(entity, "stellar.script");
-  if (script == nullptr) {
-    script = value_for(entity, "_stellar_script");
-  }
+  const std::string *script =
+      value_for_alias(entity, "stellar.script", "_stellar_script");
   if (script == nullptr) {
     return std::nullopt;
   }
-  const std::string *table = value_for(entity, "stellar.table");
-  if (table == nullptr) {
-    table = value_for(entity, "_stellar_table");
-  }
+  const std::string *table =
+      value_for_alias(entity, "stellar.table", "_stellar_table");
   return stellar::assets::WorldScriptBinding{
       .script_id = *script,
       .table_name = table == nullptr ? std::string{} : *table};
@@ -496,11 +551,22 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
   level.visibility.available = map.has_visibility;
   level.visibility.compressed_pvs = std::move(map.visibility_bytes);
   level.geometry.raw_lighting = std::move(map.lighting_bytes);
-  stellar::assets::MeshAsset mesh{};
-  mesh.name = "worldspawn";
-  mesh.source_uri = level.source_uri;
   std::map<std::string, std::size_t> material_indices;
   std::map<std::string, std::size_t> texture_indices;
+  std::unordered_map<std::string, WadTextureAsset> wad_textures;
+  if (!entities.empty()) {
+    if (const std::string *wad_key = value_for(entities.front(), "wad");
+        wad_key != nullptr && !wad_key->empty()) {
+      WadResolveResult wad_result = resolve_wad_textures(
+          *wad_key, make_wad_resolve_context(level.source_uri));
+      wad_textures = std::move(wad_result.textures);
+      for (std::string &message : wad_result.diagnostics) {
+        add_warning(report, DiagnosticCode::kMissingTexture, level.source_uri,
+                    level.source_uri + ": " + message,
+                    static_cast<std::size_t>(LumpIndex::kTextures));
+      }
+    }
+  }
 
   stellar::assets::LevelCollisionAsset collision{};
   collision.bounds_min = {std::numeric_limits<float>::max(),
@@ -525,6 +591,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
             ? Model{.first_face = 0,
                     .face_count = static_cast<std::int32_t>(map.faces.size())}
             : map.models[model_index];
+    stellar::assets::MeshAsset mesh{};
+    mesh.name = model_index == 0 ? "worldspawn"
+                                 : "bsp_model_" + std::to_string(model_index);
+    mesh.source_uri = level.source_uri;
+    const std::size_t output_mesh_index = level.geometry.meshes.size();
     stellar::assets::CollisionMesh collision_mesh{};
     collision_mesh.name = model_index == 0
                               ? "worldspawn"
@@ -534,6 +605,16 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       collision_mesh.name =
           collision_name_for(*found->second, static_cast<int>(model_index));
     }
+    const Entity *owning_entity = nullptr;
+    if (auto found = model_entities.find(static_cast<int>(model_index)); found != model_entities.end()) {
+      owning_entity = found->second;
+    }
+    const std::string owning_class = owning_entity == nullptr
+                                         ? std::string{}
+                                         : string_or(*owning_entity, "classname");
+    const bool build_model_collision = model_index == 0 ||
+                                       (owning_class != "func_illusionary" &&
+                                        !owning_class.starts_with("trigger_"));
     collision_mesh.bounds_min = {std::numeric_limits<float>::max(),
                                  std::numeric_limits<float>::max(),
                                  std::numeric_limits<float>::max()};
@@ -566,8 +647,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       }
       const std::string texture = texture_name_for(map, face);
       const TextureBuildResult texture_asset = texture_asset_index(
-          level.geometry, texture_indices, texture, texture_for_face(map, face),
-          level.source_uri, report);
+          level.geometry, texture_indices, wad_textures, texture,
+          texture_for_face(map, face), level.source_uri, report);
       const LightmapBuildResult lightmap = build_lightmap_for_face(
           level.geometry, map, face, polygon, static_cast<std::size_t>(face_index),
           level.source_uri, report);
@@ -618,7 +699,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         primitive.indices.push_back(0);
         primitive.indices.push_back(i);
         primitive.indices.push_back(i + 1);
-        if (options.build_triangle_collision_from_faces) {
+        if (options.build_triangle_collision_from_faces && build_model_collision) {
           collision_mesh.triangles.push_back(
               stellar::assets::CollisionTriangle{.a = polygon[0],
                                                  .b = polygon[i],
@@ -632,7 +713,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       face_to_surface[static_cast<std::size_t>(face_index)] = surface_index;
       level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
           .name = "face_" + std::to_string(face_index),
-          .mesh_index = 0,
+          .mesh_index = output_mesh_index,
           .primitive_index = primitive_index,
           .material_index = mat,
           .bounds_min = mesh.primitives.back().bounds_min,
@@ -640,15 +721,38 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
           .source_flags =
               face.texinfo < map.texinfos.size()
                   ? static_cast<std::uint32_t>(map.texinfos[face.texinfo].flags)
-                  : 0U});
+                  : 0U,
+          .brush_model_index = static_cast<std::uint32_t>(model_index)});
+    }
+    if (model_index > 0) {
+      if (auto found = model_entities.find(static_cast<int>(model_index));
+          found != model_entities.end()) {
+        const Entity &entity = *found->second;
+        stellar::assets::LevelBrushEntity brush{};
+        brush.classname = string_or(entity, "classname", "func_unknown");
+        brush.targetname = string_or(entity, "targetname");
+        brush.target = string_or(entity, "target");
+        brush.model = string_or(entity, "model");
+        brush.name = brush.targetname.empty() ? collision_mesh.name : brush.targetname;
+        brush.bsp_model_index = static_cast<std::uint32_t>(model_index);
+        brush.mesh_index = output_mesh_index;
+        brush.collision_mesh_name = collision_mesh.name;
+        brush.origin = model.origin;
+        brush.bounds_min = model.mins;
+        brush.bounds_max = model.maxs;
+        for (const auto &pair : entity.pairs) {
+          brush.properties.push_back(stellar::assets::WorldEntityProperty{.key = pair.key,
+                                                                          .value = pair.value});
+        }
+        level.geometry.brush_entities.push_back(std::move(brush));
+      }
     }
     if (!collision_mesh.triangles.empty()) {
       collision.meshes.push_back(std::move(collision_mesh));
     }
-  }
-
-  if (!mesh.primitives.empty()) {
-    level.geometry.meshes.push_back(std::move(mesh));
+    if (!mesh.primitives.empty()) {
+      level.geometry.meshes.push_back(std::move(mesh));
+    }
   }
   if (!collision.meshes.empty()) {
     level.level_collision = std::move(collision);
@@ -721,8 +825,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     if (classname == "worldspawn") {
       has_worldspawn = true;
       emit = false;
+    } else if (classname == "light" || classname == "light_spot" ||
+               classname == "light_environment" || classname == "info_null") {
+      emit = false;
     } else if (classname == "info_player_start" ||
-               classname == "info_player_deathmatch") {
+                classname == "info_player_deathmatch") {
       has_player_spawn = true;
       marker.type = stellar::assets::WorldMarkerType::kPlayerSpawn;
       marker.name = string_or(entity, "targetname", "Player");
@@ -731,17 +838,23 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       marker.name = string_or(entity, "targetname", classname);
       marker.archetype = string_or(entity, "archetype");
     } else if (classname == "trigger_multiple" || classname == "trigger_once" ||
-               classname == "trigger_stellar") {
+               classname == "trigger_stellar" ||
+               classname == "trigger_stellar_point" ||
+               classname == "trigger_multiple_point" ||
+               classname == "trigger_once_point") {
       marker.type = stellar::assets::WorldMarkerType::kTrigger;
       marker.name = string_or(entity, "targetname", classname);
     } else if (classname == "env_sprite" || classname == "stellar_sprite" ||
-               value_for(entity, "stellar.sprite") != nullptr) {
+               value_for_alias(entity, "stellar.sprite", "_stellar_sprite") != nullptr) {
       marker.type = stellar::assets::WorldMarkerType::kSprite;
       marker.name = string_or(entity, "targetname", classname);
-      marker.archetype =
-          string_or(entity, "archetype", string_or(entity, "stellar.sprite"));
+      marker.archetype = string_or(
+          entity, "archetype",
+          string_or_alias(entity, "stellar.sprite", "_stellar_sprite"));
     } else if (classname == "stellar_object_collider" ||
-               string_or(entity, "stellar.collider") == "object") {
+               classname == "stellar_object_collider_point" ||
+               string_or_alias(entity, "stellar.collider", "_stellar_collider") ==
+                   "object") {
       marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
       marker.name = string_or(entity, "targetname", classname);
       marker.archetype = string_or(entity, "archetype");
@@ -784,7 +897,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     if ((marker.type == stellar::assets::WorldMarkerType::kTrigger ||
          marker.type == stellar::assets::WorldMarkerType::kObjectCollider) &&
         !has_brush_model_bounds) {
-      const std::string *extents_text = value_for(entity, "stellar.extents");
+      const std::string *extents_text =
+          value_for_alias(entity, "stellar.extents", "_stellar_extents");
       if (auto extents = parse_vec3(extents_text)) {
         marker.scale = *extents;
       } else if (extents_text != nullptr) {
@@ -797,7 +911,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
 
     if (marker.type == stellar::assets::WorldMarkerType::kSprite) {
-      const std::string *size_text = value_for(entity, "stellar.size");
+      const std::string *size_text = value_for_alias(entity, "stellar.size", "_stellar_size");
       if (auto size = parse_vec2(size_text)) {
         marker.scale = {(*size)[0], (*size)[1], 1.0F};
       } else if (size_text != nullptr) {
@@ -810,7 +924,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
 
     if (marker.type == stellar::assets::WorldMarkerType::kTrigger) {
-      const std::string *once_text = value_for(entity, "stellar.once");
+      const std::string *once_text = value_for_alias(entity, "stellar.once", "_stellar_once");
       if (once_text != nullptr && !parse_bool_like(once_text).has_value()) {
         add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
                            level.source_uri, entity_index,
@@ -821,7 +935,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
     }
 
     if (marker.type == stellar::assets::WorldMarkerType::kObjectCollider) {
-      const std::string *enabled_text = value_for(entity, "stellar.enabled");
+      const std::string *enabled_text =
+          value_for_alias(entity, "stellar.enabled", "_stellar_enabled");
       if (enabled_text != nullptr && !parse_bool_like(enabled_text).has_value()) {
         add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
                            level.source_uri, entity_index,

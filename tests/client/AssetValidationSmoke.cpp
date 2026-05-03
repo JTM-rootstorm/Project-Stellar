@@ -23,7 +23,7 @@ int main() {
   std::filesystem::create_directories(root);
 
   const auto bsp_path = root / "valid_map.bsp";
-  stellar::tests::fixtures::write_bsp_fixture(bsp_path, "gameplay_room");
+  stellar::tests::fixtures::write_bsp_fixture(bsp_path, "minimal_zup_room");
 
   stellar::client::ApplicationConfig config;
   config.map_path = bsp_path.string();
@@ -37,9 +37,9 @@ int main() {
   assert(!result->map_validation_report->has_errors);
   assert(result->runtime_world_diagnostics.has_value());
   assert(result->runtime_world_diagnostics->has_collision);
-  assert(result->runtime_world_diagnostics->marker_count == 4);
-  assert(result->runtime_world_diagnostics->sprite_marker_count == 1);
-  assert(result->runtime_world_diagnostics->object_collider_marker_count == 1);
+  assert(result->runtime_world_diagnostics->marker_count == 1);
+  assert(result->runtime_world_diagnostics->sprite_marker_count == 0);
+  assert(result->runtime_world_diagnostics->object_collider_marker_count == 0);
   assert(result->runtime_world_diagnostics->has_player_spawn);
   assert(!result->scripted_runtime_enabled);
   assert(result->loaded_script_ids.empty());
@@ -51,7 +51,7 @@ int main() {
   assert(runtime->runtime_world != nullptr);
   assert(runtime->runtime_world->level_asset == &*runtime->validation->level);
   assert(runtime->runtime_world->diagnostics.has_collision);
-  assert(runtime->runtime_world->diagnostics.marker_count == 4);
+  assert(runtime->runtime_world->diagnostics.marker_count == 1);
   assert(runtime->networked_runtime != nullptr);
   assert(runtime->local_loopback_runtime == nullptr);
   assert(!runtime->validation->scripted_runtime_enabled);
@@ -63,17 +63,18 @@ int main() {
   assert(runtime->networked_runtime->latest_snapshot()->players[0].player_id == 1);
 
   const auto scripted_bsp_path = root / "scripted_map.bsp";
-  stellar::tests::fixtures::write_bsp_fixture(scripted_bsp_path);
-  write_text_file(root / "scripts" / "door.lua",
+  stellar::tests::fixtures::write_bsp_fixture(scripted_bsp_path,
+                                             "scripted_interaction_zup");
+  write_text_file(root / "scripts" / "gate.lua",
                   "Door = {}\n"
                   "function Door.on_trigger_enter(event)\n"
                   "  stellar.emit_event('collision.set_mesh_enabled', "
-                  "{mesh = 'DoorBlocker', enabled = false})\n"
+                  "{mesh = 'GateDoor', enabled = false})\n"
                   "end\n");
   write_text_file(root / "scripts" / "pickup.lua",
                   "PickupGem = {}\n"
                   "function PickupGem.on_object_collider_enter(event)\n"
-                  "  stellar.emit_event('gameplay.pickup_collected', "
+                  "  stellar.emit_event('gameplay.collect_pickup', "
                   "{name = event.collider_name})\n"
                   "end\n");
   config.map_path = scripted_bsp_path.string();
@@ -84,7 +85,7 @@ int main() {
   assert(scripted_runtime->local_loopback_runtime == nullptr);
   assert(scripted_runtime->validation->scripted_runtime_enabled);
   assert(scripted_runtime->validation->loaded_script_ids.size() == 2);
-  assert(scripted_runtime->validation->loaded_script_ids[0] == "scripts/door.lua");
+  assert(scripted_runtime->validation->loaded_script_ids[0] == "scripts/gate.lua");
   assert(scripted_runtime->validation->loaded_script_ids[1] == "scripts/pickup.lua");
 
   const auto isolated_root = root / "isolated_scripts";
@@ -119,9 +120,25 @@ int main() {
   assert(unsupported.error().message.find("Unsupported map extension") !=
          std::string::npos);
 
+  const char *validate_display_args[] = {"stellar-client", "--validate-display"};
+  const auto validate_display_config = stellar::client::parse_application_config(
+      2, validate_display_args);
+  assert(validate_display_config.has_value());
+  assert(validate_display_config->validate_display);
+  assert(!validate_display_config->validate_only);
+  assert(!validate_display_config->map_path.has_value());
+
+  const char *invalid_validate_display_args[] = {
+      "stellar-client", "--validate-display", "--map", "room.bsp"};
+  const auto invalid_validate_display_config =
+      stellar::client::parse_application_config(4, invalid_validate_display_args);
+  assert(!invalid_validate_display_config.has_value());
+  assert(invalid_validate_display_config.error().message.find("--validate-display") !=
+         std::string::npos);
+
   const auto bad_script_path = root / "bad_script.bsp";
   const auto bad_script =
-      stellar::tests::fixtures::build_bsp_invalid_script_path_fixture();
+      stellar::tests::fixtures::build_bsp_trenchbroom_invalid_script_escape_fixture();
   {
     std::ofstream file(bad_script_path, std::ios::binary);
     file.write(reinterpret_cast<const char *>(bad_script.data()),

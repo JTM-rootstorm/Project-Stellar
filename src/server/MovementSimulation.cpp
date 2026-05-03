@@ -1,5 +1,7 @@
 #include "stellar/server/MovementSimulation.hpp"
 
+#include "stellar/core/WorldAxes.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -156,11 +158,17 @@ using Vec3 = std::array<float, 3>;
 
 [[nodiscard]] MovementCommand sanitize_command(MovementCommand command, bool& sanitized) noexcept {
     command.wish_direction = sanitize_vec3(command.wish_direction, sanitized);
-    if (command.wish_direction[1] != 0.0F) {
+    if (command.wish_direction[stellar::core::kWorldUpIndex] != 0.0F) {
         sanitized = true;
     }
-    command.wish_direction[1] = 0.0F;
+    command.wish_direction[stellar::core::kWorldUpIndex] = 0.0F;
     command.wish_direction = clamp_length(command.wish_direction, 1.0F, sanitized);
+    if (command.has_view_angles &&
+        (!is_finite(command.view_yaw_degrees) || !is_finite(command.view_pitch_degrees))) {
+        command.view_yaw_degrees = 0.0F;
+        command.view_pitch_degrees = 0.0F;
+        sanitized = true;
+    }
     return command;
 }
 
@@ -201,14 +209,20 @@ MovementTickResult simulate_movement_tick(
 
     const Vec3 desired_horizontal = mul(clean_command.wish_direction, cfg.max_speed);
     const float max_delta = cfg.acceleration * cfg.fixed_dt;
-    state.velocity[0] = approach(state.velocity[0], desired_horizontal[0], max_delta);
-    state.velocity[2] = approach(state.velocity[2], desired_horizontal[2], max_delta);
+    state.velocity[stellar::core::kHorizontalPlaneXIndex] =
+        approach(state.velocity[stellar::core::kHorizontalPlaneXIndex],
+                 desired_horizontal[stellar::core::kHorizontalPlaneXIndex], max_delta);
+    state.velocity[stellar::core::kHorizontalPlaneYIndex] =
+        approach(state.velocity[stellar::core::kHorizontalPlaneYIndex],
+                 desired_horizontal[stellar::core::kHorizontalPlaneYIndex], max_delta);
 
     if (state.grounded) {
-        state.velocity[1] = std::min(state.velocity[1], 0.0F);
+        state.velocity[stellar::core::kWorldUpIndex] =
+            std::min(state.velocity[stellar::core::kWorldUpIndex], 0.0F);
     } else {
-        state.velocity[1] -= cfg.gravity * cfg.fixed_dt;
-        state.velocity[1] = std::max(state.velocity[1], -cfg.terminal_fall_speed);
+        state.velocity[stellar::core::kWorldUpIndex] -= cfg.gravity * cfg.fixed_dt;
+        state.velocity[stellar::core::kWorldUpIndex] =
+            std::max(state.velocity[stellar::core::kWorldUpIndex], -cfg.terminal_fall_speed);
     }
 
     const Vec3 start_position = state.position;
@@ -221,10 +235,11 @@ MovementTickResult simulate_movement_tick(
         const stellar::physics::CharacterController controller(*world.collision_world);
         const stellar::physics::CharacterMoveInput input{.position = start_position,
                                                           .displacement = displacement,
-                                                          .up = {0.0F, 1.0F, 0.0F}};
+                                                           .up = stellar::core::kWorldUp};
         if (collision_state != nullptr) {
             const stellar::physics::CollisionQueryFilter filter{
-                .enabled_meshes = &collision_state->enabled_meshes()};
+                .enabled_meshes = &collision_state->enabled_meshes(),
+                .mesh_translations = &collision_state->mesh_translations()};
             result.collision = controller.move(input, cfg.character, filter);
         } else {
             result.collision = controller.move(input, cfg.character);
@@ -232,15 +247,15 @@ MovementTickResult simulate_movement_tick(
         state.position = result.collision.position;
         state.grounded = result.collision.grounded;
         state.velocity = mul(sub(state.position, start_position), 1.0F / cfg.fixed_dt);
-        if (state.grounded && state.velocity[1] < 0.0F) {
-            state.velocity[1] = 0.0F;
+        if (state.grounded && state.velocity[stellar::core::kWorldUpIndex] < 0.0F) {
+            state.velocity[stellar::core::kWorldUpIndex] = 0.0F;
         }
     } else {
         state.position = add(start_position, displacement);
         state.grounded = false;
         result.collision.position = state.position;
         result.collision.remaining_displacement = {};
-        result.collision.ground_normal = {0.0F, 1.0F, 0.0F};
+        result.collision.ground_normal = stellar::core::kWorldUp;
         result.collision.hit = false;
         result.collision.grounded = false;
         result.collision.stepped = false;

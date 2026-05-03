@@ -130,6 +130,11 @@ void remote_runtime_sends_hello_and_gates_input_until_welcome() {
     assert(hello->requested_map_id.empty());
 
     stellar::platform::Input input;
+    SDL_Event event{};
+    event.type = SDL_KEYDOWN;
+    event.key.type = SDL_KEYDOWN;
+    event.key.keysym.scancode = SDL_SCANCODE_W;
+    input.process_event(event);
     auto before_welcome = runtime.update(input, 0.0F);
     assert(before_welcome.session_state == stellar::network::SessionState::kConnecting);
     assert(raw->sent_to_server.size() == 1);
@@ -145,6 +150,12 @@ void remote_runtime_sends_hello_and_gates_input_until_welcome() {
         stellar::network::from_payload(raw->sent_to_server[1].payload));
     assert(command.has_value());
     assert(command->player_id == 42);
+    assert(command->movement.wish_direction[0] == 0.0F);
+    assert(command->movement.wish_direction[1] == 1.0F);
+    assert(command->movement.wish_direction[2] == 0.0F);
+    assert(command->movement.has_view_angles);
+    assert(command->movement.view_yaw_degrees == 0.0F);
+    assert(command->movement.view_pitch_degrees == 0.0F);
 }
 
 void remote_runtime_exposes_snapshot_player_and_events() {
@@ -171,6 +182,8 @@ void remote_runtime_exposes_snapshot_player_and_events() {
         *runtime.latest_snapshot(), runtime.local_player_id());
     assert(presentation.has_value());
     assert(presentation->position[0] == 1.0F);
+    assert(presentation->position[1] == 2.0F);
+    assert(presentation->position[2] == 3.0F);
     assert(frame.events.size() == 1);
     assert(frame.events[0].kind == stellar::network::GameplayEventKind::kPickupCollected);
 }

@@ -53,6 +53,7 @@ RuntimeCollisionState RuntimeCollisionState::from_world(const RuntimeWorld& worl
 
     const auto& meshes = collision->meshes;
     state.enabled_meshes_.assign(meshes.size(), true);
+    state.mesh_translations_.assign(meshes.size(), {0.0F, 0.0F, 0.0F});
     state.mesh_refs_.reserve(meshes.size());
     for (std::size_t mesh_index = 0; mesh_index < meshes.size(); ++mesh_index) {
         state.mesh_refs_.push_back(RuntimeCollisionMeshRef{.mesh_index = mesh_index,
@@ -70,6 +71,10 @@ bool RuntimeCollisionState::is_mesh_enabled(std::size_t mesh_index) const noexce
 
 const std::vector<bool>& RuntimeCollisionState::enabled_meshes() const noexcept {
     return enabled_meshes_;
+}
+
+const std::vector<std::array<float, 3>>& RuntimeCollisionState::mesh_translations() const noexcept {
+    return mesh_translations_;
 }
 
 RuntimeCollisionStateResult RuntimeCollisionState::set_mesh_enabled(std::string_view name,
@@ -103,6 +108,48 @@ RuntimeCollisionStateResult RuntimeCollisionState::set_mesh_enabled(std::string_
     return RuntimeCollisionStateResult{.applied = true,
                                        .code = "ok",
                                        .message = "Collision mesh state updated"};
+}
+
+RuntimeCollisionStateResult RuntimeCollisionState::set_mesh_translation(
+    std::string_view name,
+    std::array<float, 3> translation) noexcept {
+    if (name.empty()) {
+        return RuntimeCollisionStateResult{.applied = false,
+                                           .code = "empty_name",
+                                           .message = "Empty collision mesh names are not targetable"};
+    }
+
+    std::size_t match_count = 0;
+    for (const auto& mesh_ref : mesh_refs_) {
+        if (mesh_ref.name == name && mesh_ref.mesh_index < mesh_translations_.size()) {
+            mesh_translations_[mesh_ref.mesh_index] = translation;
+            ++match_count;
+        }
+    }
+
+    if (match_count == 0) {
+        return RuntimeCollisionStateResult{.applied = false,
+                                           .code = "not_found",
+                                           .message = "Collision mesh name was not found"};
+    }
+    if (match_count > 1) {
+        return RuntimeCollisionStateResult{.applied = true,
+                                           .code = "duplicate_name",
+                                           .message = "Duplicate collision mesh names transformed together"};
+    }
+    return RuntimeCollisionStateResult{.applied = true,
+                                       .code = "ok",
+                                       .message = "Collision mesh transform updated"};
+}
+
+bool RuntimeCollisionState::set_mesh_translation(
+    std::size_t mesh_index,
+    std::array<float, 3> translation) noexcept {
+    if (mesh_index >= mesh_translations_.size()) {
+        return false;
+    }
+    mesh_translations_[mesh_index] = translation;
+    return true;
 }
 
 std::vector<RuntimeCollisionMeshRef> RuntimeCollisionState::meshes() const {

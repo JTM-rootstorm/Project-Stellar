@@ -31,6 +31,9 @@ struct ApplicationConfig {
    * graphics context. */
   bool validate_only = false;
 
+  /** @brief Validate SDL display and graphics context startup, then exit. */
+  bool validate_display = false;
+
   /** @brief Optional root used to resolve asset-relative authoritative script ids. */
   std::optional<std::string> script_root;
 

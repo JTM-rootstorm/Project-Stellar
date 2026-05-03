@@ -25,6 +25,9 @@ struct NetworkedClientRuntimeConfig {
 
     /** @brief Input mapper configuration used to convert client input to network commands. */
     MovementInputMapperConfig input_mapper{};
+
+    /** @brief Look mapper configuration used to submit authoritative view angles. */
+    LookInputMapperConfig look_mapper{};
 };
 
 /** @brief Configuration for socket-backed remote presentation client mode. */
@@ -40,6 +43,9 @@ struct RemoteClientRuntimeConfig {
 
     /** @brief Input mapper configuration used to convert client input to network commands. */
     MovementInputMapperConfig input_mapper{};
+
+    /** @brief Look mapper configuration used to submit authoritative view angles. */
+    LookInputMapperConfig look_mapper{};
 };
 
 /** @brief Result of one local networked client frame update. */
@@ -112,6 +118,7 @@ private:
     std::uint64_t next_command_sequence_ = 1;
     stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
     stellar::server::PlayerId assigned_player_id_ = 0;
+    ClientViewState view_state_{};
     std::vector<std::string> pending_diagnostics_;
 };
 
@@ -167,6 +174,7 @@ private:
     std::uint64_t next_command_sequence_ = 1;
     stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
     stellar::server::PlayerId assigned_player_id_ = 0;
+    ClientViewState view_state_{};
     std::vector<std::string> pending_diagnostics_;
 };
 

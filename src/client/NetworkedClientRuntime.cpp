@@ -62,9 +62,10 @@ NetworkedClientRuntime::NetworkedClientRuntime(
 }
 
 NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platform::Input& input,
-                                                           float delta_seconds) noexcept {
+                                                            float delta_seconds) noexcept {
     NetworkedClientFrameResult frame;
     append_pending_diagnostics(frame, pending_diagnostics_);
+    view_state_ = update_client_view_state(input, delta_seconds, view_state_, config_.look_mapper);
 
     auto drain_server_packets = [&]() {
         ClientWorldReceiverDrainResult total_drain;
@@ -110,7 +111,7 @@ NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platfor
         stellar::network::NetworkPlayerCommand command{};
         command.player_id = assigned_player_id_;
         command.command_sequence = next_command_sequence_++;
-        command.movement = make_movement_command(input, config_.input_mapper);
+        command.movement = make_movement_command(input, view_state_, config_.input_mapper);
 
         auto encoded_command = stellar::network::encode_player_command(command);
         if (!encoded_command) {
@@ -196,10 +197,10 @@ RemoteClientRuntime::RemoteClientRuntime(
 }
 
 NetworkedClientFrameResult RemoteClientRuntime::update(const stellar::platform::Input& input,
-                                                       float delta_seconds) noexcept {
-    (void)delta_seconds;
+                                                        float delta_seconds) noexcept {
     NetworkedClientFrameResult frame;
     append_pending_diagnostics(frame, pending_diagnostics_);
+    view_state_ = update_client_view_state(input, delta_seconds, view_state_, config_.look_mapper);
 
     for (const stellar::network::TransportPacket& packet : transport_->receive_from_server()) {
         const std::vector<std::uint8_t> bytes = stellar::network::from_payload(packet.payload);
@@ -229,7 +230,7 @@ NetworkedClientFrameResult RemoteClientRuntime::update(const stellar::platform::
         stellar::network::NetworkPlayerCommand command{};
         command.player_id = assigned_player_id_;
         command.command_sequence = next_command_sequence_++;
-        command.movement = make_movement_command(input, config_.input_mapper);
+        command.movement = make_movement_command(input, view_state_, config_.input_mapper);
 
         auto encoded_command = stellar::network::encode_player_command(command);
         if (!encoded_command) {
