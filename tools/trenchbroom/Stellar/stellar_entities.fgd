@@ -92,7 +92,7 @@
     light(string) : "Compiler light brightness or color/intensity alias" : "200"
     style(string) : "Compile-time light style" : "0"
     pattern(string) : "Compile-time custom light pattern"
-    spawnflags(flags) : "Compile-time light flags" =
+    spawnflags(flags) =
     [
         1 : "Initially dark" : 0
     ]
@@ -245,7 +245,7 @@
     wait(string) : "Wait before returning; -1 means stay" : "4"
     lip(string) : "Remaining visible lip distance" : "8"
     dmg(string) : "Damage when blocked, if supported" : "0"
-    spawnflags(flags) : "Door spawn flags" =
+    spawnflags(flags) =
     [
         1 : "Starts open" : 0
         4 : "No auto return" : 0
@@ -259,7 +259,7 @@
     speed(string) : "Move speed, inches per second" : "40"
     wait(string) : "Wait before returning; -1 means stay" : "1"
     lip(string) : "Remaining visible lip distance" : "4"
-    spawnflags(flags) : "Button spawn flags" =
+    spawnflags(flags) =
     [
         1 : "Starts pressed" : 0
         32 : "Toggle" : 0
@@ -269,7 +269,7 @@
 @PointClass base(Targetname, TargetRouting) color(192 192 255) size(-8 -8 -8, 8 8 8) = target_stellar_relay : "Minimal target relay metadata for later target routing"
 [
     origin(string) : "Origin" : "0 0 0"
-    spawnflags(flags) : "Relay spawn flags" =
+    spawnflags(flags) =
     [
         1 : "Remove after fire" : 0
     ]
