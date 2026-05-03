@@ -151,6 +151,7 @@ private:
   std::vector<MeshHandle> mesh_handles_;
   std::vector<TextureHandle> texture_handles_;
   std::vector<TextureHandle> lightmap_texture_handles_;
+  TextureHandle black_lightmap_texture_;
   std::vector<TextureHandle> owned_texture_handles_;
   std::vector<MaterialHandle> material_handles_;
   MaterialHandle default_material_;

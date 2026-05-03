@@ -377,6 +377,11 @@ if [[ "$profile" != "validate-only" ]]; then
     fi
     inject_mapversion_key "$work_map"
     inject_wad_key "$work_map" "$work_dir/stellar_dev.wad"
+    if [[ "$profile" == "full" ]]; then
+        inject_worldspawn_key "$work_map" _stellar_lighting_mode baked
+    else
+        inject_worldspawn_key "$work_map" _stellar_lighting_mode fullbright
+    fi
 
     mkdir -p "$(dirname "$out_path")"
     mkdir -p "$log_dir"

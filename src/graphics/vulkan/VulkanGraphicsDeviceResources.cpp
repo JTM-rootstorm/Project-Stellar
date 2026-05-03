@@ -453,6 +453,9 @@ VulkanMaterialUniform material_uniform_for(const MaterialUpload& upload) noexcep
                        vulkan_transform1_for(upload.occlusion_texture),
                        vulkan_transform1_for(upload.emissive_texture),
                        vulkan_transform1_for(upload.lightmap_texture)},
+        .baked_lighting0 = {upload.global_light_color[0], upload.global_light_color[1],
+                            upload.global_light_color[2], upload.global_light_intensity},
+        .baked_lighting1 = {upload.lightmap_min, upload.lightmap_multiplier, 0.0F, 0.0F},
     };
 }
 

@@ -97,6 +97,8 @@ uniform float u_normal_scale;
 uniform float u_occlusion_strength;
 uniform float u_lightmap_intensity;
 uniform float u_lightmap_min;
+uniform vec3 u_global_light_color;
+uniform float u_global_light_intensity;
 uniform vec3 u_emissive_factor;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
@@ -169,8 +171,10 @@ void main() {
     if (u_has_lightmap_texture) {
         vec3 lightmap = texture(u_lightmap_texture,
             uv_for_set(u_lightmap_texcoord_set)).rgb;
-        frag_color = vec4(color.rgb * max(lightmap * u_lightmap_intensity,
-            vec3(u_lightmap_min)) + emissive, color.a);
+        vec3 lighting = lightmap * u_lightmap_intensity +
+            u_global_light_color * u_global_light_intensity;
+        frag_color = vec4(color.rgb * max(lighting, vec3(u_lightmap_min)) +
+            emissive, color.a);
     } else if (u_unlit) {
         frag_color = vec4(color.rgb + emissive, color.a);
     } else {
@@ -840,6 +844,10 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_lightmap_intensity");
     const GLint lightmap_min_loc =
         glGetUniformLocation(shader_program_, "u_lightmap_min");
+    const GLint global_light_color_loc =
+        glGetUniformLocation(shader_program_, "u_global_light_color");
+    const GLint global_light_intensity_loc =
+        glGetUniformLocation(shader_program_, "u_global_light_intensity");
     const GLint emissive_factor_loc =
         glGetUniformLocation(shader_program_, "u_emissive_factor");
     const GLint alpha_mode_loc =
@@ -914,7 +922,15 @@ void OpenGLGraphicsDevice::draw_mesh(
                     : 1.0f);
     glUniform1f(lightmap_intensity_loc,
                 material != nullptr ? material->upload.lightmap_multiplier : 1.0F);
-    glUniform1f(lightmap_min_loc, 0.08F);
+    glUniform1f(lightmap_min_loc,
+                material != nullptr ? material->upload.lightmap_min : 0.0F);
+    const std::array<float, 3> global_light_color =
+        material != nullptr ? material->upload.global_light_color
+                            : std::array<float, 3>{0.0F, 0.0F, 0.0F};
+    glUniform3fv(global_light_color_loc, 1, global_light_color.data());
+    glUniform1f(global_light_intensity_loc,
+                material != nullptr ? material->upload.global_light_intensity
+                                    : 0.0F);
     const std::array<float, 3> emissive_factor =
         material != nullptr ? material->upload.material.emissive_factor
                             : std::array<float, 3>{0.0f, 0.0f, 0.0f};

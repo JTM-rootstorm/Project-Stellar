@@ -184,6 +184,32 @@ void log_lightmap_debug(const stellar::assets::LevelGeometryAsset &geometry,
   return "unknown";
 }
 
+[[nodiscard]] const char *level_lighting_mode_name(
+    stellar::assets::LevelLightingMode mode) noexcept {
+  switch (mode) {
+  case stellar::assets::LevelLightingMode::kFullbright:
+    return "fullbright";
+  case stellar::assets::LevelLightingMode::kBakedRequired:
+    return "baked_required";
+  }
+  return "unknown";
+}
+
+void log_level_lighting_debug(
+    const stellar::assets::LevelLightingAsset &lighting,
+    bool disable_lightmaps, bool black_fallback_uploaded) noexcept {
+  std::fprintf(stderr,
+               "[stellar][lighting] mode=%s lightmap_intensity=%.6g "
+               "lightmap_min=%.6g global_enabled=%d "
+               "global_color=(%.6g,%.6g,%.6g) global_intensity=%.6g "
+               "lightmaps_disabled=%d black_fallback_uploaded=%d\n",
+               level_lighting_mode_name(lighting.mode), lighting.lightmap_intensity,
+               lighting.lightmap_min, lighting.global_ambient.enabled ? 1 : 0,
+               lighting.global_ambient.color[0], lighting.global_ambient.color[1],
+               lighting.global_ambient.color[2], lighting.global_ambient.intensity,
+               disable_lightmaps ? 1 : 0, black_fallback_uploaded ? 1 : 0);
+}
+
 [[nodiscard]] const char *image_format_name(
     stellar::assets::ImageFormat format) noexcept {
   switch (format) {
@@ -496,6 +522,29 @@ std::optional<MaterialTextureBinding> resolve_level_lightmap_binding(
       .texcoord_set = 1};
 }
 
+MaterialTextureBinding black_lightmap_binding(TextureHandle texture) {
+  stellar::assets::SamplerAsset sampler;
+  sampler.name = "baked_missing_black_lightmap_linear_clamp";
+  sampler.mag_filter = stellar::assets::TextureFilter::kLinear;
+  sampler.min_filter = stellar::assets::TextureFilter::kLinear;
+  sampler.wrap_s = stellar::assets::TextureWrapMode::kClampToEdge;
+  sampler.wrap_t = stellar::assets::TextureWrapMode::kClampToEdge;
+
+  return MaterialTextureBinding{.texture = texture,
+                                .sampler = sampler,
+                                .texcoord_set = 1};
+}
+
+void apply_level_lighting_upload(
+    const stellar::assets::LevelLightingAsset &lighting,
+    MaterialUpload &upload) noexcept {
+  upload.lightmap_min = lighting.lightmap_min;
+  if (lighting.global_ambient.enabled) {
+    upload.global_light_color = lighting.global_ambient.color;
+    upload.global_light_intensity = lighting.global_ambient.intensity;
+  }
+}
+
 stellar::assets::MaterialAsset material_asset_for_level_surface(
     const stellar::assets::LevelSurfaceMaterial &surface_material) {
   stellar::assets::MaterialAsset material;
@@ -653,7 +702,31 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       lightmap_texture_handles_[lightmap_index] = *handle;
       owned_texture_handles_.push_back(*handle);
     }
+
+    if (level_.lighting.mode ==
+        stellar::assets::LevelLightingMode::kBakedRequired) {
+      stellar::assets::ImageAsset image;
+      image.name = "baked_missing_black_lightmap";
+      image.source_uri = "baked_missing_black_lightmap";
+      image.width = 1;
+      image.height = 1;
+      image.format = stellar::assets::ImageFormat::kR8G8B8;
+      image.pixels = {0U, 0U, 0U};
+      auto handle = device_->create_texture(TextureUpload{
+          .image = std::move(image),
+          .color_space = stellar::assets::TextureColorSpace::kLinear});
+      if (!handle) {
+        destroy();
+        return std::unexpected(handle.error());
+      }
+      black_lightmap_texture_ = *handle;
+      owned_texture_handles_.push_back(*handle);
+    }
   }
+
+  const bool baked_required =
+      level_.lighting.mode == stellar::assets::LevelLightingMode::kBakedRequired;
+  const bool baked_required_lightmaps = baked_required && !disable_lightmaps_;
 
   stellar::assets::MaterialAsset default_material;
   default_material.name = kDefaultLevelMaterialName;
@@ -665,8 +738,17 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   // material indices, so keep it culling-safe for the same interior winding
   // reason as explicit level materials.
   default_material.double_sided = true;
-  auto default_handle =
-      device_->create_material(MaterialUpload{.material = default_material});
+  MaterialUpload default_upload{.material = default_material};
+  apply_level_lighting_upload(level_.lighting, default_upload);
+  if (baked_required_lightmaps) {
+    default_upload.material.unlit = false;
+    if (black_lightmap_texture_) {
+      default_upload.lightmap_texture =
+          black_lightmap_binding(black_lightmap_texture_);
+      default_upload.lightmap_multiplier = level_.lighting.lightmap_intensity;
+    }
+  }
+  auto default_handle = device_->create_material(default_upload);
   if (!default_handle) {
     destroy();
     return std::unexpected(default_handle.error());
@@ -677,6 +759,11 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   for (const auto &surface_material : geometry.materials) {
     MaterialUpload upload;
     upload.material = material_asset_for_level_surface(surface_material);
+    apply_level_lighting_upload(level_.lighting, upload);
+    if (baked_required_lightmaps) {
+      upload.material.unlit = false;
+      upload.lightmap_multiplier = level_.lighting.lightmap_intensity;
+    }
     if (surface_material.texture_index.has_value()) {
       upload.material.base_color_texture = stellar::assets::MaterialTextureSlot{
           .texture_index = *surface_material.texture_index,
@@ -695,7 +782,8 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       if (*surface_material.lightmap_index < geometry.lightmaps.size()) {
         const auto style =
             geometry.lightmaps[*surface_material.lightmap_index].style;
-        upload.lightmap_multiplier = lightstyle_multipliers_[style];
+        upload.lightmap_multiplier = level_.lighting.lightmap_intensity *
+                                     lightstyle_multipliers_[style];
       }
       if (force_lightmap_visualization_ && lightmap_binding.has_value()) {
         upload.base_color_texture = lightmap_binding;
@@ -704,6 +792,11 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       } else {
         upload.lightmap_texture = lightmap_binding;
       }
+    }
+    if (!upload.lightmap_texture.has_value() && baked_required_lightmaps &&
+        black_lightmap_texture_) {
+      upload.lightmap_texture = black_lightmap_binding(black_lightmap_texture_);
+      upload.lightmap_multiplier = level_.lighting.lightmap_intensity;
     }
 
     auto handle = device_->create_material(upload);
@@ -742,8 +835,12 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
                  geometry.images.size(), geometry.textures.size(),
                  geometry.lightmaps.size(), geometry.raw_lighting.size(),
                  level_.visibility.available ? 1 : 0,
-                  level_.visibility.leaves.size(), collision_mesh_count,
-                  collision_triangle_count, disable_lightmaps_ ? 1 : 0);
+                 level_.visibility.leaves.size(), collision_mesh_count,
+                 collision_triangle_count, disable_lightmaps_ ? 1 : 0);
+  }
+  if (debug_render_enabled_ || debug_lightmaps_enabled_) {
+    log_level_lighting_debug(level_.lighting, disable_lightmaps_,
+                             black_lightmap_texture_ != TextureHandle{});
   }
   if (debug_lightmaps_enabled_) {
     log_lightmap_debug(geometry, level_.source_uri, disable_lightmaps_,
@@ -1003,6 +1100,7 @@ void RenderLevel::destroy() noexcept {
   }
 
   default_material_ = {};
+  black_lightmap_texture_ = {};
   material_handles_.clear();
   texture_handles_.clear();
   lightmap_texture_handles_.clear();

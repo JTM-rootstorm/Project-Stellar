@@ -107,6 +107,172 @@ using Vec3 = std::array<float, 3>;
   return std::nullopt;
 }
 
+[[nodiscard]] std::string lower_ascii(std::string_view text) {
+  std::string value;
+  value.reserve(text.size());
+  for (const char character : text) {
+    value.push_back(static_cast<char>(
+        std::tolower(static_cast<unsigned char>(character))));
+  }
+  return value;
+}
+
+[[nodiscard]] std::optional<float> parse_float_value(const std::string *text) {
+  if (text == nullptr) {
+    return std::nullopt;
+  }
+  std::istringstream stream(*text);
+  float value = 0.0F;
+  if (stream >> value) {
+    std::string trailing;
+    if (!(stream >> trailing)) {
+      return value;
+    }
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] std::optional<stellar::assets::LevelLightingMode>
+parse_lighting_mode_value(std::string_view text) {
+  const std::string value = lower_ascii(text);
+  if (value == "fullbright" || value == "fast" || value == "none") {
+    return stellar::assets::LevelLightingMode::kFullbright;
+  }
+  if (value == "baked" || value == "baked_required" || value == "full") {
+    return stellar::assets::LevelLightingMode::kBakedRequired;
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] const char *lighting_mode_name(
+    stellar::assets::LevelLightingMode mode) noexcept {
+  switch (mode) {
+  case stellar::assets::LevelLightingMode::kFullbright:
+    return "fullbright";
+  case stellar::assets::LevelLightingMode::kBakedRequired:
+    return "baked_required";
+  }
+  return "unknown";
+}
+
+[[nodiscard]] const std::string *lighting_mode_key_for(const Entity &entity) noexcept {
+  for (const std::string_view key : {"_stellar_lighting_mode",
+                                     "stellar.lighting_mode", "lighting_mode"}) {
+    if (const std::string *value = value_for(entity, key)) {
+      return value;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] bool has_face_lightmap_reference(const BspMap &map) noexcept {
+  for (const Face &face : map.faces) {
+    if (face.light_offset >= 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+[[nodiscard]] std::size_t face_lightmap_reference_count(const BspMap &map) noexcept {
+  std::size_t count = 0U;
+  for (const Face &face : map.faces) {
+    if (face.light_offset >= 0) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+[[nodiscard]] stellar::assets::LevelLightingMode infer_lighting_mode(
+    const BspMap &map, const stellar::assets::LevelGeometryAsset &geometry) noexcept {
+  if (!geometry.raw_lighting.empty() || has_face_lightmap_reference(map)) {
+    return stellar::assets::LevelLightingMode::kBakedRequired;
+  }
+  return stellar::assets::LevelLightingMode::kFullbright;
+}
+
+[[nodiscard]] std::size_t material_lightmap_count(
+    const stellar::assets::LevelGeometryAsset &geometry) noexcept {
+  std::size_t count = 0U;
+  for (const auto &material : geometry.materials) {
+    if (material.lightmap_index.has_value() &&
+        *material.lightmap_index < geometry.lightmaps.size()) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+[[nodiscard]] std::array<float, 3> normalize_color_255(Vec3 color) noexcept {
+  return {std::clamp(color[0], 0.0F, 255.0F) / 255.0F,
+          std::clamp(color[1], 0.0F, 255.0F) / 255.0F,
+          std::clamp(color[2], 0.0F, 255.0F) / 255.0F};
+}
+
+[[nodiscard]] std::optional<stellar::assets::LevelGlobalLight>
+parse_global_light_components(const std::string *color_text,
+                              const std::string *intensity_text,
+                              const std::string *enabled_text,
+                              bool default_enable_from_intensity,
+                              float fallback_intensity) {
+  stellar::assets::LevelGlobalLight light{};
+  if (auto color = parse_vec3(color_text)) {
+    light.color = normalize_color_255(*color);
+  } else if (color_text != nullptr) {
+    return std::nullopt;
+  }
+
+  if (auto intensity = parse_float_value(intensity_text)) {
+    light.intensity = std::clamp(*intensity, 0.0F, 16.0F);
+  } else if (intensity_text != nullptr) {
+    return std::nullopt;
+  } else {
+    light.intensity = std::clamp(fallback_intensity, 0.0F, 16.0F);
+  }
+
+  if (auto enabled = parse_bool_like(enabled_text)) {
+    light.enabled = *enabled;
+  } else if (enabled_text != nullptr) {
+    return std::nullopt;
+  } else if (default_enable_from_intensity) {
+    light.enabled = light.intensity > 0.0F;
+  }
+  if (light.intensity <= 0.0F) {
+    light.enabled = false;
+  }
+  return light;
+}
+
+[[nodiscard]] std::optional<stellar::assets::LevelGlobalLight>
+parse_global_light_tuple(const std::string *text) {
+  if (text == nullptr) {
+    return std::nullopt;
+  }
+  std::istringstream stream(*text);
+  Vec3 color{};
+  if (!(stream >> color[0] >> color[1] >> color[2])) {
+    return std::nullopt;
+  }
+  float intensity = 1.0F;
+  if (stream >> intensity) {
+    std::string trailing;
+    if (stream >> trailing) {
+      return std::nullopt;
+    }
+  }
+  stellar::assets::LevelGlobalLight light{};
+  light.color = normalize_color_255(color);
+  light.intensity = std::clamp(intensity, 0.0F, 16.0F);
+  light.enabled = light.intensity > 0.0F;
+  return light;
+}
+
+[[nodiscard]] bool is_global_light_class(std::string_view classname) noexcept {
+  return classname == "stellar_global_light" || classname == "light_global" ||
+         classname == "light_ambient";
+}
+
 [[nodiscard]] std::optional<int> parse_model_index(const std::string *model) {
   if (model == nullptr || model->size() < 2 || (*model)[0] != '*') {
     return std::nullopt;
@@ -765,7 +931,137 @@ void add_lightmap_diagnostics(const stellar::assets::LevelGeometryAsset &geometr
            lightmap_stats_message(source_uri, "BSP imported aggregate lightmap stats",
                                   raw_lighting_bytes, imported_lightmap_count, 0U,
                                   "aggregate", {0U, 0U}, aggregate),
-           static_cast<std::size_t>(LumpIndex::kLighting));
+            static_cast<std::size_t>(LumpIndex::kLighting));
+}
+
+void apply_lighting_policy(stellar::assets::LevelAsset &level, const BspMap &map,
+                           const std::vector<Entity> &entities,
+                           ImportReport *report) {
+  const Entity *worldspawn = nullptr;
+  for (const Entity &entity : entities) {
+    if (string_or(entity, "classname") == "worldspawn") {
+      worldspawn = &entity;
+      break;
+    }
+  }
+
+  std::string mode_source = "inferred";
+  bool malformed_explicit_mode = false;
+  if (worldspawn != nullptr) {
+    if (const std::string *mode_text = lighting_mode_key_for(*worldspawn)) {
+      if (auto parsed = parse_lighting_mode_value(*mode_text)) {
+        level.lighting.mode = *parsed;
+        mode_source = "explicit";
+      } else {
+        malformed_explicit_mode = true;
+      }
+    }
+  }
+  if (mode_source == "inferred") {
+    level.lighting.mode = infer_lighting_mode(map, level.geometry);
+  }
+  if (malformed_explicit_mode) {
+    add_warning(report, DiagnosticCode::kUnsupportedEntityKey, level.source_uri,
+                level.source_uri +
+                    ": BSP worldspawn has malformed lighting mode; inferred mode was used",
+                static_cast<std::size_t>(LumpIndex::kEntities));
+  }
+
+  std::size_t global_entity_count = 0U;
+  std::size_t enabled_global_entity_count = 0U;
+  std::optional<stellar::assets::LevelGlobalLight> chosen_global_entity;
+  std::optional<std::size_t> chosen_global_entity_index;
+  for (std::size_t entity_index = 0; entity_index < entities.size(); ++entity_index) {
+    const Entity &entity = entities[entity_index];
+    if (!is_global_light_class(string_or(entity, "classname"))) {
+      continue;
+    }
+    ++global_entity_count;
+    const std::string *color_text = value_for_alias(entity, "_stellar_color", "color");
+    const std::string *intensity_text =
+        value_for_alias(entity, "_stellar_intensity", "intensity");
+    const std::string *enabled_text = value_for(entity, "_stellar_enabled");
+    auto parsed = parse_global_light_components(color_text, intensity_text,
+                                                enabled_text, true, 0.0F);
+    if (!parsed.has_value()) {
+      add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                         level.source_uri, entity_index,
+                         level.source_uri +
+                             ": BSP global light entity has malformed lighting keys");
+      continue;
+    }
+    if (parsed->enabled) {
+      ++enabled_global_entity_count;
+      if (!chosen_global_entity.has_value()) {
+        chosen_global_entity = *parsed;
+        chosen_global_entity_index = entity_index;
+      }
+    }
+  }
+
+  if (enabled_global_entity_count > 1U) {
+    add_warning(report, DiagnosticCode::kUnsupportedEntityKey, level.source_uri,
+                level.source_uri +
+                    ": BSP has multiple enabled global light entities; first enabled entity was used",
+                static_cast<std::size_t>(LumpIndex::kEntities));
+  }
+
+  if (chosen_global_entity.has_value()) {
+    level.lighting.global_ambient = *chosen_global_entity;
+  } else if (worldspawn != nullptr) {
+    if (auto tuple = parse_global_light_tuple(value_for(*worldspawn, "_stellar_global_light"))) {
+      level.lighting.global_ambient = *tuple;
+    } else if (value_for(*worldspawn, "_stellar_global_light") != nullptr) {
+      add_warning(report, DiagnosticCode::kUnsupportedEntityKey, level.source_uri,
+                  level.source_uri +
+                      ": BSP worldspawn has malformed _stellar_global_light tuple",
+                  static_cast<std::size_t>(LumpIndex::kEntities));
+    } else {
+      const std::string *color_text = value_for(*worldspawn, "_stellar_global_color");
+      const std::string *intensity_text = value_for(*worldspawn, "_stellar_global_intensity");
+      if (color_text != nullptr || intensity_text != nullptr) {
+        auto parsed = parse_global_light_components(color_text, intensity_text,
+                                                    nullptr, true, 0.0F);
+        if (parsed.has_value()) {
+          level.lighting.global_ambient = *parsed;
+        } else {
+          add_warning(report, DiagnosticCode::kUnsupportedEntityKey,
+                      level.source_uri,
+                      level.source_uri +
+                          ": BSP worldspawn has malformed global light keys",
+                      static_cast<std::size_t>(LumpIndex::kEntities));
+        }
+      }
+    }
+  }
+
+  std::ostringstream mode_message;
+  mode_message << level.source_uri << ": BSP lighting policy source=" << mode_source
+               << " mode=" << lighting_mode_name(level.lighting.mode)
+               << " raw_lighting_bytes=" << level.geometry.raw_lighting.size()
+               << " face_lightmap_count=" << face_lightmap_reference_count(map)
+               << " material_lightmap_count=" << material_lightmap_count(level.geometry);
+  add_info(report, DiagnosticCode::kLightmapStats, level.source_uri,
+           mode_message.str(), static_cast<std::size_t>(LumpIndex::kLighting));
+
+  std::ostringstream global_message;
+  global_message << level.source_uri << ": BSP global ambient entity_count="
+                 << global_entity_count
+                 << " enabled_entity_count=" << enabled_global_entity_count
+                 << " chosen_entity_index=";
+  if (chosen_global_entity_index.has_value()) {
+    global_message << *chosen_global_entity_index;
+  } else {
+    global_message << "none";
+  }
+  global_message << " enabled="
+                 << (level.lighting.global_ambient.enabled ? "true" : "false")
+                 << " color=(" << level.lighting.global_ambient.color[0] << ','
+                 << level.lighting.global_ambient.color[1] << ','
+                 << level.lighting.global_ambient.color[2] << ')'
+                 << " intensity=" << level.lighting.global_ambient.intensity;
+  add_info(report, DiagnosticCode::kLightmapStats, level.source_uri,
+           global_message.str(), static_cast<std::size_t>(LumpIndex::kEntities));
 }
 
 [[nodiscard]] std::array<std::uint8_t, 4> active_light_styles(const Face &face) noexcept {
@@ -1375,6 +1671,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
 
   add_texture_diagnostics(level.geometry, map, face_to_surface, level.source_uri,
                           report);
+  apply_lighting_policy(level, map, entities, report);
   add_lightmap_diagnostics(level.geometry, level.source_uri, report);
 
   return level;

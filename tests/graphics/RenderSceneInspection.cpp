@@ -393,6 +393,71 @@ void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
   assert(upload.lightmap_multiplier == 1.0F);
 }
 
+void verify_baked_required_missing_lightmap_uses_black_fallback(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.lighting.mode = stellar::assets::LevelLightingMode::kBakedRequired;
+  level.lighting.lightmap_intensity = 0.5F;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 1);
+  assert(device->uploaded_textures[0].image.name ==
+         "baked_missing_black_lightmap");
+  assert(device->uploaded_textures[0].color_space ==
+         stellar::assets::TextureColorSpace::kLinear);
+  const auto &upload = device->uploaded_materials[1];
+  assert(!upload.material.unlit);
+  assert(upload.lightmap_texture.has_value());
+  assert(upload.lightmap_texture->texture == device->texture_handles[0]);
+  assert(upload.lightmap_texture->texcoord_set == 1);
+  assert(upload.lightmap_texture->sampler.min_filter ==
+         stellar::assets::TextureFilter::kLinear);
+  assert(upload.lightmap_texture->sampler.wrap_s ==
+         stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(upload.lightmap_multiplier == 0.5F);
+}
+
+void verify_fullbright_missing_lightmap_skips_black_fallback(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.lighting.mode = stellar::assets::LevelLightingMode::kFullbright;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.empty());
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.material.unlit);
+  assert(!upload.lightmap_texture.has_value());
+}
+
+void verify_baked_required_lightmap_min_and_global_light_upload(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.lighting.mode = stellar::assets::LevelLightingMode::kBakedRequired;
+  level.lighting.global_ambient.enabled = true;
+  level.lighting.global_ambient.color = {0.25F, 0.5F, 0.75F};
+  level.lighting.global_ambient.intensity = 0.2F;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.lightmap_min == 0.0F);
+  assert(upload.global_light_color[0] == 0.25F);
+  assert(upload.global_light_color[1] == 0.5F);
+  assert(upload.global_light_color[2] == 0.75F);
+  assert(upload.global_light_intensity == 0.2F);
+}
+
 void verify_lightmap_disable_env_skips_material_binding(
     stellar::platform::Window &window, const char *flag_name) {
   ScopedEnvValue disable_lightmaps(flag_name, "1");
@@ -614,6 +679,9 @@ int main() {
   verify_billboards_submit_after_static_geometry(window);
   verify_static_less_level_renders_no_static_surfaces(window);
   verify_level_lightmap_material_upload(window);
+  verify_baked_required_missing_lightmap_uses_black_fallback(window);
+  verify_fullbright_missing_lightmap_skips_black_fallback(window);
+  verify_baked_required_lightmap_min_and_global_light_upload(window);
   verify_lightmap_disable_env_skips_material_binding(window,
                                                      "STELLAR_DISABLE_LIGHTMAPS");
   verify_lightmap_disable_env_skips_material_binding(window,

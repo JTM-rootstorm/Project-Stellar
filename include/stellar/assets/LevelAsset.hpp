@@ -52,6 +52,48 @@ struct LevelLightmap {
 };
 
 /**
+ * @brief Level-wide lighting policy used by importers and renderers.
+ */
+enum class LevelLightingMode {
+    /** @brief Missing baked lightmaps should render as visible fullbright geometry. */
+    kFullbright,
+
+    /** @brief Missing baked lightmaps should render as black/unlit geometry. */
+    kBakedRequired,
+};
+
+/**
+ * @brief Explicit authored level-wide ambient/global lighting contribution.
+ */
+struct LevelGlobalLight {
+    /** @brief Linear RGB color channels normalized to the 0-1 range. */
+    std::array<float, 3> color{0.0F, 0.0F, 0.0F};
+
+    /** @brief Scalar ambient intensity multiplier. */
+    float intensity = 0.0F;
+
+    /** @brief True when the authored global light should contribute to the level. */
+    bool enabled = false;
+};
+
+/**
+ * @brief Source-neutral lighting settings for a playable level.
+ */
+struct LevelLightingAsset {
+    /** @brief Imported or inferred baked-lighting policy. */
+    LevelLightingMode mode = LevelLightingMode::kFullbright;
+
+    /** @brief Explicit authored ambient/global fill; absence remains disabled/black. */
+    LevelGlobalLight global_ambient{};
+
+    /** @brief Renderer multiplier applied to baked lightmap texels. */
+    float lightmap_intensity = 1.0F;
+
+    /** @brief Renderer minimum baked-lightmap floor; zero preserves authored darkness. */
+    float lightmap_min = 0.0F;
+};
+
+/**
  * @brief Source-neutral static level surface mapped to imported mesh geometry.
  */
 struct LevelSurface {
@@ -208,6 +250,9 @@ struct LevelAsset {
 
     /** @brief Optional imported visibility/lightmap placeholder data. */
     LevelVisibilityAsset visibility;
+
+    /** @brief Level-wide lighting policy and authored ambient/global lighting. */
+    LevelLightingAsset lighting;
 };
 
 /**

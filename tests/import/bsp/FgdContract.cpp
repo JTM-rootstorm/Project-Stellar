@@ -198,7 +198,10 @@ void required_editor_categories_are_exposed_with_expected_keys() {
   const auto classes = concrete_contract(
       parse_fgd(root / "tools/trenchbroom/Stellar/stellar_entities.fgd"));
 
-  assert_has_keys(classes, "worldspawn", {"message", "wad"});
+  assert_has_keys(classes, "worldspawn",
+                  {"message", "wad", "_stellar_lighting_mode",
+                   "_stellar_global_light", "_stellar_global_color",
+                   "_stellar_global_intensity"});
   assert_has_keys(classes, "info_player_start", {"targetname", "origin", "angle"});
   assert_has_keys(classes, "info_player_deathmatch", {"targetname", "origin", "angle"});
   assert_has_keys(classes, "info_stellar_spawn",
@@ -206,6 +209,8 @@ void required_editor_categories_are_exposed_with_expected_keys() {
   assert_has_keys(classes, "light", {"targetname", "origin", "_light", "light", "style"});
   assert_has_keys(classes, "light_spot", {"origin", "angles", "pitch", "_cone", "_cone2"});
   assert_has_keys(classes, "light_environment", {"origin", "angle", "pitch", "_light"});
+  assert_has_keys(classes, "stellar_global_light",
+                  {"origin", "_stellar_color", "_stellar_intensity", "_stellar_enabled"});
   assert_has_keys(classes, "trigger_stellar", {"targetname", "_stellar_script", "_stellar_once"});
   assert_has_keys(classes, "trigger_multiple_point",
                   {"targetname", "origin", "_stellar_extents", "_stellar_script"});
@@ -235,7 +240,9 @@ void alias_policy_stays_importer_supported() {
   const std::vector<std::string> supported_aliases = {
       "_stellar_script",   "_stellar_table",    "_stellar_extents", "_stellar_once",
       "_stellar_sprite",   "_stellar_texture",  "_stellar_size",    "_stellar_alpha",
-      "_stellar_collider", "_stellar_enabled",  "_stellar_collision"};
+      "_stellar_collider", "_stellar_enabled",  "_stellar_collision",
+      "_stellar_lighting_mode", "_stellar_global_light", "_stellar_global_color",
+      "_stellar_global_intensity", "_stellar_color", "_stellar_intensity"};
   for (const std::string &alias : supported_aliases) {
     assert(text.find(alias) != std::string::npos);
   }
@@ -243,7 +250,9 @@ void alias_policy_stays_importer_supported() {
       "\n    stellar_script(",   "\n    stellar_table(",     "\n    stellar_extents(",
       "\n    stellar_once(",     "\n    stellar_sprite(",    "\n    stellar_texture(",
       "\n    stellar_size(",     "\n    stellar_alpha(",     "\n    stellar_collider(",
-      "\n    stellar_enabled(",  "\n    stellar_collision("};
+      "\n    stellar_enabled(",  "\n    stellar_collision(", "\n    stellar_lighting_mode(",
+      "\n    stellar_global_light(", "\n    stellar_global_color(",
+      "\n    stellar_global_intensity(", "\n    stellar_color(", "\n    stellar_intensity("};
   for (const std::string &alias : unsupported_plain_aliases) {
     assert(text.find(alias) == std::string::npos);
   }
@@ -262,7 +271,8 @@ void point_and_solid_categories_are_intentional() {
                                       "trigger_multiple_point", "trigger_once_point",
                                       "stellar_object_collider_point", "stellar_sprite",
                                       "env_sprite", "light", "light_spot", "light_environment",
-                                      "target_stellar_relay", "info_null"}) {
+                                      "stellar_global_light", "target_stellar_relay",
+                                      "info_null"}) {
     assert(fgd.classes.at(classname).kind == "PointClass");
   }
 }

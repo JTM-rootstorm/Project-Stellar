@@ -103,6 +103,15 @@
     message(string) : "Map title"
     wad(string) : "Editor WAD references; runtime can use fallback material names"
     _light(string) : "Optional global compile-time light color/intensity"
+    _stellar_lighting_mode(choices) : "Runtime lighting policy" : "fullbright" =
+    [
+        "fullbright" : "fullbright"
+        "baked" : "baked"
+        "baked_required" : "baked_required"
+    ]
+    _stellar_global_light(string) : "Optional runtime global ambient: r g b intensity" : "0 0 0 0"
+    _stellar_global_color(string) : "Optional runtime global ambient RGB, 0-255" : "0 0 0"
+    _stellar_global_intensity(string) : "Optional runtime global ambient intensity" : "0"
 ]
 
 @PointClass base(Targetname, Angles) color(0 255 0) size(-16 -16 -36, 16 16 36) = info_player_start : "Stellar player start"
@@ -135,6 +144,18 @@
 @PointClass base(LightKeys, Angles) color(255 240 160) size(-8 -8 -8, 8 8 8) = light_environment : "Compile-time sun/environment light; imported as non-runtime metadata"
 [
     pitch(string) : "Sun pitch in degrees" : "-45"
+]
+
+@PointClass color(255 255 200) size(-8 -8 -8, 8 8 8) = stellar_global_light : "Stellar runtime global ambient light"
+[
+    origin(string) : "Origin; ignored for ambient lighting" : "0 0 0"
+    _stellar_color(string) : "Global ambient RGB, 0-255" : "255 255 255"
+    _stellar_intensity(string) : "Global ambient intensity, 0.0-1.0 recommended" : "0.0"
+    _stellar_enabled(choices) : "Enabled" : 1 =
+    [
+        0 : "false"
+        1 : "true"
+    ]
 ]
 
 @SolidClass base(Targetname, StellarScript, TriggerKeys) color(255 192 64) = trigger_stellar : "Stellar authoritative brush trigger volume"
