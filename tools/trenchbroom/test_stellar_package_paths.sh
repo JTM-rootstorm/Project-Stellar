@@ -61,6 +61,7 @@ for token in required_game_tokens:
 for token in [
     '--map \\"${MAP_FULL_PATH}\\"',
     '--out \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
+    '--toolchain vhlt',
     '--map \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
 ]:
     if token not in profiles:

@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -75,10 +76,10 @@ void developer_texture_names_are_known() {
         "stellar_dev_grid_12", "developer_names.bsp");
     assert(grid.has_value());
     assert(grid->image.name == "stellar_dev_grid_12");
-    assert(grid->image.width == 12);
-    assert(grid->image.height == 12);
+    assert(grid->image.width == 128);
+    assert(grid->image.height == 128);
     assert(grid->image.format == stellar::assets::ImageFormat::kR8G8B8A8);
-    assert(grid->image.pixels.size() == 12U * 12U * 4U);
+    assert(grid->image.pixels.size() == 128U * 128U * 4U);
     assert(grid->sampler.mag_filter == stellar::assets::TextureFilter::kNearest);
     assert(grid->sampler.min_filter == stellar::assets::TextureFilter::kNearest);
     assert(grid->sampler.wrap_s == stellar::assets::TextureWrapMode::kRepeat);
@@ -107,7 +108,8 @@ void developer_texture_names_are_known() {
                              "stellar_dev_grid_32", "stellar_dev_grid_64",
                              "stellar_dev_player_72", "stellar_dev_wall_96"};
     for (const char *alias : aliases) {
-        auto texture = stellar::import::bsp::detail::make_developer_texture(alias, "developer_names.bsp");
+        auto texture = stellar::import::bsp::detail::make_developer_texture(
+            alias, "developer_names.bsp");
         assert(texture.has_value());
     }
     assert(!stellar::import::bsp::detail::make_developer_texture(
@@ -128,8 +130,8 @@ void external_developer_texture_alias_creates_material_binding() {
 
     const auto &image = result->asset.geometry.images[0];
     assert(image.name == "stellar_dev_grid_64");
-    assert(image.width == 64);
-    assert(image.height == 64);
+    assert(image.width == 128);
+    assert(image.height == 128);
     assert(!image.pixels.empty());
 
     const auto &sampler = result->asset.geometry.samplers[0];
@@ -148,7 +150,7 @@ void external_developer_texture_alias_creates_material_binding() {
     assert(material.source_name == "dev/grid_64");
     assert(material.texture_index == 0);
     const auto &vertices = result->asset.geometry.meshes[0].primitives[0].vertices;
-    assert(vertices[1].uv0[0] == 0.25F);
+    assert(vertices[1].uv0[0] == 0.125F);
 
     for (const auto &diagnostic : result->report.diagnostics) {
         assert(diagnostic.code != stellar::import::bsp::DiagnosticCode::kMissingTexture);
@@ -171,6 +173,65 @@ void external_wad_texture_resolves_from_safe_search_path() {
     for (const auto &diagnostic : result->report.diagnostics) {
         assert(diagnostic.message.find("rejected") == std::string::npos);
     }
+}
+
+void developer_wad_and_fallback_pixels_match() {
+    const std::vector<std::string> names{"dev_grid_32", "dev_grid_64",
+                                         "dev_wall_96"};
+    for (const std::string &name : names) {
+        auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, -1, 0,
+                                                                 name);
+        set_entities(bytes, "{\n\"classname\" \"worldspawn\"\n\"wad\" \"stellar_dev.wad\"\n}\n"
+                            "{\n\"classname\" \"info_player_start\"\n\"origin\" \"0 0 36\"\n}\n");
+        const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+            bytes, (std::filesystem::current_path() / (name + ".bsp")).string());
+        assert(result);
+        assert(result->asset.geometry.images.size() == 1);
+
+        const auto fallback = stellar::import::bsp::detail::make_developer_texture(
+            name, "fallback_match.bsp");
+        assert(fallback.has_value());
+        const auto &wad_image = result->asset.geometry.images[0];
+        assert(wad_image.width == fallback->image.width);
+        assert(wad_image.height == fallback->image.height);
+        assert(wad_image.format == fallback->image.format);
+        assert(wad_image.pixels == fallback->image.pixels);
+    }
+}
+
+void shifted_scaled_texinfo_produces_expected_uv0() {
+    auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, -1, 0,
+                                                             "dev/grid_32");
+    const std::size_t texinfo_offset =
+        stellar::tests::bsp_fixture::lump_header_offset(
+            stellar::import::bsp::detail::LumpIndex::kTexinfo);
+    std::int32_t texinfo_lump = 0;
+    std::memcpy(&texinfo_lump, bytes.data() + texinfo_offset,
+                sizeof(texinfo_lump));
+    auto patch_float = [&](std::size_t offset, float value) {
+        std::memcpy(bytes.data() + static_cast<std::size_t>(texinfo_lump) + offset,
+                    &value, sizeof(value));
+    };
+    patch_float(0, 0.5F);
+    patch_float(4, 0.0F);
+    patch_float(8, 0.0F);
+    patch_float(12, 8.0F);
+    patch_float(16, 0.0F);
+    patch_float(20, 0.25F);
+    patch_float(24, 0.0F);
+    patch_float(28, 16.0F);
+
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "shifted_scaled_texinfo.bsp");
+    assert(result);
+    const auto &vertices =
+        result->asset.geometry.meshes[0].primitives[0].vertices;
+    assert(vertices[0].uv0[0] == 8.0F / 128.0F);
+    assert(vertices[0].uv0[1] == 16.0F / 128.0F);
+    assert(vertices[1].uv0[0] == 16.0F / 128.0F);
+    assert(vertices[1].uv0[1] == 16.0F / 128.0F);
+    assert(vertices[2].uv0[0] == 16.0F / 128.0F);
+    assert(vertices[2].uv0[1] == 20.0F / 128.0F);
 }
 
 void missing_and_unsafe_wad_paths_are_diagnosed() {
@@ -202,6 +263,8 @@ int main() {
     developer_texture_names_are_known();
     external_developer_texture_alias_creates_material_binding();
     external_wad_texture_resolves_from_safe_search_path();
+    developer_wad_and_fallback_pixels_match();
+    shifted_scaled_texinfo_produces_expected_uv0();
     missing_and_unsafe_wad_paths_are_diagnosed();
     return 0;
 }

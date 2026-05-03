@@ -835,6 +835,11 @@ add_test(NAME trenchbroom_wad_tool_list
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/create_stellar_dev_wad.py --list
 )
 
+add_test(NAME trenchbroom_vhlt_preserves_valve220_axes
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/bsp/test_compile_vhlt_texture_axes.sh
+        ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}
+)
+
 add_test(NAME trenchbroom_source_preflight_fixtures
     COMMAND bash -c "for f in '${CMAKE_SOURCE_DIR}'/tests/fixtures/trenchbroom/src/*.map; do case \"$f\" in *invalid_*.map) continue ;; esac; python3 '${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py' \"$f\" || exit 1; done"
 )

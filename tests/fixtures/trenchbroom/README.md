@@ -20,6 +20,7 @@ and package-local compile/validate shims.
 | --- | --- | --- | --- | --- |
 | `minimal_zup_room` | `src/minimal_zup_room.map` | `build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp` | 30 | Client/server display-free validation succeeds. |
 | `lit_zup_room` | `src/lit_zup_room.map` | generated BSP plus optional `build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` | 30 | Generated fixture imports synthetic lightmap metadata; VHLT full profile bakes real lighting. |
+| `texture_axes_zup` | `src/texture_axes_zup.map` | optional `build/tests/fixtures/trenchbroom/vhlt/compiled/texture_axes_zup.bsp` | 30 | Valve 220 texture axes, shifts, and scales are preserved by the VHLT wrapper. |
 | `entity_matrix_zup` | `src/entity_matrix_zup.map` | `build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp` | 30 | Import succeeds and metadata includes all supported FGD classes. |
 | `scripted_interaction_zup` | `src/scripted_interaction_zup.map` | `build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp` | 30 | Scripted authoritative runtime loads `scripts/gate.lua` and `scripts/pickup.lua`. |
 | `material_wad_zup` | `src/material_wad_zup.map` | generated BSP plus optional VHLT output | 30 | Relative WAD material workflow resolves safely or falls back deterministically. |
@@ -48,6 +49,7 @@ directory named by `STELLAR_VHLT_DIR`.
 | --- | --- | --- | --- |
 | `minimal_zup_room` | Succeeds. | Succeeds. | Positive fixture passes. |
 | `lit_zup_room` | Succeeds with `hlrad` light data. | Succeeds and should import lightmaps. | Positive lighting fixture passes. |
+| `texture_axes_zup` | Succeeds with Valve 220 axes preserved in the copied work map. | Succeeds. | Positive texture-axis fixture passes. |
 | `entity_matrix_zup` | Succeeds. | Succeeds with supported entity/FGD metadata preserved. | Positive fixture passes. |
 | `scripted_interaction_zup` | Succeeds. | Succeeds when `scripts/gate.lua` and `scripts/pickup.lua` are copied beside compiled outputs. | Positive scripted fixture passes. |
 | `material_wad_zup` | Succeeds with relative WAD handling. | Succeeds. | Positive material/WAD fixture passes. |
@@ -76,6 +78,8 @@ references and compiler-facing texture alias rewrites only into copied work maps
 
 - `minimal_zup_room`: `worldspawn`, `info_player_start origin "0 0 36"`; room bounds are `-96..96` on X/Y, floor `z=0`, ceiling `z=96`.
 - `lit_zup_room`: `worldspawn`, `info_player_start origin "0 0 36"`, `light`, `light_spot`; room bounds match `minimal_zup_room` and are intended for VHLT lightmap generation.
+- `texture_axes_zup`: room-shaped brush fixture with floor X/Y axes, north/south X/Z axes, east/west
+  Y/Z axes, nonzero texture shifts, and non-1 texture scales.
 - `entity_matrix_zup`: `info_player_start`, `info_stellar_spawn`, `trigger_stellar`, `trigger_multiple`, `trigger_once`, `stellar_sprite`, `env_sprite`, `stellar_object_collider`, `func_wall`, `func_door`, `func_button`.
 - `scripted_interaction_zup`: `trigger_stellar` bound to `scripts/gate.lua`, `stellar_object_collider` bound to `scripts/pickup.lua`, named static blocker `GateDoor`.
 - `moving_door_button_zup`: `func_door targetname "DoorA"`, `func_button target "DoorA"`, and baked light entity for TB-FULL-04 compatibility.
@@ -92,9 +96,10 @@ Full manual QA is tracked in `docs/TrenchBroomManualQA.md`; this README keeps th
 3. Open `tests/fixtures/trenchbroom/src/minimal_zup_room.map`.
 4. Confirm `dev/grid_32`, `dev/grid_64`, and `dev/wall_96` materials are visible/selectable or named consistently if using a local WAD.
 5. Confirm Stellar entity classes appear with smart properties, especially underscore aliases such as `_stellar_script`, `_stellar_extents`, and `_stellar_sprite`.
-6. Compile with the BSP30 profile. The profile invokes `bin/stellar_tb_compile.sh` with quoted map and
-   output paths, so copied packages and paths with spaces work when `STELLAR_REPO_ROOT` or
-   `.stellar_repo_root` points at the checkout.
+6. Compile with `Stellar BSP30 Fast` for quick no-light iteration or `Stellar BSP30 Full Lighting` for
+   VHLT baked lighting. The profiles invoke `bin/stellar_tb_compile.sh` with quoted map and output paths,
+   so copied packages and paths with spaces work when `STELLAR_REPO_ROOT` or `.stellar_repo_root` points
+   at the checkout.
 7. Or run `tools/bsp/compile_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/src/minimal_zup_room.map --out tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp --profile fast`.
 8. Run `tools/bsp/validate_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp`.
 9. For lighting, compile `src/lit_zup_room.map` with the VHLT full profile and confirm validation reports

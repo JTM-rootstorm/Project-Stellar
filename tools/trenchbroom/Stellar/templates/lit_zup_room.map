@@ -19,4 +19,5 @@
 "classname" "light"
 "origin" "0 0 72"
 "light" "300"
+"_light" "255 236 210 300"
 }

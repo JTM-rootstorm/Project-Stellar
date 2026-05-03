@@ -8,6 +8,7 @@ Usage: tools/bsp/compile_vhlt_bsp30.sh --map path/to/source.map --out path/to/ou
 
 Options:
   --allow-skip              Exit 77 when required external tools are unavailable.
+  --classic-texture-axes    Rewrite Valve 220 texture axes to classic shifts.
   --no-stellar-validation   Skip tools/bsp/validate_trenchbroom_bsp30.sh after BSP30 header validation.
   --skip-source-preflight   Do not run tools/bsp/validate_trenchbroom_map_source.py before VHLT.
 
@@ -18,6 +19,7 @@ Environment overrides:
   STELLAR_CLIENT            Path to stellar-client for post-compile validation.
   STELLAR_SERVER            Path to stellar-server for post-compile validation.
   STELLAR_VHLT_KEEP_WORK=1  Preserve the transient work directory.
+  STELLAR_VHLT_WORK_ROOT    Override the transient work root directory.
   STELLAR_VHLT_LOG_DIR      Directory for copied VHLT logs and tool outputs.
 USAGE
 }
@@ -155,16 +157,18 @@ copy_logs() {
     shopt -u nullglob
 }
 
-inject_wad_key() {
+inject_worldspawn_key() {
     local map_path="$1"
-    local wad_path="$2"
-    python3 - "$map_path" "$wad_path" <<'PY'
+    local key="$2"
+    local value="$3"
+    python3 - "$map_path" "$key" "$value" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 map_path = Path(sys.argv[1])
-wad_path = sys.argv[2]
+key = sys.argv[2]
+value = sys.argv[3]
 lines = map_path.read_text(encoding="utf-8").splitlines(keepends=True)
 
 depth = 0
@@ -192,10 +196,11 @@ for i, line in enumerate(lines):
 if world_start is None or world_end is None:
     raise SystemExit("worldspawn entity not found")
 
-wad_line = f'"wad" "{wad_path}"\n'
+key_line = f'"{key}" "{value}"\n'
+key_re = re.compile(r'^\s*"' + re.escape(key) + r'"\s+".*"\s*$')
 for i in range(world_start + 1, world_end):
-    if re.match(r'^\s*"wad"\s+".*"\s*$', lines[i].strip()):
-        lines[i] = wad_line
+    if key_re.match(lines[i].strip()):
+        lines[i] = key_line
         break
 else:
     insert_at = world_start + 1
@@ -203,13 +208,38 @@ else:
         if re.match(r'^\s*"classname"\s+"worldspawn"\s*$', lines[i].strip()):
             insert_at = i + 1
             break
-    lines.insert(insert_at, wad_line)
+    lines.insert(insert_at, key_line)
 
 map_path.write_text("".join(lines), encoding="utf-8")
 PY
 }
 
-rewrite_vhlt_texture_aliases() {
+inject_wad_key() {
+    inject_worldspawn_key "$1" wad "$2"
+}
+
+inject_mapversion_key() {
+    inject_worldspawn_key "$1" mapversion 220
+}
+
+rewrite_vhlt_texture_names_only() {
+    local map_path="$1"
+    python3 - "$map_path" <<'PY'
+from pathlib import Path
+import sys
+
+map_path = Path(sys.argv[1])
+lines = map_path.read_text(encoding="utf-8").splitlines(keepends=True)
+converted = []
+for line in lines:
+    for name in ("grid_12", "grid_16", "grid_32", "grid_64", "player_72", "wall_96"):
+        line = line.replace(f"dev/{name}", f"dev_{name}")
+    converted.append(line)
+map_path.write_text("".join(converted), encoding="utf-8")
+PY
+}
+
+rewrite_valve220_to_classic_texture_axes() {
     local map_path="$1"
     python3 - "$map_path" <<'PY'
 from pathlib import Path
@@ -225,8 +255,6 @@ face = re.compile(
     r'([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)(\s*(?://.*)?\n?)$'
 )
 for line in lines:
-    for name in ("grid_12", "grid_16", "grid_32", "grid_64", "player_72", "wall_96"):
-        line = line.replace(f"dev/{name}", f"dev_{name}")
     match = face.match(line)
     if match:
         prefix, texture, rotation, scale_x, scale_y, suffix = match.groups()
@@ -250,6 +278,7 @@ profile=""
 allow_skip="0"
 stellar_validation="1"
 source_preflight="1"
+classic_texture_axes="0"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -270,6 +299,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --allow-skip)
             allow_skip="1"
+            shift
+            ;;
+        --classic-texture-axes)
+            classic_texture_axes="1"
             shift
             ;;
         --no-stellar-validation)
@@ -326,7 +359,8 @@ if [[ "$profile" != "validate-only" ]]; then
         printf 'compile_vhlt_bsp30.sh: optional ripent not found; continuing without entity patching.\n' >&2
     fi
 
-    work_dir="$root/build/tests/fixtures/trenchbroom/vhlt/work/$fixture"
+    work_root="${STELLAR_VHLT_WORK_ROOT:-$root/build/tests/fixtures/trenchbroom/vhlt/work}"
+    work_dir="$work_root/$fixture"
     if [[ "${STELLAR_VHLT_KEEP_WORK:-0}" != "1" ]]; then
         rm -rf "$work_dir"
     fi
@@ -337,7 +371,11 @@ if [[ "$profile" != "validate-only" ]]; then
     cp "$map_path" "$work_map"
 
     python3 "$root/tools/bsp/create_stellar_dev_wad.py" --out "$work_dir/stellar_dev.wad"
-    rewrite_vhlt_texture_aliases "$work_map"
+    rewrite_vhlt_texture_names_only "$work_map"
+    if [[ "$classic_texture_axes" == "1" ]]; then
+        rewrite_valve220_to_classic_texture_axes "$work_map"
+    fi
+    inject_mapversion_key "$work_map"
     inject_wad_key "$work_map" "$work_dir/stellar_dev.wad"
 
     mkdir -p "$(dirname "$out_path")"

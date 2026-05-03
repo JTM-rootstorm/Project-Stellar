@@ -359,6 +359,8 @@ Common diagnostics:
 - `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external, missing, or blocked by safe-path
   rules; validation uses deterministic fallback materials when WAD pixels cannot be resolved.
 - `kInvalidLightingData`: a face light offset or inferred lightmap byte range is outside the lighting lump; the face falls back to unlit material behavior.
+- `kLightmapStats` / `kAllBlackLightmap`: imported lighting diagnostics report raw lighting byte count,
+  lightmap count, per-lightmap dimensions/RGB stats, all-black data, and material/lightmap bindings.
 - `kMissingPlayerSpawn`: no `info_player_start` or `info_player_deathmatch` marker exists; import succeeds but gameplay startup may need an explicit spawn policy.
 - `kUnsupportedEntityKey`: malformed authoring values such as `origin`, `stellar.extents`, `stellar.size`, `stellar.once`, or `stellar.enabled` were ignored.
 - `kScriptPathEscape`: script ids are absolute, drive-letter based, or contain `..`; validation fails to preserve Lua sandbox boundaries.

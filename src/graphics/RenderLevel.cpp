@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <string_view>
 
@@ -50,6 +51,91 @@ std::size_t env_frame_limit(const char *name, std::size_t fallback) noexcept {
     return fallback;
   }
   return static_cast<std::size_t>(parsed);
+}
+
+struct DebugLightmapStats {
+  std::array<std::uint8_t, 3> min_rgb{255U, 255U, 255U};
+  std::array<std::uint8_t, 3> max_rgb{0U, 0U, 0U};
+  std::array<double, 3> average_rgb{0.0, 0.0, 0.0};
+  std::size_t texel_count = 0;
+  bool all_black = true;
+};
+
+DebugLightmapStats debug_stats_for_image(
+    const stellar::assets::ImageAsset &image) noexcept {
+  DebugLightmapStats stats;
+  const std::size_t channels =
+      image.format == stellar::assets::ImageFormat::kR8G8B8A8 ? 4U : 3U;
+  if (image.width == 0U || image.height == 0U ||
+      image.pixels.size() < channels) {
+    stats.min_rgb = {0U, 0U, 0U};
+    return stats;
+  }
+  stats.texel_count = image.pixels.size() / channels;
+  std::array<std::uint64_t, 3> sums{};
+  for (std::size_t i = 0; i + 2U < image.pixels.size(); i += channels) {
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      const std::uint8_t value = image.pixels[i + channel];
+      stats.min_rgb[channel] = std::min(stats.min_rgb[channel], value);
+      stats.max_rgb[channel] = std::max(stats.max_rgb[channel], value);
+      sums[channel] += value;
+      stats.all_black = stats.all_black && value == 0U;
+    }
+  }
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    stats.average_rgb[channel] = static_cast<double>(sums[channel]) /
+                                 static_cast<double>(stats.texel_count);
+  }
+  return stats;
+}
+
+void log_lightmap_debug(const stellar::assets::LevelGeometryAsset &geometry,
+                        const std::string &source_uri, bool disabled,
+                        bool visualization) noexcept {
+  std::fprintf(stderr,
+               "[stellar][lightmaps] source=%s raw_lighting_bytes=%zu "
+               "lightmaps=%zu materials=%zu disabled=%d visualization=%d\n",
+               source_uri.c_str(), geometry.raw_lighting.size(),
+               geometry.lightmaps.size(), geometry.materials.size(),
+               disabled ? 1 : 0, visualization ? 1 : 0);
+  for (std::size_t index = 0; index < geometry.lightmaps.size(); ++index) {
+    const auto &lightmap = geometry.lightmaps[index];
+    if (lightmap.image_index >= geometry.images.size()) {
+      std::fprintf(stderr,
+                   "[stellar][lightmaps] index=%zu image_index=%zu invalid=1\n",
+                   index, lightmap.image_index);
+      continue;
+    }
+    const auto &image = geometry.images[lightmap.image_index];
+    const DebugLightmapStats stats = debug_stats_for_image(image);
+    std::fprintf(stderr,
+                 "[stellar][lightmaps] index=%zu source=%s size=%ux%u "
+                 "image=%s texels=%zu min_rgb=(%u,%u,%u) "
+                 "max_rgb=(%u,%u,%u) average_rgb=(%.3f,%.3f,%.3f) "
+                 "all_black=%d\n",
+                 index, lightmap.source_name.c_str(), lightmap.size[0],
+                 lightmap.size[1], image.name.c_str(), stats.texel_count,
+                 static_cast<unsigned>(stats.min_rgb[0]),
+                 static_cast<unsigned>(stats.min_rgb[1]),
+                 static_cast<unsigned>(stats.min_rgb[2]),
+                 static_cast<unsigned>(stats.max_rgb[0]),
+                 static_cast<unsigned>(stats.max_rgb[1]),
+                 static_cast<unsigned>(stats.max_rgb[2]), stats.average_rgb[0],
+                 stats.average_rgb[1], stats.average_rgb[2],
+                 stats.all_black ? 1 : 0);
+  }
+  for (std::size_t material_index = 0;
+       material_index < geometry.materials.size(); ++material_index) {
+    const auto &material = geometry.materials[material_index];
+    if (!material.lightmap_index.has_value()) {
+      continue;
+    }
+    std::fprintf(stderr,
+                 "[stellar][lightmaps] material_index=%zu material=%s "
+                 "source=%s lightmap_index=%zu\n",
+                 material_index, material.name.c_str(),
+                 material.source_name.c_str(), *material.lightmap_index);
+  }
 }
 
 glm::mat4 to_glm_mat4(const std::array<float, 16> &data) noexcept {
@@ -238,6 +324,9 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   debug_render_frame_index_ = 0;
   disable_lightmaps_ = env_flag_enabled("STELLAR_DISABLE_LIGHTMAPS") ||
                        env_flag_enabled("STELLAR_FORCE_FULLBRIGHT");
+  debug_lightmaps_enabled_ = env_flag_enabled("STELLAR_DEBUG_LIGHTMAPS");
+  force_lightmap_visualization_ =
+      env_flag_enabled("STELLAR_FORCE_LIGHTMAP_VISUALIZATION");
 
   if (auto result = device_->initialize(window); !result) {
     destroy();
@@ -328,13 +417,21 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       upload.base_color_texture = resolve_level_texture_binding(
           *surface_material.texture_index, geometry, texture_handles_);
     }
+    std::optional<MaterialTextureBinding> lightmap_binding;
     if (!disable_lightmaps_ && surface_material.lightmap_index.has_value()) {
-      upload.lightmap_texture = resolve_level_lightmap_binding(
+      lightmap_binding = resolve_level_lightmap_binding(
           *surface_material.lightmap_index, geometry, lightmap_texture_handles_);
       if (*surface_material.lightmap_index < geometry.lightmaps.size()) {
         const auto style =
             geometry.lightmaps[*surface_material.lightmap_index].style;
         upload.lightmap_multiplier = lightstyle_multipliers_[style];
+      }
+      if (force_lightmap_visualization_ && lightmap_binding.has_value()) {
+        upload.base_color_texture = lightmap_binding;
+        upload.material.base_color_factor = {1.0F, 1.0F, 1.0F, 1.0F};
+        upload.lightmap_multiplier = 1.0F;
+      } else {
+        upload.lightmap_texture = lightmap_binding;
       }
     }
 
@@ -374,8 +471,12 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
                  geometry.images.size(), geometry.textures.size(),
                  geometry.lightmaps.size(), geometry.raw_lighting.size(),
                  level_.visibility.available ? 1 : 0,
-                 level_.visibility.leaves.size(), collision_mesh_count,
-                 collision_triangle_count, disable_lightmaps_ ? 1 : 0);
+                  level_.visibility.leaves.size(), collision_mesh_count,
+                  collision_triangle_count, disable_lightmaps_ ? 1 : 0);
+  }
+  if (debug_lightmaps_enabled_) {
+    log_lightmap_debug(geometry, level_.source_uri, disable_lightmaps_,
+                       force_lightmap_visualization_ && !disable_lightmaps_);
   }
 
   return {};
@@ -634,6 +735,9 @@ void RenderLevel::destroy() noexcept {
   owned_texture_handles_.clear();
   mesh_handles_.clear();
   level_ = {};
+  debug_lightmaps_enabled_ = false;
+  force_lightmap_visualization_ = false;
+  disable_lightmaps_ = false;
   device_.reset();
 }
 

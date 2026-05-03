@@ -451,18 +451,62 @@ struct LightmapRgbStats {
   return message.str();
 }
 
+[[nodiscard]] std::string lightmap_summary_message(
+    const std::string &source_uri, std::size_t raw_lighting_bytes,
+    std::size_t imported_lightmap_count, std::size_t materials_with_lightmaps) {
+  std::ostringstream message;
+  message << source_uri << ": BSP lightmap summary"
+          << " raw_lighting_bytes=" << raw_lighting_bytes
+          << " imported_lightmap_count=" << imported_lightmap_count
+          << " materials_with_lightmaps=" << materials_with_lightmaps;
+  return message.str();
+}
+
+[[nodiscard]] std::string material_lightmap_binding_message(
+    const std::string &source_uri, std::size_t material_index,
+    const stellar::assets::LevelSurfaceMaterial &material,
+    const stellar::assets::LevelLightmap &lightmap) {
+  std::ostringstream message;
+  message << source_uri << ": BSP material lightmap binding"
+          << " material_index=" << material_index
+          << " material=" << material.name
+          << " source=" << material.source_name
+          << " lightmap_index=" << *material.lightmap_index
+          << " lightmap_source=" << lightmap.source_name
+          << " lightmap_size=" << lightmap.size[0] << 'x' << lightmap.size[1]
+          << " lightstyle=" << static_cast<int>(lightmap.style);
+  return message.str();
+}
+
 void add_lightmap_diagnostics(const stellar::assets::LevelGeometryAsset &geometry,
                               const std::string &source_uri,
                               ImportReport *report) {
-  if (report == nullptr || geometry.lightmaps.empty()) {
+  if (report == nullptr) {
+    return;
+  }
+
+  const std::size_t raw_lighting_bytes = geometry.raw_lighting.size();
+  const std::size_t imported_lightmap_count = geometry.lightmaps.size();
+  std::size_t materials_with_lightmaps = 0U;
+  for (const auto &material : geometry.materials) {
+    if (material.lightmap_index.has_value() &&
+        *material.lightmap_index < geometry.lightmaps.size()) {
+      ++materials_with_lightmaps;
+    }
+  }
+
+  add_info(report, DiagnosticCode::kLightmapStats, source_uri,
+           lightmap_summary_message(source_uri, raw_lighting_bytes,
+                                    imported_lightmap_count,
+                                    materials_with_lightmaps),
+           static_cast<std::size_t>(LumpIndex::kLighting));
+  if (geometry.lightmaps.empty()) {
     return;
   }
 
   LightmapRgbStats aggregate{};
   aggregate.texel_count = 0U;
   std::array<std::uint64_t, 3> aggregate_sums{};
-  const std::size_t raw_lighting_bytes = geometry.raw_lighting.size();
-  const std::size_t imported_lightmap_count = geometry.lightmaps.size();
 
   for (std::size_t index = 0; index < geometry.lightmaps.size(); ++index) {
     const auto &lightmap = geometry.lightmaps[index];
@@ -495,6 +539,20 @@ void add_lightmap_diagnostics(const stellar::assets::LevelGeometryAsset &geometr
       aggregate_sums[channel] += static_cast<std::uint64_t>(
           stats.average_rgb[channel] * static_cast<double>(stats.texel_count));
     }
+  }
+
+  for (std::size_t material_index = 0; material_index < geometry.materials.size();
+       ++material_index) {
+    const auto &material = geometry.materials[material_index];
+    if (!material.lightmap_index.has_value() ||
+        *material.lightmap_index >= geometry.lightmaps.size()) {
+      continue;
+    }
+    add_info(report, DiagnosticCode::kLightmapStats, source_uri,
+             material_lightmap_binding_message(
+                 source_uri, material_index, material,
+                 geometry.lightmaps[*material.lightmap_index]),
+             static_cast<std::size_t>(LumpIndex::kLighting));
   }
 
   if (aggregate.texel_count == 0U) {

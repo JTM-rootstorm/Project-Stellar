@@ -101,6 +101,9 @@ validation:
 | `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
 | `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
 
+The official WAD pixels and deterministic runtime fallback pixels are 128x128 for every developer
+texture. The names describe grid spacing or height reference cues, not bitmap dimensions.
+
 The package includes editor-visible developer PNGs and `materials/stellar_dev.wad`. The WAD uses the
 15-byte compiler-compatible `dev/...` and `dev_*` names; runtime also recognizes the longer
 `stellar_dev_*` aliases as deterministic fallback names. Generate or verify it with:
@@ -172,8 +175,11 @@ Use `maps/compiled/` for manually authored maps. The fixture matrix writes gener
 
 During VHLT compilation, the wrapper copies the source `.map` into an isolated work directory,
 generates a temporary `stellar_dev.wad`, injects or replaces the copied map's `wad` key, and rewrites
-compiler-facing developer texture aliases when required by VHLT. Source-tree `.map` files remain clean
-authoring references and should not receive local absolute WAD paths.
+compiler-facing developer texture aliases when required by VHLT. The default rewrite preserves Valve 220
+texture axes, shifts, rotation, and scales, and injects `mapversion "220"` into the copied work map so
+repo-local VHLT stays in Valve 220 parsing mode. Use `--classic-texture-axes` only as an explicit
+diagnostic fallback for a legacy tool that cannot consume Valve 220 axes. Source-tree `.map` files remain
+clean authoring references and should not receive local absolute WAD paths.
 
 ## Compile-time lighting and renderer lightmaps
 
@@ -182,6 +188,21 @@ lighting. VHLT's full profile runs `hlrad`, which writes the BSP lighting lump c
 importer. The renderer uploads those lightmaps as linear, clamp-to-edge textures and samples them from
 secondary UVs (`uv1`), multiplying base material color/texture by the baked lightmap. Surfaces without
 valid lightmap data keep the existing unlit/fullbright fallback behavior.
+
+Fast compile profiles are geometry-iteration profiles and do not bake lighting. From TrenchBroom, use
+`Stellar BSP30 Full Lighting` when you need baked lightmaps; it passes `--profile full --toolchain vhlt`
+so `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` all run. From a terminal, pass `--toolchain vhlt` explicitly
+for the same behavior.
+
+Useful runtime/import diagnostics:
+
+- `build/stellar-client --validate-map <map.bsp>` prints imported lightmap summaries, per-lightmap RGB
+  stats, all-black warnings, and material/lightmap bindings.
+- `STELLAR_DEBUG_LIGHTMAPS=1` logs renderer-side lightmap upload/binding stats at startup.
+- `STELLAR_DISABLE_LIGHTMAPS=1` or `STELLAR_FORCE_FULLBRIGHT=1` skips lightmap bindings and shows base
+  textures/fullbright fallback.
+- `STELLAR_FORCE_LIGHTMAP_VISUALIZATION=1` samples the lightmap texture directly through secondary UVs
+  so imported lighting can be inspected without base textures.
 
 Use `tests/fixtures/trenchbroom/src/lit_zup_room.map` or the package `templates/lit_zup_room.map` as the
 manual lit-room reference. After VHLT compile and validation, launch with OpenGL or Vulkan and confirm
@@ -264,8 +285,10 @@ single-compilers found on `PATH`.
 
 Profiles:
 
-- `fast`: quick CSG/BSP iteration through the selected compiler.
-- `full`: full compile profile. VHLT runs `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` for this profile.
+- `Stellar BSP30 Fast` / `--profile fast`: quick no-light CSG/BSP iteration through the selected
+  compiler/toolchain.
+- `Stellar BSP30 Full Lighting` / `--profile full --toolchain vhlt`: full VHLT compile with `hlcsg`,
+  `hlbsp`, `hlvis`, and `hlrad` for baked lightmaps.
 - `validate-only`: skip compile and validate an existing BSP output.
 
 The wrapper fails clearly when no compiler is configured, the output is missing or empty, the BSP header
@@ -347,7 +370,8 @@ complete fixture matrix, expected entities, expected validation outcomes, and th
 open/compile/validate checklist.
 
 The complete positive source fixture matrix is `minimal_zup_room`, `entity_matrix_zup`,
-`scripted_interaction_zup`, `lit_zup_room`, `material_wad_zup`, `moving_door_button_zup`,
+`scripted_interaction_zup`, `lit_zup_room`, `texture_axes_zup`, `material_wad_zup`,
+`moving_door_button_zup`,
 `point_volume_zup`, and `illusionary_static_zup`. Negative source fixtures cover script escapes,
 incomplete/malformed brushes, missing targets, and strict unresolved WAD textures. A full manual QA
 checklist/reporting template is available in [`docs/TrenchBroomManualQA.md`](TrenchBroomManualQA.md).

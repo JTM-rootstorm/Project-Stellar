@@ -158,6 +158,8 @@ private:
   std::size_t debug_render_frame_limit_ = 0;
   std::size_t debug_render_frame_index_ = 0;
   bool disable_lightmaps_ = false;
+  bool debug_lightmaps_enabled_ = false;
+  bool force_lightmap_visualization_ = false;
 };
 
 } // namespace stellar::graphics

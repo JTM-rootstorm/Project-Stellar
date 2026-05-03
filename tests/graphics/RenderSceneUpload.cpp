@@ -218,6 +218,8 @@ stellar::assets::LevelAsset make_level() {
 int main() {
   ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
   ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     nullptr);
   stellar::platform::Window window;
   auto mock = std::make_unique<MockGraphicsDevice>();
   MockGraphicsDevice *mock_ptr = mock.get();

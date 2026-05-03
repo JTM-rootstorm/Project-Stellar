@@ -19,6 +19,10 @@ The WAD3 format limits lump names to 15 bytes, so `materials/stellar_dev.wad` co
 `dev_*` names. The longer `stellar_dev_*` names are runtime fallback aliases and PNG/manual-reference
 names.
 
+The official generated WAD and deterministic runtime fallback are 128x128 pixels for every developer
+texture. Names such as `grid_32` and `wall_96` describe authored scale cues/grid spacing, not bitmap
+dimensions.
+
 ## Tooling
 
 Generate or verify the official deterministic WAD from the repository root:

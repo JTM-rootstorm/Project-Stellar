@@ -349,6 +349,8 @@ void verify_static_less_level_renders_no_static_surfaces(
 void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
   ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
   ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     nullptr);
   auto level = make_level_with_surfaces({make_primitive(0)}, {0});
   level.geometry.images = {
       stellar::assets::ImageAsset{.name = "base",
@@ -394,6 +396,8 @@ void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
 void verify_lightmap_disable_env_skips_material_binding(
     stellar::platform::Window &window, const char *flag_name) {
   ScopedEnvValue disable_lightmaps(flag_name, "1");
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     nullptr);
   auto level = make_level_with_surfaces({make_primitive(0)}, {0});
   level.geometry.images = {
       stellar::assets::ImageAsset{.name = "base",
@@ -424,6 +428,48 @@ void verify_lightmap_disable_env_skips_material_binding(
   assert(device->uploaded_materials[1].material.unlit);
   assert(device->uploaded_materials[1].base_color_texture.has_value());
   assert(!device->uploaded_materials[1].lightmap_texture.has_value());
+}
+
+void verify_force_lightmap_visualization_uses_lightmap_as_base(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     "1");
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.geometry.images = {
+      stellar::assets::ImageAsset{.name = "base",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "lightmap",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8,
+                                  .pixels = {64, 128, 192}},
+  };
+  level.geometry.textures.push_back(stellar::assets::TextureAsset{
+      .name = "base", .image_index = 0, .sampler_index = std::nullopt,
+      .color_space = stellar::assets::TextureColorSpace::kSrgb});
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 1, .size = {1, 1}, .style = 0, .source_name = "face_0"});
+  level.geometry.materials[0].texture_index = 0;
+  level.geometry.materials[0].lightmap_index = 0;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 2);
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.base_color_texture.has_value());
+  assert(upload.base_color_texture->texture == device->texture_handles[1]);
+  assert(upload.base_color_texture->texcoord_set == 1);
+  assert(upload.base_color_texture->sampler.wrap_s ==
+         stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(!upload.lightmap_texture.has_value());
+  assert(upload.lightmap_multiplier == 1.0F);
+  assert(upload.material.base_color_factor[0] == 1.0F);
 }
 
 void verify_billboards_submit_without_static_geometry(
@@ -572,6 +618,7 @@ int main() {
                                                      "STELLAR_DISABLE_LIGHTMAPS");
   verify_lightmap_disable_env_skips_material_binding(window,
                                                      "STELLAR_FORCE_FULLBRIGHT");
+  verify_force_lightmap_visualization_uses_lightmap_as_base(window);
   verify_billboards_submit_without_static_geometry(window);
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();

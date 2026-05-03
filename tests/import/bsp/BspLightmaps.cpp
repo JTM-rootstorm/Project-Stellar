@@ -126,6 +126,10 @@ void nonzero_lightmap_emits_info_stats_without_warning() {
     assert(has_diagnostic(result->report,
                           stellar::import::bsp::DiagnosticCode::kLightmapStats,
                           stellar::import::bsp::DiagnosticSeverity::kInfo,
+                          "BSP lightmap summary raw_lighting_bytes=12 imported_lightmap_count=1"));
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kLightmapStats,
+                          stellar::import::bsp::DiagnosticSeverity::kInfo,
                           "raw_lighting_bytes=12 imported_lightmap_count=1"));
     assert(has_diagnostic(result->report,
                           stellar::import::bsp::DiagnosticCode::kLightmapStats,
@@ -135,10 +139,27 @@ void nonzero_lightmap_emits_info_stats_without_warning() {
                           stellar::import::bsp::DiagnosticCode::kLightmapStats,
                           stellar::import::bsp::DiagnosticSeverity::kInfo,
                           "average_rgb=(4.5,5.5,6.5) all_black=false"));
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kLightmapStats,
+                          stellar::import::bsp::DiagnosticSeverity::kInfo,
+                          "BSP material lightmap binding material_index=0"));
     assert(!has_diagnostic(result->report,
                            stellar::import::bsp::DiagnosticCode::kAllBlackLightmap,
                            stellar::import::bsp::DiagnosticSeverity::kWarning,
                            "all_black=true"));
+}
+
+void missing_lighting_lump_emits_zero_lightmap_summary() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false);
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "unlit_summary.bsp");
+    assert(result);
+    assert(result->asset.geometry.raw_lighting.empty());
+    assert(result->asset.geometry.lightmaps.empty());
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kLightmapStats,
+                          stellar::import::bsp::DiagnosticSeverity::kInfo,
+                          "BSP lightmap summary raw_lighting_bytes=0 imported_lightmap_count=0"));
 }
 
 } // namespace
@@ -150,5 +171,6 @@ int main() {
     invalid_light_offset_warns_and_falls_back_unlit();
     all_black_lightmap_warns_with_deterministic_stats();
     nonzero_lightmap_emits_info_stats_without_warning();
+    missing_lighting_lump_emits_zero_lightmap_summary();
     return 0;
 }

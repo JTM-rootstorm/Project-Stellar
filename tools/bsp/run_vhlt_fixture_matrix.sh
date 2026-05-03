@@ -145,7 +145,8 @@ run_positive_fixture() {
 
     rm -f "$out_path"
     mkdir -p "$fixture_log_dir"
-    if ! STELLAR_VHLT_KEEP_WORK=1 STELLAR_VHLT_LOG_DIR="$fixture_log_dir" \
+    if ! STELLAR_VHLT_KEEP_WORK=1 STELLAR_VHLT_WORK_ROOT="$work_dir" \
+        STELLAR_VHLT_LOG_DIR="$fixture_log_dir" \
         run_and_log "$compile_log" bash "$compile_script" \
             --map "$map_path" --out "$out_path" --profile "$profile" \
             --no-stellar-validation; then
@@ -205,7 +206,8 @@ run_negative_fixture() {
         return 1
     fi
 
-    if ! STELLAR_VHLT_KEEP_WORK=1 STELLAR_VHLT_LOG_DIR="$fixture_log_dir" \
+    if ! STELLAR_VHLT_KEEP_WORK=1 STELLAR_VHLT_WORK_ROOT="$work_dir" \
+        STELLAR_VHLT_LOG_DIR="$fixture_log_dir" \
         run_and_log "$compile_log" bash "$compile_script" \
             --map "$map_path" --out "$out_path" --profile "$profile" \
             --skip-source-preflight \
@@ -318,6 +320,7 @@ positive_fixtures=(
     entity_matrix_zup
     scripted_interaction_zup
     lit_zup_room
+    texture_axes_zup
     material_wad_zup
     moving_door_button_zup
     point_volume_zup
