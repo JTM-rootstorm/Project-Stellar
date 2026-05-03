@@ -246,6 +246,49 @@ void verify_static_less_level_renders_no_static_surfaces(
   assert(device->draw_calls.empty());
 }
 
+void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.geometry.images = {
+      stellar::assets::ImageAsset{.name = "base",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "lightmap",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8,
+                                  .pixels = {128, 128, 128}},
+  };
+  level.geometry.samplers.push_back(stellar::assets::SamplerAsset{});
+  level.geometry.textures.push_back(stellar::assets::TextureAsset{
+      .name = "base", .image_index = 0, .sampler_index = 0,
+      .color_space = stellar::assets::TextureColorSpace::kSrgb});
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 1, .size = {1, 1}, .style = 2, .source_name = "face_0"});
+  level.geometry.materials[0].texture_index = 0;
+  level.geometry.materials[0].lightmap_index = 0;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 2);
+  assert(device->uploaded_textures[0].color_space ==
+         stellar::assets::TextureColorSpace::kSrgb);
+  assert(device->uploaded_textures[1].color_space ==
+         stellar::assets::TextureColorSpace::kLinear);
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.base_color_texture.has_value());
+  assert(upload.lightmap_texture.has_value());
+  assert(upload.base_color_texture->texcoord_set == 0);
+  assert(upload.lightmap_texture->texcoord_set == 1);
+  assert(upload.lightmap_texture->sampler.min_filter ==
+         stellar::assets::TextureFilter::kLinear);
+  assert(upload.lightmap_texture->sampler.wrap_s ==
+         stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(upload.lightmap_multiplier == 1.0F);
+}
+
 void verify_billboards_submit_without_static_geometry(
     stellar::platform::Window &window) {
   stellar::graphics::RenderLevel render_level;
@@ -384,6 +427,7 @@ int main() {
   verify_billboard_quad_generation_sorting_and_fields();
   verify_billboards_submit_after_static_geometry(window);
   verify_static_less_level_renders_no_static_surfaces(window);
+  verify_level_lightmap_material_upload(window);
   verify_billboards_submit_without_static_geometry(window);
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();

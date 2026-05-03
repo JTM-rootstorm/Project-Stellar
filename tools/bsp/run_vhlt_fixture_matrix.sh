@@ -304,7 +304,7 @@ printf 'Outputs: compiled=%s logs=%s work=%s\n' \
 export STELLAR_CLIENT="${stellar_client_arg:-${STELLAR_CLIENT:-}}"
 export STELLAR_SERVER="${stellar_server_arg:-${STELLAR_SERVER:-}}"
 
-for fixture in minimal_zup_room entity_matrix_zup scripted_interaction_zup; do
+for fixture in minimal_zup_room lit_zup_room entity_matrix_zup scripted_interaction_zup; do
     if ! run_positive_fixture "$fixture"; then
         failures=$((failures + 1))
         [[ "$keep_going" == "1" ]] || exit 1

@@ -17,9 +17,11 @@ conversion. The default player capsule center should be authored at `origin = "0
 2. Build the first sealed room with an X/Y floor footprint, floor at `z = 0`, and ceiling at `z = 96`.
 3. Place `info_player_start` at `origin = "0 0 36"` for the default 72 inch player capsule.
 4. Use developer materials such as `dev/grid_32`, `dev/grid_64`, and `dev/wall_96` while blocking out.
-5. Author gameplay markers with ordinary entity key/value pairs or the Stellar FGD aliases.
-6. Compile/export the `.bsp` as BSP30.
-7. Run the display-free validation commands below before using the map in runtime tests.
+5. Add compile-time `light`, `light_spot`, or `light_environment` entities when the map should bake
+   static BSP lightmaps.
+6. Author gameplay markers with ordinary entity key/value pairs or the Stellar FGD aliases.
+7. Compile/export the `.bsp` as BSP30.
+8. Run the display-free validation commands below before using the map in runtime tests.
 
 VHLT compile success is not sufficient by itself. Always run Stellar client/server validation after
 compile because the runtime importer can still reject unsupported BSP structure, missing gameplay
@@ -196,9 +198,13 @@ _light = "255 240 220 300"
 style = "0"
 ```
 
-`light`, `light_spot`, and `light_environment` are compile-time entities for BSP lighting tools. Stellar
-imports generated lightmap bytes and surface metadata, but these light entities do not create dynamic
-runtime lights or server gameplay entities in Phase 02.
+`light`, `light_spot`, and `light_environment` are compile-time entities for BSP lighting tools. VHLT
+`hlrad` writes the BSP lighting lump; Stellar imports those bytes into `LevelLightmap` records, generates
+secondary UVs, uploads lightmap textures as linear clamp-to-edge images, and multiplies static surface
+base color/texture by the lightmap in OpenGL and Vulkan. Faces with missing or invalid light offsets fall
+back to unlit/fullbright material behavior with a warning. Classic nonzero light styles are preserved on
+the imported lightmap and currently render with a deterministic static multiplier of `1.0` until a later
+server-authoritative gameplay phase explicitly animates styles.
 
 ### Trigger script
 

@@ -2,6 +2,18 @@
 
 Branch target: `trenchbroom-compat`
 
+## In-progress Scope — TB-FULL-04 Lighting and Renderer Lightmaps
+
+Status: implemented in the working tree for validation.
+
+- Added a TrenchBroom lit room source fixture with `light` and `light_spot` entities.
+- Expanded BSP lightmap/import and display-free RenderLevel material upload coverage.
+- Wired static BSP lightmaps through linear/clamp texture upload, secondary-UV material bindings, and a
+  stable lightstyle multiplier baseline of `1.0`.
+- Updated OpenGL material sampling to multiply static surface base color/texture by imported lightmaps;
+  Vulkan material descriptors preserve the same lightmap contract through the shared abstraction.
+- Moving brush runtime behavior remains deferred to TB-FULL-05 and was not introduced here.
+
 ## Completed Scope — TrenchBroom BSP30 Compatibility and Z-up Migration
 
 Status: complete as of 2026-05-01.

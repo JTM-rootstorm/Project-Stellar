@@ -173,6 +173,20 @@ generates a temporary `stellar_dev.wad`, injects or replaces the copied map's `w
 compiler-facing developer texture aliases when required by VHLT. Source-tree `.map` files remain clean
 authoring references and should not receive local absolute WAD paths.
 
+## Compile-time lighting and renderer lightmaps
+
+Place `light`, `light_spot`, and `light_environment` entities from the Stellar FGD to bake static BSP
+lighting. VHLT's full profile runs `hlrad`, which writes the BSP lighting lump consumed by Stellar's
+importer. The renderer uploads those lightmaps as linear, clamp-to-edge textures and samples them from
+secondary UVs (`uv1`), multiplying base material color/texture by the baked lightmap. Surfaces without
+valid lightmap data keep the existing unlit/fullbright fallback behavior.
+
+Use `tests/fixtures/trenchbroom/src/lit_zup_room.map` or the package `templates/lit_zup_room.map` as the
+manual lit-room reference. After VHLT compile and validation, launch with OpenGL or Vulkan and confirm
+visible light/dark variation on the floor and walls. Nonzero classic BSP light styles currently use a
+stable static multiplier of `1.0`; no dynamic realtime lights or client-side gameplay authority are
+created by light entities.
+
 ## FGD key policy
 
 The TrenchBroom-facing FGD uses importer-supported underscore aliases rather than plain placeholder
@@ -208,6 +222,7 @@ The Stellar package defines:
 - `stellar_sprite`
 - `env_sprite`
 - `stellar_object_collider`
+- `light`, `light_spot`, `light_environment`
 - `func_wall`
 - `func_door`
 - `func_button`
@@ -303,10 +318,12 @@ Project-owned TrenchBroom compatibility fixtures live in:
 tests/fixtures/trenchbroom/
 ```
 
-Use `src/minimal_zup_room.map` as the first manual editor smoke map. It is a 192x192x96 Z-up room with
-floor `z = 0`, ceiling `z = 96`, `info_player_start origin "0 0 36"`, and developer grid/wall
-materials. The fixture README documents the complete fixture matrix, expected entities, expected
-validation outcomes, and the manual open/compile/validate checklist.
+Use `src/minimal_zup_room.map` as the first manual editor smoke map and `src/lit_zup_room.map` as the
+lighting smoke map. Both are 192x192x96 Z-up rooms with floor `z = 0`, ceiling `z = 96`,
+`info_player_start origin "0 0 36"`, and developer grid/wall materials. The lit fixture also includes
+`light` and `light_spot` entities for VHLT `hlrad` lightmap generation. The fixture README documents the
+complete fixture matrix, expected entities, expected validation outcomes, and the manual
+open/compile/validate checklist.
 
 Generated fixture policy:
 
