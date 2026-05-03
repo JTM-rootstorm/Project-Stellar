@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <string_view>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -25,6 +28,29 @@ constexpr std::array<float, 9> kIdentity3{1.0F, 0.0F, 0.0F, 0.0F, 1.0F,
 
 constexpr const char *kDefaultLevelMaterialName =
     "stellar_default_level_material";
+
+bool env_flag_enabled(const char *name) noexcept {
+  const char *value = std::getenv(name);
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string_view text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
+}
+
+std::size_t env_frame_limit(const char *name, std::size_t fallback) noexcept {
+  const char *value = std::getenv(name);
+  if (value == nullptr || value[0] == '\0') {
+    return fallback;
+  }
+  char *end = nullptr;
+  const unsigned long parsed = std::strtoul(value, &end, 10);
+  if (end == value) {
+    return fallback;
+  }
+  return static_cast<std::size_t>(parsed);
+}
 
 glm::mat4 to_glm_mat4(const std::array<float, 16> &data) noexcept {
   return glm::make_mat4(data.data());
@@ -129,6 +155,11 @@ stellar::assets::MaterialAsset material_asset_for_level_surface(
   material.roughness_factor = 1.0F;
   material.metallic_factor = 0.0F;
   material.unlit = true;
+  // Classic BSP rooms are often viewed from inside closed solids. Until the
+  // importer normalizes face winding for an explicit interior-rendering
+  // convention, render BSP level surfaces double-sided to avoid black interiors
+  // caused by back-face culling.
+  material.double_sided = true;
   return material;
 }
 
@@ -200,6 +231,13 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   device_ = std::move(device);
   level_ = std::move(level);
   lightstyle_multipliers_.fill(1.0F);
+  debug_render_enabled_ = env_flag_enabled("STELLAR_DEBUG_RENDER");
+  debug_render_frame_limit_ =
+      env_frame_limit("STELLAR_DEBUG_RENDER_FRAMES",
+                      debug_render_enabled_ ? 3U : 0U);
+  debug_render_frame_index_ = 0;
+  disable_lightmaps_ = env_flag_enabled("STELLAR_DISABLE_LIGHTMAPS") ||
+                       env_flag_enabled("STELLAR_FORCE_FULLBRIGHT");
 
   if (auto result = device_->initialize(window); !result) {
     destroy();
@@ -238,24 +276,26 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
     owned_texture_handles_.push_back(*handle);
   }
 
-  lightmap_texture_handles_.resize(geometry.lightmaps.size());
-  for (std::size_t lightmap_index = 0;
-       lightmap_index < geometry.lightmaps.size(); ++lightmap_index) {
-    const auto &lightmap = geometry.lightmaps[lightmap_index];
-    if (lightmap.image_index >= geometry.images.size()) {
-      continue;
-    }
+  if (!disable_lightmaps_) {
+    lightmap_texture_handles_.resize(geometry.lightmaps.size());
+    for (std::size_t lightmap_index = 0;
+         lightmap_index < geometry.lightmaps.size(); ++lightmap_index) {
+      const auto &lightmap = geometry.lightmaps[lightmap_index];
+      if (lightmap.image_index >= geometry.images.size()) {
+        continue;
+      }
 
-    const auto &image = geometry.images[lightmap.image_index];
-    auto handle = device_->create_texture(TextureUpload{
-        .image = image,
-        .color_space = stellar::assets::TextureColorSpace::kLinear});
-    if (!handle) {
-      destroy();
-      return std::unexpected(handle.error());
+      const auto &image = geometry.images[lightmap.image_index];
+      auto handle = device_->create_texture(TextureUpload{
+          .image = image,
+          .color_space = stellar::assets::TextureColorSpace::kLinear});
+      if (!handle) {
+        destroy();
+        return std::unexpected(handle.error());
+      }
+      lightmap_texture_handles_[lightmap_index] = *handle;
+      owned_texture_handles_.push_back(*handle);
     }
-    lightmap_texture_handles_[lightmap_index] = *handle;
-    owned_texture_handles_.push_back(*handle);
   }
 
   stellar::assets::MaterialAsset default_material;
@@ -264,6 +304,10 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   default_material.metallic_factor = 0.0F;
   default_material.roughness_factor = 1.0F;
   default_material.unlit = true;
+  // This default can be used by imported BSP/static level surfaces with missing
+  // material indices, so keep it culling-safe for the same interior winding
+  // reason as explicit level materials.
+  default_material.double_sided = true;
   auto default_handle =
       device_->create_material(MaterialUpload{.material = default_material});
   if (!default_handle) {
@@ -284,11 +328,12 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       upload.base_color_texture = resolve_level_texture_binding(
           *surface_material.texture_index, geometry, texture_handles_);
     }
-    if (surface_material.lightmap_index.has_value()) {
+    if (!disable_lightmaps_ && surface_material.lightmap_index.has_value()) {
       upload.lightmap_texture = resolve_level_lightmap_binding(
           *surface_material.lightmap_index, geometry, lightmap_texture_handles_);
       if (*surface_material.lightmap_index < geometry.lightmaps.size()) {
-        const auto style = geometry.lightmaps[*surface_material.lightmap_index].style;
+        const auto style =
+            geometry.lightmaps[*surface_material.lightmap_index].style;
         upload.lightmap_multiplier = lightstyle_multipliers_[style];
       }
     }
@@ -299,6 +344,38 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
       return std::unexpected(handle.error());
     }
     material_handles_.push_back(*handle);
+  }
+
+  if (debug_render_enabled_) {
+    std::size_t primitive_count = 0;
+    std::size_t index_count = 0;
+    for (const auto &mesh : geometry.meshes) {
+      primitive_count += mesh.primitives.size();
+      for (const auto &primitive : mesh.primitives) {
+        index_count += primitive.indices.size();
+      }
+    }
+    std::size_t collision_mesh_count = 0;
+    std::size_t collision_triangle_count = 0;
+    if (level_.level_collision.has_value()) {
+      collision_mesh_count = level_.level_collision->meshes.size();
+      for (const auto &mesh : level_.level_collision->meshes) {
+        collision_triangle_count += mesh.triangles.size();
+      }
+    }
+    std::fprintf(stderr,
+                 "[stellar][render] init source=%s meshes=%zu primitives=%zu "
+                 "indices=%zu surfaces=%zu materials=%zu images=%zu textures=%zu "
+                 "lightmaps=%zu raw_lighting_bytes=%zu visibility_available=%d "
+                 "visibility_leaves=%zu level_collision_meshes=%zu "
+                 "level_collision_triangles=%zu lightmaps_disabled=%d\n",
+                 level_.source_uri.c_str(), geometry.meshes.size(), primitive_count,
+                 index_count, geometry.surfaces.size(), geometry.materials.size(),
+                 geometry.images.size(), geometry.textures.size(),
+                 geometry.lightmaps.size(), geometry.raw_lighting.size(),
+                 level_.visibility.available ? 1 : 0,
+                 level_.visibility.leaves.size(), collision_mesh_count,
+                 collision_triangle_count, disable_lightmaps_ ? 1 : 0);
   }
 
   return {};
@@ -361,8 +438,8 @@ void RenderLevel::render(int width, int height,
   const glm::mat4 view_matrix = to_glm_mat4(view);
   std::vector<QueuedLevelDraw> opaque_draws;
   std::vector<QueuedLevelDraw> blend_draws;
-  queue_static_draws(vp, view_matrix, camera_world_position, opaque_draws,
-                     blend_draws);
+  const StaticDrawQueueStats static_stats = queue_static_draws(
+      vp, view_matrix, camera_world_position, opaque_draws, blend_draws);
 
   std::sort(
       blend_draws.begin(), blend_draws.end(),
@@ -384,21 +461,37 @@ void RenderLevel::render(int width, int height,
     draw_billboard_quads(quads, vp);
   }
 
+  if (debug_render_enabled_ &&
+      debug_render_frame_index_ < debug_render_frame_limit_) {
+    std::fprintf(stderr,
+                 "[stellar][render] frame=%zu render_view_camera_position=%d "
+                 "visibility_used=%d visibility_visible=%zu opaque_draws=%zu "
+                 "blend_draws=%zu\n",
+                 debug_render_frame_index_,
+                 camera_world_position.has_value() ? 1 : 0,
+                 static_stats.visibility_used ? 1 : 0,
+                 static_stats.visibility_visible_count, opaque_draws.size(),
+                 blend_draws.size());
+  }
+  ++debug_render_frame_index_;
+
   device_->end_frame();
 }
 
-void RenderLevel::queue_static_draws(
+RenderLevel::StaticDrawQueueStats RenderLevel::queue_static_draws(
     const glm::mat4 &view_projection, const glm::mat4 &view,
     std::optional<std::array<float, 3>> camera_world_position,
     std::vector<QueuedLevelDraw> &opaque_draws,
     std::vector<QueuedLevelDraw> &blend_draws) noexcept {
+  StaticDrawQueueStats stats;
   const glm::mat4 world(1.0F);
   const MeshDrawTransforms transforms{.mvp = to_array(view_projection * world),
                                       .world = kIdentity4,
                                       .normal = normal_matrix_for(world)};
   const auto &geometry = level_.geometry;
   std::vector<bool> visible_surfaces;
-  if (!geometry.surfaces.empty() && camera_world_position.has_value()) {
+  if (!geometry.surfaces.empty() && camera_world_position.has_value() &&
+      !env_flag_enabled("STELLAR_DISABLE_VISIBILITY_CULLING")) {
     const auto leaf_index = stellar::assets::find_level_leaf_for_point(
         level_.visibility, *camera_world_position);
     if (leaf_index.has_value()) {
@@ -406,8 +499,26 @@ void RenderLevel::queue_static_draws(
           level_, *leaf_index);
       if (visible_surfaces.size() != geometry.surfaces.size()) {
         visible_surfaces.clear();
+      } else {
+        stats.visibility_used = true;
+        stats.visibility_visible_count = static_cast<std::size_t>(
+            std::count(visible_surfaces.begin(), visible_surfaces.end(), true));
+        if (stats.visibility_visible_count == 0) {
+          visible_surfaces.clear();
+          stats.visibility_used = false;
+          stats.visibility_visible_count = geometry.surfaces.size();
+          if (debug_render_enabled_) {
+            std::fprintf(stderr,
+                         "[stellar][render] warning: visibility resolved zero "
+                         "surfaces for nonempty level; falling back to all "
+                         "surfaces visible\n");
+          }
+        }
       }
     }
+  }
+  if (visible_surfaces.empty()) {
+    stats.visibility_visible_count = geometry.surfaces.size();
   }
 
   if (!geometry.surfaces.empty()) {
@@ -441,7 +552,7 @@ void RenderLevel::queue_static_draws(
           .depth = view_space_depth(view, world, primitive)};
       opaque_draws.push_back(draw);
     }
-    return;
+    return stats;
   }
 
   for (std::size_t mesh_index = 0;
@@ -466,6 +577,7 @@ void RenderLevel::queue_static_draws(
       opaque_draws.push_back(draw);
     }
   }
+  return stats;
 }
 
 void RenderLevel::draw_billboard_quads(

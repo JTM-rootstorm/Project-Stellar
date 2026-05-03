@@ -125,13 +125,18 @@ public:
               const std::array<float, 16> &view_projection) noexcept;
 
 private:
+  struct StaticDrawQueueStats {
+    bool visibility_used = false;
+    std::size_t visibility_visible_count = 0;
+  };
+
   void render(int width, int height,
               const std::array<float, 16> &view_projection,
               const std::array<float, 16> &view,
               std::optional<std::array<float, 3>> camera_world_position,
               const BillboardView *billboard_view,
               std::span<const BillboardSprite> sprites) noexcept;
-  void
+  [[nodiscard]] StaticDrawQueueStats
   queue_static_draws(const glm::mat4 &view_projection, const glm::mat4 &view,
                      std::optional<std::array<float, 3>> camera_world_position,
                      std::vector<struct QueuedLevelDraw> &opaque_draws,
@@ -149,6 +154,10 @@ private:
   std::vector<TextureHandle> owned_texture_handles_;
   std::vector<MaterialHandle> material_handles_;
   MaterialHandle default_material_;
+  bool debug_render_enabled_ = false;
+  std::size_t debug_render_frame_limit_ = 0;
+  std::size_t debug_render_frame_index_ = 0;
+  bool disable_lightmaps_ = false;
 };
 
 } // namespace stellar::graphics

@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
+#include <string_view>
 #include <utility>
 
 #include <glm/glm.hpp>
@@ -18,6 +21,29 @@ namespace stellar::graphics {
 namespace {
 
 constexpr float kDefaultFovDegrees = 45.0F;
+
+bool env_flag_enabled(const char *name) noexcept {
+  const char *value = std::getenv(name);
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string_view text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
+}
+
+std::size_t env_frame_limit(const char *name, std::size_t fallback) noexcept {
+  const char *value = std::getenv(name);
+  if (value == nullptr || value[0] == '\0') {
+    return fallback;
+  }
+  char *end = nullptr;
+  const unsigned long parsed = std::strtoul(value, &end, 10);
+  if (end == value) {
+    return fallback;
+  }
+  return static_cast<std::size_t>(parsed);
+}
 
 float finite_or_zero(float value) noexcept {
   return std::isfinite(value) ? value : 0.0F;
@@ -227,9 +253,14 @@ LevelRenderer::~LevelRenderer() noexcept = default;
 std::expected<void, stellar::platform::Error>
 LevelRenderer::initialize(stellar::platform::Window &window) {
   stellar::assets::LevelAsset level = source_level_.has_value()
-                                         ? std::move(*source_level_)
-                                         : stellar::assets::LevelAsset{};
+                                          ? std::move(*source_level_)
+                                          : stellar::assets::LevelAsset{};
   level_bounds_ = compute_level_bounds(level);
+  debug_render_enabled_ = env_flag_enabled("STELLAR_DEBUG_RENDER");
+  debug_render_frame_limit_ =
+      env_frame_limit("STELLAR_DEBUG_RENDER_FRAMES",
+                      debug_render_enabled_ ? 3U : 0U);
+  debug_render_frame_index_ = 0;
 
   auto device = create_graphics_device(backend_);
   if (!device) {
@@ -260,6 +291,17 @@ void LevelRenderer::render(float /*elapsed_seconds*/, float /*delta_seconds*/,
 
   const LevelRenderState state =
       compute_level_render_state(view, backend_, aspect);
+  if (debug_render_enabled_ &&
+      debug_render_frame_index_ < debug_render_frame_limit_) {
+    std::fprintf(stderr,
+                 "[stellar][render] view frame=%zu render_view_present=%d "
+                 "camera_world_position_present=%d sprites=%zu\n",
+                 debug_render_frame_index_, render_view_.has_value() ? 1 : 0,
+                 state.camera_world_position.has_value() ? 1 : 0,
+                 presentation_state_.sprites.size());
+  }
+  ++debug_render_frame_index_;
+
   if (presentation_state_.sprites.empty()) {
     level_.render(width, height, state.view_projection, state.view,
                   state.camera_world_position);

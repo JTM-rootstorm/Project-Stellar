@@ -2,13 +2,44 @@
 
 #include <array>
 #include <cassert>
+#include <cstdlib>
 #include <expected>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace {
+
+class ScopedEnvValue {
+public:
+  ScopedEnvValue(const char *name, const char *value) : name_(name) {
+    if (const char *previous = std::getenv(name_.c_str())) {
+      previous_ = previous;
+    }
+    if (value != nullptr) {
+      setenv(name_.c_str(), value, 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+  ~ScopedEnvValue() {
+    if (previous_.has_value()) {
+      setenv(name_.c_str(), previous_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+  ScopedEnvValue(const ScopedEnvValue &) = delete;
+  ScopedEnvValue &operator=(const ScopedEnvValue &) = delete;
+
+private:
+  std::string name_;
+  std::optional<std::string> previous_;
+};
 
 class MockGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
@@ -185,6 +216,8 @@ stellar::assets::LevelAsset make_level() {
 } // namespace
 
 int main() {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
   stellar::platform::Window window;
   auto mock = std::make_unique<MockGraphicsDevice>();
   MockGraphicsDevice *mock_ptr = mock.get();
@@ -206,7 +239,9 @@ int main() {
   assert(mock_ptr->material_uploads.size() == 3);
   assert(mock_ptr->material_uploads[0].material.name ==
          "stellar_default_level_material");
+  assert(mock_ptr->material_uploads[0].material.double_sided);
   assert(mock_ptr->material_uploads[1].material.name == "stone");
+  assert(mock_ptr->material_uploads[1].material.double_sided);
   assert(mock_ptr->material_uploads[1].base_color_texture.has_value());
   assert(mock_ptr->material_uploads[1].base_color_texture->sampler.wrap_s ==
          stellar::assets::TextureWrapMode::kClampToEdge);
@@ -217,6 +252,7 @@ int main() {
   assert(mock_ptr->material_uploads[1].material.metallic_factor == 0.0F);
   assert(mock_ptr->material_uploads[1].material.unlit);
   assert(mock_ptr->material_uploads[2].material.name == "missing_texture");
+  assert(mock_ptr->material_uploads[2].material.double_sided);
   assert(!mock_ptr->material_uploads[2].base_color_texture.has_value());
   assert(!mock_ptr->material_uploads[2].lightmap_texture.has_value());
 

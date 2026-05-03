@@ -62,6 +62,26 @@ void material_and_lightmap_diagnostics_are_structured() {
   assert(light_validation.has_value());
   assert(has_code(light_validation->report,
                   stellar::import::bsp::DiagnosticCode::kInvalidLightingData));
+
+  auto black_lightmap = stellar::tests::bsp_fixture::single_face_bsp(false, 0, 12);
+  const std::size_t lighting_offset = black_lightmap.size() - 12;
+  for (std::size_t i = 0; i < 12; ++i) {
+    black_lightmap[lighting_offset + i] = std::byte{0U};
+  }
+  const auto black_validation = stellar::import::bsp::validate_level_from_memory(
+      black_lightmap, "black_lightmap.bsp");
+  assert(black_validation.has_value());
+  assert(black_validation->valid);
+  assert(has_code(black_validation->report,
+                  stellar::import::bsp::DiagnosticCode::kAllBlackLightmap));
+
+  const auto nonzero_lightmap = stellar::tests::bsp_fixture::single_face_bsp(false, 0, 12);
+  const auto nonzero_validation = stellar::import::bsp::validate_level_from_memory(
+      nonzero_lightmap, "nonzero_lightmap.bsp");
+  assert(nonzero_validation.has_value());
+  assert(nonzero_validation->valid);
+  assert(has_code(nonzero_validation->report,
+                  stellar::import::bsp::DiagnosticCode::kLightmapStats));
 }
 
 void malformed_binary_and_face_references_are_diagnostic_codes() {

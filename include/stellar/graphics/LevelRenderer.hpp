@@ -175,6 +175,9 @@ private:
   LevelPresentationState presentation_state_;
   LevelBounds level_bounds_;
   RenderLevel level_;
+  std::size_t debug_render_frame_index_ = 0;
+  std::size_t debug_render_frame_limit_ = 0;
+  bool debug_render_enabled_ = false;
 };
 
 /** @brief Temporary compatibility alias for old renderer naming during BSP

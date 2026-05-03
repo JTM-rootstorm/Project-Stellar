@@ -10,6 +10,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -211,6 +212,22 @@ void add_warning(ImportReport *report, DiagnosticCode code,
                                            .face_index = face_index});
 }
 
+void add_info(ImportReport *report, DiagnosticCode code,
+              const std::string &source_uri, std::string message,
+              std::optional<std::size_t> lump_index = std::nullopt,
+              std::optional<std::size_t> face_index = std::nullopt) {
+  if (report == nullptr) {
+    return;
+  }
+  report->diagnostics.push_back(Diagnostic{.severity = DiagnosticSeverity::kInfo,
+                                           .code = code,
+                                           .message = std::move(message),
+                                           .source_uri = source_uri,
+                                           .lump_index = lump_index,
+                                           .entity_index = std::nullopt,
+                                           .face_index = face_index});
+}
+
 void add_entity_warning(ImportReport *report, DiagnosticCode code,
                         const std::string &source_uri, std::size_t entity_index,
                         std::string message) {
@@ -375,6 +392,125 @@ struct LightmapBuildResult {
   std::optional<std::array<float, 2>> uv_min;
   std::optional<std::array<float, 2>> uv_extent;
 };
+
+struct LightmapRgbStats {
+  std::array<std::uint8_t, 3> min_rgb{255U, 255U, 255U};
+  std::array<std::uint8_t, 3> max_rgb{0U, 0U, 0U};
+  std::array<double, 3> average_rgb{0.0, 0.0, 0.0};
+  std::uint64_t texel_count = 0;
+  bool all_black = true;
+};
+
+[[nodiscard]] LightmapRgbStats rgb_stats_for_pixels(
+    std::span<const std::uint8_t> pixels) noexcept {
+  LightmapRgbStats stats{};
+  stats.texel_count = static_cast<std::uint64_t>(pixels.size() / 3U);
+  if (stats.texel_count == 0U) {
+    stats.min_rgb = {0U, 0U, 0U};
+    return stats;
+  }
+  std::array<std::uint64_t, 3> sums{};
+  for (std::size_t i = 0; i + 2 < pixels.size(); i += 3U) {
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      const std::uint8_t value = pixels[i + channel];
+      stats.min_rgb[channel] = std::min(stats.min_rgb[channel], value);
+      stats.max_rgb[channel] = std::max(stats.max_rgb[channel], value);
+      sums[channel] += value;
+      stats.all_black = stats.all_black && value == 0U;
+    }
+  }
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    stats.average_rgb[channel] =
+        static_cast<double>(sums[channel]) / static_cast<double>(stats.texel_count);
+  }
+  return stats;
+}
+
+[[nodiscard]] std::string lightmap_stats_message(
+    const std::string &source_uri, std::string_view prefix,
+    std::size_t raw_lighting_bytes, std::size_t imported_lightmap_count,
+    std::size_t lightmap_index, std::string_view source_name,
+    std::array<std::uint32_t, 2> size, const LightmapRgbStats &stats) {
+  std::ostringstream message;
+  message << source_uri << ": " << prefix
+          << " raw_lighting_bytes=" << raw_lighting_bytes
+          << " imported_lightmap_count=" << imported_lightmap_count
+          << " lightmap_index=" << lightmap_index
+          << " source=" << source_name
+          << " size=" << size[0] << 'x' << size[1]
+          << " texels=" << stats.texel_count
+          << " min_rgb=(" << static_cast<int>(stats.min_rgb[0]) << ','
+          << static_cast<int>(stats.min_rgb[1]) << ','
+          << static_cast<int>(stats.min_rgb[2]) << ')'
+          << " max_rgb=(" << static_cast<int>(stats.max_rgb[0]) << ','
+          << static_cast<int>(stats.max_rgb[1]) << ','
+          << static_cast<int>(stats.max_rgb[2]) << ')'
+          << " average_rgb=(" << stats.average_rgb[0] << ','
+          << stats.average_rgb[1] << ',' << stats.average_rgb[2] << ')'
+          << " all_black=" << (stats.all_black ? "true" : "false");
+  return message.str();
+}
+
+void add_lightmap_diagnostics(const stellar::assets::LevelGeometryAsset &geometry,
+                              const std::string &source_uri,
+                              ImportReport *report) {
+  if (report == nullptr || geometry.lightmaps.empty()) {
+    return;
+  }
+
+  LightmapRgbStats aggregate{};
+  aggregate.texel_count = 0U;
+  std::array<std::uint64_t, 3> aggregate_sums{};
+  const std::size_t raw_lighting_bytes = geometry.raw_lighting.size();
+  const std::size_t imported_lightmap_count = geometry.lightmaps.size();
+
+  for (std::size_t index = 0; index < geometry.lightmaps.size(); ++index) {
+    const auto &lightmap = geometry.lightmaps[index];
+    if (lightmap.image_index >= geometry.images.size()) {
+      continue;
+    }
+    const auto &image = geometry.images[lightmap.image_index];
+    const LightmapRgbStats stats = rgb_stats_for_pixels(image.pixels);
+    const std::string message = lightmap_stats_message(
+        source_uri,
+        stats.all_black ? "BSP imported all-black lightmap"
+                        : "BSP imported lightmap stats",
+        raw_lighting_bytes, imported_lightmap_count, index, lightmap.source_name,
+        lightmap.size, stats);
+    if (stats.all_black) {
+      add_warning(report, DiagnosticCode::kAllBlackLightmap, source_uri, message,
+                  static_cast<std::size_t>(LumpIndex::kLighting));
+    } else {
+      add_info(report, DiagnosticCode::kLightmapStats, source_uri, message,
+               static_cast<std::size_t>(LumpIndex::kLighting));
+    }
+
+    aggregate.texel_count += stats.texel_count;
+    aggregate.all_black = aggregate.all_black && stats.all_black;
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      aggregate.min_rgb[channel] =
+          std::min(aggregate.min_rgb[channel], stats.min_rgb[channel]);
+      aggregate.max_rgb[channel] =
+          std::max(aggregate.max_rgb[channel], stats.max_rgb[channel]);
+      aggregate_sums[channel] += static_cast<std::uint64_t>(
+          stats.average_rgb[channel] * static_cast<double>(stats.texel_count));
+    }
+  }
+
+  if (aggregate.texel_count == 0U) {
+    aggregate.min_rgb = {0U, 0U, 0U};
+  } else {
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      aggregate.average_rgb[channel] = static_cast<double>(aggregate_sums[channel]) /
+                                       static_cast<double>(aggregate.texel_count);
+    }
+  }
+  add_info(report, DiagnosticCode::kLightmapStats, source_uri,
+           lightmap_stats_message(source_uri, "BSP imported aggregate lightmap stats",
+                                  raw_lighting_bytes, imported_lightmap_count, 0U,
+                                  "aggregate", {0U, 0U}, aggregate),
+           static_cast<std::size_t>(LumpIndex::kLighting));
+}
 
 [[nodiscard]] std::array<std::uint8_t, 4> active_light_styles(const Face &face) noexcept {
   std::array<std::uint8_t, 4> styles{255U, 255U, 255U, 255U};
@@ -980,6 +1116,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         .message = level.source_uri + ": BSP entities do not include a player spawn",
         .source_uri = level.source_uri});
   }
+
+  add_lightmap_diagnostics(level.geometry, level.source_uri, report);
 
   return level;
 }

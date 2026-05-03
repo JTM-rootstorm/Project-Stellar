@@ -10,6 +10,7 @@
 
 #include <SDL2/SDL.h>
 
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -46,12 +47,126 @@ make_level_render_view(const PlayerCameraFrame &camera) noexcept {
 }
 
 bool debug_camera_enabled() {
-  const char* value = std::getenv("STELLAR_DEBUG_CAMERA");
+  const char *value = std::getenv("STELLAR_DEBUG_CAMERA");
   if (value == nullptr || value[0] == '\0') {
     return false;
   }
   const std::string text(value);
-  return text != "0" && text != "false" && text != "FALSE" && text != "off" && text != "OFF";
+  return text != "0" && text != "false" && text != "FALSE" &&
+         text != "off" && text != "OFF";
+}
+
+bool debug_render_enabled() {
+  const char *value = std::getenv("STELLAR_DEBUG_RENDER");
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
+}
+
+std::size_t debug_render_frame_limit(bool enabled) {
+  if (!enabled) {
+    return 0;
+  }
+  const char *value = std::getenv("STELLAR_DEBUG_RENDER_FRAMES");
+  if (value == nullptr || value[0] == '\0') {
+    return 3;
+  }
+  char *end = nullptr;
+  const unsigned long parsed = std::strtoul(value, &end, 10);
+  if (end == value) {
+    return 3;
+  }
+  return static_cast<std::size_t>(parsed);
+}
+
+const char *diagnostic_severity_name(
+    stellar::import::bsp::DiagnosticSeverity severity) noexcept {
+  switch (severity) {
+  case stellar::import::bsp::DiagnosticSeverity::kInfo:
+    return "info";
+  case stellar::import::bsp::DiagnosticSeverity::kWarning:
+    return "warning";
+  case stellar::import::bsp::DiagnosticSeverity::kError:
+    return "error";
+  }
+  return "unknown";
+}
+
+void print_map_validation_diagnostics(
+    const stellar::import::bsp::ImportReport &report) {
+  for (const auto &diagnostic : report.diagnostics) {
+    std::cout << "stellar-client: BSP diagnostic severity="
+              << diagnostic_severity_name(diagnostic.severity)
+              << " message=\"" << diagnostic.message << "\"\n";
+  }
+}
+
+void log_debug_render_startup(const PreparedApplicationRuntime &runtime) {
+  const auto *level =
+      runtime.validation != nullptr && runtime.validation->level.has_value()
+          ? &*runtime.validation->level
+          : nullptr;
+  std::size_t primitive_count = 0;
+  std::size_t index_count = 0;
+  std::size_t surface_count = 0;
+  std::size_t material_count = 0;
+  std::size_t image_count = 0;
+  std::size_t texture_count = 0;
+  std::size_t lightmap_count = 0;
+  std::size_t raw_lighting_bytes = 0;
+  bool visibility_available = false;
+  std::size_t visibility_leaf_count = 0;
+  std::size_t collision_mesh_count = 0;
+  std::size_t collision_triangle_count = 0;
+  if (level != nullptr) {
+    const auto &geometry = level->geometry;
+    for (const auto &mesh : geometry.meshes) {
+      primitive_count += mesh.primitives.size();
+      for (const auto &primitive : mesh.primitives) {
+        index_count += primitive.indices.size();
+      }
+    }
+    surface_count = geometry.surfaces.size();
+    material_count = geometry.materials.size();
+    image_count = geometry.images.size();
+    texture_count = geometry.textures.size();
+    lightmap_count = geometry.lightmaps.size();
+    raw_lighting_bytes = geometry.raw_lighting.size();
+    visibility_available = level->visibility.available;
+    visibility_leaf_count = level->visibility.leaves.size();
+    if (level->level_collision.has_value()) {
+      collision_mesh_count = level->level_collision->meshes.size();
+      for (const auto &mesh : level->level_collision->meshes) {
+        collision_triangle_count += mesh.triangles.size();
+      }
+    }
+  }
+
+  std::cerr << "stellar-client: debug-render startup validation.level="
+            << (level != nullptr ? 1 : 0) << " source="
+            << (level != nullptr ? level->source_uri : std::string{})
+            << " primitives=" << primitive_count << " indices=" << index_count
+            << " surfaces=" << surface_count << " materials=" << material_count
+            << " images=" << image_count << " textures=" << texture_count
+            << " lightmaps=" << lightmap_count
+            << " raw_lighting_bytes=" << raw_lighting_bytes
+            << " visibility_available=" << (visibility_available ? 1 : 0)
+            << " visibility_leaves=" << visibility_leaf_count
+            << " level_collision_meshes=" << collision_mesh_count
+            << " level_collision_triangles=" << collision_triangle_count
+            << " networked_runtime=" << (runtime.networked_runtime ? 1 : 0)
+            << " remote_runtime=" << (runtime.remote_runtime ? 1 : 0) << '\n';
+}
+
+void log_debug_render_runtime_frame(const char *runtime_name, bool latest_snapshot,
+                                    bool player_state, std::size_t sprite_count) {
+  std::cerr << "stellar-client: debug-render frame runtime=" << runtime_name
+            << " latest_snapshot=" << (latest_snapshot ? 1 : 0)
+            << " player_state=" << (player_state ? 1 : 0)
+            << " sprites=" << sprite_count << '\n';
 }
 
 void set_mouse_capture(stellar::platform::Window& window,
@@ -141,8 +256,13 @@ std::expected<void, stellar::platform::Error> Application::run() {
 
   if (config_.validate_only) {
     if (config_.map_path.has_value()) {
+      if (runtime->validation != nullptr &&
+          runtime->validation->map_validation_report.has_value()) {
+        print_map_validation_diagnostics(
+            *runtime->validation->map_validation_report);
+      }
       std::cout << "stellar-client: BSP map validation succeeded (BSP30 TrenchBroom target; "
-                   "legacy BSP29 supported)\n";
+                    "legacy BSP29 supported)\n";
     }
     return {};
   }
@@ -164,6 +284,10 @@ std::expected<void, stellar::platform::Error> Application::run() {
   if (auto result = renderer->initialize(window); !result) {
     return result;
   }
+  const bool debug_render = debug_render_enabled();
+  if (debug_render) {
+    log_debug_render_startup(*runtime);
+  }
 
   stellar::platform::Input input;
   HudPresentationState hud_state;
@@ -173,6 +297,8 @@ std::expected<void, stellar::platform::Error> Application::run() {
   const bool has_live_runtime = runtime->networked_runtime || runtime->remote_runtime;
   bool mouse_captured = false;
   int debug_camera_frames_remaining = debug_camera_enabled() ? 5 : 0;
+  std::size_t debug_render_frames_remaining =
+      debug_render_frame_limit(debug_render);
   if (has_live_runtime) {
     set_mouse_capture(window, mouse_captured, true);
   }
@@ -200,6 +326,10 @@ std::expected<void, stellar::platform::Error> Application::run() {
           audio_router.route_events(networked_frame.events, audio_sink);
       const auto& snapshot = runtime->networked_runtime->latest_snapshot();
       if (!snapshot.has_value()) {
+        if (debug_render_frames_remaining > 0) {
+          log_debug_render_runtime_frame("NetworkedClientRuntime", false, false, 0);
+          --debug_render_frames_remaining;
+        }
         renderer->clear_render_view();
         renderer->clear_presentation_state();
       } else {
@@ -215,8 +345,15 @@ std::expected<void, stellar::platform::Error> Application::run() {
         } else {
           renderer->clear_render_view();
         }
+        auto presentation_frame = make_gameplay_presentation_frame(*snapshot);
+        if (debug_render_frames_remaining > 0) {
+          log_debug_render_runtime_frame("NetworkedClientRuntime", true,
+                                         player_state.has_value(),
+                                         presentation_frame.sprites.size());
+          --debug_render_frames_remaining;
+        }
         renderer->set_presentation_state(stellar::graphics::LevelPresentationState{
-            .sprites = make_gameplay_presentation_frame(*snapshot).sprites});
+            .sprites = std::move(presentation_frame.sprites)});
       }
     } else if (runtime->remote_runtime) {
       [[maybe_unused]] const NetworkedClientFrameResult remote_frame =
@@ -226,6 +363,10 @@ std::expected<void, stellar::platform::Error> Application::run() {
           audio_router.route_events(remote_frame.events, audio_sink);
       const auto& snapshot = runtime->remote_runtime->latest_snapshot();
       if (!snapshot.has_value()) {
+        if (debug_render_frames_remaining > 0) {
+          log_debug_render_runtime_frame("RemoteClientRuntime", false, false, 0);
+          --debug_render_frames_remaining;
+        }
         renderer->clear_render_view();
         renderer->clear_presentation_state();
       } else {
@@ -241,10 +382,21 @@ std::expected<void, stellar::platform::Error> Application::run() {
         } else {
           renderer->clear_render_view();
         }
+        auto presentation_frame = make_gameplay_presentation_frame(*snapshot);
+        if (debug_render_frames_remaining > 0) {
+          log_debug_render_runtime_frame("RemoteClientRuntime", true,
+                                         player_state.has_value(),
+                                         presentation_frame.sprites.size());
+          --debug_render_frames_remaining;
+        }
         renderer->set_presentation_state(stellar::graphics::LevelPresentationState{
-            .sprites = make_gameplay_presentation_frame(*snapshot).sprites});
+            .sprites = std::move(presentation_frame.sprites)});
       }
     } else {
+      if (debug_render_frames_remaining > 0) {
+        log_debug_render_runtime_frame("none", false, false, 0);
+        --debug_render_frames_remaining;
+      }
       renderer->clear_render_view();
       renderer->clear_presentation_state();
     }

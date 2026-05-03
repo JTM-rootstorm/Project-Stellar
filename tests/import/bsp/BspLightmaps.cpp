@@ -3,8 +3,22 @@
 #include "BspFixture.hpp"
 
 #include <cassert>
+#include <string_view>
 
 namespace {
+
+bool has_diagnostic(stellar::import::bsp::ImportReport const &report,
+                    stellar::import::bsp::DiagnosticCode code,
+                    stellar::import::bsp::DiagnosticSeverity severity,
+                    std::string_view message_fragment) {
+    for (const auto &diagnostic : report.diagnostics) {
+        if (diagnostic.code == code && diagnostic.severity == severity &&
+            diagnostic.message.find(message_fragment) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void valid_lighting_lump_creates_surface_lightmap_metadata() {
     const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, 0, 12);
@@ -76,6 +90,57 @@ void invalid_light_offset_warns_and_falls_back_unlit() {
     assert(found_invalid_lighting);
 }
 
+void all_black_lightmap_warns_with_deterministic_stats() {
+    auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, 0, 12);
+    const std::size_t lighting_offset = bytes.size() - 12;
+    for (std::size_t i = 0; i < 12; ++i) {
+        bytes[lighting_offset + i] = std::byte{0U};
+    }
+
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "black_lightmap.bsp");
+    assert(result);
+    assert(result->asset.geometry.raw_lighting.size() == 12);
+    assert(result->asset.geometry.lightmaps.size() == 1);
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kAllBlackLightmap,
+                          stellar::import::bsp::DiagnosticSeverity::kWarning,
+                          "raw_lighting_bytes=12 imported_lightmap_count=1"));
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kAllBlackLightmap,
+                          stellar::import::bsp::DiagnosticSeverity::kWarning,
+                          "min_rgb=(0,0,0) max_rgb=(0,0,0)"));
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kAllBlackLightmap,
+                          stellar::import::bsp::DiagnosticSeverity::kWarning,
+                          "all_black=true"));
+}
+
+void nonzero_lightmap_emits_info_stats_without_warning() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, 0, 12);
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "nonzero_lightmap.bsp");
+    assert(result);
+    assert(result->asset.geometry.raw_lighting.size() == 12);
+    assert(result->asset.geometry.lightmaps.size() == 1);
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kLightmapStats,
+                          stellar::import::bsp::DiagnosticSeverity::kInfo,
+                          "raw_lighting_bytes=12 imported_lightmap_count=1"));
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kLightmapStats,
+                          stellar::import::bsp::DiagnosticSeverity::kInfo,
+                          "min_rgb=(0,1,2) max_rgb=(9,10,11)"));
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::kLightmapStats,
+                          stellar::import::bsp::DiagnosticSeverity::kInfo,
+                          "average_rgb=(4.5,5.5,6.5) all_black=false"));
+    assert(!has_diagnostic(result->report,
+                           stellar::import::bsp::DiagnosticCode::kAllBlackLightmap,
+                           stellar::import::bsp::DiagnosticSeverity::kWarning,
+                           "all_black=true"));
+}
+
 } // namespace
 
 int main() {
@@ -83,5 +148,7 @@ int main() {
     embedded_texture_and_lightmap_preserve_both_uv_sets();
     multiple_faces_with_same_texture_get_distinct_lightmap_materials();
     invalid_light_offset_warns_and_falls_back_unlit();
+    all_black_lightmap_warns_with_deterministic_stats();
+    nonzero_lightmap_emits_info_stats_without_warning();
     return 0;
 }

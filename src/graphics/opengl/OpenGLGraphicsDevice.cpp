@@ -4,8 +4,10 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <expected>
 #include <string>
+#include <string_view>
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
@@ -221,6 +223,16 @@ std::string opengl_context_failure_message() {
   message += "): ";
   message += stable_sdl_error_text();
   return message;
+}
+
+bool env_flag_enabled(const char *name) noexcept {
+  const char *value = std::getenv(name);
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string_view text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
 }
 
 std::expected<GLuint, stellar::platform::Error>
@@ -685,7 +697,8 @@ void OpenGLGraphicsDevice::draw_mesh(
       glDisable(GL_BLEND);
     }
 
-    if (material != nullptr && material->upload.material.double_sided) {
+    if (env_flag_enabled("STELLAR_DISABLE_GL_CULLING") ||
+        (material != nullptr && material->upload.material.double_sided)) {
       glDisable(GL_CULL_FACE);
     } else {
       glEnable(GL_CULL_FACE);
