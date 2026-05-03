@@ -92,6 +92,16 @@ as dotted keys such as `stellar.script`, but are safer with classic map compiler
 
 Do not author plain placeholder keys like `stellar_script`; they are not supported aliases.
 
+## Compile-time lighting
+
+Author `light_spot` and `light_environment` orientation in TrenchBroom degrees. `pitch` `90` points down,
+`pitch` `270` or `-90` points up, `pitch` `0` is horizontal, and yaw/`angle` controls horizontal
+direction. Classic `light_spot` and `light_environment` ignore roll in `angles "pitch yaw roll"`.
+
+The VHLT compile wrapper converts TrenchBroom/editor-facing pitch to VHLT/GoldSrc pitch on the copied
+work map before `hlrad`; authored source maps are not modified. If a `light_spot` has `target`, VHLT may
+aim the spotlight at the target and ignore `angle`/`pitch`/`angles`.
+
 ## Materials
 
 Use the package-local `materials/stellar_dev.wad`, PNG thumbnails, and names listed in

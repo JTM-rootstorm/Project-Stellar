@@ -239,6 +239,11 @@ map_path.write_text("".join(converted), encoding="utf-8")
 PY
 }
 
+rewrite_vhlt_light_orientations() {
+    local map_path="$1"
+    python3 "$root/tools/bsp/normalize_vhlt_light_angles.py" "$map_path"
+}
+
 rewrite_valve220_to_classic_texture_axes() {
     local map_path="$1"
     python3 - "$map_path" <<'PY'
@@ -372,6 +377,7 @@ if [[ "$profile" != "validate-only" ]]; then
 
     python3 "$root/tools/bsp/create_stellar_dev_wad.py" --out "$work_dir/stellar_dev.wad"
     rewrite_vhlt_texture_names_only "$work_map"
+    rewrite_vhlt_light_orientations "$work_map"
     if [[ "$classic_texture_axes" == "1" ]]; then
         rewrite_valve220_to_classic_texture_axes "$work_map"
     fi

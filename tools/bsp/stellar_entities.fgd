@@ -36,8 +36,8 @@
 
 @BaseClass = Angles
 [
-    angle(string) : "Yaw angle around +Z" : "0"
-    angles(string) : "Pitch yaw roll, degrees" : "0 0 0"
+    angle(string) : "Yaw around +Z in TrenchBroom degrees; used when angles is absent" : "0"
+    angles(string) : "TrenchBroom pitch yaw roll in degrees; pitch 90 down, 270/-90 up, roll ignored by classic lights" : "0 0 0"
 ]
 
 @BaseClass = StellarScript
@@ -92,7 +92,7 @@
     light(string) : "Compiler light brightness or color/intensity alias" : "200"
     style(string) : "Compile-time light style" : "0"
     pattern(string) : "Compile-time custom light pattern"
-    spawnflags(flags) : "Compile-time light flags" =
+    spawnflags(flags) =
     [
         1 : "Initially dark" : 0
     ]
@@ -136,14 +136,14 @@
 
 @PointClass base(LightKeys, Angles) color(255 224 128) size(-8 -8 -8, 8 8 8) = light_spot : "Compile-time spot light; imported as non-runtime metadata"
 [
-    pitch(string) : "Spot pitch in degrees" : "-90"
+    pitch(string) : "Spot pitch in TrenchBroom degrees; 90 points down, 270/-90 points up, 0 is horizontal" : "90"
     _cone(string) : "Inner cone angle" : "30"
     _cone2(string) : "Outer cone angle" : "45"
 ]
 
 @PointClass base(LightKeys, Angles) color(255 240 160) size(-8 -8 -8, 8 8 8) = light_environment : "Compile-time sun/environment light; imported as non-runtime metadata"
 [
-    pitch(string) : "Sun pitch in degrees" : "-45"
+    pitch(string) : "Sun pitch in TrenchBroom degrees; 45 is a downward sun, 315/-45 points upward" : "45"
 ]
 
 @PointClass color(255 255 200) size(-8 -8 -8, 8 8 8) = stellar_global_light : "Stellar runtime global ambient light"

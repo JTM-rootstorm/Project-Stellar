@@ -320,6 +320,11 @@ positive_fixtures=(
     entity_matrix_zup
     scripted_interaction_zup
     lit_zup_room
+    spotlight_pitch_down_zup
+    spotlight_pitch_up_zup
+    spotlight_yaw_walls_zup
+    spotlight_targeted_zup
+    light_environment_pitch_zup
     texture_axes_zup
     material_wad_zup
     moving_door_button_zup

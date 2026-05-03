@@ -845,6 +845,10 @@ add_test(NAME trenchbroom_vhlt_preserves_valve220_axes
         ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}
 )
 
+add_test(NAME trenchbroom_vhlt_light_angle_normalizer
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bsp/test_normalize_vhlt_light_angles.py
+)
+
 add_test(NAME trenchbroom_source_preflight_fixtures
     COMMAND bash -c "for f in '${CMAKE_SOURCE_DIR}'/tests/fixtures/trenchbroom/src/*.map; do case \"$f\" in *invalid_*.map) continue ;; esac; python3 '${CMAKE_SOURCE_DIR}/tools/bsp/validate_trenchbroom_map_source.py' \"$f\" || exit 1; done"
 )

@@ -56,6 +56,31 @@ chmod +x "$fake_vhlt_dir/hlcsg" "$fake_vhlt_dir/hlbsp" \
 map_path="$source_root/tests/fixtures/trenchbroom/src/texture_axes_zup.map"
 compile_script="$source_root/tools/bsp/compile_vhlt_bsp30.sh"
 
+light_map_path="$tmp_dir/vhlt_light_angles.map"
+cat >"$light_map_path" <<'MAP'
+{
+"classname" "worldspawn"
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 36"
+}
+{
+"classname" "info_null"
+"targetname" "spot_target"
+}
+{
+"classname" "light_spot"
+"angles" "270 90 15"
+"target" "spot_target"
+}
+{
+"classname" "light_environment"
+"pitch" "45"
+"angle" "180"
+}
+MAP
+
 STELLAR_VHLT_DIR="$fake_vhlt_dir" \
 STELLAR_VHLT_KEEP_WORK=1 \
 STELLAR_VHLT_WORK_ROOT="$work_root" \
@@ -82,6 +107,23 @@ if grep -q 'dev/wall_96' "$preserved_work_map"; then
         "$preserved_work_map" >&2
     exit 1
 fi
+
+STELLAR_VHLT_DIR="$fake_vhlt_dir" \
+STELLAR_VHLT_KEEP_WORK=1 \
+STELLAR_VHLT_WORK_ROOT="$work_root" \
+STELLAR_VHLT_LOG_DIR="$log_dir/lights" \
+bash "$compile_script" \
+    --map "$light_map_path" \
+    --out "$out_dir/vhlt_light_angles.bsp" \
+    --profile full \
+    --no-stellar-validation
+
+lights_work_map="$work_root/vhlt_light_angles/vhlt_light_angles.map"
+test -f "$lights_work_map"
+grep -q '"angles" "90 90 0"' "$lights_work_map"
+grep -q '"angles" "-45 180 0"' "$lights_work_map"
+grep -q '"target" "spot_target"' "$lights_work_map"
+grep -q '"_stellar_vhlt_angles_normalized" "1"' "$lights_work_map"
 
 STELLAR_VHLT_DIR="$fake_vhlt_dir" \
 STELLAR_VHLT_KEEP_WORK=1 \

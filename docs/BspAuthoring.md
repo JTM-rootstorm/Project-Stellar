@@ -60,8 +60,10 @@ world inch; changing editor texture scale changes the visible inch marks accordi
 
 When compiling through VHLT, keep source `.map` files as clean authoring references. The VHLT wrapper
 copies each map into a build/work directory, creates a temporary developer WAD, injects the copied map's
-`wad` key there, and rewrites compiler-facing aliases when required. Do not commit local absolute WAD
-paths or generated compiler edits back into `maps/src/` or `tests/fixtures/trenchbroom/src/`.
+`wad` key there, rewrites compiler-facing aliases when required, and converts TrenchBroom/editor-facing
+spotlight and environment-light pitch to VHLT/GoldSrc pitch on the copied work map before `hlrad`. Do not
+commit local absolute WAD paths or generated compiler edits back into `maps/src/` or
+`tests/fixtures/trenchbroom/src/`; authored source maps are untouched by the wrapper.
 
 External WAD3 texture pixels are now resolved at BSP import time when the compiled `worldspawn` `wad`
 key references safe relative WAD paths. The importer searches the BSP/map directory, roots from
@@ -221,6 +223,11 @@ base color/texture by the lightmap in OpenGL and Vulkan. Faces with missing or i
 back to unlit/fullbright material behavior with a warning. Classic nonzero light styles are preserved on
 the imported lightmap and currently render with a deterministic static multiplier of `1.0` until a later
 server-authoritative gameplay phase explicitly animates styles.
+
+Author `light_spot` and `light_environment` orientation in TrenchBroom degrees: `pitch` `90` points down,
+`pitch` `270` or `-90` points up, `pitch` `0` is horizontal, and yaw/`angle` controls horizontal
+direction. Classic `light_spot` and `light_environment` ignore roll in `angles "pitch yaw roll"`. If a
+`light_spot` has `target`, VHLT may aim it at the target entity and ignore `angle`/`pitch`/`angles`.
 
 ### Trigger script
 

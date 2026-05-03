@@ -175,11 +175,13 @@ Use `maps/compiled/` for manually authored maps. The fixture matrix writes gener
 
 During VHLT compilation, the wrapper copies the source `.map` into an isolated work directory,
 generates a temporary `stellar_dev.wad`, injects or replaces the copied map's `wad` key, and rewrites
-compiler-facing developer texture aliases when required by VHLT. The default rewrite preserves Valve 220
-texture axes, shifts, rotation, and scales, and injects `mapversion "220"` into the copied work map so
-repo-local VHLT stays in Valve 220 parsing mode. Use `--classic-texture-axes` only as an explicit
-diagnostic fallback for a legacy tool that cannot consume Valve 220 axes. Source-tree `.map` files remain
-clean authoring references and should not receive local absolute WAD paths.
+compiler-facing developer texture aliases when required by VHLT. It also converts TrenchBroom/editor-
+facing spotlight and environment-light pitch to VHLT/GoldSrc pitch on the copied work map before
+`hlrad`. The authored source `.map` is not modified. The default rewrite preserves Valve 220 texture
+axes, shifts, rotation, and scales, and injects `mapversion "220"` into the copied work map so repo-local
+VHLT stays in Valve 220 parsing mode. Use `--classic-texture-axes` only as an explicit diagnostic fallback
+for a legacy tool that cannot consume Valve 220 axes. Source-tree `.map` files remain clean authoring
+references and should not receive local absolute WAD paths.
 
 ## Compile-time lighting and renderer lightmaps
 
@@ -188,6 +190,17 @@ lighting. VHLT's full profile runs `hlrad`, which writes the BSP lighting lump c
 importer. The renderer uploads those lightmaps as linear, clamp-to-edge textures and samples them from
 secondary UVs (`uv1`), multiplying base material color/texture by the baked lightmap. Surfaces without
 valid lightmap data keep the existing unlit/fullbright fallback behavior.
+
+Spotlight orientation in authored TrenchBroom maps uses editor-facing degrees:
+
+- `pitch` `90` points down.
+- `pitch` `270` or `-90` points up.
+- `pitch` `0` is horizontal.
+- `yaw`/`angle` controls the horizontal direction.
+- Roll in `angles "pitch yaw roll"` is ignored by classic `light_spot` and `light_environment`.
+
+If a `light_spot` has `target`, VHLT may aim the spotlight at the target entity and ignore
+`angle`/`pitch`/`angles`. Prefer targeted fixtures when validating target-driven behavior.
 
 Fast compile profiles are geometry-iteration profiles and do not bake lighting. From TrenchBroom, use
 `Stellar BSP30 Full Lighting` when you need baked lightmaps; it passes `--profile full --toolchain vhlt`
