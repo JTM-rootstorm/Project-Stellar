@@ -29,9 +29,8 @@ constexpr int kDisplayValidationWindowHeight = 240;
 constexpr int kTargetFps = 60;
 constexpr int kFrameDelayMs = 1000 / kTargetFps;
 
-Uint32 backend_window_flags(stellar::graphics::GraphicsBackend backend) noexcept {
-  return backend == stellar::graphics::GraphicsBackend::kVulkan ? SDL_WINDOW_VULKAN
-                                                                : SDL_WINDOW_OPENGL;
+Uint32 backend_window_flags(stellar::graphics::GraphicsBackend /*backend*/) noexcept {
+  return SDL_WINDOW_OPENGL;
 }
 
 stellar::graphics::LevelRenderView
