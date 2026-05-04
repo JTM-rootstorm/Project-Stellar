@@ -1,11 +1,12 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed Vulkan removal, completed lightweight BSP normal/specular material sidecars,
-completed client/server decoupling handoff, and completed historical branch notes.
+Status scope: completed Doxygen generation, completed Vulkan removal, completed lightweight BSP
+normal/specular material sidecars, completed client/server decoupling handoff, and completed
+historical branch notes.
 
-## Active Scope — Doxygen Generation
+## Completed Scope — Doxygen Generation
 
-Status: in progress through DG-5 as of 2026-05-04.
+Status: complete through DG-6 as of 2026-05-04.
 
 Generated Doxygen documentation is the public C++ API reference for headers under
 `include/stellar/**`. Active Markdown files remain the source for architecture, current
@@ -14,6 +15,42 @@ implementation status, authoring workflows, validation runbooks, and implementat
 The `stellar_docs_doxygen` target generates HTML under `build/docs/doxygen/html` when Doxygen is
 installed. Do not migrate active Markdown docs into C++ comments; selected Markdown pages are included
 in the generated site while API details stay near public declarations.
+
+### Doxygen Generation Summary
+
+- Doxygen configuration template: `docs/Doxyfile.in`.
+- CMake integration module: `cmake/StellarDocs.cmake`.
+- Optional generation target: `stellar_docs_doxygen`.
+- Optional CTest gate when Doxygen is installed: `docs_doxygen_generate`.
+- Generated output path: `build/docs/doxygen/html`.
+- Warning log path: `build/docs/doxygen-warnings.log`.
+- Markdown pages included: `README.md`, `docs/DoxygenMainPage.md`, `docs/Design.md`,
+  `docs/ImplementationStatus.md`, `docs/BspAuthoring.md`, and `docs/TrenchBroom.md`.
+- Excluded source paths include `thirdparty/`, `Plans/Archived/`, `.kilo/`, `.codex/`, and the
+  active build tree.
+
+### Doxygen Validation Results
+
+Final DG-6 validation run on 2026-05-04:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+cmake --build build --target stellar_docs_doxygen
+test -f build/docs/doxygen/html/index.html
+python3 tools/docs/check_docs_consistency.py
+tools/dev/check_target_boundaries.sh
+ctest --test-dir build -R '^(docs_consistency|docs_doxygen_generate|target_boundary)$' --output-on-failure
+```
+
+Result: configure passed, full build passed, full CTest passed 98/98, Doxygen generation passed,
+generated HTML was present only under the build tree, docs consistency passed, and target boundary
+checks passed.
+
+Remaining Doxygen warnings: 53 lines in `build/docs/doxygen-warnings.log`. The remaining categories
+are Markdown anchor/reference warnings in `docs/Design.md` and `docs/TrenchBroom.md`, plus a small
+set of undocumented graphics texture-upload and physics detail members in public headers.
 
 ## Completed Scope — Vulkan Removal
 
