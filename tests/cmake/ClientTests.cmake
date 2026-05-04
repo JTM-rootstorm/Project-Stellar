@@ -43,6 +43,16 @@ stellar_add_client_runtime_test(stellar_client_single_player_runtime_test client
     ${STELLAR_TEST_SOURCE_DIR}/client/SinglePlayerRuntime.cpp
 )
 
+stellar_add_test_executable(stellar_listen_server_host_test listen_server_host
+    ${STELLAR_TEST_SOURCE_DIR}/client/ListenHostRuntime.cpp
+)
+target_include_directories(stellar_listen_server_host_test PRIVATE
+    ${STELLAR_TEST_FIXTURE_DIR}
+)
+target_link_libraries(stellar_listen_server_host_test PRIVATE
+    stellar_client_config
+)
+
 stellar_add_test_executable(stellar_client_connect_test client_connect
     ${STELLAR_TEST_SOURCE_DIR}/client/ClientConnect.cpp
 )

@@ -5,6 +5,7 @@
 
 #include "stellar/authority/AuthorityBootstrap.hpp"
 #include "stellar/client/ApplicationConfig.hpp"
+#include "stellar/client/ListenHostRuntime.hpp"
 #include "stellar/client/LocalLoopbackRuntime.hpp"
 #include "stellar/client/NetworkedClientRuntime.hpp"
 #include "stellar/client/SinglePlayerRuntime.hpp"
@@ -63,6 +64,9 @@ struct PreparedApplicationRuntime {
 
     /** @brief Optional socket-backed presentation-only runtime for remote server play. */
     std::unique_ptr<RemoteClientRuntime> remote_runtime;
+
+    /** @brief Optional client-hosted listen-server runtime for host mapped play. */
+    std::unique_ptr<ListenHostRuntime> listen_host_runtime;
 
     /** @brief Active non-authoritative client runtime consumed by the application loop. */
     IClientRuntime* active_client_runtime = nullptr;

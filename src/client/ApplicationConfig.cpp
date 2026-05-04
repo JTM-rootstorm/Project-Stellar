@@ -39,6 +39,10 @@ load_application_validation(const ApplicationConfig &config) {
   ApplicationValidation validation;
 
   if (config.connect_endpoint.has_value()) {
+    if (config.host) {
+      return std::unexpected(stellar::platform::Error(
+          "--host conflicts with --connect"));
+    }
     if (config.map_path.has_value()) {
       return std::unexpected(stellar::platform::Error(
           "--map and --connect are ambiguous; remote mode uses authoritative server state"));
@@ -52,6 +56,24 @@ load_application_validation(const ApplicationConfig &config) {
           "Invalid --connect endpoint: " + parsed.error().message));
     }
     return validation;
+  }
+
+  if (config.listen_endpoint.has_value() && !config.host) {
+    return std::unexpected(stellar::platform::Error(
+        "--listen applies only to --host listen-server mode"));
+  }
+
+  if (config.host && !config.map_path.has_value()) {
+    return std::unexpected(stellar::platform::Error("--host requires --map"));
+  }
+
+  if (config.host) {
+    const std::string endpoint =
+        config.listen_endpoint.value_or(std::string("127.0.0.1:29070"));
+    if (auto parsed = stellar::network::parse_socket_address(endpoint); !parsed) {
+      return std::unexpected(stellar::platform::Error(
+          "Invalid --listen endpoint: " + parsed.error().message));
+    }
   }
 
   if (!config.map_path.has_value()) {
@@ -119,6 +141,20 @@ parse_application_config(int argc, const char *const argv[]) {
       continue;
     }
 
+    if (std::strcmp(argv[i], "--host") == 0) {
+      config.host = true;
+      continue;
+    }
+
+    if (std::strcmp(argv[i], "--listen") == 0) {
+      auto value = require_value("--listen");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.listen_endpoint = std::move(*value);
+      continue;
+    }
+
     if (std::strcmp(argv[i], "--client-name") == 0) {
       auto value = require_value("--client-name");
       if (!value) {
@@ -155,9 +191,19 @@ parse_application_config(int argc, const char *const argv[]) {
                                                     std::string(argv[i])));
   }
 
+  if (config.host && config.connect_endpoint.has_value()) {
+    return std::unexpected(stellar::platform::Error("--host conflicts with --connect"));
+  }
   if (config.connect_endpoint.has_value() && config.map_path.has_value()) {
     return std::unexpected(stellar::platform::Error(
         "--map and --connect are ambiguous; remote mode uses authoritative server state"));
+  }
+  if (config.host && !config.map_path.has_value()) {
+    return std::unexpected(stellar::platform::Error("--host requires --map"));
+  }
+  if (config.listen_endpoint.has_value() && !config.host) {
+    return std::unexpected(stellar::platform::Error(
+        "--listen applies only to --host listen-server mode"));
   }
   if (config.validate_display) {
     if (config.validate_only) {
@@ -165,7 +211,7 @@ parse_application_config(int argc, const char *const argv[]) {
           "--validate-display cannot be combined with --validate-config or --validate-map"));
     }
     if (config.map_path.has_value() || config.connect_endpoint.has_value() ||
-        config.script_root.has_value()) {
+        config.script_root.has_value() || config.host || config.listen_endpoint.has_value()) {
       return std::unexpected(stellar::platform::Error(
           "--validate-display does not require --map, --connect, or --script-root"));
     }
@@ -178,6 +224,14 @@ parse_application_config(int argc, const char *const argv[]) {
     if (auto parsed = stellar::network::parse_socket_address(*config.connect_endpoint); !parsed) {
       return std::unexpected(stellar::platform::Error(
           "Invalid --connect endpoint: " + parsed.error().message));
+    }
+  }
+  if (config.host || config.listen_endpoint.has_value()) {
+    const std::string endpoint =
+        config.listen_endpoint.value_or(std::string("127.0.0.1:29070"));
+    if (auto parsed = stellar::network::parse_socket_address(endpoint); !parsed) {
+      return std::unexpected(stellar::platform::Error(
+          "Invalid --listen endpoint: " + parsed.error().message));
     }
   }
 
@@ -241,9 +295,24 @@ prepare_application_runtime(const ApplicationConfig &config) {
     prepared.runtime_world = std::make_unique<stellar::world::RuntimeWorld>(
         stellar::authority::build_authority_runtime_world(*prepared.validation->level));
 
-    prepared.single_player_runtime =
-        std::make_unique<SinglePlayerRuntime>(std::move(*authority));
-    prepared.active_client_runtime = prepared.single_player_runtime.get();
+    if (config.host) {
+      ListenHostRuntimeConfig listen_config{};
+      listen_config.listen_endpoint =
+          config.listen_endpoint.value_or(std::string("127.0.0.1:29070"));
+      listen_config.client_name = config.client_name;
+      listen_config.server.map_identity = authority->map_identity;
+      auto listen = ListenHostRuntime::create(std::move(*authority), std::move(listen_config));
+      if (!listen) {
+        return std::unexpected(listen.error());
+      }
+      prepared.listen_host_runtime =
+          std::make_unique<ListenHostRuntime>(std::move(*listen));
+      prepared.active_client_runtime = prepared.listen_host_runtime.get();
+    } else {
+      prepared.single_player_runtime =
+          std::make_unique<SinglePlayerRuntime>(std::move(*authority));
+      prepared.active_client_runtime = prepared.single_player_runtime.get();
+    }
   }
 
   return prepared;

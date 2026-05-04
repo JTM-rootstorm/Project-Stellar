@@ -215,6 +215,7 @@ add_library(stellar_client_runtime
     src/client/ClientWorldReceiver.cpp
     src/client/HudPresentation.cpp
     src/client/MovementInputMapper.cpp
+    src/client/ListenHostRuntime.cpp
     src/client/NetworkedClientRuntime.cpp
     src/client/SinglePlayerRuntime.cpp
     src/client/LocalLoopbackRuntime.cpp

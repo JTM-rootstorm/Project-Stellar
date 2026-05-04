@@ -40,6 +40,12 @@ struct ApplicationConfig {
   /** @brief Optional host:port endpoint for remote presentation-only client mode. */
   std::optional<std::string> connect_endpoint;
 
+  /** @brief Start a client-hosted authoritative listen-server runtime when a map is supplied. */
+  bool host = false;
+
+  /** @brief Optional listen host:port endpoint; host mode defaults to 127.0.0.1:29070. */
+  std::optional<std::string> listen_endpoint;
+
   /** @brief Human-readable client name sent in the remote session hello. */
   std::string client_name = "local";
 };
