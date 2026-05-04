@@ -501,6 +501,29 @@ std::optional<MaterialTextureBinding> resolve_level_texture_binding(
                                 .texcoord_set = 0};
 }
 
+std::optional<MaterialTextureBinding> resolve_material_slot_binding(
+    const stellar::assets::MaterialTextureSlot &slot,
+    const stellar::assets::LevelGeometryAsset &geometry,
+    const std::vector<TextureHandle> &texture_handles) {
+  if (slot.texture_index >= texture_handles.size() ||
+      !texture_handles[slot.texture_index]) {
+    return std::nullopt;
+  }
+
+  stellar::assets::SamplerAsset sampler;
+  const auto &texture = geometry.textures[slot.texture_index];
+  if (texture.sampler_index.has_value() &&
+      *texture.sampler_index < geometry.samplers.size()) {
+    sampler = geometry.samplers[*texture.sampler_index];
+  }
+
+  return MaterialTextureBinding{
+      .texture = texture_handles[slot.texture_index],
+      .sampler = sampler,
+      .texcoord_set = slot.transform.texcoord_set.value_or(slot.texcoord_set),
+      .transform = slot.transform};
+}
+
 std::optional<MaterialTextureBinding> resolve_level_lightmap_binding(
     std::size_t lightmap_index,
     const stellar::assets::LevelGeometryAsset &geometry,
@@ -565,6 +588,16 @@ stellar::assets::MaterialAsset material_asset_for_level_surface(
   // caused by back-face culling.
   material.double_sided = true;
   return material;
+}
+
+std::optional<std::array<float, 3>>
+camera_position_from_view(const glm::mat4 &view) noexcept {
+  if (std::abs(glm::determinant(view)) < 0.000001F) {
+    return std::nullopt;
+  }
+  const glm::mat4 inverse_view = glm::inverse(view);
+  return std::array<float, 3>{inverse_view[3][0], inverse_view[3][1],
+                              inverse_view[3][2]};
 }
 
 stellar::assets::MeshAsset mesh_for_billboard_quad(const BillboardQuad &quad) {
@@ -760,22 +793,48 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
   material_handles_.reserve(geometry.materials.size());
   for (const auto &surface_material : geometry.materials) {
     MaterialUpload upload;
-    upload.material = material_asset_for_level_surface(surface_material);
+    upload.material = surface_material.resolved_material.has_value()
+                          ? *surface_material.resolved_material
+                          : material_asset_for_level_surface(surface_material);
+    if (!upload.material.base_color_texture.has_value() &&
+        surface_material.texture_index.has_value()) {
+      upload.material.base_color_texture = stellar::assets::MaterialTextureSlot{
+          .texture_index = *surface_material.texture_index,
+          .texcoord_set = 0,
+      };
+    }
     apply_level_lighting_upload(level_.lighting, upload);
     if (baked_required_lightmaps) {
       upload.material.unlit = false;
       upload.lightmap_multiplier = level_.lighting.lightmap_intensity;
     }
-    if (surface_material.texture_index.has_value()) {
-      upload.material.base_color_texture = stellar::assets::MaterialTextureSlot{
-          .texture_index = *surface_material.texture_index,
-          .texcoord_set = 0,
-      };
-      upload.base_color_texture = resolve_level_texture_binding(
-          *surface_material.texture_index, geometry, texture_handles_);
+    if (upload.material.base_color_texture.has_value()) {
+      upload.base_color_texture = resolve_material_slot_binding(
+          *upload.material.base_color_texture, geometry, texture_handles_);
       if (upload.base_color_texture.has_value()) {
         upload.material.base_color_factor = {1.0F, 1.0F, 1.0F, 1.0F};
       }
+    }
+    if (upload.material.normal_texture.has_value()) {
+      upload.normal_texture = resolve_material_slot_binding(
+          *upload.material.normal_texture, geometry, texture_handles_);
+    }
+    if (upload.material.specular_texture.has_value()) {
+      upload.specular_texture = resolve_material_slot_binding(
+          *upload.material.specular_texture, geometry, texture_handles_);
+    }
+    if (upload.material.metallic_roughness_texture.has_value()) {
+      upload.metallic_roughness_texture = resolve_material_slot_binding(
+          *upload.material.metallic_roughness_texture, geometry,
+          texture_handles_);
+    }
+    if (upload.material.occlusion_texture.has_value()) {
+      upload.occlusion_texture = resolve_material_slot_binding(
+          *upload.material.occlusion_texture, geometry, texture_handles_);
+    }
+    if (upload.material.emissive_texture.has_value()) {
+      upload.emissive_texture = resolve_material_slot_binding(
+          *upload.material.emissive_texture, geometry, texture_handles_);
     }
     std::optional<MaterialTextureBinding> lightmap_binding;
     if (!disable_lightmaps_ && surface_material.lightmap_index.has_value()) {
@@ -970,9 +1029,17 @@ RenderLevel::StaticDrawQueueStats RenderLevel::queue_static_draws(
     std::vector<QueuedLevelDraw> &blend_draws) noexcept {
   StaticDrawQueueStats stats;
   const glm::mat4 world(1.0F);
+  const auto resolved_camera_position =
+      camera_world_position.has_value() ? camera_world_position
+                                        : camera_position_from_view(view);
   const MeshDrawTransforms transforms{.mvp = to_array(view_projection * world),
                                       .world = kIdentity4,
-                                      .normal = normal_matrix_for(world)};
+                                      .normal = normal_matrix_for(world),
+                                      .camera_world_position =
+                                          resolved_camera_position.value_or(
+                                              std::array<float, 3>{}),
+                                      .has_camera_world_position =
+                                          resolved_camera_position.has_value()};
   const auto &geometry = level_.geometry;
   std::vector<bool> visible_surfaces;
   if (!geometry.surfaces.empty() && camera_world_position.has_value() &&
