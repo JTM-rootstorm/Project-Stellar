@@ -1,0 +1,11 @@
+version = 1
+name = "dev/grid_64"
+normal = "grid_64_normal.png"
+normal_scale = 1.0
+normal_light_strength = 0.20
+specular = "grid_64_spec.png"
+specular_factor = 0.20
+specular_power = 32.0
+roughness_factor = 0.85
+double_sided = true
+unlit = false

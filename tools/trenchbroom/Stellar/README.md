@@ -113,6 +113,11 @@ Use the package-local `materials/stellar_dev.wad`, PNG thumbnails, and names lis
 `materials/StellarDevMaterials.txt` for editor-visible developer materials. Runtime validation uses
 deterministic fallback materials by material name.
 
+Optional runtime `.stellar_material` sidecars can live under material search roots using BSP texture
+names as keys, such as `materials/dev/wall_96.stellar_material` for `dev/wall_96`. Sidecars may bind
+normal/specular textures for presentation shading only; missing sidecars keep existing BSP texture and
+lightmap behavior, and gameplay/networking does not depend on them.
+
 Verify the packaged WAD from the repository root with:
 
 ```bash

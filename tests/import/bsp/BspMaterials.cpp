@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
-#include <fstream>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -34,63 +33,19 @@ void set_entities(std::vector<std::byte> &bytes, const std::string &entities) {
         bytes, stellar::import::bsp::detail::LumpIndex::kEntities, entity_offset, entities.size());
 }
 
-void write_text_file(const std::filesystem::path &path, const std::string &text) {
-    std::filesystem::create_directories(path.parent_path());
-    std::ofstream file(path);
-    assert(file);
-    file << text;
+std::filesystem::path material_fixture_root() {
+    return std::filesystem::path(STELLAR_SOURCE_DIR) / "tests" / "fixtures" /
+           "materials";
 }
 
-void write_bmp(const std::filesystem::path &path,
-               const std::vector<std::array<std::uint8_t, 4>> &pixels,
-               std::int32_t width, std::int32_t height) {
-    std::filesystem::create_directories(path.parent_path());
-    std::ofstream file(path, std::ios::binary);
-    assert(file);
-    const std::uint32_t file_size = 14U + 40U + pixels.size() * 4U;
-    const std::uint32_t pixel_offset = 14U + 40U;
-    file.put('B');
-    file.put('M');
-    auto write_u16 = [&](std::uint16_t value) {
-        file.put(static_cast<char>(value & 0xFFU));
-        file.put(static_cast<char>((value >> 8U) & 0xFFU));
-    };
-    auto write_u32 = [&](std::uint32_t value) {
-        for (int shift = 0; shift < 32; shift += 8) {
-            file.put(static_cast<char>((value >> shift) & 0xFFU));
+bool has_diagnostic(const stellar::import::bsp::ImportReport &report,
+                    stellar::import::bsp::DiagnosticCode code) {
+    for (const auto &diagnostic : report.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
         }
-    };
-    auto write_i32 = [&](std::int32_t value) {
-        write_u32(static_cast<std::uint32_t>(value));
-    };
-    write_u32(file_size);
-    write_u16(0);
-    write_u16(0);
-    write_u32(pixel_offset);
-    write_u32(40);
-    write_i32(width);
-    write_i32(-height);
-    write_u16(1);
-    write_u16(32);
-    write_u32(0);
-    write_u32(static_cast<std::uint32_t>(pixels.size() * 4U));
-    write_i32(2835);
-    write_i32(2835);
-    write_u32(0);
-    write_u32(0);
-    for (const auto &pixel : pixels) {
-        file.put(static_cast<char>(pixel[2]));
-        file.put(static_cast<char>(pixel[1]));
-        file.put(static_cast<char>(pixel[0]));
-        file.put(static_cast<char>(pixel[3]));
     }
-}
-
-std::filesystem::path reset_material_fixture_root(const std::string &name) {
-    const auto root = std::filesystem::temp_directory_path() / name;
-    std::filesystem::remove_all(root);
-    std::filesystem::create_directories(root);
-    return root;
+    return false;
 }
 
 void embedded_miptex_creates_image_and_texture() {
@@ -332,31 +287,8 @@ void shifted_scaled_texinfo_produces_expected_uv0() {
 }
 
 void sidecar_resolves_normal_and_specular_from_explicit_root() {
-    const auto root = reset_material_fixture_root("stellar_snt_materials_positive");
-    const auto material_dir = root / "dev";
-    write_bmp(material_dir / "wall_96_normal.bmp",
-              {{128, 128, 255, 255}, {128, 128, 255, 255},
-               {128, 128, 255, 255}, {128, 128, 255, 255}},
-              2, 2);
-    write_bmp(material_dir / "wall_96_spec.bmp",
-              {{255, 255, 255, 255}, {0, 0, 0, 255},
-               {128, 128, 128, 255}, {64, 64, 64, 255}},
-              2, 2);
-    write_text_file(material_dir / "wall_96.stellar_material",
-                    "version = 1\n"
-                    "name = \"dev/wall_96\"\n"
-                    "normal = \"wall_96_normal.bmp\"\n"
-                    "normal_scale = 1.5\n"
-                    "normal_light_strength = 0.25\n"
-                    "specular = \"wall_96_spec.bmp\"\n"
-                    "specular_factor = 0.35\n"
-                    "specular_power = 48\n"
-                    "roughness_factor = 0.75\n"
-                    "double_sided = true\n"
-                    "unlit = false\n");
-
     stellar::import::bsp::LoadOptions options;
-    options.material_search_roots.push_back(root);
+    options.material_search_roots.push_back(material_fixture_root());
     const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
         false, -1, 0, "dev/wall_96");
     const auto result = stellar::import::bsp::load_level_from_memory_with_report(
@@ -382,32 +314,24 @@ void sidecar_resolves_normal_and_specular_from_explicit_root() {
                .color_space == stellar::assets::TextureColorSpace::kLinear);
     assert(result->asset.geometry.textures[material.specular_texture->texture_index]
                .color_space == stellar::assets::TextureColorSpace::kLinear);
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarLoaded));
 }
 
-void invalid_sidecar_preserves_fallback_and_strict_fails() {
-    const auto root = reset_material_fixture_root("stellar_snt_materials_invalid");
-    const auto material_dir = root / "dev";
-    write_text_file(material_dir / "grid_64.stellar_material",
-                    "version = 1\n"
-                    "normal = \"../escape.bmp\"\n");
-
+void unsafe_sidecar_preserves_fallback_and_strict_fails() {
     const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
-        false, -1, 0, "dev/grid_64");
+        false, -1, 0, "unsafe_path");
     stellar::import::bsp::LoadOptions options;
-    options.material_search_roots.push_back(root);
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
     const auto non_strict =
         stellar::import::bsp::load_level_from_memory_with_report(
             bytes, "sidecar_invalid.bsp", options);
     assert(non_strict);
     assert(!non_strict->asset.geometry.materials[0].resolved_material.has_value());
-    bool saw_unsafe_path = false;
-    for (const auto &diagnostic : non_strict->report.diagnostics) {
-        saw_unsafe_path = saw_unsafe_path ||
-                          diagnostic.code ==
-                              stellar::import::bsp::DiagnosticCode::
-                                  kMaterialSidecarUnsafePath;
-    }
-    assert(saw_unsafe_path);
+    assert(has_diagnostic(non_strict->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarUnsafePath));
 
     options.strict_material_sidecars = true;
     const auto strict = stellar::import::bsp::load_level_from_memory_with_report(
@@ -415,29 +339,53 @@ void invalid_sidecar_preserves_fallback_and_strict_fails() {
     assert(!strict);
 }
 
-void unknown_sidecar_key_warns_or_fails_strict() {
-    const auto root = reset_material_fixture_root("stellar_snt_materials_unknown");
-    write_text_file(root / "dev" / "grid_32.stellar_material",
-                    "version = 1\n"
-                    "name = \"dev/grid_32\"\n"
-                    "mystery = true\n");
+void invalid_sidecar_values_are_diagnosed() {
     const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
-        false, -1, 0, "dev/grid_32");
+        false, -1, 0, "malformed_float");
     stellar::import::bsp::LoadOptions options;
-    options.material_search_roots.push_back(root);
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_malformed_float.bsp", options);
+    assert(result);
+    assert(!result->asset.geometry.materials[0].resolved_material.has_value());
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarInvalid));
+}
+
+void missing_sidecar_texture_warns_or_fails_strict() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "missing_texture");
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
+    const auto non_strict =
+        stellar::import::bsp::load_level_from_memory_with_report(
+            bytes, "sidecar_missing_texture.bsp", options);
+    assert(non_strict);
+    assert(!non_strict->asset.geometry.materials[0].resolved_material.has_value());
+    assert(has_diagnostic(non_strict->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarTextureMissing));
+
+    options.strict_material_sidecars = true;
+    const auto strict = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_missing_texture_strict.bsp", options);
+    assert(!strict);
+}
+
+void unknown_sidecar_key_warns_or_fails_strict() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "unknown_key");
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
     const auto non_strict =
         stellar::import::bsp::load_level_from_memory_with_report(
             bytes, "sidecar_unknown.bsp", options);
     assert(non_strict);
     assert(non_strict->asset.geometry.materials[0].resolved_material.has_value());
-    bool saw_unknown_key = false;
-    for (const auto &diagnostic : non_strict->report.diagnostics) {
-        saw_unknown_key = saw_unknown_key ||
-                          diagnostic.code ==
-                              stellar::import::bsp::DiagnosticCode::
-                                  kMaterialSidecarUnknownKey;
-    }
-    assert(saw_unknown_key);
+    assert(has_diagnostic(non_strict->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarUnknownKey));
 
     options.strict_material_sidecars = true;
     const auto strict = stellar::import::bsp::load_level_from_memory_with_report(
@@ -518,7 +466,9 @@ int main() {
     semantic_developer_texture_sample_pixels_are_stable();
     shifted_scaled_texinfo_produces_expected_uv0();
     sidecar_resolves_normal_and_specular_from_explicit_root();
-    invalid_sidecar_preserves_fallback_and_strict_fails();
+    unsafe_sidecar_preserves_fallback_and_strict_fails();
+    invalid_sidecar_values_are_diagnosed();
+    missing_sidecar_texture_warns_or_fails_strict();
     unknown_sidecar_key_warns_or_fails_strict();
     bsp_faces_generate_tangents_from_texinfo();
     degenerate_texinfo_skips_tangents();

@@ -1,6 +1,71 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed client/server decoupling handoff plus completed historical branch notes.
+Status scope: completed lightweight BSP normal/specular material sidecars, completed client/server
+decoupling handoff, and completed historical branch notes.
+
+## Completed Scope — Lightweight BSP Normal/Specular Material Sidecars
+
+Status: complete through SNT-8 as of 2026-05-04.
+
+Completed handoff plan:
+
+- `Plans/spec_normal_textures_plan/00-MASTER-SpecNormalTextures-AgentPlan.md`
+
+### Final Architecture Summary
+
+BSP maps remain the canonical source for geometry, face texture names, lightmaps, visibility,
+entities, and collision. Optional `.stellar_material` sidecars now enrich BSP surface presentation by
+normalized BSP texture name without changing the BSP binary format or authoring gameplay semantics.
+Missing sidecars preserve previous BSP texture/lightmap fallback behavior.
+
+The importer resolves sidecars from configured material roots, rejects unsafe texture paths, loads
+sidecar images into source-neutral `LevelAsset` image/texture/material data, and generates
+texinfo-derived tangents where valid. `RenderLevel` uploads the resolved material slots through the
+backend-neutral render scene path. OpenGL and Vulkan now consume the shared material contract for
+base color, normal, specular, lightmap, and fallback texture bindings in display-free validated paths.
+
+Material sidecars are presentation-only. Server-authoritative gameplay, collision, scripting,
+transport, and networking do not depend on sidecar state.
+
+### Material Authoring Summary
+
+- Sidecars use `.stellar_material` files keyed by normalized BSP texture names, such as
+  `materials/dev/wall_96.stellar_material` for `dev/wall_96`.
+- Texture references are relative to the sidecar file directory; absolute paths, drive-letter paths,
+  empty segments, and `..` escapes are rejected.
+- Normal maps require valid BSP texinfo tangents. Degenerate texture axes fall back to regular
+  non-normal-mapped shading.
+- Specular maps, factors, and power are lightweight presentation shading, not full PBR. Full PBR,
+  image-based lighting, environment maps, reflection probes, and physically based BRDF parity remain
+  deferred.
+
+### Phase Checklist
+
+- [x] SNT-0 — Baseline validation.
+- [x] SNT-1 — Material contracts.
+- [x] SNT-2 — Sidecar parser.
+- [x] SNT-3 — BSP material resolution and image loading.
+- [x] SNT-4 — Tangent data.
+- [x] SNT-5 — RenderLevel material upload.
+- [x] SNT-6 — OpenGL normal/specular lighting.
+- [x] SNT-7 — Vulkan material parity.
+- [x] SNT-8 — Fixtures, docs, final validation, and handoff.
+
+### Validation Commands
+
+Final SNT validation run on 2026-05-04:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+tools/dev/check_target_boundaries.sh
+ctest --test-dir build -R '^(bsp_materials|bsp_lightmaps|bsp_importer|render_level_upload|render_level_inspection|graphics_backend_selection|target_boundary)$' --output-on-failure
+ctest --test-dir build -R '^(trenchbroom|bsp_|client_map_validation|client_cli|server_cli|render_level|world_axes|collision_world|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
+```
+
+Default validation is display-free and remains the pass/fail gate. OpenGL/Vulkan context smoke tests
+are opt-in for systems with a GPU/display/driver context.
 
 ## Completed Scope — Client/Server Decoupling
 

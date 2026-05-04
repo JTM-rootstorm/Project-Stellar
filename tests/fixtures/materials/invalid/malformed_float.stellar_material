@@ -1,0 +1,3 @@
+version = 1
+name = "invalid/malformed_float"
+normal_scale = definitely_not_a_float

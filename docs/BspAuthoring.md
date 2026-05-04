@@ -18,9 +18,10 @@ should be authored at `origin = "0 0 36"` on a floor at `z = 0`.
 4. Use developer materials such as `dev/grid_32`, `dev/grid_64`, and `dev/wall_96` while blocking out.
 5. Add compile-time `light`, `light_spot`, or `light_environment` entities when the map should bake
    static BSP lightmaps.
-6. Author gameplay markers with ordinary entity key/value pairs or the Stellar FGD aliases.
-7. Compile/export the `.bsp` as BSP30.
-8. Run the display-free validation commands below before using the map in runtime tests.
+6. Optionally add `.stellar_material` sidecars for presentation-only normal/specular enrichment.
+7. Author gameplay markers with ordinary entity key/value pairs or the Stellar FGD aliases.
+8. Compile/export the `.bsp` as BSP30.
+9. Run the display-free validation commands below before using the map in runtime tests.
 
 VHLT compile success is not sufficient by itself. Always run Stellar client/server validation after
 compile because the runtime importer can still reject unsupported BSP structure, missing gameplay
@@ -71,6 +72,50 @@ key references safe relative WAD paths. The importer searches the BSP/map direct
 rejects `..` escapes and ignores absolute WAD paths unless `STELLAR_ALLOW_ABSOLUTE_WAD_PATHS` is
 explicitly set for a trusted local workflow. Missing WAD diagnostics list attempted safe paths so editor
 fixes map directly to either a corrected `wad` key or a configured search root.
+
+## Material sidecars
+
+BSP files remain the source for geometry, face texture names, lightmaps, visibility, entities, and
+collision. Optional `.stellar_material` sidecars only enrich presentation materials; server-authoritative
+gameplay, networking, collision, and scripting never depend on them.
+
+Sidecars are looked up by normalized BSP texture name under configured material roots:
+
+```text
+materials/<normalized-bsp-texture-name>.stellar_material
+materials/dev/wall_96.stellar_material
+```
+
+For a BSP face material named `dev/wall_96`, place the sidecar at `materials/dev/wall_96.stellar_material`
+relative to a material search root. Texture paths inside the sidecar are relative to the sidecar file
+directory. Absolute paths, drive-letter paths, empty path segments, and `..` escapes are rejected.
+Missing sidecars preserve existing BSP texture/lightmap behavior without diagnostics; malformed
+sidecars or missing referenced images produce deterministic diagnostics. Strict material-sidecar mode
+turns invalid sidecars into import failures for fixture and tooling validation.
+
+Normal maps require valid tangents. BSP import generates tangents from texinfo vectors where possible,
+and surfaces with degenerate texture axes fall back to non-normal-mapped shading. Specular lighting is
+lightweight presentation shading, not full PBR. Full PBR remains deferred until image-based lighting,
+environment maps, tone mapping, color management, BRDF parity, and validation strategy are explicitly
+scoped.
+
+Sidecar reference:
+
+```ini
+version = 1
+name = "dev/wall_96"
+base_color = "wall_96_albedo.png"
+normal = "wall_96_normal.png"
+specular = "wall_96_spec.png"
+normal_scale = 1.0
+normal_light_strength = 0.25
+specular_factor = 0.35
+specular_power = 48.0
+roughness_factor = 0.75
+alpha_mode = opaque
+double_sided = true
+unlit = false
+```
 
 Run source preflight before compilers for line/column feedback on editor mistakes:
 
@@ -373,6 +418,12 @@ Common diagnostics:
 - `kInvalidVisibilityData`: PVS offsets, decompression rows, or marksurface references are invalid; visibility falls back to all surfaces.
 - `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external, missing, or blocked by safe-path
   rules; validation uses deterministic fallback materials when WAD pixels cannot be resolved.
+- `kMaterialSidecarLoaded`: a `.stellar_material` sidecar was resolved for a BSP texture name.
+- `kMaterialSidecarInvalid` / `kMaterialSidecarUnknownKey`: a sidecar contains malformed values or
+  unrecognized keys; strict sidecar mode upgrades unknown keys to failures.
+- `kMaterialSidecarUnsafePath`: a sidecar texture reference used an absolute path, drive-letter path,
+  empty segment, or `..` escape.
+- `kMaterialSidecarTextureMissing`: a sidecar texture reference could not be decoded or found.
 - `kInvalidLightingData`: a face light offset or inferred lightmap byte range is outside the lighting lump; the face falls back to unlit material behavior.
 - `kLightmapStats` / `kAllBlackLightmap`: imported lighting diagnostics report raw lighting byte count,
   lightmap count, per-lightmap dimensions/RGB stats, all-black data, and material/lightmap bindings.

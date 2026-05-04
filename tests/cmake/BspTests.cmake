@@ -26,6 +26,9 @@ target_link_libraries(stellar_bsp_visibility_test PRIVATE stellar_import_bsp)
 stellar_add_test_executable(stellar_bsp_materials_test bsp_materials
     ${STELLAR_TEST_SOURCE_DIR}/import/bsp/BspMaterials.cpp
 )
+target_compile_definitions(stellar_bsp_materials_test PRIVATE
+    STELLAR_SOURCE_DIR="${STELLAR_PROJECT_SOURCE_DIR}"
+)
 target_link_libraries(stellar_bsp_materials_test PRIVATE stellar_import_bsp)
 
 stellar_add_test_executable(stellar_bsp_lightmaps_test bsp_lightmaps
