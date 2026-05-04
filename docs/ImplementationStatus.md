@@ -1,6 +1,131 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed Stellar TrenchBroom BSP30 compatibility and follow-up branch notes.
+Status scope: active client/server decoupling guardrails plus completed historical branch notes.
+
+## Active Scope — Client/Server Decoupling
+
+Status: Phase CS-0 documentation and plan guardrails complete as of 2026-05-03.
+
+Active handoff plan:
+
+- `Plans/ClientServerSplit-AgentPlan.md`
+
+Proposal source preserved at:
+
+- `Plans/ProjectStellar-ClientServerDecoupling-AgentPlan.md`
+
+### Problem Statement
+
+The current implementation has the right first-generation networking pieces, but several ownership
+boundaries are inverted or too broad:
+
+- `stellar-client --connect HOST:PORT` already behaves like a presentation-only remote client.
+- `stellar-server` already behaves like a headless authoritative dedicated server.
+- Local mapped play still makes the client own a transport-backed server bridge and authoritative
+  runtime setup.
+- Protocol DTOs still depend directly on server and scripting implementation types.
+- Client startup/config code and dedicated server startup duplicate BSP/script/authority preparation
+  logic.
+- `LocalServerBridge` lives in `stellar::client` even though it owns authoritative server session
+  state.
+
+The active work decouples those pieces without restarting or discarding the completed socket
+transport/session lifecycle or TrenchBroom BSP30 compatibility work.
+
+### Target Runtime Modes
+
+| Mode | Command | Authority Owner | Socket Listener | Script Loading | Lifetime |
+|---|---|---|---:|---:|---|
+| Single-player | `stellar-client --map path/to/map.bsp` | In-process single-player authority facade | no | authority-side only | client |
+| Remote client | `stellar-client --connect HOST:PORT` | remote server/listen host | no | no | client |
+| Listen server | `stellar-client --host --map path/to/map.bsp [--listen HOST:PORT]` | in-process server host | yes when listening | authority-side only | host client |
+| Dedicated server | `stellar-server --map path/to/map.bsp --listen HOST:PORT` | server process | yes | authority-side only | server process |
+
+### Intended Module Boundaries
+
+- `stellar_protocol`: pure protocol DTOs/codecs such as protocol/session ids, hello/welcome,
+  commands, snapshots, gameplay entities, events, and delta/session codecs. It must not depend on
+  server, scripting, client runtime, graphics, audio, or presentation platform targets.
+- `stellar_transport`: transport interfaces/implementations such as client/server transports,
+  loopback transport, TCP/POSIX socket transport, endpoint parsing, and packet envelopes. It should
+  depend only on protocol plus low-level platform/system support.
+- `stellar_authority`: backend-neutral authoritative gameplay runtime and bootstrap for BSP map
+  validation/loading, sandboxed script-root resolution, script registry loading, authoritative session
+  creation, and authority-side snapshot/event conversion. It must not depend on client runtime,
+  graphics, audio, or window/input presentation.
+- `stellar_server_runtime`: reusable server host/session lifecycle for dedicated and listen-server
+  modes, including connection state, command ingestion, snapshot scheduling, and client assignment.
+  It must not depend on client presentation, graphics, audio, or window/input.
+- `stellar_dedicated_server`: thin dedicated-server wrapper/CLI helpers around server runtime and
+  authority bootstrap. It must not link client runtime or presentation.
+- `stellar_single_player`: client-process local authoritative session for single-player. It must not
+  open sockets, create server transports, send `ClientHello`, wait for `ServerWelcome`, or start a
+  dedicated/listen server host.
+- `stellar_client_net`: remote/listen client runtime for socket connection, client session state,
+  input command sequencing, and `ClientWorldReceiver`. It must not link authority, server runtime/core,
+  or scripting.
+- `stellar_client_presentation`: presentation-only helpers for player/gameplay/HUD/audio routing and
+  render-view setup. It must not own authoritative runtime state.
+- `stellar_client_app`: top-level mode selection, platform window/input, and presentation frame loop.
+  It may compose single-player, remote-client, listen-server, and no-map fallback runtimes, but it
+  should not contain map/script/server bootstrap logic directly.
+- `stellar_listen_server`: client-hosted server mode whose server lifetime is tied to the host client
+  and which reuses server runtime/transport rather than client-owned authority internals.
+
+### Dependency Audit Guardrails
+
+- Protocol must not link server, scripting, client runtime, graphics, audio, or platform presentation
+  targets.
+- Transport must not link server runtime, scripting, or client presentation.
+- Remote client runtime must not link authority, server runtime/core, or scripting.
+- Dedicated server must not link client runtime or presentation.
+- Authority-side Lua remains mandatory, sandboxed, and server-authoritative; remote client runtime must
+  not load gameplay scripts.
+- Keep broad TODOs tracked in `Plans/ClientServerSplit-AgentPlan.md`. Do not scatter TODO comments
+  through source.
+
+Suggested future audit commands:
+
+```bash
+git grep -n 'stellar/server/\|stellar/scripting/' -- include/stellar/network src/network include/stellar/client src/client ':!Plans/Archived/**'
+git grep -n 'LocalServerBridge\|LocalLoopbackRuntime\|networked_runtime' -- include src tests ':!Plans/Archived/**'
+cmake --build build --target help
+```
+
+### Phase Checklist
+
+- [x] CS-0 — Architecture baseline and guardrails.
+- [ ] CS-1 — Extract protocol DTOs away from server/scripting implementation types.
+- [ ] CS-2 — Extract shared authority bootstrap.
+- [ ] CS-3 — Move `LocalServerBridge` out of the client and generalize it as server runtime.
+- [ ] CS-4 — Introduce a single client-facing runtime interface.
+- [ ] CS-5 — Add true single-player runtime without server startup.
+- [ ] CS-6 — Add listen-server host mode.
+- [ ] CS-7 — Remove legacy local loopback runtime and client-owned authority leftovers.
+- [ ] CS-8 — Build graph enforcement.
+- [ ] CS-9 — Documentation update and final handoff.
+
+CS-7 deletion must not begin until CS-5 and CS-6 replacement tests are passing.
+
+### Historical Scope Guardrail
+
+Completed socket transport/session lifecycle and completed TrenchBroom BSP30 compatibility work are
+historical context and must not be restarted. This includes TCP `SocketTransport`, `ClientHello`,
+`ServerWelcome`, `ClientWorldReceiver`, `NetworkWorldSnapshot` presentation, `stellar-server`,
+`stellar-client --connect`, the Stellar TrenchBroom package, BSP30 compile/validation wrappers, Z-up
+authoring/runtime migration, fixture coverage, lightmap support, and the implemented
+server-authoritative `func_door`/`func_button` path.
+
+### Phase CS-0 Validation
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+Result: passed on 2026-05-03. CMake configure succeeded, full debug build succeeded, and full
+default CTest passed 91/91.
 
 ## Completed Scope — Full Stellar TrenchBroom BSP30 Compatibility
 
