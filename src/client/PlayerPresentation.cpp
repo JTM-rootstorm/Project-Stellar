@@ -86,23 +86,9 @@ float sanitize_far_plane(float far_plane, float near_plane) noexcept {
 } // namespace
 
 std::optional<PlayerPresentationState> make_player_presentation_state(
-    const stellar::server::WorldSnapshot& snapshot,
-    stellar::server::PlayerId player_id) {
-    for (const stellar::server::PlayerSnapshot& player : snapshot.players) {
-        if (player.player_id == player_id) {
-            return PlayerPresentationState{.position = player.position,
-                                           .rotation = player.rotation,
-                                           .grounded = player.grounded};
-        }
-    }
-
-    return std::nullopt;
-}
-
-std::optional<PlayerPresentationState> make_player_presentation_state(
     const stellar::network::NetworkWorldSnapshot& snapshot,
-    stellar::server::PlayerId player_id) {
-    for (const stellar::server::PlayerSnapshot& player : snapshot.players) {
+    stellar::network::PlayerId player_id) {
+    for (const stellar::network::PlayerSnapshot& player : snapshot.players) {
         if (player.player_id == player_id) {
             return PlayerPresentationState{.position = player.position,
                                            .rotation = player.rotation,

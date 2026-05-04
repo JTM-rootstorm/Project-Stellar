@@ -1,7 +1,7 @@
 #pragma once
 
 #include "stellar/platform/Input.hpp"
-#include "stellar/server/MovementSimulation.hpp"
+#include "stellar/protocol/Types.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -107,52 +107,52 @@ struct MovementInputState {
 };
 
 /**
- * @brief Convert display-free input state into a server-owned movement command intent.
+ * @brief Convert display-free input state into a protocol movement command intent.
  *
  * Direction convention: forward is positive Y, backward is negative Y, left is negative X,
  * right is positive X, and Z is always zero. Jump is forwarded only as command data; this
  * mapper performs no client-side movement or prediction.
  */
-[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+[[nodiscard]] stellar::protocol::MovementCommand make_movement_command(
     const MovementInputState& state,
     const MovementInputMapperConfig& config = {}) noexcept;
 
 /**
- * @brief Convert input state into camera-relative movement for a server command.
+ * @brief Convert input state into camera-relative movement for a protocol command.
  *
  * The supplied yaw rotates movement on the X/Y plane only. Positive yaw turns +Y forward toward -X,
  * matching PlayerPresentation's Z-up quaternion convention. Pitch does not affect movement.
  */
-[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+[[nodiscard]] stellar::protocol::MovementCommand make_movement_command(
     const MovementInputState& state,
     float yaw_degrees,
     const MovementInputMapperConfig& config = {}) noexcept;
 
 /**
- * @brief Convert input state and view angles into a server-owned command intent.
+ * @brief Convert input state and view angles into a protocol command intent.
  *
  * Movement is camera-relative on the X/Y plane, and sanitized view angles are attached for
  * server-authoritative snapshot rotation. The client still performs no local movement or
  * prediction.
  */
-[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+[[nodiscard]] stellar::protocol::MovementCommand make_movement_command(
     const MovementInputState& state,
     ClientViewState view_state,
     const MovementInputMapperConfig& config = {}) noexcept;
 
 /**
- * @brief Convert platform input state into a server-owned movement command intent.
+ * @brief Convert platform input state into a protocol movement command intent.
  *
  * Direction convention: forward is positive Y, backward is negative Y, left is negative X,
  * right is positive X, and Z is always zero. Jump is forwarded only as command data; this
  * mapper performs no client-side movement or prediction.
  */
-[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+[[nodiscard]] stellar::protocol::MovementCommand make_movement_command(
     const stellar::platform::Input& input,
     const MovementInputMapperConfig& config = {}) noexcept;
 
 /** @brief Convert platform input and view angles into a server-owned command intent. */
-[[nodiscard]] stellar::server::MovementCommand make_movement_command(
+[[nodiscard]] stellar::protocol::MovementCommand make_movement_command(
     const stellar::platform::Input& input,
     ClientViewState view_state,
     const MovementInputMapperConfig& config = {}) noexcept;

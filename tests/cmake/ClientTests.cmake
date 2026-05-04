@@ -27,16 +27,22 @@ stellar_add_client_runtime_test(stellar_gameplay_presentation_test gameplay_pres
     ${STELLAR_TEST_SOURCE_DIR}/client/GameplayPresentation.cpp
 )
 
-stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test client_local_loopback_runtime
-    ${STELLAR_TEST_SOURCE_DIR}/client/LocalLoopbackRuntime.cpp
-)
-
 stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_receiver
     ${STELLAR_TEST_SOURCE_DIR}/client/ClientWorldReceiver.cpp
 )
 
-stellar_add_client_runtime_test(stellar_networked_client_runtime_test networked_client_runtime
-    ${STELLAR_TEST_SOURCE_DIR}/client/NetworkedClientRuntime.cpp
+stellar_add_client_runtime_test(stellar_client_single_player_runtime_test client_single_player_runtime
+    ${STELLAR_TEST_SOURCE_DIR}/client/SinglePlayerRuntime.cpp
+)
+
+stellar_add_test_executable(stellar_listen_server_host_test listen_server_host
+    ${STELLAR_TEST_SOURCE_DIR}/client/ListenHostRuntime.cpp
+)
+target_include_directories(stellar_listen_server_host_test PRIVATE
+    ${STELLAR_TEST_FIXTURE_DIR}
+)
+target_link_libraries(stellar_listen_server_host_test PRIVATE
+    stellar_client_config
 )
 
 stellar_add_test_executable(stellar_client_connect_test client_connect
@@ -47,6 +53,7 @@ target_include_directories(stellar_client_connect_test PRIVATE
 )
 target_link_libraries(stellar_client_connect_test PRIVATE
     stellar_client_config
+    stellar_client_presentation
     stellar_dedicated_server
 )
 

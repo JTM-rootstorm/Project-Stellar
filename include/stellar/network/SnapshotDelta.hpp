@@ -24,13 +24,13 @@ struct SnapshotDelta {
     std::vector<NetworkGameplayEntity> updated_entities;
 
     /** @brief Deterministically ordered removed entity identifiers. */
-    std::vector<stellar::server::EntityId> removed_entity_ids;
+    std::vector<EntityId> removed_entity_ids;
 
     /** @brief Deterministically ordered changed or newly visible players. */
-    std::vector<stellar::server::PlayerSnapshot> updated_players;
+    std::vector<PlayerSnapshot> updated_players;
 
     /** @brief Deterministically ordered removed player identifiers. */
-    std::vector<stellar::server::PlayerId> removed_player_ids;
+    std::vector<PlayerId> removed_player_ids;
 
 };
 

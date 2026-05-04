@@ -52,15 +52,17 @@ int main() {
   assert(runtime->runtime_world->level_asset == &*runtime->validation->level);
   assert(runtime->runtime_world->diagnostics.has_collision);
   assert(runtime->runtime_world->diagnostics.marker_count == 1);
-  assert(runtime->networked_runtime != nullptr);
-  assert(runtime->local_loopback_runtime == nullptr);
+  assert(runtime->single_player_runtime != nullptr);
+  assert(runtime->active_client_runtime == runtime->single_player_runtime.get());
+  assert(runtime->active_client_runtime->mode() ==
+         stellar::client::ClientRuntimeMode::kSinglePlayer);
   assert(!runtime->validation->scripted_runtime_enabled);
   stellar::platform::Input input;
-  const auto runtime_frame = runtime->networked_runtime->update(input, 0.1F);
+  const auto runtime_frame = runtime->single_player_runtime->update(input, 0.0F);
   assert(runtime_frame.rejected_packets == 0);
-  assert(runtime->networked_runtime->latest_snapshot().has_value());
-  assert(runtime->networked_runtime->latest_snapshot()->players.size() == 1);
-  assert(runtime->networked_runtime->latest_snapshot()->players[0].player_id == 1);
+  assert(runtime_frame.snapshot.has_value());
+  assert(runtime_frame.snapshot->players.size() == 1);
+  assert(runtime_frame.snapshot->players[0].player_id == 1);
 
   const auto scripted_bsp_path = root / "scripted_map.bsp";
   stellar::tests::fixtures::write_bsp_fixture(scripted_bsp_path,
@@ -81,8 +83,9 @@ int main() {
   const auto scripted_runtime =
       stellar::client::prepare_application_runtime(config);
   assert(scripted_runtime.has_value());
-  assert(scripted_runtime->networked_runtime != nullptr);
-  assert(scripted_runtime->local_loopback_runtime == nullptr);
+  assert(scripted_runtime->single_player_runtime != nullptr);
+  assert(scripted_runtime->active_client_runtime ==
+         scripted_runtime->single_player_runtime.get());
   assert(scripted_runtime->validation->scripted_runtime_enabled);
   assert(scripted_runtime->validation->loaded_script_ids.size() == 2);
   assert(scripted_runtime->validation->loaded_script_ids[0] == "scripts/gate.lua");
@@ -111,8 +114,8 @@ int main() {
   assert(no_map_runtime->validation != nullptr);
   assert(!no_map_runtime->validation->level.has_value());
   assert(no_map_runtime->runtime_world == nullptr);
-  assert(no_map_runtime->local_loopback_runtime == nullptr);
-  assert(no_map_runtime->networked_runtime == nullptr);
+  assert(no_map_runtime->single_player_runtime == nullptr);
+  assert(no_map_runtime->active_client_runtime == nullptr);
 
   config.map_path = (root / "unsupported.map").string();
   const auto unsupported = stellar::client::validate_application_config(config);

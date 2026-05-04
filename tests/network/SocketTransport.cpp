@@ -219,7 +219,7 @@ void snapshot_crosses_to_client_world_receiver() {
     auto pair = make_pair();
     stellar::network::NetworkWorldSnapshot snapshot{};
     snapshot.tick = 123;
-    stellar::server::PlayerSnapshot player{};
+    stellar::network::PlayerSnapshot player{};
     player.player_id = 5;
     player.position = {1.0F, 2.0F, 3.0F};
     snapshot.players.push_back(player);

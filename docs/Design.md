@@ -4,8 +4,8 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.2.9 (TrenchBroom BSP30 Z-up scope complete)
-**Last Updated:** 2026-05-01
+**Version:** 0.3.0 (client/server split complete)
+**Last Updated:** 2026-05-03
 
 ---
 
@@ -37,19 +37,24 @@
 
 Stellar Engine is a modular, cross-platform game framework for creating games that use
 3D BSP level geometry with 2D billboard entities, objects, pickups, projectiles, and props.
-The engine uses a client-server architecture: game logic and authoritative state live on the
-server, while the client handles rendering, audio, input capture, and presentation.
+The engine now has explicit client/server runtime modes. Authority-side code owns game rules,
+ECS/runtime state, collision, gameplay scripts, and snapshot production; client-side code owns
+windowing, rendering, audio, input capture, and presentation of authoritative snapshots.
 
-The current engine direction is not to become a full physically based renderer. BSP maps are
-the canonical playable level source, and active runtime, server, client validation, and rendering
-paths use BSP-backed, source-neutral `LevelAsset` data.
+The supported runtime modes are single-player no-server mode, remote client mode, listen-server host
+mode, and dedicated-server mode. Single-player runs authoritative simulation in-process without a
+server listener or client/server handshake. Remote clients are presentation terminals over transport.
+Listen and dedicated servers share the server runtime and authority bootstrap. The current engine
+direction is not to become a full physically based renderer. BSP maps are the canonical playable level
+source, and active runtime, server, client validation, and rendering paths use BSP-backed,
+source-neutral `LevelAsset` data.
 The rendering target is lightweight OpenGL/Vulkan BSP surface/material and billboard parity
 suitable for game content.
 
 ### Key Design Principles
 
-- **Server authority:** the server owns game state, game rules, ECS simulation, physics
-  decisions, and validation.
+- **Server/authority ownership:** authority-side runtimes own game state, game rules, ECS
+  simulation, physics decisions, and validation.
 - **Client as presentation:** the client renders and presents server state, captures input,
   and forwards input to the server. Rendering and audio are never sources of gameplay truth.
 - **Modularity:** graphics, audio, import, networking, and core systems are isolated behind
@@ -77,8 +82,9 @@ suitable for game content.
 - **Audio:** miniaudio-backed audio when audio implementation is in scope, with explicit
   no-op fallback behavior where needed.
 - **Scripting:** mandatory vendored Lua 5.4.x behind the engine-owned `stellar_scripting` wrapper.
-- **Networking:** local loopback plus Linux/POSIX TCP socket transport behind transport-neutral
-  client/server packet seams, with a headless `stellar-server` authoritative entry point.
+- **Networking:** protocol DTOs, local loopback transport, and Linux/POSIX TCP socket transport are
+  split behind target boundaries, with remote client, listen-server, dedicated-server, and
+  single-player no-server entry points.
 
 ---
 
@@ -105,19 +111,23 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch direction: fixes and cleanup over completed BSP gameplay and TrenchBroom foundations.
+Current branch direction: client/server decoupling is complete through Phase CS-9. The branch now
+treats protocol, transport, authority bootstrap, server runtime, dedicated server, single-player,
+remote client, listen-server, presentation, and client application composition as explicit modules
+with build-enforced target boundaries.
 
-Primary near-term status: the Z-up migration and TrenchBroom BSP30 authoring workflow are complete.
-Active runtime, collision, movement, presentation, tests, and map fixtures use the central Z-up
-world-axis contract. TrenchBroom-authored BSP30 maps are the supported editor workflow, and imported BSP
-coordinates are preserved 1:1 as Stellar gameplay inches. Socket transport and networked session
-lifecycle over the completed BSP gameplay loop and
-presentation/networking polish foundations are also complete. The completed scope includes a
-Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the headless
-`stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode. Completed
-collision, movement, Lua scripting, object-collider, BSP canonical migration, BSP hardening,
-BSP gameplay-loop, socket transport, and TrenchBroom compatibility work should be treated as
-foundational historical context, not restarted.
+Primary near-term status: the client/server split is complete over the already completed BSP gameplay,
+socket transport, and TrenchBroom BSP30 foundations. Single-player no-server mode, remote client mode,
+listen-server host mode, and dedicated-server mode are documented runtime contracts. Historical Z-up
+migration, TrenchBroom BSP30 authoring, collision, movement, Lua scripting, object-collider, BSP
+canonical migration, BSP hardening, BSP gameplay-loop, presentation/networking polish, and socket
+transport work remain foundational context and must not be restarted.
+
+The completed scope includes a Linux/POSIX TCP-first socket backend, deterministic
+`ClientHello`/`ServerWelcome`, the headless `stellar-server`, `stellar-client --connect HOST:PORT`
+remote presentation mode, `stellar-client --map path/to/map.bsp` single-player authority in-process
+without server startup, and `stellar-client --host --map path/to/map.bsp [--listen HOST:PORT]`
+listen-server host composition.
 
 Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
@@ -144,8 +154,9 @@ IDs/tables, but import does not execute scripts. Runtime scripting wraps authori
 movement/session output, emits primitive script events, and applies only native-validated
 collision/object-collider commands to server-owned runtime state.
 The live single-player client path can load a configured BSP map, keep the validated `LevelAsset`
-alive for `RuntimeWorld`, instantiate local loopback authoritative runtime state, advance movement from
-captured input, and render the level from the authoritative player presentation camera. No-map mode
+alive for `RuntimeWorld`, instantiate in-process single-player authority state without a server
+host/transport handshake, advance movement from captured input, and render the level from the
+authoritative player presentation camera. No-map mode
 initializes without authored static geometry and renders a blank/static-less presentation frame until
 authored static geometry or authoritative dynamic snapshot data is available.
 The live client uses the same server-authoritative scripted runtime as display-free tests when a loaded
@@ -191,21 +202,37 @@ appears.
 ### High-Level Architecture
 
 ```text
-┌─────────────────┐
-│   Game Client   │  ← Rendering, audio, input capture, presentation
-│  (Presentation) │
-├─────────────────┤
-│   Network API   │  ← Messages, snapshots, commands, serialization
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Game Server   │  ← ECS, game logic, physics/collision, AI, validation
-│  (Authority)    │
-├─────────────────┤
-│   World State   │  ← Entity components, game rules, authoritative simulation
-└─────────────────┘
+┌──────────────────────────────┐
+│ Client Presentation Runtime  │  ← window, input, graphics, audio, HUD, render caches
+└───────────────┬──────────────┘
+                │ snapshots/events/commands
+┌───────────────▼──────────────┐
+│ Shared Protocol + Transport  │  ← DTOs/codecs, loopback, TCP/POSIX packet envelope
+└───────────────┬──────────────┘
+                │
+┌───────────────▼──────────────┐
+│ Authority Runtime            │  ← BSP load, Lua scripts, world/session, validation
+└───────────────┬──────────────┘
+                │
+┌───────────────▼──────────────┐
+│ Server Runtime / Host        │  ← listen/dedicated session lifecycle and snapshots
+└──────────────────────────────┘
+
+Runtime compositions:
+- Single-player: client presentation + in-process authority, no server host and no handshake.
+- Remote client: client presentation + transport client only; authority is remote.
+- Listen server: client presentation + in-process server host + authority + optional listener.
+- Dedicated server: headless server runtime + authority + listener, no client presentation.
 ```
+
+### Runtime Mode Matrix
+
+| Mode | Entry Point | Authority Owner | Transport/Listener | Presentation Ownership |
+| --- | --- | --- | --- | --- |
+| Single-player no-server | `stellar-client --map path/to/map.bsp` | In-process authority facade | no socket listener; no `ClientHello`/`ServerWelcome` | local client |
+| Remote client | `stellar-client --connect HOST:PORT` | remote dedicated/listen server | socket client only | local client |
+| Listen server | `stellar-client --host --map path/to/map.bsp [--listen HOST:PORT]` | in-process server host | loopback/in-process host path plus optional listener | host client |
+| Dedicated server | `stellar-server --map path/to/map.bsp --listen HOST:PORT` | server process | socket listener | none/headless |
 
 ### Client Responsibilities
 
@@ -217,6 +244,8 @@ appears.
 - Render static BSP level geometry, billboard sprites, and UI.
 - Capture input and forward it to the server.
 - Play local presentation audio based on server-approved events or presentation state.
+- Compose one client-facing runtime interface for single-player, remote-client, listen-host, or
+  static-less fallback modes.
 
 ### Server Responsibilities
 
@@ -229,6 +258,7 @@ appears.
 - Validate game rules.
 - Produce world snapshots or state deltas for clients.
 - Keep gameplay state serializable and independent of renderer/audio backends.
+- Share authority bootstrap and server runtime code between listen-server and dedicated-server modes.
 
 ### Server Authority Model
 
@@ -253,20 +283,31 @@ platform infrastructure, and static collision/query infrastructure.
 #### Client Application
 
 - Initialize platform, window, graphics backend, audio, input, and client asset paths.
-- Connect to a local authoritative runtime or the implemented TCP-first remote server transport.
-- Receive and present server-owned state.
+- Select one explicit runtime mode from CLI/config:
+  - `stellar-client --map path/to/map.bsp` starts single-player no-server mode with in-process
+    authority and no transport handshake.
+  - `stellar-client --connect HOST:PORT` starts remote-client mode with socket transport and no local
+    authority or gameplay script loading.
+  - `stellar-client --host --map path/to/map.bsp [--listen HOST:PORT]` starts listen-server mode,
+    tying an in-process server host lifetime to the host client.
+  - no-map/static-less startup may initialize presentation without authored static geometry.
+- Receive and present authoritative state through a single client-facing runtime frame path.
 - Submit graphics work through the shared abstraction.
 - Keep presentation behavior separate from server authority.
 
-#### Server Application
+#### Server Application and Authority Entry Points
 
-- Initialize ECS world and authoritative game systems.
-- Load backend-neutral BSP world data and referenced authoritative script sources.
+- Initialize ECS/runtime world and authoritative game systems through the shared authority bootstrap.
+- Load backend-neutral BSP world data and referenced authoritative script sources on the authority side.
 - Own collision queries and movement validation.
 - Run simulation ticks.
 - Serialize snapshots, deltas, and server-approved gameplay events for clients.
 - Provide `stellar-server --validate-config --map path/to/map.bsp` for display-free map/script
   validation before opening sockets.
+- Provide `stellar-server --map path/to/map.bsp --listen HOST:PORT` as a headless dedicated-server
+  wrapper around `stellar_server_runtime`.
+- Reuse the same server runtime/session lifecycle from listen-server mode; dedicated and listen hosts
+  differ in process lifetime and presentation ownership, not authority rules.
 
 ### 5.2 Core World Data
 
@@ -740,29 +781,31 @@ debug views, or moving/solid blockers until those contracts are explicitly scope
 
 ### 10.1 Transport Direction
 
-The networking layer should support:
+The networking and runtime split supports:
 
-- Local loopback for single-player.
-- Remote multiplayer extension later.
-- Reliable connection/control messages where needed.
-- Low-latency state updates where appropriate.
-- Serializable ECS/world snapshots.
+- Pure protocol DTOs/codecs in `stellar_protocol`.
+- Transport interfaces and implementations in `stellar_transport`, including local loopback and the
+  Linux/POSIX TCP-first socket backend.
+- Remote client mode through `stellar_client_net` without authority, server runtime, or scripting
+  links.
+- Listen-server and dedicated-server modes through shared authority and server runtime modules.
+- Single-player no-server mode through in-process authoritative simulation, intentionally not through
+  socket startup or `ClientHello`/`ServerWelcome`.
+- Serializable ECS/world snapshots and gameplay events for presentation.
 
 Potential protocol split:
 
 - UDP for frequent state updates.
 - Reliable transport for connection setup, critical events, chat, or other ordered messages.
 
-Exact protocol choices remain implementation details until a networking plan scopes them.
-The completed BSP presentation/networking polish work added remote-ready snapshot, delta, and event
-contracts before real remote sockets. The local in-memory transport bridge exercises the same
-client-input/server-snapshot message contract used by the TCP socket backend. The socket transport
-branch now includes deterministic `ClientHello` / `ServerWelcome` session setup, protocol/map
-compatibility rejection, server-assigned player authority before the first snapshot is accepted, and a
-Linux/POSIX TCP-first transport with `host:port` endpoint parsing plus a compact length-prefixed packet
-envelope (`STCP` magic, version byte, channel byte, and little-endian `uint32` payload length). True
-simultaneous multiplayer simulation, prediction, interpolation, and reconciliation remain deferred
-until explicitly scoped.
+Exact future protocol choices remain implementation details until a networking plan scopes them. The
+completed client/server split preserves deterministic `ClientHello` / `ServerWelcome` session setup for
+networked modes, protocol/map compatibility rejection, server-assigned player authority before the
+first snapshot is accepted, and a Linux/POSIX TCP-first transport with `host:port` endpoint parsing plus
+a compact length-prefixed packet envelope (`STCP` magic, version byte, channel byte, and little-endian
+`uint32` payload length). True simultaneous multiplayer simulation, prediction, interpolation,
+reconciliation, UDP/unreliable transport, and map transfer/caching remain deferred until explicitly
+scoped.
 
 ### 10.2 Message Categories
 
@@ -794,7 +837,7 @@ Long-term goals:
 - Client prediction only when explicitly scoped and reconciled.
 - Validation of all client input on the server.
 
-Current contract behavior for this branch:
+Current contract behavior after the client/server split:
 
 - Client input commands are requests and are validated by the authoritative runtime.
 - Server-owned `WorldSnapshot` and `GameplayWorldSnapshot` data are the source for client
@@ -803,15 +846,19 @@ Current contract behavior for this branch:
   gameplay authority.
 - Snapshot baselines, structural deltas, and event records should use deterministic serialization with
   bounded strings/vectors and finite numeric data.
-- The transport contracts live in `stellar::network` as `NetworkPlayerCommand`,
-  `ClientHello`, `ServerWelcome`, `MapIdentity`, `NetworkPlayerCommand`, `NetworkWorldSnapshot`,
-  `NetworkGameplayEntity`, `GameplayEvent`, and `SnapshotDelta`. The current binary `SnapshotCodec`
-  is local/transport-neutral and intentionally does not open remote sockets, add prediction, or add
-  reconciliation.
-- The local bridge adds in-memory/local `ClientTransport` and `ServerTransport` endpoints plus a local
-  authoritative server adapter and client receiver over those contracts. Client commands remain
-  requests; the bridge overwrites authority with the configured server player slot and emits snapshots,
-  deltas, and server-approved events.
+- Protocol contracts live in `stellar_protocol` as `NetworkPlayerCommand`, `ClientHello`,
+  `ServerWelcome`, `MapIdentity`, `NetworkWorldSnapshot`, `NetworkGameplayEntity`, `GameplayEvent`,
+  and `SnapshotDelta`. The binary `SnapshotCodec` is transport-neutral and intentionally does not add
+  prediction or reconciliation.
+- Transport endpoints live in `stellar_transport`; local loopback transport is a transport primitive,
+  not a client-owned authority bridge.
+- `stellar_authority` owns BSP/script/runtime preparation and authority-side conversion to protocol
+  snapshots/events.
+- `stellar_server_runtime` owns networked server session lifecycle for dedicated and listen-host modes.
+- `stellar_single_player` owns local authoritative stepping for `stellar-client --map` without opening
+  sockets, constructing a server host, sending `ClientHello`, or waiting for `ServerWelcome`.
+- `stellar_client_net` owns remote/listen client connection state, input sequencing, and
+  `ClientWorldReceiver`; it must not link authority, server runtime/core, or scripting.
 - The TCP socket backend preserves the same opaque packet contract and reliable FIFO semantics for one
   accepted client. It rejects oversized payloads before allocation, handles partial read/write paths
   with bounded nonblocking loops, and keeps UDP, multi-client simulation, prediction, and
@@ -824,6 +871,9 @@ Current contract behavior for this branch:
   map id when no presentation map exists, accepts the server's map identity in `ServerWelcome`, and
   presents only received network snapshots/events. `--map` plus `--connect` is rejected as ambiguous,
   and `--script-root` is invalid in remote mode because scripts are server-authoritative only.
+- Listen-server mode uses the same server runtime/authority bootstrap as dedicated server. Its lifetime
+  is bound to the host client, and the current implementation preserves the existing one accepted
+  TCP-client/one active-player limit unless a later true-multiplayer plan expands it.
 
 ---
 
@@ -856,15 +906,36 @@ dependencies.
 
 ### 11.3 Build Targets
 
-Representative targets:
+Client/server split production targets:
 
-- `stellar-client`
-- `stellar-server`
-- Shared engine/static libraries as organized by the current CMake layout.
-- `stellar_import_bsp` in the default build.
-- `stellar_scripting` in the default build.
-- Display-free unit/regression tests.
-- Opt-in OpenGL/Vulkan context tests behind explicit CMake flags.
+- `stellar_protocol` — pure protocol DTOs/codecs such as session ids, hello/welcome, commands,
+  snapshots, gameplay entities, events, deltas, and session codecs.
+- `stellar_transport` — transport interfaces and implementations, including loopback transport,
+  TCP/POSIX socket transport, endpoint parsing, and packet envelope handling.
+- `stellar_authority` — backend-neutral authoritative BSP/script/runtime bootstrap, authoritative
+  session ownership, and authority-side conversion to protocol snapshots/events.
+- `stellar_server_runtime` — reusable networked server host/session lifecycle for dedicated and
+  listen-server modes.
+- `stellar_dedicated_server` — thin dedicated-server wrapper/CLI helpers around server runtime.
+- `stellar_single_player` — client-process local authoritative session for no-server single-player.
+- `stellar_client_net` — remote/listen client runtime, socket client connection state, command
+  sequencing, and `ClientWorldReceiver`.
+- `stellar_client_presentation` — presentation-only player/gameplay/HUD/audio/render-view helpers.
+- `stellar_client_app` — top-level client mode selection, platform/window/input, and presentation
+  frame loop composition.
+- `stellar_listen_server` — client-hosted server mode with lifetime tied to the host client.
+- `stellar-client` and `stellar-server` — executable entry points over the split libraries.
+- Compatibility shims may remain where needed during include/namespace transition, but new code should
+  target the split modules directly.
+
+Boundary enforcement:
+
+- CMake direct-link assertions reject forbidden links such as protocol-to-server/scripting/client,
+  transport-to-server/scripting/presentation, remote-client-to-authority/server/scripting,
+  dedicated-server-to-client-runtime/presentation, and server-runtime-to-client modules.
+- `tools/dev/check_target_boundaries.sh` audits the build graph/source tree for the same ownership
+  rules and is part of final CS-8/CS-9 validation.
+- Display-free unit/regression tests remain the default. OpenGL/Vulkan context tests remain opt-in.
 
 ### 11.4 Validation Commands
 
@@ -1229,21 +1300,22 @@ regression tests before broader benchmark infrastructure is introduced.
 
 ### 17.1 Recommended Next Options
 
-The socket transport roadmap is complete and archived. Recommended next scopes are:
+The socket transport roadmap and client/server split are complete. Recommended next scopes are:
 
-1. Client interpolation/presentation smoothing over authoritative snapshots, explicitly scoped as
+1. Presentation-map workflow for remote clients, explicitly separated from authority map loading and
+   gameplay script execution.
+2. Client interpolation/presentation smoothing over authoritative snapshots, explicitly scoped as
    presentation only.
-2. Client prediction/reconciliation, explicitly scoped against server authority.
-3. True multiplayer simulation beyond the current single accepted TCP client and one active
+3. Client prediction/reconciliation, explicitly scoped against server authority.
+4. True multiplayer simulation beyond the current single accepted TCP client and one active
    authoritative player slot.
-4. UDP/unreliable transport, transport selection, reconnect/resume, authentication, encryption,
+5. UDP/unreliable transport, transport selection, reconnect/resume, authentication, encryption,
    matchmaking, or public Internet deployment.
-5. Map distribution/caching or a remote presentation-map workflow; current remote mode renders
-   dynamic network state/fallback only.
-6. Sprite atlas packing and sprite sheet animation for richer billboard presentation.
-7. Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
-8. miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
-9. BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
+6. Map distribution/caching after the presentation-map ownership contract is defined.
+7. Sprite atlas packing and sprite sheet animation for richer billboard presentation.
+8. Richer HUD rendering, UI, inventory presentation, and VFX over server-approved events.
+9. miniaudio-backed playback, local audio asset loading, and spatial audio/listener updates.
+10. BSP editor/toolchain polish, including automated remapping from editor-facing FGD fields to dotted
    Stellar BSP keys.
 
 ### 17.2 Completed Recent Direction
@@ -1276,6 +1348,9 @@ Recent completed work includes:
 - Socket transport ST-2 through ST-7: local mapped play over transport/receiver contracts,
   deterministic session lifecycle, Linux/POSIX TCP socket transport, headless `stellar-server`,
   `stellar-client --connect HOST:PORT`, final hardening/audit, and archived ST plans.
+- Client/server split CS-0 through CS-9: protocol/transport/authority/server/client module split,
+  single-player no-server mode, listen-server mode, remote-client boundary isolation, build graph
+  enforcement, and final architecture handoff documentation.
 
 ### 17.3 Deferred Rendering Work
 
@@ -1330,6 +1405,7 @@ Deferred unless scoped:
 | 2026-05-01 | 0.2.1 | Kilo | Adopt inch-scale gameplay defaults for world units, player capsule, movement simulation, and debug camera presentation |
 | 2026-05-01 | 0.2.4 | Kilo | Mark BSP presentation/networking polish complete; document local transport bridge, remote deferrals, presentation-only HUD/audio routes, and FGD remapping constraints |
 | 2026-05-01 | 0.2.8 | Kilo | Mark socket transport scope complete; document TCP-first transport, `stellar-server`, `stellar-client --connect`, single-client/single-active-player limits, and post-ST deferrals |
+| 2026-05-03 | 0.3.0 | Kilo | Mark client/server split complete through CS-9; document explicit runtime modes, split CMake targets, build-boundary checks, and post-split deferred networking/presentation work |
 
 ---
 

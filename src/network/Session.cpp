@@ -1,8 +1,8 @@
-#include "stellar/network/Session.hpp"
+#include "stellar/protocol/Types.hpp"
 
 #include <string_view>
 
-namespace stellar::network {
+namespace stellar::protocol {
 namespace {
 
 [[nodiscard]] std::string basename_from_uri(std::string_view source_uri) {
@@ -30,11 +30,4 @@ MapIdentity make_map_identity(std::string_view source_uri) {
                        .content_hash = deterministic_identity_hash(uri)};
 }
 
-MapIdentity make_map_identity(const stellar::world::RuntimeWorld& world) {
-    if (world.level_asset != nullptr) {
-        return make_map_identity(world.level_asset->source_uri);
-    }
-    return make_map_identity("local");
-}
-
-} // namespace stellar::network
+} // namespace stellar::protocol

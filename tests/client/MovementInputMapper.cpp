@@ -13,7 +13,7 @@ void assert_near(float actual, float expected) {
     assert(std::fabs(actual - expected) <= kEpsilon);
 }
 
-void assert_direction(const stellar::server::MovementCommand& command,
+void assert_direction(const stellar::protocol::MovementCommand& command,
                       float expected_x,
                       float expected_y,
                       float expected_z) {

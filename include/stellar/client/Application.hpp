@@ -3,9 +3,11 @@
 #include <expected>
 #include <memory>
 
+#include "stellar/authority/AuthorityBootstrap.hpp"
 #include "stellar/client/ApplicationConfig.hpp"
-#include "stellar/client/LocalLoopbackRuntime.hpp"
-#include "stellar/client/NetworkedClientRuntime.hpp"
+#include "stellar/client/ListenHostRuntime.hpp"
+#include "stellar/client/RemoteClientRuntime.hpp"
+#include "stellar/client/SinglePlayerRuntime.hpp"
 #include "stellar/platform/Window.hpp"
 
 namespace stellar::client {
@@ -50,14 +52,20 @@ struct PreparedApplicationRuntime {
     /** @brief Runtime world built once from validation->level when a map exists. */
     std::unique_ptr<stellar::world::RuntimeWorld> runtime_world;
 
-    /** @brief Optional authoritative in-process runtime for mapped local play. */
-    std::unique_ptr<LocalLoopbackRuntime> local_loopback_runtime;
-
-    /** @brief Optional transport-backed authoritative runtime for mapped local play. */
-    std::unique_ptr<NetworkedClientRuntime> networked_runtime;
+    /** @brief Optional true in-process single-player runtime for mapped local play. */
+    std::unique_ptr<SinglePlayerRuntime> single_player_runtime;
 
     /** @brief Optional socket-backed presentation-only runtime for remote server play. */
     std::unique_ptr<RemoteClientRuntime> remote_runtime;
+
+    /** @brief Optional client-hosted listen-server runtime for host mapped play. */
+    std::unique_ptr<ListenHostRuntime> listen_host_runtime;
+
+    /** @brief Active non-authoritative client runtime consumed by the application loop. */
+    IClientRuntime* active_client_runtime = nullptr;
+
+    /** @brief Optional authority bootstrap storage that backs scripted local runtime references. */
+    std::unique_ptr<stellar::authority::PreparedAuthority> authority;
 };
 
 /**
