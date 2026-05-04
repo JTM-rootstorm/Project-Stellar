@@ -1142,6 +1142,15 @@ Long-term direction:
 
 ## 15. Documentation Standards
 
+### 15.0 Documentation Model
+
+Generated Doxygen documentation is the public C++ API reference for headers under
+`include/stellar/**`. Active Markdown files remain the source for architecture, current
+implementation status, authoring workflows, validation runbooks, and implementation handoff notes.
+
+Do not migrate active Markdown docs into C++ comments. Instead, include selected Markdown pages in
+the generated Doxygen site and keep API details documented near public declarations.
+
 ### 15.1 Public API Documentation
 
 Every public-facing type, function, and subsystem interface should include Doxygen comments.

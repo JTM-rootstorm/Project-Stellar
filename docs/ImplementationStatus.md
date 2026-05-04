@@ -3,6 +3,18 @@
 Status scope: completed Vulkan removal, completed lightweight BSP normal/specular material sidecars,
 completed client/server decoupling handoff, and completed historical branch notes.
 
+## Active Scope — Doxygen Generation
+
+Status: in progress through DG-5 as of 2026-05-04.
+
+Generated Doxygen documentation is the public C++ API reference for headers under
+`include/stellar/**`. Active Markdown files remain the source for architecture, current
+implementation status, authoring workflows, validation runbooks, and implementation handoff notes.
+
+The `stellar_docs_doxygen` target generates HTML under `build/docs/doxygen/html` when Doxygen is
+installed. Do not migrate active Markdown docs into C++ comments; selected Markdown pages are included
+in the generated site while API details stay near public declarations.
+
 ## Completed Scope — Vulkan Removal
 
 Status: complete through KV-5 as of 2026-05-04.
