@@ -14,7 +14,7 @@ namespace stellar::graphics::vulkan {
 
 namespace {
 
-constexpr std::uint32_t kMaterialTextureSlotCount = 6;
+constexpr std::uint32_t kMaterialTextureSlotCount = 7;
 constexpr std::uint32_t kMaterialDescriptorSetCapacity = 1024;
 
 bool valid_image_format(stellar::assets::ImageFormat format) noexcept {
@@ -384,6 +384,29 @@ std::expected<void, stellar::platform::Error> VulkanGraphicsDevice::create_descr
         return std::unexpected(vulkan_error("vkCreateDescriptorSetLayout", result));
     }
 
+    const VkDescriptorPoolSize pool_sizes[] = {
+        VkDescriptorPoolSize{
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = kMaterialTextureSlotCount * kMaterialDescriptorSetCapacity,
+        },
+        VkDescriptorPoolSize{
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = kMaterialDescriptorSetCapacity,
+        },
+    };
+    const VkDescriptorPoolCreateInfo pool_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = kMaterialDescriptorSetCapacity,
+        .poolSizeCount = static_cast<std::uint32_t>(std::size(pool_sizes)),
+        .pPoolSizes = pool_sizes,
+    };
+    result = vkCreateDescriptorPool(device_, &pool_info, nullptr,
+                                    &material_descriptor_pool_);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vulkan_error("vkCreateDescriptorPool", result));
+    }
+
     return {};
 }
 
@@ -446,16 +469,21 @@ VulkanMaterialUniform material_uniform_for(const MaterialUpload& upload) noexcep
                        vulkan_transform0_for(upload.metallic_roughness_texture),
                        vulkan_transform0_for(upload.occlusion_texture),
                        vulkan_transform0_for(upload.emissive_texture),
-                       vulkan_transform0_for(upload.lightmap_texture)},
+                       vulkan_transform0_for(upload.lightmap_texture),
+                       vulkan_transform0_for(upload.specular_texture)},
         .transform1 = {vulkan_transform1_for(upload.base_color_texture),
                        vulkan_transform1_for(upload.normal_texture),
                        vulkan_transform1_for(upload.metallic_roughness_texture),
                        vulkan_transform1_for(upload.occlusion_texture),
                        vulkan_transform1_for(upload.emissive_texture),
-                       vulkan_transform1_for(upload.lightmap_texture)},
+                       vulkan_transform1_for(upload.lightmap_texture),
+                       vulkan_transform1_for(upload.specular_texture)},
         .baked_lighting0 = {upload.global_light_color[0], upload.global_light_color[1],
                             upload.global_light_color[2], upload.global_light_intensity},
-        .baked_lighting1 = {upload.lightmap_min, upload.lightmap_multiplier, 0.0F, 0.0F},
+        .baked_lighting1 = {upload.lightmap_min, upload.lightmap_multiplier,
+                            upload.material.normal_light_strength,
+                            upload.material.specular_factor},
+        .lighting2 = {upload.material.specular_power, 0.35F, 0.8F, 0.45F},
     };
 }
 
@@ -494,7 +522,8 @@ VulkanGraphicsDevice::allocate_material_descriptor_set(MaterialRecord& record) {
                           &record.upload.metallic_roughness_texture,
                           &record.upload.occlusion_texture,
                           &record.upload.emissive_texture,
-                          &record.upload.lightmap_texture};
+                          &record.upload.lightmap_texture,
+                          &record.upload.specular_texture};
     std::array<VkDescriptorImageInfo, kMaterialTextureSlotCount> image_infos{};
     std::array<VkWriteDescriptorSet, kMaterialTextureSlotCount + 1> descriptor_writes{};
     for (std::uint32_t slot = 0; slot < kMaterialTextureSlotCount; ++slot) {
@@ -584,7 +613,8 @@ void VulkanGraphicsDevice::rewrite_material_descriptors_replacing_texture(
                          &material.upload.metallic_roughness_texture,
                          &material.upload.occlusion_texture,
                          &material.upload.emissive_texture,
-                         &material.upload.lightmap_texture};
+                         &material.upload.lightmap_texture,
+                         &material.upload.specular_texture};
             for (const auto* binding : bindings) {
                 if (binding->has_value() && (*binding)->texture.value == texture.value) {
                     destroy_material_record(material);
@@ -606,7 +636,8 @@ void VulkanGraphicsDevice::rewrite_material_descriptors_replacing_texture(
                      &material.upload.metallic_roughness_texture,
                      &material.upload.occlusion_texture,
                      &material.upload.emissive_texture,
-                     &material.upload.lightmap_texture};
+                     &material.upload.lightmap_texture,
+                     &material.upload.specular_texture};
         std::array<VkDescriptorImageInfo, kMaterialTextureSlotCount> image_infos{};
         std::array<VkWriteDescriptorSet, kMaterialTextureSlotCount> writes{};
         std::uint32_t write_count = 0;
