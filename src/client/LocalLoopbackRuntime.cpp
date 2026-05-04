@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include "stellar/authority/NetworkConversion.hpp"
+
 namespace stellar::client {
 namespace {
 
@@ -98,7 +100,8 @@ LocalLoopbackFrameResult LocalLoopbackRuntime::update(const stellar::platform::I
 
     view_state_ = update_client_view_state(input, delta_seconds, view_state_, config_.look_mapper);
     const stellar::server::MovementCommand movement =
-        make_movement_command(input, view_state_, config_.input_mapper);
+        stellar::authority::make_server_movement_command(
+            make_movement_command(input, view_state_, config_.input_mapper));
     const stellar::server::PlayerCommand command{.player_id = config_.session.local_player_id,
                                                  .movement = movement};
     const std::array<stellar::server::PlayerCommand, 1> commands{command};

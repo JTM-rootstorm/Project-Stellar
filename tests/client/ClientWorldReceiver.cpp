@@ -109,11 +109,11 @@ void accept_local_session(stellar::client::LocalServerBridge& bridge,
 stellar::network::NetworkWorldSnapshot snapshot(std::uint64_t tick, float x) {
     stellar::network::NetworkWorldSnapshot result{};
     result.tick = tick;
-    result.players.push_back(stellar::server::PlayerSnapshot{.player_id = 7,
-                                                             .position = {x, 0.0F, 0.0F},
-                                                             .velocity = {},
-                                                             .rotation = {0.0F, 0.0F, 0.0F, 1.0F},
-                                                             .grounded = true});
+    result.players.push_back(stellar::network::PlayerSnapshot{.player_id = 7,
+                                                              .position = {x, 0.0F, 0.0F},
+                                                              .velocity = {},
+                                                              .rotation = {0.0F, 0.0F, 0.0F, 1.0F},
+                                                              .grounded = true});
     return result;
 }
 

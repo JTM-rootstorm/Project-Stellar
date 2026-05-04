@@ -144,7 +144,7 @@ NetworkedClientRuntime::latest_snapshot() const noexcept {
     return receiver_.latest_snapshot();
 }
 
-stellar::server::PlayerId NetworkedClientRuntime::local_player_id() const noexcept {
+stellar::network::PlayerId NetworkedClientRuntime::local_player_id() const noexcept {
     return assigned_player_id_;
 }
 
@@ -265,7 +265,7 @@ const std::optional<stellar::network::NetworkWorldSnapshot>& RemoteClientRuntime
     return receiver_.latest_snapshot();
 }
 
-stellar::server::PlayerId RemoteClientRuntime::local_player_id() const noexcept {
+stellar::network::PlayerId RemoteClientRuntime::local_player_id() const noexcept {
     return assigned_player_id_;
 }
 

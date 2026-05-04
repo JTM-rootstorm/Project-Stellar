@@ -229,7 +229,7 @@ template <std::size_t Count>
 }
 
 [[nodiscard]] bool valid_entity_kind(std::uint8_t value) noexcept {
-    return value <= static_cast<std::uint8_t>(stellar::server::EntityKind::kObjectCollider);
+    return value <= static_cast<std::uint8_t>(EntityKind::kObjectCollider);
 }
 
 [[nodiscard]] bool valid_event_kind(std::uint8_t value) noexcept {
@@ -239,16 +239,16 @@ template <std::size_t Count>
 
 [[nodiscard]] std::expected<void, CodecError> write_transform(
     Writer& writer,
-    const stellar::server::TransformComponent& transform) {
+    const TransformComponent& transform) {
     TRY_VOID(write_float_array(writer, transform.position));
     TRY_VOID(write_float_array(writer, transform.rotation));
     TRY_VOID(write_float_array(writer, transform.scale));
     return {};
 }
 
-[[nodiscard]] std::expected<stellar::server::TransformComponent, CodecError> read_transform(
+[[nodiscard]] std::expected<TransformComponent, CodecError> read_transform(
     Reader& reader) {
-    stellar::server::TransformComponent transform{};
+    TransformComponent transform{};
     TRY_VALUE(position, read_float_array<3>(reader));
     TRY_VALUE(rotation, read_float_array<4>(reader));
     TRY_VALUE(scale, read_float_array<3>(reader));
@@ -260,7 +260,7 @@ template <std::size_t Count>
 
 [[nodiscard]] std::expected<void, CodecError> write_metadata(
     Writer& writer,
-    const stellar::server::GameplayEntityMetadata& metadata) {
+    const GameplayEntityMetadata& metadata) {
     TRY_VOID(writer.write_string(metadata.name));
     TRY_VOID(writer.write_string(metadata.archetype));
     TRY_VOID(writer.write_string(metadata.sprite_id));
@@ -273,9 +273,9 @@ template <std::size_t Count>
     return {};
 }
 
-[[nodiscard]] std::expected<stellar::server::GameplayEntityMetadata, CodecError> read_metadata(
+[[nodiscard]] std::expected<GameplayEntityMetadata, CodecError> read_metadata(
     Reader& reader) {
-    stellar::server::GameplayEntityMetadata metadata{};
+    GameplayEntityMetadata metadata{};
     TRY_VALUE(name, reader.read_string());
     TRY_VALUE(archetype, reader.read_string());
     TRY_VALUE(sprite_id, reader.read_string());
@@ -299,7 +299,7 @@ template <std::size_t Count>
 
 [[nodiscard]] std::expected<void, CodecError> write_player(
     Writer& writer,
-    const stellar::server::PlayerSnapshot& player) {
+    const PlayerSnapshot& player) {
     TRY_VOID(writer.write_u32(player.player_id));
     TRY_VOID(write_float_array(writer, player.position));
     TRY_VOID(write_float_array(writer, player.velocity));
@@ -308,8 +308,8 @@ template <std::size_t Count>
     return {};
 }
 
-[[nodiscard]] std::expected<stellar::server::PlayerSnapshot, CodecError> read_player(Reader& reader) {
-    stellar::server::PlayerSnapshot player{};
+[[nodiscard]] std::expected<PlayerSnapshot, CodecError> read_player(Reader& reader) {
+    PlayerSnapshot player{};
     TRY_VALUE(player_id, reader.read_u32());
     TRY_VALUE(position, read_float_array<3>(reader));
     TRY_VALUE(velocity, read_float_array<3>(reader));
@@ -325,7 +325,7 @@ template <std::size_t Count>
 
 [[nodiscard]] std::expected<void, CodecError> write_movement_command(
     Writer& writer,
-    const stellar::server::MovementCommand& movement) {
+    const MovementCommand& movement) {
     TRY_VOID(write_float_array(writer, movement.wish_direction));
     TRY_VOID(writer.write_bool(movement.jump));
     TRY_VOID(writer.write_float(movement.view_yaw_degrees));
@@ -334,9 +334,9 @@ template <std::size_t Count>
     return {};
 }
 
-[[nodiscard]] std::expected<stellar::server::MovementCommand, CodecError> read_movement_command(
+[[nodiscard]] std::expected<MovementCommand, CodecError> read_movement_command(
     Reader& reader) {
-    stellar::server::MovementCommand movement{};
+    MovementCommand movement{};
     TRY_VALUE(wish_direction, read_float_array<3>(reader));
     TRY_VALUE(jump, reader.read_bool());
     TRY_VALUE(view_yaw_degrees, reader.read_float());
@@ -448,7 +448,7 @@ template <std::size_t Count>
     TRY_VALUE(active, reader.read_bool());
     TRY_VALUE(open, reader.read_bool());
     entity.id = id;
-    entity.kind = static_cast<stellar::server::EntityKind>(kind);
+    entity.kind = static_cast<EntityKind>(kind);
     entity.transform = transform;
     entity.metadata = std::move(metadata);
     entity.active = active;
@@ -491,7 +491,7 @@ template <std::size_t Count>
     const NetworkWorldSnapshot& snapshot) {
     TRY_VOID(writer.write_u64(snapshot.tick));
     TRY_VOID(writer.write_count(snapshot.players.size()));
-    for (const stellar::server::PlayerSnapshot& player : snapshot.players) {
+    for (const PlayerSnapshot& player : snapshot.players) {
         TRY_VOID(write_player(writer, player));
     }
     TRY_VOID(writer.write_count(snapshot.entities.size()));
@@ -533,15 +533,15 @@ template <std::size_t Count>
         TRY_VOID(write_entity(writer, entity));
     }
     TRY_VOID(writer.write_count(delta.removed_entity_ids.size()));
-    for (stellar::server::EntityId id : delta.removed_entity_ids) {
+    for (EntityId id : delta.removed_entity_ids) {
         TRY_VOID(writer.write_u32(id));
     }
     TRY_VOID(writer.write_count(delta.updated_players.size()));
-    for (const stellar::server::PlayerSnapshot& player : delta.updated_players) {
+    for (const PlayerSnapshot& player : delta.updated_players) {
         TRY_VOID(write_player(writer, player));
     }
     TRY_VOID(writer.write_count(delta.removed_player_ids.size()));
-    for (stellar::server::PlayerId id : delta.removed_player_ids) {
+    for (PlayerId id : delta.removed_player_ids) {
         TRY_VOID(writer.write_u32(id));
     }
     return {};

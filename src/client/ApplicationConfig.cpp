@@ -1,5 +1,6 @@
 #include "stellar/client/Application.hpp"
 
+#include "stellar/authority/NetworkConversion.hpp"
 #include "stellar/client/ScriptRegistryLoader.hpp"
 #include "stellar/import/bsp/Validation.hpp"
 #include "stellar/network/SocketTransport.hpp"
@@ -257,7 +258,7 @@ prepare_application_runtime(const ApplicationConfig &config) {
 
       NetworkedClientRuntimeConfig runtime_config{};
       runtime_config.bridge.map_identity =
-          stellar::network::make_map_identity(*prepared.runtime_world);
+          stellar::authority::make_map_identity(*prepared.runtime_world);
 
       auto scripted_session = stellar::scripting::ScriptedWorldSession::create(
           *prepared.runtime_world, stellar::server::WorldSessionConfig{},
@@ -274,7 +275,7 @@ prepare_application_runtime(const ApplicationConfig &config) {
     } else {
       NetworkedClientRuntimeConfig runtime_config{};
       runtime_config.bridge.map_identity =
-          stellar::network::make_map_identity(*prepared.runtime_world);
+          stellar::authority::make_map_identity(*prepared.runtime_world);
       prepared.networked_runtime =
           std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world, runtime_config);
     }

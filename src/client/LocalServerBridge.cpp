@@ -5,6 +5,7 @@
 #include <iterator>
 #include <utility>
 
+#include "stellar/authority/NetworkConversion.hpp"
 #include "stellar/network/SnapshotCodec.hpp"
 #include "stellar/network/SnapshotDelta.hpp"
 
@@ -86,7 +87,7 @@ LocalServerBridge::LocalServerBridge(const stellar::world::RuntimeWorld& world,
                                      LocalServerBridgeConfig config)
     : config_(config),
       session_(std::in_place_type<stellar::server::WorldSession>, world, config_.session),
-      latest_snapshot_(stellar::network::make_network_snapshot(
+      latest_snapshot_(stellar::authority::make_network_snapshot(
           std::get<stellar::server::WorldSession>(session_).snapshot())) {
     pending_command_.player_id = config_.session.local_player_id;
 }
@@ -96,7 +97,7 @@ LocalServerBridge::LocalServerBridge(stellar::scripting::ScriptedWorldSession sc
     : config_(config),
       session_(std::in_place_type<stellar::scripting::ScriptedWorldSession>,
                std::move(scripted_session)),
-      latest_snapshot_(stellar::network::make_network_snapshot(
+      latest_snapshot_(stellar::authority::make_network_snapshot(
           std::get<stellar::scripting::ScriptedWorldSession>(session_).snapshot())) {
     pending_command_.player_id = config_.session.local_player_id;
 }
@@ -163,7 +164,9 @@ LocalServerBridgePumpResult LocalServerBridge::pump(stellar::network::ServerTran
 
     while (accumulated_seconds_ >= fixed_dt && result.ticks_run < max_ticks) {
         const stellar::server::PlayerCommand command{.player_id = config_.session.local_player_id,
-                                                     .movement = pending_command_.movement};
+                                                     .movement = stellar::authority::
+                                                         make_server_movement_command(
+                                                             pending_command_.movement)};
         const std::array<stellar::server::PlayerCommand, 1> commands{command};
         if (auto* scripted = std::get_if<stellar::scripting::ScriptedWorldSession>(&session_)) {
             stellar::scripting::ScriptedWorldFrame frame = scripted->tick(commands);
@@ -192,7 +195,7 @@ LocalServerBridgePumpResult LocalServerBridge::pump(stellar::network::ServerTran
     const stellar::server::WorldSnapshot snapshot =
         std::visit([](const auto& session) { return session.snapshot(); }, session_);
     const stellar::network::NetworkWorldSnapshot next_snapshot =
-        stellar::network::make_network_snapshot(snapshot);
+        stellar::authority::make_network_snapshot(snapshot);
 
     std::expected<std::vector<std::uint8_t>, stellar::network::CodecError> encoded_state;
     if (has_sent_snapshot_ && config_.emit_deltas) {
@@ -210,7 +213,7 @@ LocalServerBridgePumpResult LocalServerBridge::pump(stellar::network::ServerTran
         has_sent_snapshot_ = true;
     }
 
-    for (const stellar::network::GameplayEvent& event : stellar::network::make_gameplay_events(
+    for (const stellar::network::GameplayEvent& event : stellar::authority::make_gameplay_events(
              latest_snapshot_.tick, script_events, command_results, script_errors)) {
         auto encoded_event = stellar::network::encode_gameplay_event(event);
         if (!encoded_event) {

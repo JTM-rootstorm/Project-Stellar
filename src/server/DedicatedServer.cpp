@@ -17,6 +17,7 @@
 #include <variant>
 #include <vector>
 
+#include "stellar/authority/NetworkConversion.hpp"
 #include "stellar/assets/WorldMetadataAsset.hpp"
 #include "stellar/import/bsp/Diagnostics.hpp"
 #include "stellar/import/bsp/Validation.hpp"
@@ -219,7 +220,7 @@ load_script_registry_for_world(const stellar::world::RuntimeWorld& world,
         std::move(validation->loaded_level->asset));
     auto world = std::make_unique<stellar::world::RuntimeWorld>(
         stellar::world::build_runtime_world(*level));
-    stellar::network::MapIdentity identity = stellar::network::make_map_identity(*world);
+    stellar::network::MapIdentity identity = stellar::authority::make_map_identity(*world);
 
     if (world_has_script_bindings(*world)) {
         auto registry = load_script_registry_for_world(*world, config);
@@ -321,7 +322,7 @@ public:
           prepared_(std::move(prepared)),
           transport_(std::move(transport)),
           bound_endpoint_(std::move(bound_endpoint)),
-          latest_snapshot_(stellar::network::make_network_snapshot(snapshot())) {}
+          latest_snapshot_(stellar::authority::make_network_snapshot(snapshot())) {}
 
     [[nodiscard]] std::expected<DedicatedServerPumpResult, stellar::platform::Error> pump_once(
         float delta_seconds) noexcept {
@@ -370,7 +371,9 @@ public:
         while (accumulated_seconds_ >= step && result.ticks_run < 8) {
             const std::array<stellar::server::PlayerCommand, 1> commands{
                 stellar::server::PlayerCommand{.player_id = 1,
-                                               .movement = pending_command_.movement}};
+                                               .movement = stellar::authority::
+                                                   make_server_movement_command(
+                                                       pending_command_.movement)}};
             if (auto* scripted = std::get_if<stellar::scripting::ScriptedWorldSession>(
                     &prepared_.session)) {
                 stellar::scripting::ScriptedWorldFrame frame = scripted->tick(commands);
@@ -448,7 +451,7 @@ private:
         const std::vector<stellar::scripting::ScriptError>& script_errors,
         std::uint32_t& rejected_packets) noexcept {
         const stellar::network::NetworkWorldSnapshot next_snapshot =
-            stellar::network::make_network_snapshot(snapshot());
+            stellar::authority::make_network_snapshot(snapshot());
         const bool snapshot_due = !has_sent_snapshot_ || snapshot_seconds_ >= snapshot_dt(config_) ||
                                   next_snapshot.tick != latest_snapshot_.tick;
         if (snapshot_due) {
@@ -468,7 +471,7 @@ private:
             snapshot_seconds_ = 0.0F;
         }
 
-        for (const stellar::network::GameplayEvent& event : stellar::network::make_gameplay_events(
+        for (const stellar::network::GameplayEvent& event : stellar::authority::make_gameplay_events(
                  latest_snapshot_.tick, script_events, command_results, script_errors)) {
             auto encoded_event = stellar::network::encode_gameplay_event(event);
             if (!encoded_event || !send_bytes(*transport_, std::move(*encoded_event))) {

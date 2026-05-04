@@ -70,10 +70,10 @@ constexpr float kDefaultMaxPitchDegrees = 89.0F;
 
 } // namespace
 
-stellar::server::MovementCommand make_movement_command(
+stellar::protocol::MovementCommand make_movement_command(
     const MovementInputState& state,
     const MovementInputMapperConfig& config) noexcept {
-    stellar::server::MovementCommand command{};
+    stellar::protocol::MovementCommand command{};
 
     float x = 0.0F;
     float y = 0.0F;
@@ -102,11 +102,11 @@ stellar::server::MovementCommand make_movement_command(
     return command;
 }
 
-stellar::server::MovementCommand make_movement_command(
+stellar::protocol::MovementCommand make_movement_command(
     const MovementInputState& state,
     float yaw_degrees,
     const MovementInputMapperConfig& config) noexcept {
-    stellar::server::MovementCommand command = make_movement_command(state, config);
+    stellar::protocol::MovementCommand command = make_movement_command(state, config);
     const float radians = normalize_yaw_degrees(yaw_degrees) * kPi / 180.0F;
     const float forward_x = -std::sin(radians);
     const float forward_y = std::cos(radians);
@@ -121,11 +121,11 @@ stellar::server::MovementCommand make_movement_command(
     return command;
 }
 
-stellar::server::MovementCommand make_movement_command(
+stellar::protocol::MovementCommand make_movement_command(
     const MovementInputState& state,
     ClientViewState view_state,
     const MovementInputMapperConfig& config) noexcept {
-    stellar::server::MovementCommand command =
+    stellar::protocol::MovementCommand command =
         make_movement_command(state, view_state.yaw_degrees, config);
     command.view_yaw_degrees = normalize_yaw_degrees(view_state.yaw_degrees);
     command.view_pitch_degrees = clamp_default_pitch_degrees(view_state.pitch_degrees);
@@ -133,13 +133,13 @@ stellar::server::MovementCommand make_movement_command(
     return command;
 }
 
-stellar::server::MovementCommand make_movement_command(
+stellar::protocol::MovementCommand make_movement_command(
     const stellar::platform::Input& input,
     const MovementInputMapperConfig& config) noexcept {
     return make_movement_command(movement_state_from_input(input, config), config);
 }
 
-stellar::server::MovementCommand make_movement_command(
+stellar::protocol::MovementCommand make_movement_command(
     const stellar::platform::Input& input,
     ClientViewState view_state,
     const MovementInputMapperConfig& config) noexcept {

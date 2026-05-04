@@ -7,8 +7,8 @@
 
 namespace {
 
-stellar::server::PlayerSnapshot player(std::uint32_t id, float x) {
-    return stellar::server::PlayerSnapshot{.player_id = id,
+stellar::network::PlayerSnapshot player(std::uint32_t id, float x) {
+    return stellar::network::PlayerSnapshot{.player_id = id,
                                            .position = {x, 2.0F, 3.0F},
                                            .velocity = {0.0F, 1.0F, 0.0F},
                                            .rotation = {0.0F, 0.0F, 0.0F, 1.0F},
@@ -18,7 +18,7 @@ stellar::server::PlayerSnapshot player(std::uint32_t id, float x) {
 stellar::network::NetworkGameplayEntity entity(std::uint32_t id, std::string name, bool active) {
     stellar::network::NetworkGameplayEntity result{};
     result.id = id;
-    result.kind = stellar::server::EntityKind::kPickup;
+    result.kind = stellar::network::EntityKind::kPickup;
     result.transform.position = {static_cast<float>(id), 0.0F, 0.0F};
     result.transform.rotation = {0.0F, 0.0F, 0.0F, 1.0F};
     result.transform.scale = {1.0F, 1.0F, 1.0F};

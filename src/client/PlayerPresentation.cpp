@@ -101,8 +101,8 @@ std::optional<PlayerPresentationState> make_player_presentation_state(
 
 std::optional<PlayerPresentationState> make_player_presentation_state(
     const stellar::network::NetworkWorldSnapshot& snapshot,
-    stellar::server::PlayerId player_id) {
-    for (const stellar::server::PlayerSnapshot& player : snapshot.players) {
+    stellar::network::PlayerId player_id) {
+    for (const stellar::network::PlayerSnapshot& player : snapshot.players) {
         if (player.player_id == player_id) {
             return PlayerPresentationState{.position = player.position,
                                            .rotation = player.rotation,

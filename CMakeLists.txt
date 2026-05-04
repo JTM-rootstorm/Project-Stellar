@@ -97,7 +97,6 @@ target_link_libraries(stellar_scripting PRIVATE
 
 add_library(stellar_network
     src/network/LoopbackTransport.cpp
-    src/network/Messages.cpp
     src/network/Session.cpp
     src/network/SocketTransport.cpp
     src/network/SnapshotCodec.cpp
@@ -108,9 +107,18 @@ target_include_directories(stellar_network PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(stellar_network PUBLIC
+add_library(stellar_authority
+    src/authority/NetworkConversion.cpp
+)
+
+target_include_directories(stellar_authority PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_authority PUBLIC
     stellar_server_core
     stellar_scripting
+    stellar_network
 )
 
 add_library(stellar_dedicated_server
@@ -123,6 +131,7 @@ target_include_directories(stellar_dedicated_server PUBLIC
 
 target_link_libraries(stellar_dedicated_server PUBLIC
     stellar_import_bsp
+    stellar_authority
     stellar_network
     stellar_scripting
 )
@@ -196,6 +205,7 @@ target_include_directories(stellar_client_runtime PUBLIC
 
 target_link_libraries(stellar_client_runtime PUBLIC
     stellar_platform
+    stellar_authority
     stellar_server_core
     stellar_scripting
     stellar_network

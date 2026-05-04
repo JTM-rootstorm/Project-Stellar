@@ -1,3 +1,4 @@
+#include "stellar/authority/NetworkConversion.hpp"
 #include "stellar/client/LocalServerBridge.hpp"
 #include "stellar/network/Session.hpp"
 #include "stellar/network/SnapshotCodec.hpp"
@@ -97,11 +98,11 @@ void protocol_mismatch_rejects() {
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
     stellar::client::LocalServerBridge bridge(world,
-                                              bridge_config(stellar::network::make_map_identity(world)));
+                                              bridge_config(stellar::authority::make_map_identity(world)));
 
     stellar::network::ClientHello hello{};
     hello.protocol_version = stellar::network::kCurrentProtocolVersion + 1;
-    hello.requested_map_id = stellar::network::make_map_identity(world).map_id;
+    hello.requested_map_id = stellar::authority::make_map_identity(world).map_id;
     const auto encoded = stellar::network::encode_client_hello(hello);
     assert(encoded.has_value());
     assert(transports.client->send_to_server(packet(*encoded)).has_value());
@@ -122,7 +123,7 @@ void map_mismatch_rejects() {
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
     stellar::client::LocalServerBridge bridge(world,
-                                              bridge_config(stellar::network::make_map_identity(world)));
+                                              bridge_config(stellar::authority::make_map_identity(world)));
 
     stellar::network::ClientHello hello{};
     hello.requested_map_id = "wrong.bsp";
@@ -145,7 +146,7 @@ void input_before_welcome_is_rejected_without_snapshot() {
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
     stellar::client::LocalServerBridge bridge(world,
-                                              bridge_config(stellar::network::make_map_identity(world)));
+                                              bridge_config(stellar::authority::make_map_identity(world)));
 
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 123;
@@ -164,7 +165,7 @@ void accepted_welcome_then_first_snapshot_and_assignment() {
     const auto level = scene();
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
-    const auto identity = stellar::network::make_map_identity(world);
+    const auto identity = stellar::authority::make_map_identity(world);
     stellar::client::LocalServerBridge bridge(world, bridge_config(identity));
 
     stellar::network::ClientHello hello{};

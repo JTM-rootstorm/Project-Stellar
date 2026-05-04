@@ -33,6 +33,16 @@ stellar::server::PlayerSnapshot make_snapshot_player(stellar::server::PlayerId p
     return player;
 }
 
+stellar::network::PlayerSnapshot make_network_player(stellar::network::PlayerId player_id) {
+    stellar::network::PlayerSnapshot player;
+    player.player_id = player_id;
+    player.position = {1.0F, 2.0F, 3.0F};
+    player.velocity = {4.0F, 5.0F, 6.0F};
+    player.rotation = {0.0F, 0.70710677F, 0.0F, 0.70710677F};
+    player.grounded = true;
+    return player;
+}
+
 void missing_player_snapshot_returns_nullopt() {
     stellar::server::WorldSnapshot snapshot;
     snapshot.players.push_back(make_snapshot_player(1));
@@ -206,7 +216,7 @@ void snapshot_presentation_does_not_mutate_authoritative_snapshot() {
 void network_snapshot_extracts_player_state() {
     stellar::network::NetworkWorldSnapshot snapshot;
     snapshot.tick = 8;
-    snapshot.players.push_back(make_snapshot_player(11));
+    snapshot.players.push_back(make_network_player(11));
     snapshot.players[0].position = {4.0F, 5.0F, 6.0F};
 
     const auto missing = stellar::client::make_player_presentation_state(snapshot, 12);

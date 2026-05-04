@@ -64,7 +64,7 @@ struct PlayerCameraFrame {
 /** @brief Extract player presentation state from the latest authoritative network snapshot. */
 [[nodiscard]] std::optional<PlayerPresentationState> make_player_presentation_state(
     const stellar::network::NetworkWorldSnapshot& snapshot,
-    stellar::server::PlayerId player_id);
+    stellar::network::PlayerId player_id);
 
 /**
  * @brief Compute a deterministic camera frame from player presentation state.

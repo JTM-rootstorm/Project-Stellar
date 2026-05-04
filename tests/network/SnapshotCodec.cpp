@@ -9,8 +9,8 @@
 
 namespace {
 
-stellar::server::PlayerSnapshot player(std::uint32_t id) {
-    return stellar::server::PlayerSnapshot{.player_id = id,
+stellar::network::PlayerSnapshot player(std::uint32_t id) {
+    return stellar::network::PlayerSnapshot{.player_id = id,
                                            .position = {1.0F, 2.0F, 3.0F},
                                            .velocity = {4.0F, 5.0F, 6.0F},
                                            .rotation = {0.0F, 0.0F, 0.0F, 1.0F},
@@ -18,7 +18,7 @@ stellar::server::PlayerSnapshot player(std::uint32_t id) {
 }
 
 stellar::network::NetworkGameplayEntity entity(std::uint32_t id,
-                                                stellar::server::EntityKind kind,
+                                                 stellar::network::EntityKind kind,
                                                 std::string name) {
     stellar::network::NetworkGameplayEntity result{};
     result.id = id;
@@ -36,7 +36,7 @@ stellar::network::NetworkGameplayEntity entity(std::uint32_t id,
     result.metadata.object_collider_id = id + 100;
     result.metadata.collision_mesh_index = id + 200;
     result.active = true;
-    result.open = kind == stellar::server::EntityKind::kDoor;
+    result.open = kind == stellar::network::EntityKind::kDoor;
     return result;
 }
 
@@ -90,9 +90,9 @@ void snapshot_round_trip_with_sprite_pickup_and_door_entities() {
     stellar::network::NetworkWorldSnapshot snapshot{};
     snapshot.tick = 8;
     snapshot.players.push_back(player(2));
-    snapshot.entities.push_back(entity(10, stellar::server::EntityKind::kSprite, "sprite"));
-    snapshot.entities.push_back(entity(11, stellar::server::EntityKind::kPickup, "pickup"));
-    snapshot.entities.push_back(entity(12, stellar::server::EntityKind::kDoor, "door"));
+    snapshot.entities.push_back(entity(10, stellar::network::EntityKind::kSprite, "sprite"));
+    snapshot.entities.push_back(entity(11, stellar::network::EntityKind::kPickup, "pickup"));
+    snapshot.entities.push_back(entity(12, stellar::network::EntityKind::kDoor, "door"));
 
     auto encoded = stellar::network::encode_snapshot(snapshot);
     assert(encoded.has_value());
@@ -186,7 +186,7 @@ void deterministic_byte_output_for_identical_input() {
     stellar::network::NetworkWorldSnapshot snapshot{};
     snapshot.tick = 99;
     snapshot.players.push_back(player(5));
-    snapshot.entities.push_back(entity(20, stellar::server::EntityKind::kPickup, "pickup"));
+    snapshot.entities.push_back(entity(20, stellar::network::EntityKind::kPickup, "pickup"));
     auto first = stellar::network::encode_snapshot(snapshot);
     auto second = stellar::network::encode_snapshot(snapshot);
     assert(first.has_value());

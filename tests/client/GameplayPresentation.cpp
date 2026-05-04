@@ -17,7 +17,7 @@ stellar::server::GameplayEntity make_entity(stellar::server::EntityKind kind, bo
     return entity;
 }
 
-stellar::network::NetworkGameplayEntity make_network_entity(stellar::server::EntityKind kind,
+stellar::network::NetworkGameplayEntity make_network_entity(stellar::network::EntityKind kind,
                                                             bool active = true) {
     stellar::network::NetworkGameplayEntity entity;
     entity.id = 7;
@@ -114,10 +114,10 @@ void non_presented_entity_kinds_are_hidden_by_default() {
 
 void network_snapshot_overload_matches_server_snapshot_behavior() {
     stellar::network::NetworkWorldSnapshot snapshot;
-    snapshot.entities.push_back(make_network_entity(stellar::server::EntityKind::kSprite));
-    snapshot.entities.push_back(make_network_entity(stellar::server::EntityKind::kPickup));
-    snapshot.entities.push_back(make_network_entity(stellar::server::EntityKind::kPickup, false));
-    auto door = make_network_entity(stellar::server::EntityKind::kDoor);
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kSprite));
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kPickup));
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kPickup, false));
+    auto door = make_network_entity(stellar::network::EntityKind::kDoor);
     door.open = true;
     snapshot.entities.push_back(door);
 

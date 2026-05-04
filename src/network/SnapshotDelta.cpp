@@ -5,13 +5,13 @@
 namespace stellar::network {
 namespace {
 
-[[nodiscard]] bool same_transform(const stellar::server::TransformComponent& lhs,
-                                  const stellar::server::TransformComponent& rhs) noexcept {
+[[nodiscard]] bool same_transform(const TransformComponent& lhs,
+                                  const TransformComponent& rhs) noexcept {
     return lhs.position == rhs.position && lhs.rotation == rhs.rotation && lhs.scale == rhs.scale;
 }
 
-[[nodiscard]] bool same_metadata(const stellar::server::GameplayEntityMetadata& lhs,
-                                 const stellar::server::GameplayEntityMetadata& rhs) noexcept {
+[[nodiscard]] bool same_metadata(const GameplayEntityMetadata& lhs,
+                                 const GameplayEntityMetadata& rhs) noexcept {
     return lhs.name == rhs.name && lhs.archetype == rhs.archetype &&
            lhs.sprite_id == rhs.sprite_id && lhs.source_type == rhs.source_type &&
            lhs.extras_json == rhs.extras_json && lhs.size == rhs.size && lhs.alpha == rhs.alpha &&
@@ -26,16 +26,16 @@ namespace {
            lhs.open == rhs.open;
 }
 
-[[nodiscard]] bool same_player(const stellar::server::PlayerSnapshot& lhs,
-                               const stellar::server::PlayerSnapshot& rhs) noexcept {
+[[nodiscard]] bool same_player(const PlayerSnapshot& lhs,
+                               const PlayerSnapshot& rhs) noexcept {
     return lhs.player_id == rhs.player_id && lhs.position == rhs.position &&
            lhs.velocity == rhs.velocity && lhs.rotation == rhs.rotation && lhs.grounded == rhs.grounded;
 }
 
 void sort_snapshot(NetworkWorldSnapshot& snapshot) {
     std::sort(snapshot.players.begin(), snapshot.players.end(),
-              [](const stellar::server::PlayerSnapshot& lhs,
-                 const stellar::server::PlayerSnapshot& rhs) {
+              [](const PlayerSnapshot& lhs,
+                 const PlayerSnapshot& rhs) {
                   return lhs.player_id < rhs.player_id;
               });
     std::sort(snapshot.entities.begin(), snapshot.entities.end(),
@@ -99,8 +99,8 @@ SnapshotDelta make_snapshot_delta(const NetworkWorldSnapshot& baseline,
             continue;
         }
 
-        const stellar::server::PlayerSnapshot& baseline_player = sorted_baseline.players[baseline_index];
-        const stellar::server::PlayerSnapshot& target_player = sorted_target.players[target_index];
+        const PlayerSnapshot& baseline_player = sorted_baseline.players[baseline_index];
+        const PlayerSnapshot& target_player = sorted_target.players[target_index];
         if (baseline_player.player_id == target_player.player_id) {
             if (!same_player(baseline_player, target_player)) {
                 delta.updated_players.push_back(target_player);
@@ -130,7 +130,7 @@ std::expected<NetworkWorldSnapshot, SnapshotDeltaError> apply_snapshot_delta(
     result.tick = delta.target_tick;
     sort_snapshot(result);
 
-    for (stellar::server::EntityId removed_id : delta.removed_entity_ids) {
+    for (EntityId removed_id : delta.removed_entity_ids) {
         result.entities.erase(std::remove_if(result.entities.begin(), result.entities.end(),
                                             [removed_id](const NetworkGameplayEntity& entity) {
                                                 return entity.id == removed_id;
@@ -160,16 +160,16 @@ std::expected<NetworkWorldSnapshot, SnapshotDeltaError> apply_snapshot_delta(
         result.entities.push_back(entity);
     }
 
-    for (stellar::server::PlayerId removed_id : delta.removed_player_ids) {
+    for (PlayerId removed_id : delta.removed_player_ids) {
         result.players.erase(std::remove_if(result.players.begin(), result.players.end(),
-                                           [removed_id](const stellar::server::PlayerSnapshot& player) {
+                                            [removed_id](const PlayerSnapshot& player) {
                                                return player.player_id == removed_id;
                                            }),
                              result.players.end());
     }
-    for (const stellar::server::PlayerSnapshot& player : delta.updated_players) {
+    for (const PlayerSnapshot& player : delta.updated_players) {
         auto found = std::find_if(result.players.begin(), result.players.end(),
-                                  [&player](const stellar::server::PlayerSnapshot& existing) {
+                                   [&player](const PlayerSnapshot& existing) {
                                       return existing.player_id == player.player_id;
                                   });
         if (found == result.players.end()) {

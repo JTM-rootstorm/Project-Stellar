@@ -95,7 +95,7 @@ public:
         const noexcept;
 
     /** @brief Return the local player id assigned for this local transport phase. */
-    [[nodiscard]] stellar::server::PlayerId local_player_id() const noexcept;
+    [[nodiscard]] stellar::network::PlayerId local_player_id() const noexcept;
 
     /** @brief Return the current client-side session lifecycle state. */
     [[nodiscard]] stellar::network::SessionState session_state() const noexcept;
@@ -117,7 +117,7 @@ private:
     ClientWorldReceiver receiver_{};
     std::uint64_t next_command_sequence_ = 1;
     stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
-    stellar::server::PlayerId assigned_player_id_ = 0;
+    stellar::network::PlayerId assigned_player_id_ = 0;
     ClientViewState view_state_{};
     std::vector<std::string> pending_diagnostics_;
 };
@@ -156,7 +156,7 @@ public:
         const noexcept;
 
     /** @brief Return assigned remote player id after accepted welcome, otherwise zero. */
-    [[nodiscard]] stellar::server::PlayerId local_player_id() const noexcept;
+    [[nodiscard]] stellar::network::PlayerId local_player_id() const noexcept;
 
     /** @brief Return current remote session lifecycle state. */
     [[nodiscard]] stellar::network::SessionState session_state() const noexcept;
@@ -173,7 +173,7 @@ private:
     ClientWorldReceiver receiver_{};
     std::uint64_t next_command_sequence_ = 1;
     stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
-    stellar::server::PlayerId assigned_player_id_ = 0;
+    stellar::network::PlayerId assigned_player_id_ = 0;
     ClientViewState view_state_{};
     std::vector<std::string> pending_diagnostics_;
 };
