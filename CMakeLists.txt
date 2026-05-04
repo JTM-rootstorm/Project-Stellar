@@ -177,6 +177,8 @@ add_library(stellar_import_bsp
     src/import/bsp/BspLightmapBuilder.cpp
     src/import/bsp/BspTextureResolver.cpp
     src/import/bsp/DeveloperTextures.cpp
+    src/import/bsp/ImageFileLoader.cpp
+    src/import/bsp/MaterialSidecar.cpp
     src/import/bsp/Wad3Reader.cpp
     src/import/bsp/BspLevelBuilder.cpp
 )

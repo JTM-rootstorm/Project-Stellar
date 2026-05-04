@@ -10,17 +10,60 @@ Vec3 subtract(Vec3 a, Vec3 b) noexcept {
   return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
 }
 
+float dot(Vec3 a, Vec3 b) noexcept {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
 Vec3 cross(Vec3 a, Vec3 b) noexcept {
   return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
           a[0] * b[1] - a[1] * b[0]};
 }
 
+namespace {
+
+[[nodiscard]] float length(Vec3 v) noexcept {
+  return std::sqrt(dot(v, v));
+}
+
+[[nodiscard]] Vec3 subtract_scaled(Vec3 v, Vec3 axis, float scale) noexcept {
+  return {v[0] - axis[0] * scale, v[1] - axis[1] * scale,
+          v[2] - axis[2] * scale};
+}
+
+} // namespace
+
 Vec3 normalize(Vec3 v) noexcept {
-  const float len = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+  const float len = length(v);
   if (len <= 0.000001F) {
     return {0.0F, 0.0F, 1.0F};
   }
   return {v[0] / len, v[1] / len, v[2] / len};
+}
+
+std::optional<std::array<float, 4>>
+tangent_for_texinfo(Vec3 normal, const Texinfo &info) noexcept {
+  constexpr float kEpsilon = 0.000001F;
+  const Vec3 s_axis{info.s[0], info.s[1], info.s[2]};
+  const Vec3 t_axis{info.t[0], info.t[1], info.t[2]};
+  if (length(normal) <= kEpsilon || length(s_axis) <= kEpsilon ||
+      length(t_axis) <= kEpsilon) {
+    return std::nullopt;
+  }
+  normal = normalize(normal);
+  Vec3 tangent = subtract_scaled(s_axis, normal, dot(s_axis, normal));
+  if (length(tangent) <= kEpsilon) {
+    return std::nullopt;
+  }
+  tangent = normalize(tangent);
+  Vec3 bitangent = subtract_scaled(t_axis, normal, dot(t_axis, normal));
+  if (length(bitangent) <= kEpsilon) {
+    return std::nullopt;
+  }
+  bitangent = normalize(bitangent);
+  const float handedness = dot(cross(normal, tangent), bitangent) < 0.0F
+                               ? -1.0F
+                               : 1.0F;
+  return std::array<float, 4>{tangent[0], tangent[1], tangent[2], handedness};
 }
 
 void include_point(Vec3 &mins, Vec3 &maxs, const Vec3 &point) noexcept {

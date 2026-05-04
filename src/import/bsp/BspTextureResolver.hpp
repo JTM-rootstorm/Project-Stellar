@@ -30,6 +30,8 @@ texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
 material_index(stellar::assets::LevelGeometryAsset &geometry,
                std::map<std::string, std::size_t> &materials,
                const std::string &name, std::optional<std::size_t> texture_index,
-               std::optional<std::size_t> lightmap_index);
+               std::optional<std::size_t> lightmap_index,
+               std::optional<stellar::assets::MaterialAsset> resolved_material =
+                   std::nullopt);
 
 } // namespace stellar::import::bsp::detail

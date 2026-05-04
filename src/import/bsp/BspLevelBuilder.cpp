@@ -5,6 +5,7 @@
 #include "BspImportDiagnostics.hpp"
 #include "BspLightmapBuilder.hpp"
 #include "BspTextureResolver.hpp"
+#include "MaterialSidecar.hpp"
 #include "Wad3Reader.hpp"
 
 #include "stellar/assets/LevelVisibilityQueries.hpp"
@@ -300,6 +301,8 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
   std::map<std::string, std::size_t> material_indices;
   std::map<std::string, std::size_t> texture_indices;
   std::unordered_map<std::string, WadTextureAsset> wad_textures;
+  MaterialSidecarResolver material_sidecars(level.geometry, options,
+                                            level.source_uri, report);
   if (!entities.empty()) {
     if (const std::string *wad_key = value_for(entities.front(), "wad");
         wad_key != nullptr && !wad_key->empty()) {
@@ -403,9 +406,15 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
       const LightmapBuildResult lightmap = build_lightmap_for_face(
           level.geometry, map, face, polygon, static_cast<std::size_t>(face_index),
           level.source_uri, report);
+      auto resolved_material =
+          material_sidecars.resolve(texture, texture_asset.texture_index);
+      if (!resolved_material) {
+        return std::unexpected(resolved_material.error());
+      }
       const std::size_t mat = material_index(level.geometry, material_indices,
                                              texture, texture_asset.texture_index,
-                                             lightmap.lightmap_index);
+                                             lightmap.lightmap_index,
+                                             std::move(*resolved_material));
 
       stellar::assets::MeshPrimitive primitive{};
       primitive.material_index = mat;
@@ -417,10 +426,18 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                               std::numeric_limits<float>::lowest()};
       const Vec3 normal = normalize(cross(subtract(polygon[1], polygon[0]),
                                           subtract(polygon[2], polygon[0])));
+      std::optional<std::array<float, 4>> tangent;
+      if (face.texinfo < map.texinfos.size()) {
+        tangent = tangent_for_texinfo(normal, map.texinfos[face.texinfo]);
+      }
+      primitive.has_tangents = tangent.has_value();
       for (const Vec3 &point : polygon) {
         stellar::assets::StaticVertex vertex{};
         vertex.position = point;
         vertex.normal = normal;
+        if (tangent.has_value()) {
+          vertex.tangent = *tangent;
+        }
         if (face.texinfo < map.texinfos.size()) {
           const Texinfo &info = map.texinfos[face.texinfo];
           const float s = point[0] * info.s[0] + point[1] * info.s[1] +
