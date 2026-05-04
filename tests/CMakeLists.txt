@@ -6,8 +6,6 @@
 
 option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
        "Build optional OpenGL context/readback smoke tests" OFF)
-option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS
-       "Build optional Vulkan context/init smoke tests" OFF)
 option(STELLAR_ENABLE_DISPLAY_STARTUP_TESTS
        "Run SDL display startup smoke tests" OFF)
 

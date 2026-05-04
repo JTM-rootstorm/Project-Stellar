@@ -10,7 +10,6 @@ include(CTest)
 find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
-find_package(Vulkan REQUIRED)
 
 pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
@@ -303,19 +302,11 @@ add_library(stellar_graphics
     src/graphics/RenderLevel.cpp
     src/graphics/LevelRenderer.cpp
     src/graphics/opengl/OpenGLGraphicsDevice.cpp
-    src/graphics/vulkan/VulkanGraphicsDevice.cpp
-    src/graphics/vulkan/VulkanGraphicsDeviceCommon.cpp
-    src/graphics/vulkan/VulkanGraphicsDeviceDevice.cpp
-    src/graphics/vulkan/VulkanGraphicsDeviceSwapchain.cpp
-    src/graphics/vulkan/VulkanGraphicsDevicePipeline.cpp
-    src/graphics/vulkan/VulkanGraphicsDeviceFrame.cpp
-    src/graphics/vulkan/VulkanGraphicsDeviceResources.cpp
 )
 
 target_include_directories(stellar_graphics PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${OPENGL_INCLUDE_DIRS}
-    ${Vulkan_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${GLM_INCLUDE_DIRS}
 )
@@ -323,7 +314,6 @@ target_include_directories(stellar_graphics PUBLIC
 target_link_libraries(stellar_graphics PUBLIC
     stellar_platform
     ${OPENGL_LIBRARIES}
-    Vulkan::Vulkan
     PkgConfig::GLEW
     PkgConfig::GLM
 )
