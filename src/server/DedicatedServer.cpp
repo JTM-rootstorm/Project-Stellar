@@ -5,22 +5,16 @@
 #include <chrono>
 #include <cmath>
 #include <cctype>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <string_view>
 #include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "stellar/authority/AuthorityBootstrap.hpp"
 #include "stellar/authority/NetworkConversion.hpp"
-#include "stellar/assets/WorldMetadataAsset.hpp"
-#include "stellar/import/bsp/Diagnostics.hpp"
-#include "stellar/import/bsp/Validation.hpp"
 #include "stellar/network/Messages.hpp"
 #include "stellar/network/SnapshotCodec.hpp"
 #include "stellar/network/SnapshotDelta.hpp"
@@ -32,155 +26,14 @@
 namespace stellar::server {
 namespace {
 
-struct ScriptRegistryLoadResult {
-    stellar::scripting::ScriptRegistry registry;
-    std::vector<std::string> loaded_script_ids;
-};
-
-struct PreparedAuthority {
-    std::unique_ptr<stellar::assets::LevelAsset> level;
-    std::unique_ptr<stellar::world::RuntimeWorld> world;
-    stellar::network::MapIdentity map_identity;
-    std::variant<stellar::server::WorldSession, stellar::scripting::ScriptedWorldSession> session;
-};
-
 [[nodiscard]] stellar::platform::Error error(std::string message) {
     return stellar::platform::Error(std::move(message));
-}
-
-[[nodiscard]] std::string lowercase_extension(const std::filesystem::path& path) {
-    std::string extension = path.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return extension;
-}
-
-[[nodiscard]] bool is_ascii_alpha(char value) noexcept {
-    return std::isalpha(static_cast<unsigned char>(value)) != 0;
-}
-
-[[nodiscard]] bool script_id_has_path_escape(std::string_view script_id) noexcept {
-    if (script_id.empty() || script_id.front() == '/' || script_id.front() == '\\') {
-        return true;
-    }
-    if (script_id.size() >= 2 && is_ascii_alpha(script_id[0]) && script_id[1] == ':') {
-        return true;
-    }
-    std::size_t segment_begin = 0;
-    for (std::size_t index = 0; index <= script_id.size(); ++index) {
-        if (index == script_id.size() || script_id[index] == '/' || script_id[index] == '\\') {
-            if (script_id.substr(segment_begin, index - segment_begin) == "..") {
-                return true;
-            }
-            segment_begin = index + 1;
-        }
-    }
-    return false;
-}
-
-[[nodiscard]] bool relative_path_stays_within_root(const std::filesystem::path& relative) {
-    if (relative.is_absolute()) {
-        return false;
-    }
-    for (const auto& component : relative.lexically_normal()) {
-        if (component == "..") {
-            return false;
-        }
-    }
-    return true;
-}
-
-[[nodiscard]] std::vector<std::string> script_ids_for_world(
-    const stellar::world::RuntimeWorld& world) {
-    std::vector<std::string> ids;
-    for (const stellar::assets::WorldMarker& marker : world.world_metadata.markers) {
-        if ((marker.type != stellar::assets::WorldMarkerType::kTrigger &&
-             marker.type != stellar::assets::WorldMarkerType::kObjectCollider) ||
-            !marker.script.has_value()) {
-            continue;
-        }
-        if (std::ranges::find(ids, marker.script->script_id) == ids.end()) {
-            ids.push_back(marker.script->script_id);
-        }
-    }
-    return ids;
-}
-
-[[nodiscard]] bool world_has_script_bindings(const stellar::world::RuntimeWorld& world) noexcept {
-    for (const stellar::assets::WorldMarker& marker : world.world_metadata.markers) {
-        if ((marker.type == stellar::assets::WorldMarkerType::kTrigger ||
-             marker.type == stellar::assets::WorldMarkerType::kObjectCollider) &&
-            marker.script.has_value()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-[[nodiscard]] std::expected<std::string, stellar::platform::Error> read_text_file(
-    const std::filesystem::path& path,
-    const std::string& script_id) {
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-        return std::unexpected(error("Missing script source for id: " + script_id + " at " +
-                                     path.string()));
-    }
-    std::ostringstream stream;
-    stream << file.rdbuf();
-    if (!file.good() && !file.eof()) {
-        return std::unexpected(error("Failed to read script source for id: " + script_id + " at " +
-                                     path.string()));
-    }
-    return stream.str();
-}
-
-[[nodiscard]] std::expected<ScriptRegistryLoadResult, stellar::platform::Error>
-load_script_registry_for_world(const stellar::world::RuntimeWorld& world,
-                               const DedicatedServerConfig& config) {
-    ScriptRegistryLoadResult result;
-    const std::vector<std::string> script_ids = script_ids_for_world(world);
-    if (script_ids.empty()) {
-        return result;
-    }
-
-    const std::filesystem::path root = std::filesystem::absolute(
-                                           config.script_root.has_value()
-                                               ? std::filesystem::path(*config.script_root)
-                                               : std::filesystem::path(config.map_path).parent_path())
-                                           .lexically_normal();
-    for (const std::string& script_id : script_ids) {
-        if (script_id_has_path_escape(script_id)) {
-            return std::unexpected(error("Script id escapes configured script root: " + script_id));
-        }
-        const std::filesystem::path relative = std::filesystem::path(script_id).lexically_normal();
-        if (!relative_path_stays_within_root(relative)) {
-            return std::unexpected(
-                error("Script id escapes configured script root after normalization: " + script_id));
-        }
-        const std::filesystem::path script_path = (root / relative).lexically_normal();
-        const std::filesystem::path relative_to_root = script_path.lexically_relative(root);
-        if (relative_to_root.empty() || !relative_path_stays_within_root(relative_to_root)) {
-            return std::unexpected(
-                error("Script source path escapes configured script root: " + script_id));
-        }
-        auto source = read_text_file(script_path, script_id);
-        if (!source) {
-            return std::unexpected(source.error());
-        }
-        result.registry.set_script(script_id, std::move(*source));
-        result.loaded_script_ids.push_back(script_id);
-    }
-    return result;
 }
 
 [[nodiscard]] std::expected<void, stellar::platform::Error> validate_config_values(
     const DedicatedServerConfig& config) {
     if (config.map_path.empty()) {
         return std::unexpected(error("--map is required"));
-    }
-    if (lowercase_extension(config.map_path) != ".bsp") {
-        return std::unexpected(error("Unsupported map extension for --map (expected .bsp)"));
     }
     if (auto parsed = stellar::network::parse_socket_address(config.listen_endpoint); !parsed) {
         return std::unexpected(error("Invalid --listen endpoint: " + parsed.error().message));
@@ -195,60 +48,6 @@ load_script_registry_for_world(const stellar::world::RuntimeWorld& world,
         return std::unexpected(error("ST-5 dedicated server supports --max-clients 1 only"));
     }
     return {};
-}
-
-[[nodiscard]] std::expected<PreparedAuthority, stellar::platform::Error> prepare_authority(
-    const DedicatedServerConfig& config) {
-    if (auto valid = validate_config_values(config); !valid) {
-        return std::unexpected(valid.error());
-    }
-
-    auto validation = stellar::import::bsp::validate_level(config.map_path);
-    if (!validation) {
-        return std::unexpected(validation.error());
-    }
-    if (!validation->valid || !validation->loaded_level.has_value()) {
-        for (const auto& diagnostic : validation->report.diagnostics) {
-            if (diagnostic.severity == stellar::import::bsp::DiagnosticSeverity::kError) {
-                return std::unexpected(error(diagnostic.message));
-            }
-        }
-        return std::unexpected(error("BSP map validation failed for --map: " + config.map_path));
-    }
-
-    auto level = std::make_unique<stellar::assets::LevelAsset>(
-        std::move(validation->loaded_level->asset));
-    auto world = std::make_unique<stellar::world::RuntimeWorld>(
-        stellar::world::build_runtime_world(*level));
-    stellar::network::MapIdentity identity = stellar::authority::make_map_identity(*world);
-
-    if (world_has_script_bindings(*world)) {
-        auto registry = load_script_registry_for_world(*world, config);
-        if (!registry) {
-            return std::unexpected(registry.error());
-        }
-        auto scripted = stellar::scripting::ScriptedWorldSession::create(
-            *world, stellar::server::WorldSessionConfig{}, std::move(registry->registry));
-        if (!scripted) {
-            return std::unexpected(error("Failed to load authoritative scripts for --map: " +
-                                         scripted.error().message));
-        }
-        return PreparedAuthority{.level = std::move(level),
-                                 .world = std::move(world),
-                                 .map_identity = std::move(identity),
-                                 .session = std::variant<stellar::server::WorldSession,
-                                                         stellar::scripting::ScriptedWorldSession>(
-                                     std::in_place_type<stellar::scripting::ScriptedWorldSession>,
-                                     std::move(*scripted))};
-    }
-
-    std::variant<stellar::server::WorldSession, stellar::scripting::ScriptedWorldSession> session(
-        std::in_place_type<stellar::server::WorldSession>, *world,
-        stellar::server::WorldSessionConfig{});
-    return PreparedAuthority{.level = std::move(level),
-                             .world = std::move(world),
-                             .map_identity = std::move(identity),
-                             .session = std::move(session)};
 }
 
 [[nodiscard]] float fixed_dt(const DedicatedServerConfig& config) noexcept {
@@ -315,7 +114,7 @@ load_script_registry_for_world(const stellar::world::RuntimeWorld& world,
 class DedicatedServer::Impl {
 public:
     Impl(DedicatedServerConfig config,
-         PreparedAuthority prepared,
+         stellar::authority::PreparedAuthority prepared,
          std::unique_ptr<stellar::network::ServerTransport> transport,
          std::string bound_endpoint)
         : config_(std::move(config)),
@@ -483,7 +282,7 @@ private:
     }
 
     DedicatedServerConfig config_;
-    PreparedAuthority prepared_;
+    stellar::authority::PreparedAuthority prepared_;
     std::unique_ptr<stellar::network::ServerTransport> transport_;
     std::string bound_endpoint_;
     stellar::network::NetworkPlayerCommand pending_command_{.player_id = 1};
@@ -560,7 +359,12 @@ std::expected<DedicatedServerConfig, stellar::platform::Error> DedicatedServer::
 
 std::expected<DedicatedServer, stellar::platform::Error> DedicatedServer::create(
     DedicatedServerConfig config) {
-    auto prepared = prepare_authority(config);
+    stellar::authority::AuthorityLoadConfig load_config;
+    load_config.map_path = config.map_path;
+    if (config.script_root.has_value()) {
+        load_config.script_root = *config.script_root;
+    }
+    auto prepared = stellar::authority::prepare_authority(load_config);
     if (!prepared) {
         return std::unexpected(prepared.error());
     }

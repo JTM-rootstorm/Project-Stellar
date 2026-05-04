@@ -108,6 +108,7 @@ target_include_directories(stellar_network PUBLIC
 )
 
 add_library(stellar_authority
+    src/authority/AuthorityBootstrap.cpp
     src/authority/NetworkConversion.cpp
 )
 
@@ -172,6 +173,10 @@ target_link_libraries(stellar_import_bsp PUBLIC
     stellar_assets
 )
 
+target_link_libraries(stellar_authority PUBLIC
+    stellar_import_bsp
+)
+
 add_library(stellar_platform
     src/platform/DisplayDiagnostics.cpp
     src/platform/Window.cpp
@@ -196,7 +201,6 @@ add_library(stellar_client_runtime
     src/client/LocalLoopbackRuntime.cpp
     src/client/PlayerPresentation.cpp
     src/client/GameplayPresentation.cpp
-    src/client/ScriptRegistryLoader.cpp
 )
 
 target_include_directories(stellar_client_runtime PUBLIC

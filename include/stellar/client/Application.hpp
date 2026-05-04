@@ -3,6 +3,7 @@
 #include <expected>
 #include <memory>
 
+#include "stellar/authority/AuthorityBootstrap.hpp"
 #include "stellar/client/ApplicationConfig.hpp"
 #include "stellar/client/LocalLoopbackRuntime.hpp"
 #include "stellar/client/NetworkedClientRuntime.hpp"
@@ -58,6 +59,9 @@ struct PreparedApplicationRuntime {
 
     /** @brief Optional socket-backed presentation-only runtime for remote server play. */
     std::unique_ptr<RemoteClientRuntime> remote_runtime;
+
+    /** @brief Optional authority bootstrap storage that backs scripted local runtime references. */
+    std::unique_ptr<stellar::authority::PreparedAuthority> authority;
 };
 
 /**
