@@ -4,8 +4,11 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <expected>
 #include <string>
+#include <string_view>
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
@@ -14,6 +17,24 @@
 namespace stellar::graphics::opengl {
 
 namespace {
+
+class ScopedUnpackAlignment {
+public:
+  explicit ScopedUnpackAlignment(GLint alignment) noexcept {
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previous_alignment_);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+  }
+
+  ScopedUnpackAlignment(const ScopedUnpackAlignment &) = delete;
+  ScopedUnpackAlignment &operator=(const ScopedUnpackAlignment &) = delete;
+
+  ~ScopedUnpackAlignment() noexcept {
+    glPixelStorei(GL_UNPACK_ALIGNMENT, previous_alignment_);
+  }
+
+private:
+  GLint previous_alignment_ = 4;
+};
 
 constexpr const char *kVertexShader = R"(
 #version 430 core
@@ -76,6 +97,8 @@ uniform float u_normal_scale;
 uniform float u_occlusion_strength;
 uniform float u_lightmap_intensity;
 uniform float u_lightmap_min;
+uniform vec3 u_global_light_color;
+uniform float u_global_light_intensity;
 uniform vec3 u_emissive_factor;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
@@ -148,8 +171,10 @@ void main() {
     if (u_has_lightmap_texture) {
         vec3 lightmap = texture(u_lightmap_texture,
             uv_for_set(u_lightmap_texcoord_set)).rgb;
-        frag_color = vec4(color.rgb * max(lightmap * u_lightmap_intensity,
-            vec3(u_lightmap_min)) + emissive, color.a);
+        vec3 lighting = lightmap * u_lightmap_intensity +
+            u_global_light_color * u_global_light_intensity;
+        frag_color = vec4(color.rgb * max(lighting, vec3(u_lightmap_min)) +
+            emissive, color.a);
     } else if (u_unlit) {
         frag_color = vec4(color.rgb + emissive, color.a);
     } else {
@@ -221,6 +246,16 @@ std::string opengl_context_failure_message() {
   message += "): ";
   message += stable_sdl_error_text();
   return message;
+}
+
+bool env_flag_enabled(const char *name) noexcept {
+  const char *value = std::getenv(name);
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string_view text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
 }
 
 std::expected<GLuint, stellar::platform::Error>
@@ -427,6 +462,8 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+  const int srgb_capable_request_result =
+      SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
   context_ = SDL_GL_CreateContext(window_);
   if (!context_) {
@@ -459,6 +496,27 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
+
+  GLint framebuffer_srgb_capable = 0;
+  const int srgb_capable_query_result = SDL_GL_GetAttribute(
+      SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, &framebuffer_srgb_capable);
+  const bool framebuffer_srgb_disabled =
+      env_flag_enabled("STELLAR_DISABLE_FRAMEBUFFER_SRGB");
+  if (!framebuffer_srgb_disabled) {
+    glEnable(GL_FRAMEBUFFER_SRGB);
+  }
+  const GLboolean framebuffer_srgb_enabled = glIsEnabled(GL_FRAMEBUFFER_SRGB);
+
+  if (env_flag_enabled("STELLAR_DEBUG_RENDER")) {
+    std::fprintf(stderr,
+                 "[stellar][render][opengl] framebuffer_srgb_request=%d "
+                 "framebuffer_srgb_query=%d framebuffer_srgb_capable=%d "
+                 "framebuffer_srgb_disabled=%d framebuffer_srgb_enabled=%d\n",
+                 srgb_capable_request_result == 0 ? 1 : 0,
+                 srgb_capable_query_result == 0 ? 1 : 0,
+                 framebuffer_srgb_capable, framebuffer_srgb_disabled ? 1 : 0,
+                 framebuffer_srgb_enabled == GL_TRUE ? 1 : 0);
+  }
 
   return {};
 }
@@ -584,10 +642,13 @@ OpenGLGraphicsDevice::create_texture(const TextureUpload &texture) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexImage2D(GL_TEXTURE_2D, 0, internal_format,
-               static_cast<GLsizei>(image.width),
-               static_cast<GLsizei>(image.height), 0, external_format,
-               GL_UNSIGNED_BYTE, image.pixels.data());
+  {
+    const ScopedUnpackAlignment unpack_alignment(1);
+    glTexImage2D(GL_TEXTURE_2D, 0, internal_format,
+                 static_cast<GLsizei>(image.width),
+                 static_cast<GLsizei>(image.height), 0, external_format,
+                 GL_UNSIGNED_BYTE, image.pixels.data());
+  }
   glGenerateMipmap(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -685,7 +746,8 @@ void OpenGLGraphicsDevice::draw_mesh(
       glDisable(GL_BLEND);
     }
 
-    if (material != nullptr && material->upload.material.double_sided) {
+    if (env_flag_enabled("STELLAR_DISABLE_GL_CULLING") ||
+        (material != nullptr && material->upload.material.double_sided)) {
       glDisable(GL_CULL_FACE);
     } else {
       glEnable(GL_CULL_FACE);
@@ -782,6 +844,10 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_lightmap_intensity");
     const GLint lightmap_min_loc =
         glGetUniformLocation(shader_program_, "u_lightmap_min");
+    const GLint global_light_color_loc =
+        glGetUniformLocation(shader_program_, "u_global_light_color");
+    const GLint global_light_intensity_loc =
+        glGetUniformLocation(shader_program_, "u_global_light_intensity");
     const GLint emissive_factor_loc =
         glGetUniformLocation(shader_program_, "u_emissive_factor");
     const GLint alpha_mode_loc =
@@ -856,7 +922,15 @@ void OpenGLGraphicsDevice::draw_mesh(
                     : 1.0f);
     glUniform1f(lightmap_intensity_loc,
                 material != nullptr ? material->upload.lightmap_multiplier : 1.0F);
-    glUniform1f(lightmap_min_loc, 0.08F);
+    glUniform1f(lightmap_min_loc,
+                material != nullptr ? material->upload.lightmap_min : 0.0F);
+    const std::array<float, 3> global_light_color =
+        material != nullptr ? material->upload.global_light_color
+                            : std::array<float, 3>{0.0F, 0.0F, 0.0F};
+    glUniform3fv(global_light_color_loc, 1, global_light_color.data());
+    glUniform1f(global_light_intensity_loc,
+                material != nullptr ? material->upload.global_light_intensity
+                                    : 0.0F);
     const std::array<float, 3> emissive_factor =
         material != nullptr ? material->upload.material.emissive_factor
                             : std::array<float, 3>{0.0f, 0.0f, 0.0f};

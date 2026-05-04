@@ -84,8 +84,8 @@ suitable for game content.
 
 ## 2. Documentation Authority
 
-This file describes broad architecture and long-term design intent. For the
-`trenchbroom-compat` branch, it is not the highest authority on implementation status.
+This file describes broad architecture and long-term design intent. For current branch-facing work, it
+is not the highest authority on implementation status.
 
 Precedence for resolving conflicts:
 
@@ -105,13 +105,13 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch: `trenchbroom-compat`.
+Current branch direction: fixes and cleanup over completed BSP gameplay and TrenchBroom foundations.
 
-Primary near-term status: the `trenchbroom-compat` branch has completed the Z-up migration and
-TrenchBroom BSP30 authoring workflow. Active runtime, collision, movement, presentation, tests, and map
-fixtures use the central Z-up world-axis contract. TrenchBroom-authored BSP30 maps are the supported
-editor workflow, and imported BSP coordinates are preserved 1:1 as Stellar gameplay inches. Socket
-transport and networked session lifecycle over the completed BSP gameplay loop and
+Primary near-term status: the Z-up migration and TrenchBroom BSP30 authoring workflow are complete.
+Active runtime, collision, movement, presentation, tests, and map fixtures use the central Z-up
+world-axis contract. TrenchBroom-authored BSP30 maps are the supported editor workflow, and imported BSP
+coordinates are preserved 1:1 as Stellar gameplay inches. Socket transport and networked session
+lifecycle over the completed BSP gameplay loop and
 presentation/networking polish foundations are also complete. The completed scope includes a
 Linux/POSIX TCP-first socket backend, deterministic `ClientHello`/`ServerWelcome`, the headless
 `stellar-server`, and `stellar-client --connect HOST:PORT` remote presentation mode. Completed

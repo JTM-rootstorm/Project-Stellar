@@ -163,6 +163,18 @@ void collect_keys(const FgdFile &file, const std::string &name, std::set<std::st
   }
 }
 
+void collect_key_counts(const FgdFile &file, const std::string &name,
+                        std::map<std::string, int> &counts) {
+  const auto found = file.classes.find(name);
+  assert(found != file.classes.end());
+  for (const std::string &key : found->second.local_keys) {
+    ++counts[key];
+  }
+  for (const std::string &base : found->second.bases) {
+    collect_key_counts(file, base, counts);
+  }
+}
+
 std::map<std::string, std::set<std::string>> concrete_contract(const FgdFile &file) {
   std::map<std::string, std::set<std::string>> result;
   for (const auto &[name, entry] : file.classes) {
@@ -185,6 +197,18 @@ void assert_has_keys(const std::map<std::string, std::set<std::string>> &classes
   }
 }
 
+void assert_lacks_keys(const std::map<std::string, std::set<std::string>> &classes,
+                       const std::string &classname, std::initializer_list<const char *> keys) {
+  const auto found = classes.find(classname);
+  assert(found != classes.end());
+  for (const char *key : keys) {
+    if (found->second.contains(key)) {
+      std::cerr << "FGD class '" << classname << "' exposes unsupported key '" << key << "'\n";
+    }
+    assert(!found->second.contains(key));
+  }
+}
+
 void fgd_files_have_identical_concrete_class_key_contracts() {
   const std::filesystem::path root = STELLAR_SOURCE_DIR;
   const auto trenchbroom = concrete_contract(
@@ -198,17 +222,31 @@ void required_editor_categories_are_exposed_with_expected_keys() {
   const auto classes = concrete_contract(
       parse_fgd(root / "tools/trenchbroom/Stellar/stellar_entities.fgd"));
 
-  assert_has_keys(classes, "worldspawn", {"message", "wad"});
+  assert_has_keys(classes, "worldspawn",
+                  {"message", "wad", "_stellar_lighting_mode",
+                   "_stellar_global_light", "_stellar_global_color",
+                   "_stellar_global_intensity"});
   assert_has_keys(classes, "info_player_start", {"targetname", "origin", "angle"});
   assert_has_keys(classes, "info_player_deathmatch", {"targetname", "origin", "angle"});
   assert_has_keys(classes, "info_stellar_spawn",
                   {"targetname", "origin", "archetype", "_stellar_script", "_stellar_table"});
   assert_has_keys(classes, "light", {"targetname", "origin", "_light", "light", "style"});
-  assert_has_keys(classes, "light_spot", {"origin", "angles", "pitch", "_cone", "_cone2"});
-  assert_has_keys(classes, "light_environment", {"origin", "angle", "pitch", "_light"});
-  assert_has_keys(classes, "trigger_stellar", {"targetname", "_stellar_script", "_stellar_once"});
+  assert_has_keys(classes, "light_spot",
+                  {"targetname", "target", "origin", "angles", "pitch", "_cone", "_cone2"});
+  assert_has_keys(classes, "light_environment",
+                  {"targetname", "origin", "angle", "pitch", "_light"});
+  assert_has_keys(classes, "stellar_global_light",
+                  {"targetname", "origin", "_stellar_color", "_stellar_intensity",
+                   "_stellar_enabled"});
+  assert_has_keys(classes, "trigger_stellar",
+                  {"targetname", "target", "delay", "_stellar_script", "_stellar_once"});
+  assert_has_keys(classes, "trigger_multiple", {"targetname", "target", "delay"});
+  assert_has_keys(classes, "trigger_once", {"targetname", "target", "delay"});
+  assert_has_keys(classes, "trigger_stellar_point", {"targetname", "target", "delay"});
   assert_has_keys(classes, "trigger_multiple_point",
-                  {"targetname", "origin", "_stellar_extents", "_stellar_script"});
+                  {"targetname", "target", "delay", "origin", "_stellar_extents",
+                   "_stellar_script"});
+  assert_has_keys(classes, "trigger_once_point", {"targetname", "target", "delay"});
   assert_has_keys(classes, "stellar_object_collider",
                   {"targetname", "archetype", "_stellar_collider", "_stellar_enabled"});
   assert_has_keys(classes, "stellar_object_collider_point",
@@ -220,13 +258,64 @@ void required_editor_categories_are_exposed_with_expected_keys() {
   assert_has_keys(classes, "func_illusionary", {"targetname", "_stellar_collision"});
   assert_has_keys(classes, "func_detail", {"targetname", "_stellar_collision"});
   assert_has_keys(classes, "func_door",
-                  {"targetname", "target", "killtarget", "message", "delay", "angle", "angles",
-                   "speed", "wait", "lip", "dmg", "spawnflags", "_stellar_collision"});
-  assert_has_keys(classes, "func_button",
-                  {"targetname", "target", "angle", "angles", "speed", "wait", "lip",
+                  {"targetname", "angle", "angles", "speed", "wait", "lip", "dmg",
                    "spawnflags", "_stellar_collision"});
+  assert_has_keys(classes, "func_button",
+                  {"targetname", "target", "delay", "angle", "angles", "speed", "wait",
+                   "lip", "spawnflags", "_stellar_collision"});
   assert_has_keys(classes, "target_stellar_relay", {"targetname", "target", "delay", "origin"});
   assert_has_keys(classes, "info_null", {"targetname", "origin"});
+}
+
+void unsupported_target_fields_are_not_exposed() {
+  const std::filesystem::path root = STELLAR_SOURCE_DIR;
+  const auto classes = concrete_contract(
+      parse_fgd(root / "tools/trenchbroom/Stellar/stellar_entities.fgd"));
+
+  for (const std::string &classname : {"func_door"}) {
+    assert_lacks_keys(classes, classname, {"target", "killtarget", "message", "delay"});
+  }
+  for (const std::string &classname : {"target_stellar_relay"}) {
+    assert_lacks_keys(classes, classname, {"killtarget", "message", "spawnflags"});
+  }
+  for (const std::string &classname : {"light", "light_environment", "info_player_start",
+                                      "stellar_sprite", "env_sprite",
+                                      "stellar_object_collider",
+                                      "stellar_object_collider_point"}) {
+    assert_lacks_keys(classes, classname, {"target"});
+  }
+}
+
+void targetname_and_routing_bases_are_intentional() {
+  const std::filesystem::path root = STELLAR_SOURCE_DIR;
+  const FgdFile fgd = parse_fgd(root / "tools/trenchbroom/Stellar/stellar_entities.fgd");
+
+  assert(fgd.classes.at("Targetname").local_keys.contains("targetname"));
+  assert(!fgd.classes.at("LightKeys").local_keys.contains("targetname"));
+  assert(fgd.classes.at("FiresTarget").local_keys.contains("target"));
+  assert(fgd.classes.at("FiresTarget").local_keys.contains("delay"));
+  assert(fgd.classes.at("KillTarget").local_keys.contains("killtarget"));
+  assert(fgd.classes.at("MessageText").local_keys.contains("message"));
+  assert(fgd.classes.at("AimTarget").local_keys.contains("target"));
+  assert(!fgd.classes.contains("TargetRouting"));
+}
+
+void concrete_classes_do_not_duplicate_inherited_fields() {
+  const std::filesystem::path root = STELLAR_SOURCE_DIR;
+  const FgdFile fgd = parse_fgd(root / "tools/trenchbroom/Stellar/stellar_entities.fgd");
+  for (const auto &[name, entry] : fgd.classes) {
+    if (entry.kind != "PointClass" && entry.kind != "SolidClass") {
+      continue;
+    }
+    std::map<std::string, int> counts;
+    collect_key_counts(fgd, name, counts);
+    for (const auto &[key, count] : counts) {
+      if (count > 1) {
+        std::cerr << "FGD class '" << name << "' exposes duplicate key '" << key << "'\n";
+      }
+      assert(count == 1);
+    }
+  }
 }
 
 void alias_policy_stays_importer_supported() {
@@ -235,7 +324,9 @@ void alias_policy_stays_importer_supported() {
   const std::vector<std::string> supported_aliases = {
       "_stellar_script",   "_stellar_table",    "_stellar_extents", "_stellar_once",
       "_stellar_sprite",   "_stellar_texture",  "_stellar_size",    "_stellar_alpha",
-      "_stellar_collider", "_stellar_enabled",  "_stellar_collision"};
+      "_stellar_collider", "_stellar_enabled",  "_stellar_collision",
+      "_stellar_lighting_mode", "_stellar_global_light", "_stellar_global_color",
+      "_stellar_global_intensity", "_stellar_color", "_stellar_intensity"};
   for (const std::string &alias : supported_aliases) {
     assert(text.find(alias) != std::string::npos);
   }
@@ -243,7 +334,9 @@ void alias_policy_stays_importer_supported() {
       "\n    stellar_script(",   "\n    stellar_table(",     "\n    stellar_extents(",
       "\n    stellar_once(",     "\n    stellar_sprite(",    "\n    stellar_texture(",
       "\n    stellar_size(",     "\n    stellar_alpha(",     "\n    stellar_collider(",
-      "\n    stellar_enabled(",  "\n    stellar_collision("};
+      "\n    stellar_enabled(",  "\n    stellar_collision(", "\n    stellar_lighting_mode(",
+      "\n    stellar_global_light(", "\n    stellar_global_color(",
+      "\n    stellar_global_intensity(", "\n    stellar_color(", "\n    stellar_intensity("};
   for (const std::string &alias : unsupported_plain_aliases) {
     assert(text.find(alias) == std::string::npos);
   }
@@ -262,7 +355,8 @@ void point_and_solid_categories_are_intentional() {
                                       "trigger_multiple_point", "trigger_once_point",
                                       "stellar_object_collider_point", "stellar_sprite",
                                       "env_sprite", "light", "light_spot", "light_environment",
-                                      "target_stellar_relay", "info_null"}) {
+                                      "stellar_global_light", "target_stellar_relay",
+                                      "info_null"}) {
     assert(fgd.classes.at(classname).kind == "PointClass");
   }
 }
@@ -272,6 +366,9 @@ void point_and_solid_categories_are_intentional() {
 int main() {
   fgd_files_have_identical_concrete_class_key_contracts();
   required_editor_categories_are_exposed_with_expected_keys();
+  unsupported_target_fields_are_not_exposed();
+  targetname_and_routing_bases_are_intentional();
+  concrete_classes_do_not_duplicate_inherited_fields();
   alias_policy_stays_importer_supported();
   point_and_solid_categories_are_intentional();
   return 0;

@@ -6,10 +6,9 @@ For the current TrenchBroom BSP30 editor workflow, package setup, FGD policy, co
 validation commands, see [`docs/TrenchBroom.md`](TrenchBroom.md). This page remains the lower-level BSP
 entity and runtime metadata reference.
 
-Gameplay authoring uses inch-scale Z-up coordinates on the active `trenchbroom-compat` branch: 1
-Stellar gameplay world unit equals 1 inch, and BSP30 coordinates are imported 1:1 without hidden scale
-conversion. The default player capsule center should be authored at `origin = "0 0 36"` on a floor at
-`z = 0`.
+Gameplay authoring uses inch-scale Z-up coordinates: 1 Stellar gameplay world unit equals 1 inch, and
+BSP30 coordinates are imported 1:1 without hidden scale conversion. The default player capsule center
+should be authored at `origin = "0 0 36"` on a floor at `z = 0`.
 
 ## Minimal workflow
 
@@ -34,24 +33,25 @@ such as `_stellar_script`. The TrenchBroom package at `tools/trenchbroom/Stellar
 underscore aliases directly for reliability. It is the authoritative FGD; `tools/bsp/stellar_entities.fgd`
 is a compatibility copy with the same concrete class/key contract, verified by display-free FGD lint.
 
-For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
-on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
-floor plan with an 8 ft ceiling, a player spawn at `0 0 36`, and developer grid/wall materials listed
-below.
+For gameplay-scale fixtures, prefer authoring dimensions directly in inches instead of relying on
+importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft floor
+plan with an 8 ft ceiling, a player spawn at `0 0 36`, and developer grid/wall materials listed below.
 
 ## Procedural developer textures
 
 BSP materials may reference these deterministic developer textures without embedding miptex pixels or
 shipping external WAD files:
 
-| Canonical runtime name | Source alias | Compiler/WAD alias | Intended scale cue |
+<!-- STELLAR_DEVELOPER_MATERIAL_TABLE_BEGIN -->
+| Runtime material | Source alias | Compiler alias | Scale cue |
 | --- | --- | --- | --- |
 | `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` | 12 inch / 1 foot grid tile. |
 | `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` | 16 inch tile/checker. |
 | `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` | 32 inch tile/checker. |
 | `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` | 64 inch tile/checker. |
-| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
-| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference marker. |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch wall-height reference with overflow band. |
+<!-- STELLAR_DEVELOPER_MATERIAL_TABLE_END -->
 
 The importer generates `ImageAsset`/`TextureAsset` data for these names during BSP material fallback,
 uses nearest filtering so markings stay crisp, and uses repeat wrapping so authored texture axes can
@@ -60,8 +60,10 @@ world inch; changing editor texture scale changes the visible inch marks accordi
 
 When compiling through VHLT, keep source `.map` files as clean authoring references. The VHLT wrapper
 copies each map into a build/work directory, creates a temporary developer WAD, injects the copied map's
-`wad` key there, and rewrites compiler-facing aliases when required. Do not commit local absolute WAD
-paths or generated compiler edits back into `maps/src/` or `tests/fixtures/trenchbroom/src/`.
+`wad` key there, rewrites compiler-facing aliases when required, and converts TrenchBroom/editor-facing
+spotlight and environment-light pitch to VHLT/GoldSrc pitch on the copied work map before `hlrad`. Do not
+commit local absolute WAD paths or generated compiler edits back into `maps/src/` or
+`tests/fixtures/trenchbroom/src/`; authored source maps are untouched by the wrapper.
 
 External WAD3 texture pixels are now resolved at BSP import time when the compiled `worldspawn` `wad`
 key references safe relative WAD paths. The importer searches the BSP/map directory, roots from
@@ -85,14 +87,20 @@ geometry without authoritative collision. `func_door` and `func_button` preserve
 so the server can move their collision overlays and replicate presentation transforms without mutating the
 immutable `LevelAsset`.
 
-Supported moving-brush keys are `targetname`, `target`, `delay`, `angle`, `speed`, `wait`, and `lip`. Doors open
-when their `targetname` is fired by a trigger/button; buttons press along their movement direction and may
-fire `target`. `angle = -1` moves up, `angle = -2` moves down, and other angles move in the X/Y plane.
-Missing targets are server diagnostics, not fatal import/runtime errors.
+Entity targeting uses the classic BSP contract: `classname` selects the entity type, `targetname` is the
+entity's targetable Name, and `target` points to another entity's `targetname`. Multiple entities may
+share a `targetname` for group firing.
 
-Trigger entities (`trigger_stellar`, `trigger_multiple`, and `trigger_once`) may set `target` to fire named
-brush movers through the server-owned router. Clients receive resulting transforms through authoritative
-snapshots only; client rendering remains presentation-only with no prediction or gameplay authority.
+Supported door keys are `targetname`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, and
+`stellar.collision`. Doors open when their `targetname` is fired by a trigger/button. Supported button
+output keys are `target` and `delay`; buttons press along their movement direction and may fire `target`.
+`angle = -1` moves up, `angle = -2` moves down, and other angles move in the X/Y plane. Missing targets
+are server diagnostics, not fatal import/runtime errors.
+
+Trigger entities (`trigger_stellar`, `trigger_multiple`, and `trigger_once`) may set `target` and `delay`
+to fire named brush movers through the server-owned router. Clients receive resulting transforms through
+authoritative snapshots only; client rendering remains presentation-only with no prediction or gameplay
+authority.
 
 ## Entity key reference
 
@@ -102,15 +110,16 @@ snapshots only; client rendering remains presentation-only with no prediction or
 | Player spawn | `info_player_start` | `origin` | `targetname`, `angle`, `angles` | Creates a player spawn marker. |
 | Deathmatch/player spawn | `info_player_deathmatch` | `origin` | `targetname`, `angle`, `angles` | Creates the same player-spawn marker type as `info_player_start`; use for multiplayer/deathmatch spawn pads or maps that only provide DM starts. |
 | Generic spawn | `info_stellar_spawn` | `targetname`, `archetype`, `origin` | `stellar.script`, `stellar.table` | Creates metadata for server-side spawn logic; no entity is spawned during import. |
-| Compile-time lights | `light`, `light_spot`, `light_environment` | `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2` as applicable | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
-| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are import-time metadata until authoritative runtime invokes them. |
-| Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
+| Compile-time lights | `light`, `light_spot`, `light_environment` | `targetname`, `origin`, light color/intensity keys for the compiler profile | `_light`, `light`, `style`, `pattern`, `spawnflags`, `angle`, `angles`, `pitch`, `_cone`, `_cone2`, `target` on `light_spot` only | Light entities are for BSP compile/lightmap generation. Import safely ignores them as non-runtime metadata and does not create dynamic runtime lights. |
+| Brush trigger volume | `trigger_stellar`, `trigger_multiple`, `trigger_once` | `targetname`, `model="*N"` | `target`, `delay`, `stellar.script`, `stellar.table`, `stellar.once` | Creates a trigger marker from brush model bounds. Script ids are import-time metadata until authoritative runtime invokes them. |
+| Point trigger volume | `trigger_stellar_point`, `trigger_multiple_point`, `trigger_once_point` | `targetname`, `origin`, `stellar.extents` | `target`, `delay`, `stellar.script`, `stellar.table`, `stellar.once` | Creates the same trigger marker type as brush triggers, using authored origin plus half-extents. |
 | Sprite billboard | `stellar_sprite`, `env_sprite`, or any entity with `stellar.sprite` | `targetname`, `origin`, `stellar.sprite` | `stellar.texture`, `stellar.size`, `stellar.alpha` | Creates a sprite marker for presentation. `stellar.script` is unsupported and ignored with a diagnostic. |
 | Brush object-collider sensor | `stellar_object_collider` or `stellar.collider=object` | `targetname`, `model="*N"`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates a server-side sensor marker from brush model bounds. It is not a rigid body and does not block movement. Pickup/item archetypes collect once. |
 | Point object-collider sensor | `stellar_object_collider_point` | `targetname`, `origin`, `stellar.extents`, `stellar.collider=object` | `archetype`, `stellar.script`, `stellar.table`, `stellar.enabled` | Creates the same object-collider marker type as brush sensors, using authored origin plus half-extents. |
 | Static brush classes | `func_wall`, `func_illusionary`, `func_detail` | `model="*N"` | `targetname`, `archetype`, `stellar.collision=static|sensor|none` | Imported as brush/static metadata; `func_detail` is primarily compile-time detail geometry. Runtime moving/physics behavior is not implied. |
-| Moving/interactable brush entities | `func_door`, `func_button` | `model="*N"` | `targetname`, `archetype`, `target`, `killtarget`, `message`, `delay`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Imported with brush model ownership so the authoritative server can move collision overlays and replicate presentation transforms. |
-| Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `killtarget`, `message`, `delay`, `spawnflags` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
+| Door brush entity | `func_door` | `model="*N"`, `targetname` where fired | `archetype`, `angle`, `angles`, `speed`, `wait`, `lip`, `dmg`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Imported with brush model ownership so the authoritative server can move collision overlays and replicate presentation transforms. Door output fields are not exposed until implemented. |
+| Button brush entity | `func_button` | `model="*N"` | `targetname`, `target`, `delay`, `archetype`, `angle`, `angles`, `speed`, `wait`, `lip`, `spawnflags`, `stellar.script`, `stellar.table`, `stellar.collision` | Pressable brush mover that may fire another entity by `targetname`. |
+| Target helpers | `target_stellar_relay`, `info_null` | `targetname` where referenced | `origin`, `target`, `delay` on relay; `origin` on `info_null` | Minimal target-routing metadata. `info_null` is compile-time helper metadata and is ignored by runtime import. |
 
 Raw BSP entity key/value pairs are preserved in `WorldMarker::properties` when raw entity preservation
 is enabled, including unsupported keys.
@@ -221,6 +230,11 @@ base color/texture by the lightmap in OpenGL and Vulkan. Faces with missing or i
 back to unlit/fullbright material behavior with a warning. Classic nonzero light styles are preserved on
 the imported lightmap and currently render with a deterministic static multiplier of `1.0` until a later
 server-authoritative gameplay phase explicitly animates styles.
+
+Author `light_spot` and `light_environment` orientation in TrenchBroom degrees: `pitch` `90` points down,
+`pitch` `270` or `-90` points up, `pitch` `0` is horizontal, and yaw/`angle` controls horizontal
+direction. Classic `light_spot` and `light_environment` ignore roll in `angles "pitch yaw roll"`. If a
+`light_spot` has `target`, VHLT may aim it at the target entity and ignore `angle`/`pitch`/`angles`.
 
 ### Trigger script
 
@@ -359,6 +373,8 @@ Common diagnostics:
 - `kMissingTexture` / `kMaterialFallbackUsed`: texture data is external, missing, or blocked by safe-path
   rules; validation uses deterministic fallback materials when WAD pixels cannot be resolved.
 - `kInvalidLightingData`: a face light offset or inferred lightmap byte range is outside the lighting lump; the face falls back to unlit material behavior.
+- `kLightmapStats` / `kAllBlackLightmap`: imported lighting diagnostics report raw lighting byte count,
+  lightmap count, per-lightmap dimensions/RGB stats, all-black data, and material/lightmap bindings.
 - `kMissingPlayerSpawn`: no `info_player_start` or `info_player_deathmatch` marker exists; import succeeds but gameplay startup may need an explicit spawn policy.
 - `kUnsupportedEntityKey`: malformed authoring values such as `origin`, `stellar.extents`, `stellar.size`, `stellar.once`, or `stellar.enabled` were ignored.
 - `kScriptPathEscape`: script ids are absolute, drive-letter based, or contain `..`; validation fails to preserve Lua sandbox boundaries.

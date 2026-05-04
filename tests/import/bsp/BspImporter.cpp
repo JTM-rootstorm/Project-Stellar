@@ -346,8 +346,8 @@ void bsp30_developer_material_fallback_is_deterministic() {
   assert(result->geometry.images[0].name == "stellar_dev_grid_32");
   assert(result->geometry.images[1].name == "stellar_dev_grid_64");
   assert(result->geometry.images[2].name == "stellar_dev_wall_96");
-  assert(result->geometry.images[0].pixels.size() == 32U * 32U * 4U);
-  assert(result->geometry.images[0].pixels[0] == 255U);
+  assert(result->geometry.images[0].pixels.size() == 128U * 128U * 4U);
+  assert(result->geometry.images[0].pixels[0] == 160U);
 }
 
 void trenchbroom_entity_matrix_imports_expected_metadata() {

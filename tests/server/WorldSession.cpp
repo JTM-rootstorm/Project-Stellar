@@ -572,6 +572,91 @@ void func_door_target_moves_collision_and_snapshot_transform() {
     assert(saw_moved_door);
 }
 
+void fire_target_applies_to_duplicate_canonical_brush_names() {
+    auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.5F})});
+    stellar::assets::CollisionMesh first;
+    first.name = "DoorMeshA";
+    first.triangles = {wall_x_triangle_a(0.8F), wall_x_triangle_b(0.8F)};
+    stellar::assets::CollisionMesh second;
+    second.name = "DoorMeshB";
+    second.triangles = {wall_x_triangle_a(2.0F), wall_x_triangle_b(2.0F)};
+    scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {first, second}};
+    scene.geometry.brush_entities.push_back(stellar::assets::LevelBrushEntity{
+        .name = "SharedDoor",
+        .classname = "func_door",
+        .targetname = "SharedDoor",
+        .bsp_model_index = 0,
+        .collision_mesh_name = "DoorMeshA",
+        .bounds_min = {0.8F, -2.0F, -4.0F},
+        .bounds_max = {8.8F, 4.0F, 4.0F},
+        .properties = {{.key = "angle", .value = "0"},
+                       {.key = "speed", .value = "80"},
+                       {.key = "wait", .value = "-1"},
+                       {.key = "lip", .value = "0"}}});
+    scene.geometry.brush_entities.push_back(stellar::assets::LevelBrushEntity{
+        .name = "SharedDoor",
+        .classname = "func_door",
+        .targetname = "SharedDoor",
+        .bsp_model_index = 1,
+        .collision_mesh_name = "DoorMeshB",
+        .bounds_min = {2.0F, -2.0F, -4.0F},
+        .bounds_max = {10.0F, 4.0F, 4.0F},
+        .properties = {{.key = "angle", .value = "0"},
+                       {.key = "speed", .value = "80"},
+                       {.key = "wait", .value = "-1"},
+                       {.key = "lip", .value = "0"}}});
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+
+    assert(session.fire_target("SharedDoor"));
+    const auto moved = session.tick({});
+
+    assert(moved.brush_movers.size() == 2);
+    assert(moved.brush_movers[0].name == "SharedDoor");
+    assert(moved.brush_movers[1].name == "SharedDoor");
+    assert(moved.brush_movers[0].translation[0] > 0.0F);
+    assert(moved.brush_movers[1].translation[0] > 0.0F);
+}
+
+void target_relay_fire_routes_to_downstream_target() {
+    auto scene = scene_with_func_door();
+    stellar::assets::WorldMarker relay;
+    relay.type = stellar::assets::WorldMarkerType::kEntitySpawn;
+    relay.name = "RelayA";
+    relay.archetype = "target_stellar_relay";
+    relay.properties = {{.key = "target", .value = "DoorA"}};
+    scene.world_metadata.markers.push_back(relay);
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+
+    assert(session.fire_target("RelayA"));
+    const auto moved = session.tick({});
+
+    assert(moved.brush_movers.size() == 1);
+    assert(moved.brush_movers[0].translation[0] > 0.0F);
+}
+
+void target_relay_delay_schedules_downstream_target() {
+    auto scene = scene_with_func_door();
+    stellar::assets::WorldMarker relay;
+    relay.type = stellar::assets::WorldMarkerType::kEntitySpawn;
+    relay.name = "RelayDelay";
+    relay.archetype = "target_stellar_relay";
+    relay.properties = {{.key = "target", .value = "DoorA"},
+                        {.key = "delay", .value = "0.2"}};
+    scene.world_metadata.markers.push_back(relay);
+    const auto world = stellar::world::build_runtime_world(scene);
+    stellar::server::WorldSession session(world, test_session_config());
+
+    assert(session.fire_target("RelayDelay"));
+    const auto before_delay = session.tick({});
+    const auto after_delay = session.tick({});
+
+    assert(before_delay.brush_movers.size() == 1);
+    assert(before_delay.brush_movers[0].translation[0] == 0.0F);
+    assert(after_delay.brush_movers[0].translation[0] > 0.0F);
+}
+
 void missing_target_is_diagnostic_not_crash() {
     const auto scene = scene_with_func_door();
     const auto world = stellar::world::build_runtime_world(scene);
@@ -605,6 +690,9 @@ int main() {
     snapshot_does_not_apply_or_replay_collision_mutation();
     same_collision_state_and_inputs_produce_same_snapshots();
     func_door_target_moves_collision_and_snapshot_transform();
+    fire_target_applies_to_duplicate_canonical_brush_names();
+    target_relay_fire_routes_to_downstream_target();
+    target_relay_delay_schedules_downstream_target();
     missing_target_is_diagnostic_not_crash();
     return 0;
 }

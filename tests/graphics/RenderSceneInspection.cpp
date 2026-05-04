@@ -3,8 +3,10 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdlib>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -15,8 +17,37 @@
 namespace {
 
 constexpr std::array<float, 16> kIdentity{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
-                                          0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
-                                          0.0F, 0.0F, 0.0F, 1.0F};
+                                           0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
+                                           0.0F, 0.0F, 0.0F, 1.0F};
+
+class ScopedEnvValue {
+public:
+  ScopedEnvValue(const char *name, const char *value) : name_(name) {
+    if (const char *previous = std::getenv(name_.c_str())) {
+      previous_ = previous;
+    }
+    if (value != nullptr) {
+      setenv(name_.c_str(), value, 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+  ~ScopedEnvValue() {
+    if (previous_.has_value()) {
+      setenv(name_.c_str(), previous_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+  ScopedEnvValue(const ScopedEnvValue &) = delete;
+  ScopedEnvValue &operator=(const ScopedEnvValue &) = delete;
+
+private:
+  std::string name_;
+  std::optional<std::string> previous_;
+};
 
 stellar::assets::MeshPrimitive
 make_primitive(std::optional<std::size_t> material_index,
@@ -78,6 +109,26 @@ void add_two_leaf_visibility(stellar::assets::LevelAsset &level) {
   };
 }
 
+void add_all_zero_visibility(stellar::assets::LevelAsset &level) {
+  level.visibility.available = true;
+  level.visibility.cluster_count = 2;
+  level.visibility.compressed_pvs = {std::byte{0x00}, std::byte{0x01}};
+  level.visibility.leaves = {
+      stellar::assets::LevelLeaf{
+          .bounds_min = {-10.0F, -10.0F, -10.0F},
+          .bounds_max = {0.0F, 10.0F, 10.0F},
+          .surface_indices = {0},
+          .compressed_pvs_offset = 0,
+      },
+      stellar::assets::LevelLeaf{
+          .bounds_min = {0.0F, -10.0F, -10.0F},
+          .bounds_max = {10.0F, 10.0F, 10.0F},
+          .surface_indices = {1},
+          .compressed_pvs_offset = 0,
+      },
+  };
+}
+
 std::pair<stellar::graphics::RenderLevel *,
           stellar::graphics::testing::RecordingGraphicsDevice *>
 initialize_level(stellar::graphics::RenderLevel &render_level,
@@ -121,11 +172,26 @@ void verify_missing_material_uses_default(stellar::platform::Window &window) {
 
   assert(device->uploaded_materials[0].material.name ==
          "stellar_default_level_material");
+  assert(device->uploaded_materials[0].material.double_sided);
   assert(device->draw_calls.size() == 1);
   assert(device->primitive_draw(0).material == device->material_handles[0]);
 }
 
+void verify_level_surface_materials_are_double_sided(
+    stellar::platform::Window &window) {
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(!device->uploaded_materials.empty());
+  for (const auto &upload : device->uploaded_materials) {
+    assert(upload.material.double_sided);
+  }
+}
+
 void verify_visibility_culls_static_surfaces(stellar::platform::Window &window) {
+  ScopedEnvValue disable_culling("STELLAR_DISABLE_VISIBILITY_CULLING", nullptr);
   auto level = make_level_with_surfaces({make_primitive(0), make_primitive(1)},
                                         {0, 1});
   add_two_leaf_visibility(level);
@@ -137,6 +203,40 @@ void verify_visibility_culls_static_surfaces(stellar::platform::Window &window) 
 
   assert(device->draw_calls.size() == 1);
   assert(device->primitive_draw(0).primitive_index == 0);
+}
+
+void verify_visibility_culling_env_disable_queues_all_surfaces(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_culling("STELLAR_DISABLE_VISIBILITY_CULLING", "1");
+  auto level = make_level_with_surfaces({make_primitive(0), make_primitive(1)},
+                                        {0, 1});
+  add_two_leaf_visibility(level);
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+  render_level.render(64, 64, kIdentity, kIdentity,
+                      std::array<float, 3>{-5.0F, 0.0F, 0.0F});
+
+  assert(device->draw_calls.size() == 2);
+  assert(device->primitive_draw(0).primitive_index == 0);
+  assert(device->primitive_draw(1).primitive_index == 1);
+}
+
+void verify_visibility_all_zero_falls_back_to_all_surfaces(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_culling("STELLAR_DISABLE_VISIBILITY_CULLING", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0), make_primitive(1)},
+                                        {0, 1});
+  add_all_zero_visibility(level);
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+  render_level.render(64, 64, kIdentity, kIdentity,
+                      std::array<float, 3>{-5.0F, 0.0F, 0.0F});
+
+  assert(device->draw_calls.size() == 2);
+  assert(device->primitive_draw(0).primitive_index == 0);
+  assert(device->primitive_draw(1).primitive_index == 1);
 }
 
 void verify_visibility_falls_back_when_camera_leaf_missing(
@@ -247,6 +347,10 @@ void verify_static_less_level_renders_no_static_surfaces(
 }
 
 void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     nullptr);
   auto level = make_level_with_surfaces({make_primitive(0)}, {0});
   level.geometry.images = {
       stellar::assets::ImageAsset{.name = "base",
@@ -287,6 +391,150 @@ void verify_level_lightmap_material_upload(stellar::platform::Window &window) {
   assert(upload.lightmap_texture->sampler.wrap_s ==
          stellar::assets::TextureWrapMode::kClampToEdge);
   assert(upload.lightmap_multiplier == 1.0F);
+}
+
+void verify_baked_required_missing_lightmap_uses_black_fallback(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.lighting.mode = stellar::assets::LevelLightingMode::kBakedRequired;
+  level.lighting.lightmap_intensity = 0.5F;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 1);
+  assert(device->uploaded_textures[0].image.name ==
+         "baked_missing_black_lightmap");
+  assert(device->uploaded_textures[0].color_space ==
+         stellar::assets::TextureColorSpace::kLinear);
+  const auto &upload = device->uploaded_materials[1];
+  assert(!upload.material.unlit);
+  assert(upload.lightmap_texture.has_value());
+  assert(upload.lightmap_texture->texture == device->texture_handles[0]);
+  assert(upload.lightmap_texture->texcoord_set == 1);
+  assert(upload.lightmap_texture->sampler.min_filter ==
+         stellar::assets::TextureFilter::kLinear);
+  assert(upload.lightmap_texture->sampler.wrap_s ==
+         stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(upload.lightmap_multiplier == 0.5F);
+}
+
+void verify_fullbright_missing_lightmap_skips_black_fallback(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.lighting.mode = stellar::assets::LevelLightingMode::kFullbright;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.empty());
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.material.unlit);
+  assert(!upload.lightmap_texture.has_value());
+}
+
+void verify_baked_required_lightmap_min_and_global_light_upload(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.lighting.mode = stellar::assets::LevelLightingMode::kBakedRequired;
+  level.lighting.global_ambient.enabled = true;
+  level.lighting.global_ambient.color = {0.25F, 0.5F, 0.75F};
+  level.lighting.global_ambient.intensity = 0.2F;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.lightmap_min == 0.0F);
+  assert(upload.global_light_color[0] == 0.25F);
+  assert(upload.global_light_color[1] == 0.5F);
+  assert(upload.global_light_color[2] == 0.75F);
+  assert(upload.global_light_intensity == 0.2F);
+}
+
+void verify_lightmap_disable_env_skips_material_binding(
+    stellar::platform::Window &window, const char *flag_name) {
+  ScopedEnvValue disable_lightmaps(flag_name, "1");
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     nullptr);
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.geometry.images = {
+      stellar::assets::ImageAsset{.name = "base",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "lightmap",
+                                  .width = 1,
+                                  .height = 1,
+                                   .format = stellar::assets::ImageFormat::kR8G8B8,
+                                   .pixels = {0, 0, 0}},
+  };
+  level.geometry.textures.push_back(stellar::assets::TextureAsset{
+      .name = "base", .image_index = 0, .sampler_index = std::nullopt,
+      .color_space = stellar::assets::TextureColorSpace::kSrgb});
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 1, .size = {1, 1}, .style = 0, .source_name = "face_0"});
+  level.geometry.materials[0].texture_index = 0;
+  level.geometry.materials[0].lightmap_index = 0;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 1);
+  assert(device->uploaded_textures[0].color_space ==
+         stellar::assets::TextureColorSpace::kSrgb);
+  assert(device->uploaded_materials[1].material.unlit);
+  assert(device->uploaded_materials[1].base_color_texture.has_value());
+  assert(!device->uploaded_materials[1].lightmap_texture.has_value());
+}
+
+void verify_force_lightmap_visualization_uses_lightmap_as_base(
+    stellar::platform::Window &window) {
+  ScopedEnvValue disable_lightmaps("STELLAR_DISABLE_LIGHTMAPS", nullptr);
+  ScopedEnvValue force_fullbright("STELLAR_FORCE_FULLBRIGHT", nullptr);
+  ScopedEnvValue force_visualization("STELLAR_FORCE_LIGHTMAP_VISUALIZATION",
+                                     "1");
+  auto level = make_level_with_surfaces({make_primitive(0)}, {0});
+  level.geometry.images = {
+      stellar::assets::ImageAsset{.name = "base",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "lightmap",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8,
+                                  .pixels = {64, 128, 192}},
+  };
+  level.geometry.textures.push_back(stellar::assets::TextureAsset{
+      .name = "base", .image_index = 0, .sampler_index = std::nullopt,
+      .color_space = stellar::assets::TextureColorSpace::kSrgb});
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 1, .size = {1, 1}, .style = 0, .source_name = "face_0"});
+  level.geometry.materials[0].texture_index = 0;
+  level.geometry.materials[0].lightmap_index = 0;
+
+  stellar::graphics::RenderLevel render_level;
+  auto [_, device] = initialize_level(render_level, window, std::move(level));
+
+  assert(device->uploaded_textures.size() == 2);
+  const auto &upload = device->uploaded_materials[1];
+  assert(upload.base_color_texture.has_value());
+  assert(upload.base_color_texture->texture == device->texture_handles[1]);
+  assert(upload.base_color_texture->texcoord_set == 1);
+  assert(upload.base_color_texture->sampler.wrap_s ==
+         stellar::assets::TextureWrapMode::kClampToEdge);
+  assert(!upload.lightmap_texture.has_value());
+  assert(upload.lightmap_multiplier == 1.0F);
+  assert(upload.material.base_color_factor[0] == 1.0F);
 }
 
 void verify_billboards_submit_without_static_geometry(
@@ -422,12 +670,23 @@ int main() {
   stellar::platform::Window window;
   verify_surface_material_indices(window);
   verify_missing_material_uses_default(window);
+  verify_level_surface_materials_are_double_sided(window);
   verify_visibility_culls_static_surfaces(window);
+  verify_visibility_culling_env_disable_queues_all_surfaces(window);
+  verify_visibility_all_zero_falls_back_to_all_surfaces(window);
   verify_visibility_falls_back_when_camera_leaf_missing(window);
   verify_billboard_quad_generation_sorting_and_fields();
   verify_billboards_submit_after_static_geometry(window);
   verify_static_less_level_renders_no_static_surfaces(window);
   verify_level_lightmap_material_upload(window);
+  verify_baked_required_missing_lightmap_uses_black_fallback(window);
+  verify_fullbright_missing_lightmap_skips_black_fallback(window);
+  verify_baked_required_lightmap_min_and_global_light_upload(window);
+  verify_lightmap_disable_env_skips_material_binding(window,
+                                                     "STELLAR_DISABLE_LIGHTMAPS");
+  verify_lightmap_disable_env_skips_material_binding(window,
+                                                     "STELLAR_FORCE_FULLBRIGHT");
+  verify_force_lightmap_visualization_uses_lightmap_as_base(window);
   verify_billboards_submit_without_static_geometry(window);
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();

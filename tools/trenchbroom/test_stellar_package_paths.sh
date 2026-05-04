@@ -40,6 +40,10 @@ for script in \
     bash -n "$script"
 done
 
+python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
+    --game-config "$package/GameConfig.cfg" \
+    --profiles "$package/CompilationProfiles.cfg" >/dev/null
+
 "$compile_shim" --help >/dev/null
 "$validate_shim" --help >/dev/null
 
@@ -51,6 +55,8 @@ game_config = Path(sys.argv[1]).read_text(encoding="utf-8")
 profiles = Path(sys.argv[2]).read_text(encoding="utf-8")
 required_game_tokens = [
     '"icon": "Icon.png"',
+    '"name": "STELLAR_BSP30_COMPILE"',
+    '"name": "STELLAR_BSP30_VALIDATE"',
     '"path": "bin/stellar_tb_compile.sh"',
     '"path": "bin/stellar_tb_validate.sh"',
     '"root": "materials"',
@@ -59,8 +65,13 @@ for token in required_game_tokens:
     if token not in game_config:
         raise SystemExit(f"GameConfig.cfg missing expected token: {token}")
 for token in [
+    '"version": 1',
+    '"workdir": "${WORK_DIR_PATH}"',
+    '"tool": "${STELLAR_BSP30_COMPILE}"',
+    '"tool": "${STELLAR_BSP30_VALIDATE}"',
     '--map \\"${MAP_FULL_PATH}\\"',
     '--out \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
+    '--toolchain vhlt',
     '--map \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
 ]:
     if token not in profiles:
@@ -72,6 +83,35 @@ PY
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
+
+bad_profiles="$work_dir/BadCompilationProfiles.cfg"
+cat > "$bad_profiles" <<'JSON'
+{
+    "version": 1,
+    "profiles": [
+        {
+            "name": "Old Display Name Tool Reference",
+            "workdir": "${WORK_DIR_PATH}",
+            "tasks": [
+                {
+                    "type": "tool",
+                    "tool": "Stellar BSP30 compile wrapper",
+                    "parameters": "--map \"${MAP_FULL_PATH}\""
+                }
+            ]
+        }
+    ]
+}
+JSON
+if python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
+    --game-config "$package/GameConfig.cfg" \
+    --profiles "$bad_profiles" >"$work_dir/bad_profiles.out" 2>&1; then
+    fail "profile linter accepted old display-name tool reference"
+fi
+if ! grep -q 'tool reference contains spaces' "$work_dir/bad_profiles.out"; then
+    fail "profile linter did not explain old display-name tool reference"
+fi
+
 copy_dest="$work_dir/Games With Spaces"
 mkdir -p "$copy_dest"
 "$install_helper" --repo-root "$repo_root" --dest "$copy_dest" --copy >/dev/null

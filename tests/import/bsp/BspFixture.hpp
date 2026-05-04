@@ -33,6 +33,13 @@ inline void set_lump(std::vector<std::byte> &bytes, LumpIndex lump, std::size_t 
     patch_i32(bytes, lump_header_offset(lump) + 4, static_cast<std::int32_t>(size));
 }
 
+inline void replace_entities(std::vector<std::byte> &bytes, const std::string &entities) {
+    const std::size_t entity_offset = bytes.size();
+    bytes.insert(bytes.end(), reinterpret_cast<const std::byte *>(entities.data()),
+                 reinterpret_cast<const std::byte *>(entities.data() + entities.size()));
+    set_lump(bytes, LumpIndex::kEntities, entity_offset, entities.size());
+}
+
 inline void append_vec3(std::vector<std::byte> &bytes, float x, float y, float z) {
     append(bytes, x);
     append(bytes, y);

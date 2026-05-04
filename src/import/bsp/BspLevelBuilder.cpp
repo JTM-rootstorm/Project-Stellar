@@ -1,109 +1,28 @@
 #include "BspBinary.hpp"
-#include "DeveloperTextures.hpp"
+#include "BspAssetDebugNames.hpp"
+#include "BspEntitySchema.hpp"
+#include "BspGeometryBuilder.hpp"
+#include "BspImportDiagnostics.hpp"
+#include "BspLightmapBuilder.hpp"
+#include "BspTextureResolver.hpp"
 #include "Wad3Reader.hpp"
 
+#include "stellar/assets/LevelVisibilityQueries.hpp"
+
 #include <algorithm>
+#include <array>
 #include <cctype>
-#include <cmath>
 #include <cstdlib>
-#include <filesystem>
 #include <limits>
 #include <map>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace stellar::import::bsp::detail {
 namespace {
-
-using Vec3 = std::array<float, 3>;
-
-[[nodiscard]] const std::string *value_for(const Entity &entity,
-                                            std::string_view key) noexcept {
-  for (const auto &pair : entity.pairs) {
-    if (pair.key == key) {
-      return &pair.value;
-    }
-  }
-  return nullptr;
-}
-
-[[nodiscard]] const std::string *value_for_alias(const Entity &entity,
-                                                 std::string_view key,
-                                                 std::string_view alias) noexcept {
-  if (const std::string *value = value_for(entity, key)) {
-    return value;
-  }
-  return value_for(entity, alias);
-}
-
-[[nodiscard]] std::string string_or(const Entity &entity, std::string_view key,
-                                     std::string fallback = {}) {
-  if (const std::string *value = value_for(entity, key)) {
-    return *value;
-  }
-  return fallback;
-}
-
-[[nodiscard]] std::string string_or_alias(const Entity &entity,
-                                          std::string_view key,
-                                          std::string_view alias,
-                                          std::string fallback = {}) {
-  if (const std::string *value = value_for_alias(entity, key, alias)) {
-    return *value;
-  }
-  return fallback;
-}
-
-[[nodiscard]] std::optional<Vec3> parse_vec3(const std::string *text) {
-  if (text == nullptr) {
-    return std::nullopt;
-  }
-  std::istringstream stream(*text);
-  Vec3 value{};
-  if (stream >> value[0] >> value[1] >> value[2]) {
-    std::string trailing;
-    if (!(stream >> trailing)) {
-      return value;
-    }
-  }
-  return std::nullopt;
-}
-
-[[nodiscard]] std::optional<std::array<float, 2>> parse_vec2(const std::string *text) {
-  if (text == nullptr) {
-    return std::nullopt;
-  }
-  std::istringstream stream(*text);
-  std::array<float, 2> value{};
-  if (stream >> value[0] >> value[1]) {
-    std::string trailing;
-    if (!(stream >> trailing)) {
-      return value;
-    }
-  }
-  return std::nullopt;
-}
-
-[[nodiscard]] std::optional<bool> parse_bool_like(const std::string *text) {
-  if (text == nullptr) {
-    return std::nullopt;
-  }
-  std::string value;
-  value.reserve(text->size());
-  for (char character : *text) {
-    value.push_back(static_cast<char>(
-        std::tolower(static_cast<unsigned char>(character))));
-  }
-  if (value == "1" || value == "true" || value == "yes") {
-    return true;
-  }
-  if (value == "0" || value == "false" || value == "no") {
-    return false;
-  }
-  return std::nullopt;
-}
 
 [[nodiscard]] std::optional<int> parse_model_index(const std::string *model) {
   if (model == nullptr || model->size() < 2 || (*model)[0] != '*') {
@@ -118,343 +37,140 @@ using Vec3 = std::array<float, 3>;
   return std::nullopt;
 }
 
-[[nodiscard]] Vec3 subtract(Vec3 a, Vec3 b) noexcept {
-  return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+[[nodiscard]] bool debug_textures_enabled() noexcept {
+  const char *value = std::getenv("STELLAR_DEBUG_TEXTURES");
+  if (value == nullptr || value[0] == '\0') {
+    return false;
+  }
+  const std::string_view text(value);
+  return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+         text == "ON";
 }
 
-[[nodiscard]] Vec3 cross(Vec3 a, Vec3 b) noexcept {
-  return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
-          a[0] * b[1] - a[1] * b[0]};
-}
-
-[[nodiscard]] Vec3 normalize(Vec3 v) noexcept {
-  const float len = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-  if (len <= 0.000001F) {
-    return {0.0F, 0.0F, 1.0F};
-  }
-  return {v[0] / len, v[1] / len, v[2] / len};
-}
-
-void include_point(Vec3 &mins, Vec3 &maxs, const Vec3 &point) noexcept {
-  for (std::size_t i = 0; i < 3; ++i) {
-    mins[i] = std::min(mins[i], point[i]);
-    maxs[i] = std::max(maxs[i], point[i]);
-  }
-}
-
-[[nodiscard]] std::vector<Vec3> face_vertices(const BspMap &map,
-                                              const Face &face) {
-  std::vector<Vec3> vertices;
-  if (face.first_edge < 0) {
-    return vertices;
-  }
-  const auto first_edge = static_cast<std::size_t>(face.first_edge);
-  for (std::uint16_t i = 0; i < face.edge_count; ++i) {
-    const std::size_t surfedge_index = first_edge + i;
-    if (surfedge_index >= map.surfedges.size()) {
-      return {};
-    }
-    const std::int32_t surfedge = map.surfedges[surfedge_index];
-    const std::size_t edge_index = static_cast<std::size_t>(std::abs(surfedge));
-    if (edge_index >= map.edges.size()) {
-      return {};
-    }
-    const Edge &edge = map.edges[edge_index];
-    const std::uint16_t vertex_index = surfedge >= 0 ? edge.first : edge.second;
-    if (vertex_index >= map.vertices.size()) {
-      return {};
-    }
-    vertices.push_back(map.vertices[vertex_index].position);
-  }
-  return vertices;
-}
-
-[[nodiscard]] std::string texture_name_for(const BspMap &map,
-                                            const Face &face) {
-  if (face.texinfo >= map.texinfos.size()) {
-    return "__missing_texture";
-  }
-  const std::int32_t miptex = map.texinfos[face.texinfo].miptex;
-  if (miptex >= 0 &&
-      static_cast<std::size_t>(miptex) < map.texture_names.size() &&
-      !map.texture_names[static_cast<std::size_t>(miptex)].empty()) {
-    return map.texture_names[static_cast<std::size_t>(miptex)];
-  }
-  return "__texture_" + std::to_string(miptex);
-}
-
-[[nodiscard]] const Miptex *texture_for_face(const BspMap &map,
-                                             const Face &face) noexcept {
-  if (face.texinfo >= map.texinfos.size()) {
-    return nullptr;
-  }
-  const std::int32_t miptex = map.texinfos[face.texinfo].miptex;
-  if (miptex < 0 || static_cast<std::size_t>(miptex) >= map.textures.size()) {
-    return nullptr;
-  }
-  return &map.textures[static_cast<std::size_t>(miptex)];
-}
-
-void add_warning(ImportReport *report, DiagnosticCode code,
-                 const std::string &source_uri, std::string message,
-                 std::optional<std::size_t> lump_index = std::nullopt,
-                 std::optional<std::size_t> face_index = std::nullopt) {
-  if (report == nullptr) {
+void add_texture_diagnostics(
+    const stellar::assets::LevelGeometryAsset &geometry, const BspMap &map,
+    const std::vector<std::optional<std::size_t>> &face_to_surface,
+    const std::string &source_uri, ImportReport *report) {
+  if (report == nullptr || !debug_textures_enabled()) {
     return;
   }
-  report->diagnostics.push_back(Diagnostic{.severity = DiagnosticSeverity::kWarning,
-                                           .code = code,
-                                           .message = std::move(message),
-                                           .source_uri = source_uri,
-                                           .lump_index = lump_index,
-                                           .entity_index = std::nullopt,
-                                           .face_index = face_index});
-}
 
-void add_entity_warning(ImportReport *report, DiagnosticCode code,
-                        const std::string &source_uri, std::size_t entity_index,
-                        std::string message) {
-  if (report == nullptr) {
-    return;
-  }
-  report->diagnostics.push_back(Diagnostic{.severity = DiagnosticSeverity::kWarning,
-                                           .code = code,
-                                           .message = std::move(message),
-                                           .source_uri = source_uri,
-                                           .lump_index = static_cast<std::size_t>(LumpIndex::kEntities),
-                                           .entity_index = entity_index,
-                                           .face_index = std::nullopt});
-}
+  std::ostringstream summary;
+  summary << source_uri << ": BSP texture summary materials="
+          << geometry.materials.size() << " textures=" << geometry.textures.size()
+          << " images=" << geometry.images.size()
+          << " samplers=" << geometry.samplers.size()
+          << " surfaces=" << geometry.surfaces.size();
+  add_info(report, DiagnosticCode::kTextureStats, source_uri, summary.str(),
+           static_cast<std::size_t>(LumpIndex::kTextures));
 
-struct TextureBuildResult {
-  std::optional<std::size_t> texture_index;
-  std::optional<std::array<std::uint32_t, 2>> texel_size;
-};
-
-[[nodiscard]] std::string texture_lookup_key(std::string_view name) {
-  std::string key;
-  key.reserve(name.size());
-  for (const char ch : name) {
-    key.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-  }
-  return key;
-}
-
-[[nodiscard]] TextureBuildResult
-texture_asset_index(stellar::assets::LevelGeometryAsset &geometry,
-                    std::map<std::string, std::size_t> &textures,
-                    const std::unordered_map<std::string, WadTextureAsset> &wad_textures,
-                    const std::string &texture_name,
-                    const Miptex *miptex, const std::string &source_uri,
-                    ImportReport *report) {
-  if (texture_name.empty()) {
-    return {};
-  }
-  const auto existing = textures.find(texture_name);
-  if (existing != textures.end()) {
-    const auto &texture = geometry.textures[existing->second];
-    if (texture.image_index.has_value() &&
-        *texture.image_index < geometry.images.size()) {
-      const auto &image = geometry.images[*texture.image_index];
-      return TextureBuildResult{.texture_index = existing->second,
-                                .texel_size = std::array<std::uint32_t, 2>{
-                                    image.width, image.height}};
+  for (std::size_t material_index = 0;
+       material_index < geometry.materials.size(); ++material_index) {
+    const auto &material = geometry.materials[material_index];
+    std::ostringstream message;
+    message << source_uri << ": BSP texture material material_index="
+            << material_index << " material=" << material.name
+            << " source_material=" << material.source_name;
+    if (!material.texture_index.has_value() ||
+        *material.texture_index >= geometry.textures.size()) {
+      message << " texture_index=none texture=none source_kind=none";
+    } else {
+      const auto &texture = geometry.textures[*material.texture_index];
+      message << " texture_index=" << *material.texture_index
+              << " texture=" << texture.name;
+      if (texture.image_index.has_value() &&
+          *texture.image_index < geometry.images.size()) {
+        const auto &image = geometry.images[*texture.image_index];
+        message << " image_index=" << *texture.image_index
+                << " image=" << image.name
+                << " image_source_uri=" << image.source_uri
+                << " source_kind=" << texture_source_kind(image.source_uri)
+                << " dimensions=" << image.width << 'x' << image.height
+                << " format=" << image_format_name(image.format);
+      } else {
+        message << " image_index=none image=none source_kind=none";
+      }
+      stellar::assets::SamplerAsset sampler;
+      if (texture.sampler_index.has_value() &&
+          *texture.sampler_index < geometry.samplers.size()) {
+        sampler = geometry.samplers[*texture.sampler_index];
+        message << " sampler_index=" << *texture.sampler_index;
+      } else {
+        message << " sampler_index=none";
+      }
+      message << " sampler=" << (sampler.name.empty() ? "<default>" : sampler.name)
+              << " mag=" << texture_filter_name(sampler.mag_filter)
+              << " min=" << texture_filter_name(sampler.min_filter)
+              << " wrap_s=" << texture_wrap_name(sampler.wrap_s)
+              << " wrap_t=" << texture_wrap_name(sampler.wrap_t);
     }
-    return TextureBuildResult{.texture_index = existing->second};
+    add_info(report, DiagnosticCode::kTextureStats, source_uri, message.str(),
+             static_cast<std::size_t>(LumpIndex::kTextures));
   }
 
-  if (miptex != nullptr && miptex->has_embedded_pixels &&
-      !miptex->pixels.empty()) {
-    stellar::assets::ImageAsset image{};
-    image.name = miptex->name;
-    image.width = miptex->width;
-    image.height = miptex->height;
-    image.format = stellar::assets::ImageFormat::kR8G8B8A8;
-    image.source_uri = source_uri + "#miptex/" + miptex->name;
-    image.pixels.reserve(miptex->pixels.size() * 4);
-    for (const std::uint8_t index : miptex->pixels) {
-      image.pixels.push_back(index);
-      image.pixels.push_back(index);
-      image.pixels.push_back(index);
-      image.pixels.push_back(255U);
+  for (std::size_t surface_index = 0; surface_index < geometry.surfaces.size();
+       ++surface_index) {
+    const auto &surface = geometry.surfaces[surface_index];
+    if (surface.mesh_index >= geometry.meshes.size()) {
+      continue;
     }
-    const std::size_t image_index = geometry.images.size();
-    geometry.images.push_back(std::move(image));
-
-    const std::size_t texture_index = geometry.textures.size();
-    geometry.textures.push_back(stellar::assets::TextureAsset{
-        .name = miptex->name,
-        .image_index = image_index,
-        .sampler_index = std::nullopt,
-        .color_space = stellar::assets::TextureColorSpace::kSrgb});
-    textures.emplace(texture_name, texture_index);
-    return TextureBuildResult{.texture_index = texture_index,
-                              .texel_size = std::array<std::uint32_t, 2>{
-                                  miptex->width, miptex->height}};
-  }
-
-  if (const auto wad = wad_textures.find(texture_lookup_key(texture_name));
-      wad != wad_textures.end()) {
-    stellar::assets::ImageAsset image = wad->second.image;
-    image.name = texture_name;
-    const std::size_t image_index = geometry.images.size();
-    const std::array<std::uint32_t, 2> texel_size{image.width, image.height};
-    geometry.images.push_back(std::move(image));
-
-    stellar::assets::SamplerAsset sampler;
-    sampler.name = texture_name + "_wad_repeat";
-    sampler.mag_filter = stellar::assets::TextureFilter::kNearest;
-    sampler.min_filter = stellar::assets::TextureFilter::kNearest;
-    sampler.wrap_s = stellar::assets::TextureWrapMode::kRepeat;
-    sampler.wrap_t = stellar::assets::TextureWrapMode::kRepeat;
-    const std::size_t sampler_index = geometry.samplers.size();
-    geometry.samplers.push_back(std::move(sampler));
-
-    const std::size_t texture_index = geometry.textures.size();
-    geometry.textures.push_back(stellar::assets::TextureAsset{
-        .name = texture_name,
-        .image_index = image_index,
-        .sampler_index = sampler_index,
-        .color_space = stellar::assets::TextureColorSpace::kSrgb});
-    textures.emplace(texture_name, texture_index);
-    return TextureBuildResult{.texture_index = texture_index,
-                              .texel_size = texel_size};
-  }
-
-  if (auto developer_texture = make_developer_texture(texture_name, source_uri)) {
-    const std::size_t image_index = geometry.images.size();
-    const std::array<std::uint32_t, 2> texel_size{
-        developer_texture->image.width, developer_texture->image.height};
-    geometry.images.push_back(std::move(developer_texture->image));
-
-    const std::size_t sampler_index = geometry.samplers.size();
-    geometry.samplers.push_back(std::move(developer_texture->sampler));
-
-    const std::size_t texture_index = geometry.textures.size();
-    developer_texture->texture.image_index = image_index;
-    developer_texture->texture.sampler_index = sampler_index;
-    geometry.textures.push_back(std::move(developer_texture->texture));
-    textures.emplace(texture_name, texture_index);
-    return TextureBuildResult{.texture_index = texture_index,
-                              .texel_size = texel_size};
-  }
-
-  if (miptex != nullptr) {
-    add_warning(report, DiagnosticCode::kMissingTexture, source_uri,
-                source_uri + ": BSP texture '" + texture_name +
-                    "' references external WAD data; using fallback material",
-                static_cast<std::size_t>(LumpIndex::kTextures));
-  }
-  return {};
-}
-
-[[nodiscard]] std::size_t
-material_index(stellar::assets::LevelGeometryAsset &geometry,
-                std::map<std::string, std::size_t> &materials,
-                const std::string &name,
-                std::optional<std::size_t> texture_index,
-                std::optional<std::size_t> lightmap_index) {
-  const std::string key = name + "|tex=" +
-                          (texture_index ? std::to_string(*texture_index) : "none") +
-                          "|lm=" +
-                          (lightmap_index ? std::to_string(*lightmap_index) : "none");
-  const auto existing = materials.find(key);
-  if (existing != materials.end()) {
-    return existing->second;
-  }
-  const std::size_t index = geometry.materials.size();
-  geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
-      .name = name, .texture_index = texture_index, .lightmap_index = lightmap_index,
-      .source_name = name});
-  materials.emplace(key, index);
-  return index;
-}
-
-struct LightmapBuildResult {
-  std::optional<std::size_t> lightmap_index;
-  std::optional<std::array<float, 2>> uv_min;
-  std::optional<std::array<float, 2>> uv_extent;
-};
-
-[[nodiscard]] std::array<std::uint8_t, 4> active_light_styles(const Face &face) noexcept {
-  std::array<std::uint8_t, 4> styles{255U, 255U, 255U, 255U};
-  std::size_t count = 0;
-  for (const auto style : face.styles) {
-    if (style == 255U) {
-      break;
+    const auto &mesh = geometry.meshes[surface.mesh_index];
+    if (surface.primitive_index >= mesh.primitives.size()) {
+      continue;
     }
-    styles[count++] = style;
+    const auto &primitive = mesh.primitives[surface.primitive_index];
+    if (primitive.vertices.empty()) {
+      continue;
+    }
+    std::array<float, 2> uv_min{std::numeric_limits<float>::max(),
+                                std::numeric_limits<float>::max()};
+    std::array<float, 2> uv_max{std::numeric_limits<float>::lowest(),
+                                std::numeric_limits<float>::lowest()};
+    for (const auto &vertex : primitive.vertices) {
+      uv_min[0] = std::min(uv_min[0], vertex.uv0[0]);
+      uv_min[1] = std::min(uv_min[1], vertex.uv0[1]);
+      uv_max[0] = std::max(uv_max[0], vertex.uv0[0]);
+      uv_max[1] = std::max(uv_max[1], vertex.uv0[1]);
+    }
+    std::ostringstream message;
+    message << source_uri << ": BSP texture surface surface_index="
+            << surface_index << " surface=" << surface.name
+            << " mesh_index=" << surface.mesh_index
+            << " primitive_index=" << surface.primitive_index;
+    if (surface.material_index.has_value()) {
+      message << " material_index=" << *surface.material_index;
+      if (*surface.material_index < geometry.materials.size()) {
+        message << " material=" << geometry.materials[*surface.material_index].name;
+      }
+    } else {
+      message << " material_index=none material=none";
+    }
+    message << " uv0_min=(" << uv_min[0] << ',' << uv_min[1] << ')'
+            << " uv0_max=(" << uv_max[0] << ',' << uv_max[1] << ')';
+    auto face_for_surface = std::find(face_to_surface.begin(), face_to_surface.end(),
+                                      std::optional<std::size_t>{surface_index});
+    if (face_for_surface != face_to_surface.end()) {
+      const std::size_t face_index = static_cast<std::size_t>(
+          std::distance(face_to_surface.begin(), face_for_surface));
+      if (face_index < map.faces.size()) {
+        const Face &face = map.faces[face_index];
+        message << " face_index=" << face_index
+                << " texture_name=" << texture_name_for(map, face);
+        if (face.texinfo < map.texinfos.size()) {
+          const Texinfo &info = map.texinfos[face.texinfo];
+          message << " texinfo_index=" << face.texinfo << " s_vector=("
+                  << info.s[0] << ',' << info.s[1] << ',' << info.s[2] << ','
+                  << info.s[3] << ") t_vector=(" << info.t[0] << ','
+                  << info.t[1] << ',' << info.t[2] << ',' << info.t[3]
+                  << ')';
+        } else {
+          message << " texinfo_index=invalid s_vector=none t_vector=none";
+        }
+      }
+    }
+    add_info(report, DiagnosticCode::kTextureStats, source_uri, message.str(),
+             static_cast<std::size_t>(LumpIndex::kFaces), surface_index);
   }
-  if (count == 0) {
-    styles[0] = 0U;
-  }
-  return styles;
-}
-
-[[nodiscard]] LightmapBuildResult build_lightmap_for_face(
-    stellar::assets::LevelGeometryAsset &geometry, const BspMap &map, const Face &face,
-    const std::vector<Vec3> &polygon, std::size_t face_index, const std::string &source_uri,
-    ImportReport *report) {
-  if (!map.has_lighting || face.light_offset < 0) {
-    return {};
-  }
-  if (face.texinfo >= map.texinfos.size()) {
-    add_warning(report, DiagnosticCode::kInvalidLightingData, source_uri,
-                source_uri + ": BSP face lightmap references invalid texinfo",
-                static_cast<std::size_t>(LumpIndex::kLighting), face_index);
-    return {};
-  }
-  const Texinfo &info = map.texinfos[face.texinfo];
-  float min_s = std::numeric_limits<float>::max();
-  float min_t = std::numeric_limits<float>::max();
-  float max_s = std::numeric_limits<float>::lowest();
-  float max_t = std::numeric_limits<float>::lowest();
-  for (const Vec3 &point : polygon) {
-    const float s = point[0] * info.s[0] + point[1] * info.s[1] + point[2] * info.s[2] + info.s[3];
-    const float t = point[0] * info.t[0] + point[1] * info.t[1] + point[2] * info.t[2] + info.t[3];
-    min_s = std::min(min_s, s);
-    min_t = std::min(min_t, t);
-    max_s = std::max(max_s, s);
-    max_t = std::max(max_t, t);
-  }
-  const auto min_texel_s = static_cast<int>(std::floor(min_s / 16.0F));
-  const auto min_texel_t = static_cast<int>(std::floor(min_t / 16.0F));
-  const auto max_texel_s = static_cast<int>(std::ceil(max_s / 16.0F));
-  const auto max_texel_t = static_cast<int>(std::ceil(max_t / 16.0F));
-  const std::uint32_t width = static_cast<std::uint32_t>(std::max(1, max_texel_s - min_texel_s + 1));
-  const std::uint32_t height = static_cast<std::uint32_t>(std::max(1, max_texel_t - min_texel_t + 1));
-  const std::uint64_t byte_count = static_cast<std::uint64_t>(width) * height * 3ULL;
-  const std::uint64_t offset = static_cast<std::uint64_t>(face.light_offset);
-  if (offset + byte_count > geometry.raw_lighting.size()) {
-    add_warning(report, DiagnosticCode::kInvalidLightingData, source_uri,
-                source_uri + ": BSP face lightmap offset is outside the lighting lump",
-                static_cast<std::size_t>(LumpIndex::kLighting), face_index);
-    return {};
-  }
-
-  stellar::assets::ImageAsset image{};
-  image.name = "lightmap_face_" + std::to_string(face_index);
-  image.width = width;
-  image.height = height;
-  image.format = stellar::assets::ImageFormat::kR8G8B8;
-  image.source_uri = source_uri + "#lightmap/face_" + std::to_string(face_index);
-  image.pixels.reserve(static_cast<std::size_t>(byte_count));
-  for (std::uint64_t i = 0; i < byte_count; ++i) {
-    image.pixels.push_back(std::to_integer<std::uint8_t>(geometry.raw_lighting[static_cast<std::size_t>(offset + i)]));
-  }
-  const std::size_t image_index = geometry.images.size();
-  geometry.images.push_back(std::move(image));
-
-  const auto styles = active_light_styles(face);
-  const std::size_t lightmap_index = geometry.lightmaps.size();
-  geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
-      .image_index = image_index,
-      .size = {width, height},
-      .style = styles[0],
-      .source_name = "face_" + std::to_string(face_index)});
-  return LightmapBuildResult{.lightmap_index = lightmap_index,
-                             .uv_min = std::array<float, 2>{static_cast<float>(min_texel_s * 16), static_cast<float>(min_texel_t * 16)},
-                             .uv_extent = std::array<float, 2>{std::max(1.0F, static_cast<float>(width - 1) * 16.0F), std::max(1.0F, static_cast<float>(height - 1) * 16.0F)}};
 }
 
 [[nodiscard]] std::optional<stellar::assets::WorldScriptBinding>
@@ -503,21 +219,51 @@ void copy_properties(stellar::assets::WorldMarker &marker,
   }
 }
 
+void warn_canonical_name_aliases(const Entity &entity, ImportReport *report,
+                                 const std::string &source_uri,
+                                 std::size_t entity_index) {
+  if (report == nullptr) {
+    return;
+  }
+  const auto selected = canonical_entity_name_for(entity);
+  if (!selected.has_value()) {
+    return;
+  }
+  for (std::string_view key : kEntityNameKeys) {
+    const std::string *value = value_for(entity, key);
+    if (value == nullptr || value->empty() || key == selected->key) {
+      continue;
+    }
+    if (*value != selected->value) {
+      add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey, source_uri,
+                         entity_index,
+                         source_uri + ": BSP entity name alias '" + std::string(key) +
+                             "' conflicts with canonical '" +
+                             std::string(selected->key) + "'; using '" +
+                             selected->value + "'");
+    }
+  }
+  if (selected->key == "name") {
+    add_entity_warning(report, DiagnosticCode::kUnsupportedEntityKey, source_uri,
+                       entity_index,
+                       source_uri +
+                           ": BSP entity uses legacy name without targetname; "
+                           "targetname is the canonical targetable identity");
+  }
+}
+
 [[nodiscard]] bool is_brush_class(std::string_view classname) noexcept {
   return classname.starts_with("func_") || classname.starts_with("trigger_");
 }
 
 [[nodiscard]] std::string collision_name_for(const Entity &entity,
-                                             int model_index) {
-  if (const std::string *targetname = value_for(entity, "targetname");
-      targetname != nullptr && !targetname->empty()) {
-    return *targetname;
-  }
+                                              int model_index) {
   if (const std::string *classname = value_for(entity, "classname");
       classname != nullptr && !classname->empty()) {
-    return *classname + "_" + std::to_string(model_index);
+    return canonical_entity_name_or(entity,
+                                    *classname + "_" + std::to_string(model_index));
   }
-  return "bsp_model_" + std::to_string(model_index);
+  return canonical_entity_name_or(entity, "bsp_model_" + std::to_string(model_index));
 }
 
 void add_visibility_warning(ImportReport *report, const std::string &source_uri,
@@ -566,6 +312,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                     static_cast<std::size_t>(LumpIndex::kTextures));
       }
     }
+  }
+
+  for (std::size_t entity_index = 0; entity_index < entities.size(); ++entity_index) {
+    warn_canonical_name_aliases(entities[entity_index], report, level.source_uri,
+                                entity_index);
   }
 
   stellar::assets::LevelCollisionAsset collision{};
@@ -730,7 +481,7 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         const Entity &entity = *found->second;
         stellar::assets::LevelBrushEntity brush{};
         brush.classname = string_or(entity, "classname", "func_unknown");
-        brush.targetname = string_or(entity, "targetname");
+        brush.targetname = canonical_entity_name_or(entity, {});
         brush.target = string_or(entity, "target");
         brush.model = string_or(entity, "model");
         brush.name = brush.targetname.empty() ? collision_mesh.name : brush.targetname;
@@ -832,10 +583,10 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                 classname == "info_player_deathmatch") {
       has_player_spawn = true;
       marker.type = stellar::assets::WorldMarkerType::kPlayerSpawn;
-      marker.name = string_or(entity, "targetname", "Player");
+      marker.name = canonical_entity_name_or(entity, "Player");
     } else if (classname == "info_stellar_spawn") {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = string_or(entity, "archetype");
     } else if (classname == "trigger_multiple" || classname == "trigger_once" ||
                classname == "trigger_stellar" ||
@@ -843,11 +594,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                classname == "trigger_multiple_point" ||
                classname == "trigger_once_point") {
       marker.type = stellar::assets::WorldMarkerType::kTrigger;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
     } else if (classname == "env_sprite" || classname == "stellar_sprite" ||
                value_for_alias(entity, "stellar.sprite", "_stellar_sprite") != nullptr) {
       marker.type = stellar::assets::WorldMarkerType::kSprite;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = string_or(
           entity, "archetype",
           string_or_alias(entity, "stellar.sprite", "_stellar_sprite"));
@@ -856,15 +607,15 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                string_or_alias(entity, "stellar.collider", "_stellar_collider") ==
                    "object") {
       marker.type = stellar::assets::WorldMarkerType::kObjectCollider;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = string_or(entity, "archetype");
     } else if (is_brush_class(classname)) {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = classname;
     } else {
       marker.type = stellar::assets::WorldMarkerType::kEntitySpawn;
-      marker.name = string_or(entity, "targetname", classname);
+      marker.name = canonical_entity_name_or(entity, classname);
       marker.archetype = classname;
     }
     if (!emit) {
@@ -980,6 +731,11 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
         .message = level.source_uri + ": BSP entities do not include a player spawn",
         .source_uri = level.source_uri});
   }
+
+  add_texture_diagnostics(level.geometry, map, face_to_surface, level.source_uri,
+                          report);
+  apply_lighting_policy(level, map, entities, report);
+  add_lightmap_diagnostics(level.geometry, level.source_uri, report);
 
   return level;
 }
