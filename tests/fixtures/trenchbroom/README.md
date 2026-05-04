@@ -112,7 +112,7 @@ Full manual QA is tracked in `docs/TrenchBroomManualQA.md`; this README keeps th
 8. Run `tools/bsp/validate_trenchbroom_bsp30.sh --map tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp`.
 9. For lighting, compile `src/lit_zup_room.map` with the VHLT full profile and confirm validation reports
    a BSP30 with lighting data; runtime import should create one or more `LevelLightmap` records.
-10. Optionally launch `build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` on a machine with display/GPU access and verify light/dark variation on static surfaces in OpenGL or Vulkan.
+10. Optionally launch `build/stellar-client --map build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` on a machine with display/GPU access and verify light/dark variation on static surfaces in OpenGL.
 
 Default CI must remain display-free and must not require an external BSP compiler. The compile wrapper
 smoke test skips gracefully when no compiler is available, and `trenchbroom_package_path_smoke` checks

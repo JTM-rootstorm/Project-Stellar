@@ -62,23 +62,11 @@ std::array<float, 16> to_array(const glm::mat4 &matrix) noexcept {
   return result;
 }
 
-glm::mat4 make_projection_for_backend(GraphicsBackend backend,
+glm::mat4 make_projection_for_backend(GraphicsBackend /*backend*/,
                                       float vertical_fov_degrees, float aspect,
                                       float near_plane, float far_plane) {
-  glm::mat4 projection = glm::perspective(glm::radians(vertical_fov_degrees),
-                                          aspect, near_plane, far_plane);
-
-  if (backend == GraphicsBackend::kVulkan) {
-    // Convert GLM/OpenGL clip space to Vulkan clip space while keeping the
-    // public renderer API backend-neutral.
-    glm::mat4 gl_to_vk_clip(1.0F);
-    gl_to_vk_clip[1][1] = -1.0F;
-    gl_to_vk_clip[2][2] = 0.5F;
-    gl_to_vk_clip[3][2] = 0.5F;
-    projection = gl_to_vk_clip * projection;
-  }
-
-  return projection;
+  return glm::perspective(glm::radians(vertical_fov_degrees), aspect,
+                          near_plane, far_plane);
 }
 
 void include_point(LevelBounds &bounds, const glm::vec3 &point) noexcept {

@@ -1,7 +1,22 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed lightweight BSP normal/specular material sidecars, completed client/server
-decoupling handoff, and completed historical branch notes.
+Status scope: completed Vulkan removal, completed lightweight BSP normal/specular material sidecars,
+completed client/server decoupling handoff, and completed historical branch notes.
+
+## Completed Scope — Vulkan Removal
+
+Status: complete through KV-5 as of 2026-05-04.
+
+Completed handoff plan:
+
+- `Plans/Archived/kill_vulkan/00-MASTER-KillVulkan-Codex-AgentPlan.md`
+
+### Current Renderer Summary
+
+OpenGL is the current supported renderer. The active build no longer requires a Vulkan SDK, loader,
+headers, libraries, CMake package, backend implementation, runtime CLI alias, or context smoke test.
+The backend-neutral `GraphicsDevice` abstraction remains in place so future DirectX/Direct3D or Metal
+support can be planned as explicit backend additions when real implementations exist.
 
 ## Completed Scope — Lightweight BSP Normal/Specular Material Sidecars
 
@@ -21,8 +36,9 @@ Missing sidecars preserve previous BSP texture/lightmap fallback behavior.
 The importer resolves sidecars from configured material roots, rejects unsafe texture paths, loads
 sidecar images into source-neutral `LevelAsset` image/texture/material data, and generates
 texinfo-derived tangents where valid. `RenderLevel` uploads the resolved material slots through the
-backend-neutral render scene path. OpenGL and Vulkan now consume the shared material contract for
-base color, normal, specular, lightmap, and fallback texture bindings in display-free validated paths.
+backend-neutral render scene path. OpenGL consumes the shared material contract for base color,
+normal, specular, lightmap, and fallback texture bindings in display-free validated paths. The former
+Vulkan parity path from SNT-7 was intentionally removed from active support on the kill-vulkan branch.
 
 Material sidecars are presentation-only. Server-authoritative gameplay, collision, scripting,
 transport, and networking do not depend on sidecar state.
@@ -48,7 +64,7 @@ transport, and networking do not depend on sidecar state.
 - [x] SNT-4 — Tangent data.
 - [x] SNT-5 — RenderLevel material upload.
 - [x] SNT-6 — OpenGL normal/specular lighting.
-- [x] SNT-7 — Vulkan material parity.
+- [x] SNT-7 — Former Vulkan material parity, retired from active support on kill-vulkan.
 - [x] SNT-8 — Fixtures, docs, final validation, and handoff.
 
 ### Validation Commands
@@ -64,8 +80,8 @@ ctest --test-dir build -R '^(bsp_materials|bsp_lightmaps|bsp_importer|render_lev
 ctest --test-dir build -R '^(trenchbroom|bsp_|client_map_validation|client_cli|server_cli|render_level|world_axes|collision_world|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
 ```
 
-Default validation is display-free and remains the pass/fail gate. OpenGL/Vulkan context smoke tests
-are opt-in for systems with a GPU/display/driver context.
+Default validation is display-free and remains the pass/fail gate. OpenGL context smoke tests are
+opt-in for systems with a GPU/display/driver context.
 
 ## Completed Scope — Client/Server Decoupling
 
@@ -357,8 +373,8 @@ Status: complete as of 2026-05-02.
 - Expanded BSP lightmap/import and display-free RenderLevel material upload coverage.
 - Wired static BSP lightmaps through linear/clamp texture upload, secondary-UV material bindings, and a
   stable lightstyle multiplier baseline of `1.0`.
-- Updated OpenGL material sampling to multiply static surface base color/texture by imported lightmaps;
-  Vulkan material descriptors preserve the same lightmap contract through the shared abstraction.
+- Updated OpenGL material sampling to multiply static surface base color/texture by imported
+  lightmaps through the shared material contract.
 - Moving brush runtime behavior was intentionally not introduced in TB-FULL-04; it was completed later
   by TB-FULL-05 for the supported `func_door`/`func_button` path.
 
@@ -869,7 +885,7 @@ Phase PN-2 completion notes:
   deterministic door/gate debug markers are available only through an explicit presentation flag.
 - `LevelRenderer` now retains backend-neutral `LevelPresentationState`, derives `BillboardView` from
   the active `LevelRenderState`, and submits gameplay billboards after static level geometry through
-  the existing `RenderLevel` abstraction for OpenGL/Vulkan parity.
+  the existing `RenderLevel` abstraction for OpenGL rendering.
 - The live client frame loop feeds presentation state after authoritative loopback runtime updates and
   clears presentation state for no-runtime/no-map fallback frames.
 - Display-free tests cover snapshot conversion behavior, inactive filtering, debug marker gating,
@@ -1366,7 +1382,7 @@ Phase 2 completion notes:
   BSP visibility data while falling back to the previous all-surface submission path when visibility
   is unavailable or invalid.
 - Billboard submission remains after static level geometry, and rendering remains behind the shared
-  `GraphicsDevice` abstraction with no OpenGL/Vulkan-specific BSP API.
+  `GraphicsDevice` abstraction with no raw backend-specific BSP API.
 - Added display-free `bsp_visibility` coverage plus render-level synthetic culling coverage.
 
 Validation run:
@@ -1610,8 +1626,8 @@ Phase BSP-4 is complete as of 2026-05-01:
 
 - Refactored active graphics presentation to consume BSP/`LevelAsset` static geometry through
   `RenderLevel`/`LevelRenderer` instead of retired scene data.
-- Preserved OpenGL/Vulkan backend parity through the shared `GraphicsDevice` abstraction; no
-  BSP-specific raw backend API was added.
+- Preserved the shared `GraphicsDevice` abstraction for OpenGL rendering; no BSP-specific raw backend
+  API was added.
 - Preserved billboard sprite rendering after static level geometry and updated display-free
   upload/submission tests for BSP geometry, default material fallback, surface material indices,
   and billboard ordering.
@@ -1669,7 +1685,7 @@ Preserve these invariants in follow-up work:
 - Server authority remains mandatory.
 - Lua scripting remains mandatory and sandboxed.
 - Default tests remain display-free.
-- OpenGL and Vulkan remain runtime-selectable through shared abstractions.
+- OpenGL remains the current renderer through shared graphics abstractions.
 - Source/VBSP, moving brush simulation, third-party physics, dynamic rigid bodies, full PBR,
   model/animation systems, and client-side gameplay scripting remain out of scope unless explicitly
   requested.

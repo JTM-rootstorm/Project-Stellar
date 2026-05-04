@@ -1,14 +1,25 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: completed client/server split handoff and completed historical scope guardrails.
+Status scope: completed Vulkan removal, completed client/server split handoff, and completed historical scope guardrails.
 
 ## Current Entry Point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. Client/server decoupling is
-complete through Phase CS-9 as of 2026-05-03.
+`docs/ImplementationStatus.md` is the source of truth for branch status. Vulkan removal is complete
+through KV-5 as of 2026-05-04, and client/server decoupling is complete through Phase CS-9 as of
+2026-05-03.
+
+Current renderer contract:
+
+- OpenGL is the only active supported renderer.
+- The project no longer requires Vulkan SDK headers, loader libraries, CMake packages, source files,
+  CLI aliases, enum values, or context smoke tests.
+- The backend-neutral graphics abstraction remains in place for future native backend work, but
+  DirectX/Direct3D or Metal support must be scoped as concrete new backend implementation work before
+  adding enum values, CLI aliases, CMake options, or docs that advertise support.
 
 Completed plan/proposal files:
 
+- `Plans/Archived/kill_vulkan/00-MASTER-KillVulkan-Codex-AgentPlan.md`
 - `Plans/ClientServerSplit-AgentPlan.md`
 - `Plans/ProjectStellar-ClientServerDecoupling-AgentPlan.md`
 
@@ -16,9 +27,48 @@ Focused architecture doc:
 
 - `docs/ClientServerArchitecture.md`
 
+## Completed Vulkan Removal
+
+The branch removed Vulkan from active build, runtime, tests, and support documentation while retaining
+the reusable graphics interfaces needed for future renderer backends.
+
+Completed Vulkan-removal outcomes:
+
+- Root CMake no longer calls `find_package(Vulkan)`, references Vulkan include directories, links
+  `Vulkan::Vulkan`, or lists Vulkan backend source files.
+- Test CMake no longer exposes `STELLAR_ENABLE_VULKAN_CONTEXT_TESTS` or builds the Vulkan context
+  smoke test.
+- `GraphicsBackend` no longer has `kVulkan`; parser aliases such as `vulkan` and `vk` must fail as
+  unsupported.
+- The graphics device factory creates OpenGL devices only.
+- Client window creation uses OpenGL window flags only.
+- Vulkan-specific projection conversion was removed from the level renderer.
+- Active Vulkan backend implementation files and active Vulkan smoke tests were deleted.
+- Active docs now describe OpenGL as the current renderer and DirectX/Metal as future possibilities
+  only.
+
+Useful Vulkan-removal audits:
+
+```bash
+git grep -n -i \
+  -e 'vulkan' \
+  -e 'VK_' \
+  -e 'Vk[A-Z]' \
+  -e 'SDL_WINDOW_VULKAN' \
+  -e 'STELLAR_ENABLE_VULKAN' \
+  -e 'Vulkan::Vulkan' \
+  -e 'Vulkan_INCLUDE_DIRS' \
+  -- include src tests CMakeLists.txt tests/cmake docs README.md Plans/NEXT.md ':!Plans/Archived/**'
+
+git ls-files | grep -Ei '(^|/)vulkan|Vulkan' | grep -v '^Plans/Archived/' || true
+```
+
+Expected result: no active code/build/test references remain. Active docs may mention Vulkan only as
+historical removal status or as a deliberately rejected backend.
+
 ## Completed Client/Server Split
 
-The branch now separates protocol, transport, authority, server runtime, dedicated-server,
+The branch separates protocol, transport, authority, server runtime, dedicated-server,
 single-player, remote-client, listen-server, presentation, and client application composition modules.
 This completed the CS-0 through CS-9 sequence without restarting the completed socket/session lifecycle
 or TrenchBroom BSP30 compatibility work.
@@ -67,7 +117,7 @@ dedicated-server, server-runtime, authority, or top-level application compositio
 reintroduce authority links into `stellar_client_net`; CMake direct-link assertions and
 `tools/dev/check_target_boundaries.sh` enforce that isolation.
 
-## Follow-Up Options After Decoupling
+## Follow-Up Options After Current Completed Scope
 
 1. Presentation-map workflow for remote clients, explicitly separate from authority map loading and
    gameplay script execution.
@@ -76,19 +126,26 @@ reintroduce authority links into `stellar_client_net`; CMake direct-link asserti
 4. True multiplayer simulation beyond the current one accepted TCP client / one active player limit.
 5. UDP/unreliable transport and transport selection.
 6. Map transfer/caching after presentation-map ownership is defined.
-7. Build/docs follow-ups: keep `docs/ClientServerArchitecture.md`, `docs/Design.md`, and
+7. Future renderer backend work for Windows/macOS, explicitly planned as DirectX/Direct3D or Metal
+   implementation work through the existing graphics abstraction.
+8. Build/docs follow-ups: keep `docs/ClientServerArchitecture.md`, `docs/Design.md`, and
    `docs/ImplementationStatus.md` aligned when target names or runtime contracts change.
-8. Richer presentation systems: sprite animation, HUD/inventory/VFX, miniaudio-backed playback, and
+9. Richer presentation systems: sprite animation, HUD/inventory/VFX, miniaudio-backed playback, and
    local presentation asset workflows.
 
 ## Historical Completed Scope Guardrails
 
 Completed plan packages remain archived and must not be restarted:
 
+- Vulkan removal: `Plans/Archived/kill_vulkan/`.
 - BSP gameplay loop: `Plans/Archived/bsp_gameplay_loop/`.
 - BSP presentation/networking polish: `Plans/Archived/bsp_presentation_networking_polish/`.
 - Socket transport: `Plans/Archived/socket_transport/`.
 - TrenchBroom BSP30 compatibility and Z-up migration: `Plans/Archived/trenchbroom_compat/`.
+
+The completed Vulkan-removal work is retained as implementation context only. Do not reintroduce
+Vulkan aliases, enum values, source files, CMake package requirements, or tests unless a future plan
+explicitly reverses the renderer direction.
 
 The completed socket transport and networked session lifecycle work is retained as implementation
 context only. The branch already has `stellar-server`, `stellar-client --connect HOST:PORT`,
@@ -100,9 +157,10 @@ branch already has the project-owned Stellar TrenchBroom package, BSP30 compile/
 Z-up authoring/runtime conventions, fixture coverage, lightmap support, and server-authoritative
 `func_door`/`func_button` support. Do not restart TrenchBroom compatibility or Z-up migration work.
 
-Do not restart completed collision, movement, Lua scripting, object-collider, BSP migration, BSP
-hardening, BSP gameplay-loop foundation work, BSP presentation/networking polish work, socket
-transport/session lifecycle work, TrenchBroom compatibility work, or the completed client/server split.
+Do not restart completed Vulkan removal, collision, movement, Lua scripting, object-collider, BSP
+migration, BSP hardening, BSP gameplay-loop foundation work, BSP presentation/networking polish work,
+socket transport/session lifecycle work, TrenchBroom compatibility work, or the completed
+client/server split.
 
 ## Invariants
 
@@ -118,27 +176,33 @@ transport/session lifecycle work, TrenchBroom compatibility work, or the complet
 - Import never executes scripts.
 - Runtime collision, movement, triggers, object colliders, scripting, and networking contracts remain backend-neutral.
 - Default tests remain display-free.
-- OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
+- OpenGL is the current supported renderer through the shared graphics abstraction. Future native
+  backends for Windows/macOS should be planned as explicit DirectX/Metal implementation work before
+  adding enum values or CLI aliases.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
 - No client prediction, interpolation, map transfer, reconciliation, UDP/unreliable transport,
   authentication, encryption, matchmaking, or public Internet deployment is active unless a future plan
   explicitly scopes it.
-- Do not add Source/VBSP, dynamic rigid bodies, moving brush classes beyond the implemented
+- Do not add Vulkan, Source/VBSP, dynamic rigid bodies, moving brush classes beyond the implemented
   `func_door`/`func_button` path, full PBR, client-side gameplay scripting, model/animation systems,
   third-party physics, arbitrary non-Stellar entity parity, or retired importer functionality unless
   explicitly requested.
 
 ## Validation Runbook
 
-Final validation for post-split changes should prefer:
+Final validation for post-removal/post-split changes should prefer:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 ctest --test-dir build --output-on-failure
-ctest --test-dir build -R '^(protocol|transport|network_session|socket_transport|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_map_validation_smoke|client_cli_map_validation|client_world_receiver|gameplay_presentation|player_presentation|hud_presentation|audio_event_router|bsp_|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
+ctest --test-dir build -R '^(graphics_backend_selection|render_level_upload|render_level_inspection|target_boundary|protocol|transport|network_session|socket_transport|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_map_validation_smoke|client_cli_map_validation|client_world_receiver|gameplay_presentation|player_presentation|hud_presentation|audio_event_router|bsp_|runtime_world|server_world_session|scripted_world_session)' --output-on-failure
 tools/dev/check_target_boundaries.sh
 ```
+
+For renderer-support changes, also run the active Vulkan-removal audits shown above and confirm that
+`stellar-client --renderer vulkan --validate-config` and `stellar-client --graphics-backend vk --validate-config`
+fail early with unsupported-backend errors.
 
 CS-8 committed validation from `8dce477c757e293fdb6f39cbca81b809b202b7e8` passed configure,
 selected target builds, CTest regex 10/10 after protocol/transport aliases, and the target-boundary

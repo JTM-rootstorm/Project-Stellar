@@ -221,8 +221,8 @@ Useful runtime/import diagnostics:
   so imported lighting can be inspected without base textures.
 
 Use `tests/fixtures/trenchbroom/src/lit_zup_room.map` or the package `templates/lit_zup_room.map` as the
-manual lit-room reference. After VHLT compile and validation, launch with OpenGL or Vulkan and confirm
-visible light/dark variation on the floor and walls. Nonzero classic BSP light styles currently use a
+manual lit-room reference. After VHLT compile and validation, launch with OpenGL and confirm visible
+light/dark variation on the floor and walls. Nonzero classic BSP light styles currently use a
 stable static multiplier of `1.0`; no dynamic realtime lights or client-side gameplay authority are
 created by light entities.
 
@@ -372,7 +372,7 @@ camera target, and near/far planes.
 `--validate-map` and `stellar-server --validate-config --map` are display-free. `--validate-display`
 is intentionally GUI/display-backed: it creates a small SDL window, initializes the selected graphics
 backend, and exits. Use it to separate map/import validity from Linux display-server authorization or
-OpenGL/Vulkan context startup issues.
+OpenGL context startup issues.
 
 ## End-to-end fixtures
 

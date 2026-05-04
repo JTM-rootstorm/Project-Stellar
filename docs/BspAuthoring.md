@@ -272,7 +272,7 @@ style = "0"
 `light`, `light_spot`, and `light_environment` are compile-time entities for BSP lighting tools. VHLT
 `hlrad` writes the BSP lighting lump; Stellar imports those bytes into `LevelLightmap` records, generates
 secondary UVs, uploads lightmap textures as linear clamp-to-edge images, and multiplies static surface
-base color/texture by the lightmap in OpenGL and Vulkan. Faces with missing or invalid light offsets fall
+base color/texture by the lightmap in OpenGL. Faces with missing or invalid light offsets fall
 back to unlit/fullbright material behavior with a warning. Classic nonzero light styles are preserved on
 the imported lightmap and currently render with a deterministic static multiplier of `1.0` until a later
 server-authoritative gameplay phase explicitly animates styles.

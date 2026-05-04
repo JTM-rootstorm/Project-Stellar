@@ -4,7 +4,7 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.3.1 (lightweight BSP material sidecars complete)
+**Version:** 0.3.2 (OpenGL-only renderer after Vulkan removal)
 **Last Updated:** 2026-05-04
 
 ---
@@ -48,8 +48,10 @@ Listen and dedicated servers share the server runtime and authority bootstrap. T
 direction is not to become a full physically based renderer. BSP maps are the canonical playable level
 source, and active runtime, server, client validation, and rendering paths use BSP-backed,
 source-neutral `LevelAsset` data.
-The rendering target is lightweight OpenGL/Vulkan BSP surface/material and billboard parity
-suitable for game content.
+The rendering target is lightweight OpenGL BSP surface/material and billboard rendering suitable for
+game content. Graphics remain behind a backend-neutral abstraction so future native platform
+backends, such as DirectX/Direct3D on Windows or Metal on macOS, can be added when explicitly
+scoped.
 
 ### Key Design Principles
 
@@ -61,10 +63,10 @@ suitable for game content.
   explicit interfaces.
 - **Data-oriented ECS:** gameplay state should remain serializable, cache-friendly, and
   server-owned.
-- **Backend parity:** OpenGL and Vulkan remain runtime-selectable through the shared graphics
-  abstraction.
+- **Renderer abstraction:** OpenGL is the current supported renderer, with backend-neutral
+  graphics contracts preserved for future native backend additions.
 - **Display-free default validation:** default tests must not require a GPU, display, or
-  OpenGL/Vulkan runtime context.
+  OpenGL runtime context.
 - **Server-authoritative scripting:** gameplay scripts run on the authoritative runtime side and
   emit validated events/commands through explicit C++ APIs; they do not directly mutate renderer,
   audio, platform, OS, or raw C++ state.
@@ -74,7 +76,7 @@ suitable for game content.
 
 - **Language:** C++23 plus C99 where required for C dependencies.
 - **Build:** CMake 3.20+.
-- **Rendering:** OpenGL 4.5+ and Vulkan 1.2+, selected at runtime.
+- **Rendering:** OpenGL 4.5+ is the current supported renderer.
 - **World style:** 3D static world geometry with 2D billboard entities and props.
 - **Asset format:** BSP maps are the canonical playable level format.
 - **Math:** GLM.
@@ -245,7 +247,7 @@ Runtime compositions:
 ### Client Responsibilities
 
 - Initialize platform windowing, graphics, audio, input, and asset presentation paths.
-- Select OpenGL or Vulkan at runtime through the graphics abstraction.
+- Select the implemented OpenGL renderer through the graphics abstraction.
 - Receive world snapshots or render commands from the server.
 - Present received authoritative state without treating presentation smoothing as authority;
   interpolation remains deferred until explicitly scoped.
@@ -275,8 +277,8 @@ Runtime compositions:
   server state.
 - Rendering, audio, and client-only interpolation cannot become sources of authoritative gameplay
   truth.
-- Imported collision and world metadata must be usable by server/gameplay code without OpenGL or
-  Vulkan dependencies.
+- Imported collision and world metadata must be usable by server/gameplay code without graphics
+  backend dependencies.
 
 ---
 
@@ -320,7 +322,7 @@ platform infrastructure, and static collision/query infrastructure.
 ### 5.2 Core World Data
 
 Core world data should remain backend-neutral and serializable. Render-specific resources, audio
-handles, Vulkan/OpenGL objects, and client-only presentation caches must not be stored as
+graphics API handles/objects and client-only presentation caches must not be stored as
 authoritative gameplay state.
 
 Initial gameplay/world data categories:
@@ -475,14 +477,14 @@ Outside the current Stellar BSP30 profile unless a concrete requirement appears:
 ## 7. Graphics Subsystem
 
 **Primary ownership:** `@miyamoto`, coordinated by `@director` for cross-subsystem changes.  
-**Responsibility:** graphics abstraction, OpenGL/Vulkan backends, level geometry upload, shader paths,
+**Responsibility:** graphics abstraction, OpenGL backend, level geometry upload, shader paths,
 materials, cameras, BSP level rendering, billboard sprite rendering, and graphics tests.
 
 ### 7.1 Graphics Abstraction
 
-Graphics backends are hidden behind a shared interface. OpenGL and Vulkan must remain
-runtime-selectable and should receive the same backend-neutral level geometry, material, texture, and
-sprite data.
+Graphics backends are hidden behind a shared interface. OpenGL is the current implemented backend and
+receives backend-neutral level geometry, material, texture, and sprite data. Future native backends
+should reuse the same contracts when their implementations are explicitly scoped.
 
 Representative direction:
 
@@ -512,18 +514,16 @@ draw commands should log, skip, or return an error from fallible setup/upload pa
 
 Current branch status:
 
-- OpenGL and Vulkan are runtime-selectable through the shared abstraction.
+- OpenGL is the current supported renderer through the shared abstraction.
 - OpenGL is render-capable for the current lightweight level path.
-- Vulkan is not an upload-only or no-op backend. It initializes, creates swapchain resources,
-  records draw commands, submits frames, presents, handles resize/recreate paths, and has opt-in
-  context smoke coverage.
-- Vulkan resource lifetime has been hardened with deferred deletion behavior for in-flight resources.
+- Other native backends should not be added to enums, CLI aliases, or CMake options until a real
+  implementation exists.
 - Default tests remain display-free.
-- GPU/display-dependent OpenGL and Vulkan context tests remain opt-in.
+- GPU/display-dependent OpenGL context tests remain opt-in.
 
 ### 7.3 Lightweight BSP Material Parity
 
-The current target is OpenGL/Vulkan parity for lightweight BSP surface/material rendering, including:
+The current target is lightweight BSP surface/material rendering in OpenGL, including:
 
 - Base color factor and texture.
 - Vertex color modulation.
@@ -554,7 +554,7 @@ Preferred behavior:
 - Depth testing lets level geometry occlude sprites.
 - Alpha blend sprites are sorted back-to-front by camera-space depth.
 - Alpha mask and opaque sprites can be handled separately from alpha blend sprites.
-- OpenGL and Vulkan behavior remain parity targets.
+- Backend-neutral sprite data should remain reusable by future renderer backends.
 - Display-free tests validate draw data, sorting, alpha classification, and preservation of size,
   color, and texture handles.
 
@@ -910,7 +910,6 @@ dependencies.
 | GLM | Math | Vectors, matrices, quaternions |
 | SDL2 | Windowing/input | Platform abstraction and graphics context/surface support |
 | miniaudio | Audio | Client-side playback and spatial audio |
-| Vulkan SDK | Vulkan backend | Optional runtime path and opt-in context tests |
 | OpenGL loader | OpenGL backend | Use the loader already selected by the project |
 | Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` |
 | stb_image | Image decode | Used by importer image paths |
@@ -948,7 +947,7 @@ Boundary enforcement:
   dedicated-server-to-client-runtime/presentation, and server-runtime-to-client modules.
 - `tools/dev/check_target_boundaries.sh` audits the build graph/source tree for the same ownership
   rules and is part of final CS-8/CS-9 validation.
-- Display-free unit/regression tests remain the default. OpenGL/Vulkan context tests remain opt-in.
+- Display-free unit/regression tests remain the default. OpenGL context tests remain opt-in.
 
 ### 11.4 Validation Commands
 
@@ -976,16 +975,6 @@ cmake --build build -j$(nproc)
 ctest --test-dir build \
   -R '^(bsp_scripted_playable_world_smoke|scripted_world_session|trigger_script|lua_runtime)$' \
   --output-on-failure
-```
-
-Opt-in Vulkan context validation when a Vulkan-capable environment is available:
-
-```bash
-cmake -S . -B build-vulkan-tests \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DSTELLAR_ENABLE_VULKAN_CONTEXT_TESTS=ON
-cmake --build build-vulkan-tests --target stellar_vulkan_context_smoke_test -j$(nproc)
-ctest --test-dir build-vulkan-tests -R '^vulkan_context_smoke$' --output-on-failure
 ```
 
 Opt-in OpenGL context validation should remain similarly gated.
@@ -1035,7 +1024,7 @@ Project-Stellar/
 │   ├── ecs/
 │   ├── graphics/
 │   │   ├── opengl/
-│   │   └── vulkan/
+│   │   └── opengl/
 │   ├── import/
 │   │   └── bsp/
 │   ├── network/
@@ -1085,7 +1074,7 @@ Examples of cross-subsystem work:
 | Agent | Primary Domain |
 | --- | --- |
 | `@carmack` | ECS, core systems, networking, server authority, build/dependency plumbing, static collision/query infrastructure |
-| `@miyamoto` | Graphics abstraction, OpenGL/Vulkan, BSP level rendering, sprites, shaders, camera |
+| `@miyamoto` | Graphics abstraction, OpenGL, BSP level rendering, sprites, shaders, camera |
 | `@suzuki` | Audio interfaces, miniaudio, playback, spatial audio, no-op fallback paths |
 | `@kojima` | Entity archetypes, movement rules, collision responses, gameplay mechanics, tuning |
 | `@molyneux` | Isolated experiments, prototypes, feasibility studies |
@@ -1212,7 +1201,6 @@ Default tests must be deterministic and display-free. They should not require:
 
 - GPU access.
 - OpenGL context creation.
-- Vulkan instance/surface/swapchain creation.
 - SDL display/window presentation.
 - External artist assets.
 - Shader compiler availability at test runtime.
@@ -1254,7 +1242,7 @@ Default graphics tests should use recording/mock devices to inspect backend-neut
 - Large level submission.
 - Billboard sprite sorting and draw data.
 
-OpenGL/Vulkan context tests remain opt-in and should be used for smoke coverage, not default CI.
+OpenGL context tests remain opt-in and should be used for smoke coverage, not default CI.
 
 ### 16.5 Collision and Movement Tests
 
@@ -1335,9 +1323,7 @@ The socket transport roadmap and client/server split are complete. Recommended n
 
 Recent completed work includes:
 
-- Vulkan skinned draw support.
-- Vulkan resize/recreate/resource-lifetime hardening.
-- Vulkan parity smoke matrix and Phase 5E completion.
+- OpenGL-backed BSP rendering and display-free render submission coverage.
 - `KHR_texture_transform`.
 - `KHR_materials_unlit`.
 - Larger runtime skin palette cap of 256 joints per draw.
@@ -1411,7 +1397,7 @@ Deferred unless scoped:
 | 2026-04-23 | 0.1.1 | TBD | Replace SDL2 with SFML for windowing and input |
 | 2026-04-23 | 0.1.2 | TBD | Add miniaudio for 3D spatial audio, update build to support C and C++ |
 | 2026-04-24 | 0.1.3 | TBD | Replace SFML with SDL2 for windowing and input |
-| 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, Vulkan parity status, then-current importer support, and explicit deferred work |
+| 2026-04-29 | 0.1.4 | ChatGPT | Align design with `collision-movement` branch status, Phase 6 plans, AGENTS coordination rules, then-current renderer status, importer support, and explicit deferred work |
 | 2026-04-30 | 0.1.5 | Kilo | Align design with `lua-scripting` branch status, Phase 10 server-authoritative Lua scripting, `stellar_scripting`, scripted session smoke coverage, dependency/build/test updates, and deferred client/entity scripting work |
 | 2026-04-30 | 0.1.6 | Kilo | Align design with Phase 11 scripted collision behavior: runtime collision state, filtered authoritative movement, native script collision commands, object collider registry foundation, and scripted collision smoke coverage |
 | 2026-05-01 | 0.2.0 | Kilo | Lock active design direction to BSP maps as the canonical playable level format and begin migration from scene-shaped assets to `LevelAsset` |
@@ -1419,7 +1405,8 @@ Deferred unless scoped:
 | 2026-05-01 | 0.2.4 | Kilo | Mark BSP presentation/networking polish complete; document local transport bridge, remote deferrals, presentation-only HUD/audio routes, and FGD remapping constraints |
 | 2026-05-01 | 0.2.8 | Kilo | Mark socket transport scope complete; document TCP-first transport, `stellar-server`, `stellar-client --connect`, single-client/single-active-player limits, and post-ST deferrals |
 | 2026-05-03 | 0.3.0 | Kilo | Mark client/server split complete through CS-9; document explicit runtime modes, split CMake targets, build-boundary checks, and post-split deferred networking/presentation work |
-| 2026-05-04 | 0.3.1 | Codex | Mark lightweight BSP normal/specular sidecars complete through SNT-8; document optional `.stellar_material` lookup, tangent-aware rendering, OpenGL/Vulkan parity, and full-PBR deferral |
+| 2026-05-04 | 0.3.1 | Codex | Mark lightweight BSP normal/specular sidecars complete through SNT-8; document optional `.stellar_material` lookup, tangent-aware rendering, then-current backend parity, and full-PBR deferral |
+| 2026-05-04 | 0.3.2 | Codex | Remove Vulkan from active renderer support, keep OpenGL as the current backend, and preserve backend-neutral seams for future DirectX/Metal work |
 
 ---
 
@@ -1429,7 +1416,7 @@ Deferred unless scoped:
 - **Server authority:** The server is the source of truth for gameplay state.
 - **Presentation client:** Client process responsible for rendering, audio, input capture, and
   presentation of server-owned state.
-- **Backend-neutral asset:** CPU-side data that does not depend on OpenGL, Vulkan, or another
+- **Backend-neutral asset:** CPU-side data that does not depend on OpenGL or another
   presentation backend.
 - **Static level collision:** Non-dynamic world collision geometry, usually imported from authored
   level data.
@@ -1437,7 +1424,7 @@ Deferred unless scoped:
 - **Snapshot:** Serialized state sent from server to client.
 - **Interpolation:** Presentation-side smoothing between received snapshots.
 - **Client prediction:** Optional future local simulation that must reconcile with server authority.
-- **Lightweight material parity:** OpenGL/Vulkan rendering of the engine's supported material subset
+- **Lightweight material rendering:** OpenGL rendering of the engine's supported material subset
   without claiming full PBR compliance.
 - **Server-authoritative scripting:** Gameplay scripts executed on the authoritative runtime side,
   producing validated events or requests instead of directly mutating presentation or native state.
@@ -1446,6 +1433,5 @@ Deferred unless scoped:
 
 - *Game Programming Patterns* — Robert Nystrom.
 - EnTT documentation and ECS design references.
-- Vulkan Tutorial and Vulkan specification materials.
 - OpenGL 4.5 specification materials.
 - miniaudio documentation.

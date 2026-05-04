@@ -19,9 +19,9 @@ namespace stellar::graphics {
 /**
  * @brief Create a renderer using a runtime-selected backend.
  *
- * The renderer remains backend-neutral. OpenGL is fully render-capable; Vulkan
- * currently initializes and stores uploads but frame/draw/present calls are
- * no-ops until the full Vulkan swapchain and pipeline are implemented.
+ * The renderer remains backend-neutral. OpenGL is the current implemented
+ * backend; future native backends should be added only with real device
+ * implementations.
  */
 [[nodiscard]] std::unique_ptr<Renderer> create_renderer(
     GraphicsBackend backend,

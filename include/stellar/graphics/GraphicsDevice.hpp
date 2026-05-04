@@ -57,7 +57,7 @@ struct MeshPrimitiveDrawCommand {
  * @brief Backend-neutral GPU resource upload interface.
  *
  * The device owns backend-specific resources and returns opaque handles so the
- * importer and higher-level asset systems never see raw OpenGL/Vulkan state.
+ * importer and higher-level asset systems never see raw graphics API state.
  */
 class GraphicsDevice {
 public:

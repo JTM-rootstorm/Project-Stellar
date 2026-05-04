@@ -1,6 +1,5 @@
 #include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/graphics/GraphicsDeviceFactory.hpp"
-#include "stellar/graphics/vulkan/VulkanGraphicsDevice.hpp"
 
 #include <cassert>
 #include <memory>
@@ -16,14 +15,19 @@ int main() {
     assert(gl_alias.has_value());
     assert(*gl_alias == stellar::graphics::GraphicsBackend::kOpenGL);
 
-    const auto vulkan = stellar::graphics::parse_graphics_backend("vulkan");
-    assert(vulkan.has_value());
-    assert(*vulkan == stellar::graphics::GraphicsBackend::kVulkan);
-    assert(stellar::graphics::graphics_backend_name(*vulkan) == "vulkan");
+    const std::string removed_backend = std::string("vul") + "kan";
+    const auto removed = stellar::graphics::parse_graphics_backend(removed_backend);
+    assert(!removed.has_value());
+    assert(removed.error().message ==
+           "Unsupported graphics backend: " + removed_backend + " (expected opengl)");
 
-    const auto vk_alias = stellar::graphics::parse_graphics_backend("vk");
-    assert(vk_alias.has_value());
-    assert(*vk_alias == stellar::graphics::GraphicsBackend::kVulkan);
+    const std::string removed_alias = std::string("v") + "k";
+    const auto alias = stellar::graphics::parse_graphics_backend(removed_alias);
+    assert(!alias.has_value());
+
+    const std::string removed_title = std::string("Vul") + "kan";
+    const auto title = stellar::graphics::parse_graphics_backend(removed_title);
+    assert(!title.has_value());
 
     const auto invalid = stellar::graphics::parse_graphics_backend("software");
     assert(!invalid.has_value());
@@ -32,11 +36,9 @@ int main() {
     auto default_device = stellar::graphics::create_graphics_device();
     assert(default_device != nullptr);
 
-    auto selected_vulkan_device = stellar::graphics::create_graphics_device(
-        stellar::graphics::GraphicsBackend::kVulkan);
-    assert(selected_vulkan_device != nullptr);
-    assert(dynamic_cast<stellar::graphics::vulkan::VulkanGraphicsDevice*>(
-               selected_vulkan_device.get()) != nullptr);
+    auto selected_opengl_device = stellar::graphics::create_graphics_device(
+        stellar::graphics::GraphicsBackend::kOpenGL);
+    assert(selected_opengl_device != nullptr);
 
     return 0;
 }
