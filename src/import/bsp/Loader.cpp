@@ -2,6 +2,7 @@
 
 #include "BspBinary.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <utility>
@@ -30,7 +31,13 @@ load_level_with_report(std::string_view path, const LoadOptions &options) {
   while (file.get(ch)) {
     bytes.push_back(static_cast<std::byte>(static_cast<unsigned char>(ch)));
   }
-  return load_level_from_memory_with_report(bytes, std::string(path), options);
+  LoadOptions disk_options = options;
+  if (disk_options.parse_material_sidecars) {
+    const std::filesystem::path material_root =
+        std::filesystem::path(std::string(path)).parent_path() / "materials";
+    disk_options.material_search_roots.push_back(material_root);
+  }
+  return load_level_from_memory_with_report(bytes, std::string(path), disk_options);
 }
 
 std::expected<stellar::assets::LevelAsset, stellar::platform::Error>

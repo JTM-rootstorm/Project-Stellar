@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -30,6 +31,21 @@ void set_entities(std::vector<std::byte> &bytes, const std::string &entities) {
                  reinterpret_cast<const std::byte *>(entities.data() + entities.size()));
     stellar::tests::bsp_fixture::set_lump(
         bytes, stellar::import::bsp::detail::LumpIndex::kEntities, entity_offset, entities.size());
+}
+
+std::filesystem::path material_fixture_root() {
+    return std::filesystem::path(STELLAR_SOURCE_DIR) / "tests" / "fixtures" /
+           "materials";
+}
+
+bool has_diagnostic(const stellar::import::bsp::ImportReport &report,
+                    stellar::import::bsp::DiagnosticCode code) {
+    for (const auto &diagnostic : report.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void embedded_miptex_creates_image_and_texture() {
@@ -270,6 +286,153 @@ void shifted_scaled_texinfo_produces_expected_uv0() {
     assert(vertices[2].uv0[1] == 20.0F / 128.0F);
 }
 
+void sidecar_resolves_normal_and_specular_from_explicit_root() {
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root());
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "dev/wall_96");
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_positive.bsp", options);
+    assert(result);
+    assert(result->asset.geometry.materials.size() == 1);
+    const auto &surface_material = result->asset.geometry.materials[0];
+    assert(surface_material.resolved_material.has_value());
+    const auto &material = *surface_material.resolved_material;
+    assert(material.name == "dev/wall_96");
+    assert(material.base_color_texture.has_value());
+    assert(material.base_color_texture->texture_index == surface_material.texture_index);
+    assert(material.normal_texture.has_value());
+    assert(material.specular_texture.has_value());
+    assert(material.normal_scale == 1.5F);
+    assert(material.normal_light_strength == 0.25F);
+    assert(material.specular_factor == 0.35F);
+    assert(material.specular_power == 48.0F);
+    assert(material.roughness_factor == 0.75F);
+    assert(material.double_sided);
+    assert(!material.unlit);
+    assert(result->asset.geometry.textures[material.normal_texture->texture_index]
+               .color_space == stellar::assets::TextureColorSpace::kLinear);
+    assert(result->asset.geometry.textures[material.specular_texture->texture_index]
+               .color_space == stellar::assets::TextureColorSpace::kLinear);
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarLoaded));
+}
+
+void unsafe_sidecar_preserves_fallback_and_strict_fails() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "unsafe_path");
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
+    const auto non_strict =
+        stellar::import::bsp::load_level_from_memory_with_report(
+            bytes, "sidecar_invalid.bsp", options);
+    assert(non_strict);
+    assert(!non_strict->asset.geometry.materials[0].resolved_material.has_value());
+    assert(has_diagnostic(non_strict->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarUnsafePath));
+
+    options.strict_material_sidecars = true;
+    const auto strict = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_invalid_strict.bsp", options);
+    assert(!strict);
+}
+
+void invalid_sidecar_values_are_diagnosed() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "malformed_float");
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
+    const auto result = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_malformed_float.bsp", options);
+    assert(result);
+    assert(!result->asset.geometry.materials[0].resolved_material.has_value());
+    assert(has_diagnostic(result->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarInvalid));
+}
+
+void missing_sidecar_texture_warns_or_fails_strict() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "missing_texture");
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
+    const auto non_strict =
+        stellar::import::bsp::load_level_from_memory_with_report(
+            bytes, "sidecar_missing_texture.bsp", options);
+    assert(non_strict);
+    assert(!non_strict->asset.geometry.materials[0].resolved_material.has_value());
+    assert(has_diagnostic(non_strict->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarTextureMissing));
+
+    options.strict_material_sidecars = true;
+    const auto strict = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_missing_texture_strict.bsp", options);
+    assert(!strict);
+}
+
+void unknown_sidecar_key_warns_or_fails_strict() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "unknown_key");
+    stellar::import::bsp::LoadOptions options;
+    options.material_search_roots.push_back(material_fixture_root() / "invalid");
+    const auto non_strict =
+        stellar::import::bsp::load_level_from_memory_with_report(
+            bytes, "sidecar_unknown.bsp", options);
+    assert(non_strict);
+    assert(non_strict->asset.geometry.materials[0].resolved_material.has_value());
+    assert(has_diagnostic(non_strict->report,
+                          stellar::import::bsp::DiagnosticCode::
+                              kMaterialSidecarUnknownKey));
+
+    options.strict_material_sidecars = true;
+    const auto strict = stellar::import::bsp::load_level_from_memory_with_report(
+        bytes, "sidecar_unknown_strict.bsp", options);
+    assert(!strict);
+}
+
+void bsp_faces_generate_tangents_from_texinfo() {
+    const auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "dev/grid_64");
+    const auto result = stellar::import::bsp::load_level_from_memory(
+        bytes, "tangent_valid.bsp");
+    assert(result);
+    const auto &primitive = result->geometry.meshes[0].primitives[0];
+    assert(primitive.has_tangents);
+    const auto &vertex = primitive.vertices[0];
+    const auto &normal = vertex.normal;
+    const auto &tangent = vertex.tangent;
+    const float tangent_length =
+        std::sqrt(tangent[0] * tangent[0] + tangent[1] * tangent[1] +
+                  tangent[2] * tangent[2]);
+    assert(std::abs(tangent_length - 1.0F) < 0.0001F);
+    const float dot = normal[0] * tangent[0] + normal[1] * tangent[1] +
+                      normal[2] * tangent[2];
+    assert(std::abs(dot) < 0.0001F);
+    assert(tangent[3] == 1.0F || tangent[3] == -1.0F);
+}
+
+void degenerate_texinfo_skips_tangents() {
+    auto bytes = stellar::tests::bsp_fixture::single_face_bsp(
+        false, -1, 0, "dev/grid_64");
+    const std::size_t texinfo_offset =
+        stellar::tests::bsp_fixture::lump_header_offset(
+            stellar::import::bsp::detail::LumpIndex::kTexinfo);
+    std::int32_t texinfo_lump = 0;
+    std::memcpy(&texinfo_lump, bytes.data() + texinfo_offset,
+                sizeof(texinfo_lump));
+    const float zero = 0.0F;
+    std::memcpy(bytes.data() + static_cast<std::size_t>(texinfo_lump), &zero,
+                sizeof(zero));
+
+    const auto result = stellar::import::bsp::load_level_from_memory(
+        bytes, "tangent_degenerate.bsp");
+    assert(result);
+    assert(!result->geometry.meshes[0].primitives[0].has_tangents);
+}
+
 void missing_and_unsafe_wad_paths_are_diagnosed() {
     auto bytes = stellar::tests::bsp_fixture::single_face_bsp(false, -1, 0, "stone");
     set_entities(bytes, "{\n\"classname\" \"worldspawn\"\n\"wad\" \"../escape.wad;/tmp/local.wad;missing.wad\"\n}\n"
@@ -302,6 +465,13 @@ int main() {
     developer_wad_and_fallback_pixels_match();
     semantic_developer_texture_sample_pixels_are_stable();
     shifted_scaled_texinfo_produces_expected_uv0();
+    sidecar_resolves_normal_and_specular_from_explicit_root();
+    unsafe_sidecar_preserves_fallback_and_strict_fails();
+    invalid_sidecar_values_are_diagnosed();
+    missing_sidecar_texture_warns_or_fails_strict();
+    unknown_sidecar_key_warns_or_fails_strict();
+    bsp_faces_generate_tangents_from_texinfo();
+    degenerate_texinfo_skips_tangents();
     missing_and_unsafe_wad_paths_are_diagnosed();
     return 0;
 }

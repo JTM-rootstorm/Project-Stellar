@@ -125,7 +125,7 @@ private:
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
         VkBuffer uniform_buffer = VK_NULL_HANDLE;
         VkDeviceMemory uniform_memory = VK_NULL_HANDLE;
-        std::array<VkSampler, 5> samplers{};
+        std::array<VkSampler, 7> samplers{};
     };
 
     struct FrameResources {

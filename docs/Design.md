@@ -4,8 +4,8 @@
 **Target Platform:** Linux-first, with cross-platform architecture  
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.3.0 (client/server split complete)
-**Last Updated:** 2026-05-03
+**Version:** 0.3.1 (lightweight BSP material sidecars complete)
+**Last Updated:** 2026-05-04
 
 ---
 
@@ -111,17 +111,19 @@ deferred.
 
 ## 3. Current Branch Direction
 
-Current branch direction: client/server decoupling is complete through Phase CS-9. The branch now
-treats protocol, transport, authority bootstrap, server runtime, dedicated server, single-player,
-remote client, listen-server, presentation, and client application composition as explicit modules
-with build-enforced target boundaries.
+Current branch direction: client/server decoupling is complete through Phase CS-9, and lightweight
+BSP normal/specular material sidecars are complete through SNT-8. The branch treats protocol,
+transport, authority bootstrap, server runtime, dedicated server, single-player, remote client,
+listen-server, presentation, and client application composition as explicit modules with
+build-enforced target boundaries.
 
 Primary near-term status: the client/server split is complete over the already completed BSP gameplay,
-socket transport, and TrenchBroom BSP30 foundations. Single-player no-server mode, remote client mode,
-listen-server host mode, and dedicated-server mode are documented runtime contracts. Historical Z-up
-migration, TrenchBroom BSP30 authoring, collision, movement, Lua scripting, object-collider, BSP
-canonical migration, BSP hardening, BSP gameplay-loop, presentation/networking polish, and socket
-transport work remain foundational context and must not be restarted.
+socket transport, TrenchBroom BSP30, and presentation-material foundations. Single-player no-server
+mode, remote client mode, listen-server host mode, and dedicated-server mode are documented runtime
+contracts. Historical Z-up migration, TrenchBroom BSP30 authoring, collision, movement, Lua scripting,
+object-collider, BSP canonical migration, BSP hardening, BSP gameplay-loop, presentation/networking
+polish, socket transport, and spec/normal sidecar work remain foundational context and must not be
+restarted.
 
 The completed scope includes a Linux/POSIX TCP-first socket backend, deterministic
 `ClientHello`/`ServerWelcome`, the headless `stellar-server`, `stellar-client --connect HOST:PORT`
@@ -132,6 +134,12 @@ listen-server host composition.
 Completed BSP hardening added actionable diagnostics, source-neutral PVS and lightmap/material data
 contracts, optional presentation-only render culling, BSP entity authoring conventions, and
 deterministic headless validation.
+
+Completed BSP material sidecar work keeps BSP files responsible for geometry, face texture names,
+lightmaps, visibility, entities, and collision while allowing optional `.stellar_material` files to
+enrich presentation materials by BSP texture name. Missing sidecars preserve existing texture/lightmap
+fallback behavior. Server-authoritative gameplay, networking, collision, and scripting do not depend
+on material sidecars.
 
 The BSP gameplay-loop branch has completed its selected Phases 0-8, and BSP presentation/networking
 polish PN-0 through PN-6 is also complete. Completion notes live in `docs/ImplementationStatus.md`.
@@ -409,6 +417,8 @@ Current BSP support covers:
 - Legacy BSP and BSP30 headers, lump tables, geometry, texture names, entities, visibility, and
   lighting data where available. BSP30 is the TrenchBroom workflow target.
 - Static world geometry represented as backend-neutral mesh primitives.
+- Optional `.stellar_material` sidecars resolved from BSP texture names for presentation-only
+  normal/specular material enrichment.
 - Static collision represented as named triangle collision meshes and optional BSP hull data.
 - Entity key/value metadata for player spawns, generic spawns, triggers, sprite markers,
   object-collider sensors, and script bindings.
@@ -517,12 +527,15 @@ The current target is OpenGL/Vulkan parity for lightweight BSP surface/material 
 
 - Base color factor and texture.
 - Vertex color modulation.
-- Normal maps when tangents are available.
+- Normal maps when BSP texinfo-derived tangents are available.
+- Lightweight specular maps, factors, and power for presentation shading.
 - Emissive texture and factor.
 - Alpha opaque, mask, and blend behavior.
 - Double-sided material/culling behavior.
 - BSP texture/material name preservation.
-- Placeholder/default materials when texture decode or external material lookup is incomplete.
+- Optional `.stellar_material` sidecars keyed by BSP texture name, with safe relative texture paths.
+- Placeholder/default materials when texture decode, sidecar lookup, or external material lookup is
+  incomplete.
 - Static level mesh rendering.
 
 Do not describe this as full PBR. Full PBR requires future decisions around image-based
@@ -1406,6 +1419,7 @@ Deferred unless scoped:
 | 2026-05-01 | 0.2.4 | Kilo | Mark BSP presentation/networking polish complete; document local transport bridge, remote deferrals, presentation-only HUD/audio routes, and FGD remapping constraints |
 | 2026-05-01 | 0.2.8 | Kilo | Mark socket transport scope complete; document TCP-first transport, `stellar-server`, `stellar-client --connect`, single-client/single-active-player limits, and post-ST deferrals |
 | 2026-05-03 | 0.3.0 | Kilo | Mark client/server split complete through CS-9; document explicit runtime modes, split CMake targets, build-boundary checks, and post-split deferred networking/presentation work |
+| 2026-05-04 | 0.3.1 | Codex | Mark lightweight BSP normal/specular sidecars complete through SNT-8; document optional `.stellar_material` lookup, tangent-aware rendering, OpenGL/Vulkan parity, and full-PBR deferral |
 
 ---
 

@@ -54,6 +54,7 @@ out vec2 v_uv1;
 out vec3 v_normal;
 out vec4 v_tangent;
 out vec4 v_color;
+out vec3 v_world_position;
 
 void main() {
     vec4 world_position = u_model * vec4(a_position, 1.0);
@@ -62,6 +63,7 @@ void main() {
     v_normal = normalize(u_normal_matrix * a_normal);
     v_tangent = vec4(mat3(u_model) * a_tangent.xyz, a_tangent.w);
     v_color = a_color;
+    v_world_position = world_position.xyz;
     gl_Position = u_mvp * vec4(a_position, 1.0);
 }
 )";
@@ -76,12 +78,14 @@ uniform sampler2D u_normal_texture;
 uniform sampler2D u_metallic_roughness_texture;
 uniform sampler2D u_occlusion_texture;
 uniform sampler2D u_emissive_texture;
+uniform sampler2D u_specular_texture;
 uniform bool u_has_base_color_texture;
 uniform bool u_has_lightmap_texture;
 uniform bool u_has_normal_texture;
 uniform bool u_has_metallic_roughness_texture;
 uniform bool u_has_occlusion_texture;
 uniform bool u_has_emissive_texture;
+uniform bool u_has_specular_texture;
 uniform bool u_has_vertex_color;
 uniform int u_base_color_texcoord_set;
 uniform int u_lightmap_texcoord_set;
@@ -89,17 +93,24 @@ uniform int u_normal_texcoord_set;
 uniform int u_metallic_roughness_texcoord_set;
 uniform int u_occlusion_texcoord_set;
 uniform int u_emissive_texcoord_set;
-uniform vec4 u_texture_transform0[5];
-uniform vec4 u_texture_transform1[5];
+uniform int u_specular_texcoord_set;
+uniform vec4 u_texture_transform0[6];
+uniform vec4 u_texture_transform1[6];
 uniform float u_metallic_factor;
 uniform float u_roughness_factor;
 uniform float u_normal_scale;
+uniform float u_normal_light_strength;
+uniform float u_specular_factor;
+uniform float u_specular_power;
 uniform float u_occlusion_strength;
 uniform float u_lightmap_intensity;
 uniform float u_lightmap_min;
 uniform vec3 u_global_light_color;
 uniform float u_global_light_intensity;
 uniform vec3 u_emissive_factor;
+uniform vec3 u_camera_world_position;
+uniform bool u_has_camera_world_position;
+uniform vec3 u_key_light_direction;
 uniform int u_alpha_mode;
 uniform float u_alpha_cutoff;
 uniform bool u_unlit;
@@ -109,6 +120,7 @@ in vec2 v_uv1;
 in vec3 v_normal;
 in vec4 v_tangent;
 in vec4 v_color;
+in vec3 v_world_position;
 
 out vec4 frag_color;
 
@@ -168,28 +180,46 @@ void main() {
         emissive *= texture(u_emissive_texture,
             transformed_uv_for_slot(u_emissive_texcoord_set, 4)).rgb;
     }
+
+    vec3 light_dir = normalize(u_key_light_direction);
+    float detail_diffuse = max(dot(normal, light_dir), 0.0) * u_normal_light_strength;
+    float occlusion = 1.0;
+    if (u_has_occlusion_texture) {
+        occlusion = mix(1.0, texture(u_occlusion_texture,
+            transformed_uv_for_slot(u_occlusion_texcoord_set, 3)).r, u_occlusion_strength);
+    }
+    float specular_map = u_has_specular_texture
+        ? texture(u_specular_texture,
+            transformed_uv_for_slot(u_specular_texcoord_set, 5)).r
+        : 1.0;
+    vec3 view_delta = u_camera_world_position - v_world_position;
+    vec3 view_dir = u_has_camera_world_position && dot(view_delta, view_delta) > 0.000001
+        ? normalize(view_delta)
+        : normalize(vec3(0.0, -1.0, 0.25));
+    vec3 half_dir = normalize(light_dir + view_dir);
+    float effective_power = mix(max(u_specular_power, 1.0), 4.0,
+        clamp(roughness, 0.0, 1.0));
+    float specular = pow(max(dot(normal, half_dir), 0.0), effective_power) *
+        u_specular_factor * specular_map;
+
     if (u_has_lightmap_texture) {
         vec3 lightmap = texture(u_lightmap_texture,
             uv_for_set(u_lightmap_texcoord_set)).rgb;
         vec3 lighting = lightmap * u_lightmap_intensity +
-            u_global_light_color * u_global_light_intensity;
+            u_global_light_color * u_global_light_intensity +
+            vec3(detail_diffuse);
         frag_color = vec4(color.rgb * max(lighting, vec3(u_lightmap_min)) +
-            emissive, color.a);
+            vec3(specular) + emissive, color.a);
     } else if (u_unlit) {
         frag_color = vec4(color.rgb + emissive, color.a);
     } else {
-        vec3 light_dir = normalize(vec3(0.35, 0.8, 0.45));
         float diffuse = max(dot(normal, light_dir), 0.0);
         float perceptual_roughness = clamp(roughness, 0.04, 1.0);
         float metal_attenuation = mix(1.0, 0.45, clamp(metallic, 0.0, 1.0));
         float lit = 0.18 + diffuse * metal_attenuation *
             mix(1.0, 0.65, perceptual_roughness);
-        float occlusion = 1.0;
-        if (u_has_occlusion_texture) {
-            occlusion = mix(1.0, texture(u_occlusion_texture,
-                transformed_uv_for_slot(u_occlusion_texcoord_set, 3)).r, u_occlusion_strength);
-        }
-        frag_color = vec4(color.rgb * lit * occlusion + emissive, color.a);
+        frag_color = vec4(color.rgb * (lit + detail_diffuse) * occlusion +
+            vec3(specular) + emissive, color.a);
     }
 }
 )";
@@ -792,6 +822,12 @@ void OpenGLGraphicsDevice::draw_mesh(
           bind_texture(material->upload.emissive_texture, GL_TEXTURE4);
     }
 
+    bool has_specular_texture = false;
+    if (material != nullptr) {
+      has_specular_texture =
+          bind_texture(material->upload.specular_texture, GL_TEXTURE6);
+    }
+
     const GLint base_color_loc =
         glGetUniformLocation(shader_program_, "u_base_color");
     const GLint texture_loc =
@@ -806,6 +842,8 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_occlusion_texture");
     const GLint emissive_texture_loc =
         glGetUniformLocation(shader_program_, "u_emissive_texture");
+    const GLint specular_texture_loc =
+        glGetUniformLocation(shader_program_, "u_specular_texture");
     const GLint has_texture_loc =
         glGetUniformLocation(shader_program_, "u_has_base_color_texture");
     const GLint has_lightmap_loc =
@@ -818,6 +856,8 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_has_occlusion_texture");
     const GLint has_emissive_loc =
         glGetUniformLocation(shader_program_, "u_has_emissive_texture");
+    const GLint has_specular_loc =
+        glGetUniformLocation(shader_program_, "u_has_specular_texture");
     const GLint has_vertex_color_loc =
         glGetUniformLocation(shader_program_, "u_has_vertex_color");
     const GLint base_color_texcoord_loc =
@@ -832,12 +872,20 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_occlusion_texcoord_set");
     const GLint emissive_texcoord_loc =
         glGetUniformLocation(shader_program_, "u_emissive_texcoord_set");
+    const GLint specular_texcoord_loc =
+        glGetUniformLocation(shader_program_, "u_specular_texcoord_set");
     const GLint metallic_loc =
         glGetUniformLocation(shader_program_, "u_metallic_factor");
     const GLint roughness_loc =
         glGetUniformLocation(shader_program_, "u_roughness_factor");
     const GLint normal_scale_loc =
         glGetUniformLocation(shader_program_, "u_normal_scale");
+    const GLint normal_light_strength_loc =
+        glGetUniformLocation(shader_program_, "u_normal_light_strength");
+    const GLint specular_factor_loc =
+        glGetUniformLocation(shader_program_, "u_specular_factor");
+    const GLint specular_power_loc =
+        glGetUniformLocation(shader_program_, "u_specular_power");
     const GLint occlusion_strength_loc =
         glGetUniformLocation(shader_program_, "u_occlusion_strength");
     const GLint lightmap_intensity_loc =
@@ -850,6 +898,12 @@ void OpenGLGraphicsDevice::draw_mesh(
         glGetUniformLocation(shader_program_, "u_global_light_intensity");
     const GLint emissive_factor_loc =
         glGetUniformLocation(shader_program_, "u_emissive_factor");
+    const GLint camera_world_position_loc =
+        glGetUniformLocation(shader_program_, "u_camera_world_position");
+    const GLint has_camera_world_position_loc =
+        glGetUniformLocation(shader_program_, "u_has_camera_world_position");
+    const GLint key_light_direction_loc =
+        glGetUniformLocation(shader_program_, "u_key_light_direction");
     const GLint alpha_mode_loc =
         glGetUniformLocation(shader_program_, "u_alpha_mode");
     const GLint alpha_cutoff_loc =
@@ -866,12 +920,14 @@ void OpenGLGraphicsDevice::draw_mesh(
     glUniform1i(mr_texture_loc, 2);
     glUniform1i(occlusion_texture_loc, 3);
     glUniform1i(emissive_texture_loc, 4);
+    glUniform1i(specular_texture_loc, 6);
     glUniform1i(has_texture_loc, has_base_color_texture ? 1 : 0);
     glUniform1i(has_lightmap_loc, has_lightmap_texture ? 1 : 0);
     glUniform1i(has_normal_loc, has_normal_texture ? 1 : 0);
     glUniform1i(has_mr_loc, has_metallic_roughness_texture ? 1 : 0);
     glUniform1i(has_occlusion_loc, has_occlusion_texture ? 1 : 0);
     glUniform1i(has_emissive_loc, has_emissive_texture ? 1 : 0);
+    glUniform1i(has_specular_loc, has_specular_texture ? 1 : 0);
     glUniform1i(has_vertex_color_loc, primitive.has_colors ? 1 : 0);
     glUniform1i(base_color_texcoord_loc,
                 has_base_color_texture &&
@@ -905,6 +961,11 @@ void OpenGLGraphicsDevice::draw_mesh(
         has_emissive_texture && material->upload.emissive_texture.has_value()
             ? static_cast<int>(material->upload.emissive_texture->texcoord_set)
             : 0);
+    glUniform1i(
+        specular_texcoord_loc,
+        has_specular_texture && material->upload.specular_texture.has_value()
+            ? static_cast<int>(material->upload.specular_texture->texcoord_set)
+            : 0);
     glUniform1f(metallic_loc, material != nullptr
                                   ? material->upload.material.metallic_factor
                                   : 0.0f);
@@ -912,10 +973,17 @@ void OpenGLGraphicsDevice::draw_mesh(
                                    ? material->upload.material.roughness_factor
                                    : 1.0f);
     glUniform1f(normal_scale_loc,
-                material != nullptr &&
-                        material->upload.material.normal_texture.has_value()
-                    ? material->upload.material.normal_texture->scale
-                    : 1.0f);
+                material != nullptr ? material->upload.material.normal_scale : 1.0F);
+    glUniform1f(normal_light_strength_loc,
+                material != nullptr
+                    ? material->upload.material.normal_light_strength
+                    : 0.0F);
+    glUniform1f(specular_factor_loc,
+                material != nullptr ? material->upload.material.specular_factor
+                                    : 0.0F);
+    glUniform1f(specular_power_loc,
+                material != nullptr ? material->upload.material.specular_power
+                                    : 32.0F);
     glUniform1f(occlusion_strength_loc,
                 material != nullptr
                     ? material->upload.material.occlusion_strength
@@ -935,13 +1003,19 @@ void OpenGLGraphicsDevice::draw_mesh(
         material != nullptr ? material->upload.material.emissive_factor
                             : std::array<float, 3>{0.0f, 0.0f, 0.0f};
     glUniform3fv(emissive_factor_loc, 1, emissive_factor.data());
+    glUniform3fv(camera_world_position_loc, 1,
+                 transforms.camera_world_position.data());
+    glUniform1i(has_camera_world_position_loc,
+                transforms.has_camera_world_position ? 1 : 0);
+    constexpr std::array<float, 3> kKeyLightDirection{0.35F, 0.8F, 0.45F};
+    glUniform3fv(key_light_direction_loc, 1, kKeyLightDirection.data());
     glUniform1i(alpha_mode_loc, to_alpha_mode(alpha_mode));
     glUniform1f(alpha_cutoff_loc, material != nullptr
                                       ? material->upload.material.alpha_cutoff
                                       : 0.5f);
     glUniform1i(unlit_loc,
                 material != nullptr && material->upload.material.unlit ? 1 : 0);
-    const std::array<std::array<float, 4>, 5> transform0{
+    const std::array<std::array<float, 4>, 6> transform0{
         material != nullptr
             ? transform0_for(material->upload.base_color_texture)
             : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
@@ -954,8 +1028,10 @@ void OpenGLGraphicsDevice::draw_mesh(
                             : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
         material != nullptr ? transform0_for(material->upload.emissive_texture)
                             : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
+        material != nullptr ? transform0_for(material->upload.specular_texture)
+                            : std::array<float, 4>{0.0F, 0.0F, 0.0F, 0.0F},
     };
-    const std::array<std::array<float, 4>, 5> transform1{
+    const std::array<std::array<float, 4>, 6> transform1{
         material != nullptr
             ? transform1_for(material->upload.base_color_texture)
             : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
@@ -968,6 +1044,8 @@ void OpenGLGraphicsDevice::draw_mesh(
                             : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
         material != nullptr ? transform1_for(material->upload.emissive_texture)
                             : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        material != nullptr ? transform1_for(material->upload.specular_texture)
+                            : std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
     };
     glUniform4fv(texture_transform0_loc,
                  static_cast<GLsizei>(transform0.size()), transform0[0].data());
@@ -976,6 +1054,8 @@ void OpenGLGraphicsDevice::draw_mesh(
     glBindVertexArray(primitive.vao);
     glDrawElements(GL_TRIANGLES, primitive.index_count, GL_UNSIGNED_INT,
                    nullptr);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE4);

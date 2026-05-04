@@ -22,6 +22,7 @@ constexpr std::uint32_t kHasLightmapTexture = 1U << 5U;
 constexpr std::uint32_t kHasVertexColor = 1U << 6U;
 constexpr std::uint32_t kHasTangents = 1U << 7U;
 constexpr std::uint32_t kUnlitMaterial = 1U << 8U;
+constexpr std::uint32_t kHasSpecularTexture = 1U << 9U;
 
 std::uint32_t alpha_mode_value(stellar::assets::AlphaMode mode) noexcept {
     switch (mode) {
@@ -265,6 +266,8 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
             has_live_texture(textures_, material->upload.emissive_texture);
         const bool has_lightmap_texture = material != nullptr &&
             has_live_texture(textures_, material->upload.lightmap_texture);
+        const bool has_specular_texture = material != nullptr &&
+            has_live_texture(textures_, material->upload.specular_texture);
         const auto alpha_mode = material != nullptr ? material->upload.material.alpha_mode
                                                     : stellar::assets::AlphaMode::kOpaque;
         const bool alpha_blend = alpha_mode == stellar::assets::AlphaMode::kBlend;
@@ -287,6 +290,7 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         texture_flags |= has_occlusion_texture ? kHasOcclusionTexture : 0U;
         texture_flags |= has_emissive_texture ? kHasEmissiveTexture : 0U;
         texture_flags |= has_lightmap_texture ? kHasLightmapTexture : 0U;
+        texture_flags |= has_specular_texture ? kHasSpecularTexture : 0U;
         texture_flags |= primitive.has_colors ? kHasVertexColor : 0U;
         texture_flags |= primitive.has_tangents ? kHasTangents : 0U;
         texture_flags |= material != nullptr && material->upload.material.unlit ? kUnlitMaterial
@@ -300,14 +304,14 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
             uv_flags |= uv_bit(material->upload.occlusion_texture, 3U);
             uv_flags |= uv_bit(material->upload.emissive_texture, 4U);
             uv_flags |= uv_bit(material->upload.lightmap_texture, 5U);
+            uv_flags |= uv_bit(material->upload.specular_texture, 6U);
         }
 
         const std::array<float, 3> emissive = material != nullptr
             ? material->upload.material.emissive_factor
             : std::array<float, 3>{0.0F, 0.0F, 0.0F};
-        const float normal_scale = material != nullptr &&
-                material->upload.material.normal_texture.has_value()
-            ? material->upload.material.normal_texture->scale
+        const float normal_scale = material != nullptr
+            ? material->upload.material.normal_scale
             : 1.0F;
 
         VulkanDrawPushConstants push_constants{

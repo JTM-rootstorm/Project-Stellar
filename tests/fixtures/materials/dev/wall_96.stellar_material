@@ -1,0 +1,11 @@
+version = 1
+name = "dev/wall_96"
+normal = "wall_96_normal.png"
+normal_scale = 1.5
+normal_light_strength = 0.25
+specular = "wall_96_spec.png"
+specular_factor = 0.35
+specular_power = 48.0
+roughness_factor = 0.75
+double_sided = true
+unlit = false

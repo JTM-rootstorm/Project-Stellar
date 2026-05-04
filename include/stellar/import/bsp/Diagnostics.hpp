@@ -45,6 +45,11 @@ enum class DiagnosticCode {
     kTextureStats,
     kLightmapStats,
     kAllBlackLightmap,
+    kMaterialSidecarLoaded,
+    kMaterialSidecarInvalid,
+    kMaterialSidecarUnknownKey,
+    kMaterialSidecarUnsafePath,
+    kMaterialSidecarTextureMissing,
 };
 
 /**

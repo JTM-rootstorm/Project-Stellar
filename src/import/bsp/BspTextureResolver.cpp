@@ -147,11 +147,14 @@ std::size_t material_index(stellar::assets::LevelGeometryAsset &geometry,
                            std::map<std::string, std::size_t> &materials,
                            const std::string &name,
                            std::optional<std::size_t> texture_index,
-                           std::optional<std::size_t> lightmap_index) {
+                           std::optional<std::size_t> lightmap_index,
+                           std::optional<stellar::assets::MaterialAsset>
+                               resolved_material) {
   const std::string key = name + "|tex=" +
                           (texture_index ? std::to_string(*texture_index) : "none") +
                           "|lm=" +
-                          (lightmap_index ? std::to_string(*lightmap_index) : "none");
+                          (lightmap_index ? std::to_string(*lightmap_index) : "none") +
+                          "|resolved=" + (resolved_material ? "1" : "0");
   const auto existing = materials.find(key);
   if (existing != materials.end()) {
     return existing->second;
@@ -161,7 +164,8 @@ std::size_t material_index(stellar::assets::LevelGeometryAsset &geometry,
       .name = name,
       .texture_index = texture_index,
       .lightmap_index = lightmap_index,
-      .source_name = name});
+      .source_name = name,
+      .resolved_material = std::move(resolved_material)});
   materials.emplace(key, index);
   return index;
 }

@@ -1,0 +1,3 @@
+version = 1
+name = "invalid/unsafe_path"
+normal = "../escape.png"

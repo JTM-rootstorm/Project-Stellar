@@ -9,6 +9,7 @@
 
 #include "stellar/assets/CollisionAsset.hpp"
 #include "stellar/assets/ImageAsset.hpp"
+#include "stellar/assets/MaterialAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
 #include "stellar/assets/TextureAsset.hpp"
 #include "stellar/assets/WorldMetadataAsset.hpp"
@@ -30,6 +31,9 @@ struct LevelSurfaceMaterial {
 
     /** @brief Original source material name preserved for tooling and diagnostics. */
     std::string source_name;
+
+    /** @brief Optional import-resolved material overriding default BSP surface presentation. */
+    std::optional<MaterialAsset> resolved_material;
 };
 
 /**

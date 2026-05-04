@@ -6,9 +6,11 @@
 
 #include <cstddef>
 #include <expected>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace stellar::import::bsp {
 
@@ -29,6 +31,15 @@ struct LoadOptions {
   /** @brief Parse lighting lump presence for diagnostics and future lightmap
    * import. */
   bool parse_lightmaps = true;
+
+  /** @brief Parse optional BSP material sidecars from configured search roots. */
+  bool parse_material_sidecars = true;
+
+  /** @brief Treat unknown or invalid material sidecars as fatal import errors. */
+  bool strict_material_sidecars = false;
+
+  /** @brief Search roots containing texture-keyed .stellar_material files. */
+  std::vector<std::filesystem::path> material_search_roots;
 };
 
 /**

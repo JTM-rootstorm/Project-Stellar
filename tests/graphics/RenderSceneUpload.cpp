@@ -81,6 +81,7 @@ public:
                 transforms.normal[8] == 1.0F;
     draw_order.push_back(commands[0].primitive_index);
     draw_materials.push_back(commands[0].material);
+    draw_transforms.push_back(transforms);
   }
 
   void end_frame() noexcept override { ended_frame = true; }
@@ -108,6 +109,7 @@ public:
   std::vector<stellar::graphics::MaterialUpload> material_uploads;
   std::vector<std::size_t> draw_order;
   std::vector<stellar::graphics::MaterialHandle> draw_materials;
+  std::vector<stellar::graphics::MeshDrawTransforms> draw_transforms;
   int destroyed_meshes = 0;
   int destroyed_textures = 0;
   int destroyed_materials = 0;
@@ -213,6 +215,104 @@ stellar::assets::LevelAsset make_level() {
   return level;
 }
 
+stellar::assets::LevelAsset make_sidecar_material_level() {
+  stellar::assets::LevelAsset level;
+  level.source_uri = "synthetic:sidecar_material.bsp";
+  level.geometry.images = {
+      stellar::assets::ImageAsset{.name = "base",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "normal",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {128, 128, 255, 255}},
+      stellar::assets::ImageAsset{.name = "specular",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "lightmap",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8,
+                                  .pixels = {128, 128, 128}},
+  };
+  level.geometry.samplers.push_back(stellar::assets::SamplerAsset{
+      .name = "linear_repeat",
+      .mag_filter = stellar::assets::TextureFilter::kLinear,
+      .min_filter = stellar::assets::TextureFilter::kLinearMipmapLinear,
+      .wrap_s = stellar::assets::TextureWrapMode::kRepeat,
+      .wrap_t = stellar::assets::TextureWrapMode::kRepeat,
+  });
+  level.geometry.textures = {
+      stellar::assets::TextureAsset{
+          .name = "base",
+          .image_index = 0,
+          .sampler_index = 0,
+          .color_space = stellar::assets::TextureColorSpace::kSrgb},
+      stellar::assets::TextureAsset{
+          .name = "normal",
+          .image_index = 1,
+          .sampler_index = 0,
+          .color_space = stellar::assets::TextureColorSpace::kLinear},
+      stellar::assets::TextureAsset{
+          .name = "specular",
+          .image_index = 2,
+          .sampler_index = 0,
+          .color_space = stellar::assets::TextureColorSpace::kLinear},
+  };
+  level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
+      .image_index = 3,
+      .size = {1, 1},
+      .style = 0,
+      .source_name = "face_0",
+  });
+  stellar::assets::MaterialAsset resolved;
+  resolved.name = "dev/wall_96";
+  resolved.base_color_texture =
+      stellar::assets::MaterialTextureSlot{.texture_index = 0};
+  resolved.normal_texture =
+      stellar::assets::MaterialTextureSlot{.texture_index = 1};
+  resolved.specular_texture =
+      stellar::assets::MaterialTextureSlot{.texture_index = 2};
+  resolved.normal_scale = 1.5F;
+  resolved.normal_light_strength = 0.25F;
+  resolved.specular_factor = 0.35F;
+  resolved.specular_power = 48.0F;
+  resolved.metallic_factor = 0.0F;
+  resolved.roughness_factor = 0.75F;
+  resolved.double_sided = true;
+  resolved.unlit = false;
+  level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
+      .name = "dev/wall_96",
+      .texture_index = 0,
+      .lightmap_index = 0,
+      .source_name = "dev/wall_96",
+      .resolved_material = resolved,
+  });
+  auto primitive = make_primitive(0);
+  primitive.has_tangents = true;
+  for (auto &vertex : primitive.vertices) {
+    vertex.tangent = {1.0F, 0.0F, 0.0F, 1.0F};
+  }
+  level.geometry.meshes.push_back(stellar::assets::MeshAsset{
+      .name = "bsp_static_world",
+      .primitives = {primitive},
+  });
+  level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
+      .name = "surface",
+      .mesh_index = 0,
+      .primitive_index = 0,
+      .material_index = 0,
+      .bounds_min = primitive.bounds_min,
+      .bounds_max = primitive.bounds_max,
+  });
+  return level;
+}
+
 } // namespace
 
 int main() {
@@ -278,6 +378,30 @@ int main() {
   assert(mock_ptr->draw_materials[1] == stellar::graphics::MaterialHandle{6});
   assert(mock_ptr->draw_materials[2] == stellar::graphics::MaterialHandle{4});
   assert(mock_ptr->ended_frame);
+
+  auto sidecar_mock = std::make_unique<MockGraphicsDevice>();
+  MockGraphicsDevice *sidecar_mock_ptr = sidecar_mock.get();
+  stellar::graphics::RenderLevel sidecar_render_level;
+  auto sidecar_result = sidecar_render_level.initialize(
+      std::move(sidecar_mock), window, make_sidecar_material_level());
+  assert(sidecar_result.has_value());
+  assert(sidecar_mock_ptr->uploaded_textures.size() == 4);
+  assert(sidecar_mock_ptr->material_uploads.size() == 2);
+  const auto &sidecar_upload = sidecar_mock_ptr->material_uploads[1];
+  assert(sidecar_upload.base_color_texture.has_value());
+  assert(sidecar_upload.normal_texture.has_value());
+  assert(sidecar_upload.specular_texture.has_value());
+  assert(sidecar_upload.lightmap_texture.has_value());
+  assert(sidecar_upload.material.normal_scale == 1.5F);
+  assert(sidecar_upload.material.normal_light_strength == 0.25F);
+  assert(sidecar_upload.material.specular_factor == 0.35F);
+  assert(sidecar_upload.material.specular_power == 48.0F);
+  sidecar_render_level.render(64, 64, vp, identity,
+                              std::array<float, 3>{1.0F, 2.0F, 3.0F});
+  assert(!sidecar_mock_ptr->draw_transforms.empty());
+  assert(sidecar_mock_ptr->draw_transforms[0].has_camera_world_position);
+  assert(sidecar_mock_ptr->draw_transforms[0].camera_world_position ==
+         (std::array<float, 3>{1.0F, 2.0F, 3.0F}));
 
   return 0;
 }
