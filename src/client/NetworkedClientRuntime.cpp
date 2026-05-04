@@ -134,9 +134,15 @@ NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platfor
 
     drain_server_packets();
     frame.events = receiver_.take_queued_events();
+    frame.snapshot = receiver_.latest_snapshot();
+    frame.local_player_id = assigned_player_id_;
     frame.session_state = session_state_;
 
     return frame;
+}
+
+ClientRuntimeMode NetworkedClientRuntime::mode() const noexcept {
+    return ClientRuntimeMode::kSinglePlayer;
 }
 
 const std::optional<stellar::network::NetworkWorldSnapshot>&
@@ -256,8 +262,14 @@ NetworkedClientFrameResult RemoteClientRuntime::update(const stellar::platform::
     }
 
     frame.events = receiver_.take_queued_events();
+    frame.snapshot = receiver_.latest_snapshot();
+    frame.local_player_id = assigned_player_id_;
     frame.session_state = session_state_;
     return frame;
+}
+
+ClientRuntimeMode RemoteClientRuntime::mode() const noexcept {
+    return ClientRuntimeMode::kRemoteClient;
 }
 
 const std::optional<stellar::network::NetworkWorldSnapshot>& RemoteClientRuntime::latest_snapshot()

@@ -157,8 +157,23 @@ void log_debug_render_startup(const PreparedApplicationRuntime &runtime) {
             << " visibility_leaves=" << visibility_leaf_count
             << " level_collision_meshes=" << collision_mesh_count
             << " level_collision_triangles=" << collision_triangle_count
+            << " active_client_runtime=" << (runtime.active_client_runtime != nullptr ? 1 : 0)
             << " networked_runtime=" << (runtime.networked_runtime ? 1 : 0)
             << " remote_runtime=" << (runtime.remote_runtime ? 1 : 0) << '\n';
+}
+
+const char* client_runtime_mode_name(ClientRuntimeMode mode) noexcept {
+  switch (mode) {
+  case ClientRuntimeMode::kNone:
+    return "none";
+  case ClientRuntimeMode::kSinglePlayer:
+    return "SinglePlayer";
+  case ClientRuntimeMode::kRemoteClient:
+    return "RemoteClient";
+  case ClientRuntimeMode::kListenHost:
+    return "ListenHost";
+  }
+  return "unknown";
 }
 
 void log_debug_render_runtime_frame(const char *runtime_name, bool latest_snapshot,
@@ -294,7 +309,8 @@ std::expected<void, stellar::platform::Error> Application::run() {
   stellar::audio::AudioEventRouter audio_router;
   stellar::audio::NoOpAudioRequestSink audio_sink;
   Uint32 previous_frame_start = SDL_GetTicks();
-  const bool has_live_runtime = runtime->networked_runtime || runtime->remote_runtime;
+  IClientRuntime* active_client_runtime = runtime->active_client_runtime;
+  const bool has_live_runtime = active_client_runtime != nullptr;
   bool mouse_captured = false;
   int debug_camera_frames_remaining = debug_camera_enabled() ? 5 : 0;
   std::size_t debug_render_frames_remaining =
@@ -318,73 +334,36 @@ std::expected<void, stellar::platform::Error> Application::run() {
         static_cast<float>(frame_start - previous_frame_start) / 1000.0f;
     previous_frame_start = frame_start;
 
-    if (runtime->networked_runtime) {
-      [[maybe_unused]] const NetworkedClientFrameResult networked_frame =
-          runtime->networked_runtime->update(input, delta_seconds);
-      apply_gameplay_events(hud_state, networked_frame.events);
+    if (active_client_runtime != nullptr) {
+      [[maybe_unused]] const ClientRuntimeFrame client_frame =
+          active_client_runtime->update(input, delta_seconds);
+      apply_gameplay_events(hud_state, client_frame.events);
       [[maybe_unused]] const auto audio_result =
-          audio_router.route_events(networked_frame.events, audio_sink);
-      const auto& snapshot = runtime->networked_runtime->latest_snapshot();
-      if (!snapshot.has_value()) {
+          audio_router.route_events(client_frame.events, audio_sink);
+      const char* runtime_name = client_runtime_mode_name(active_client_runtime->mode());
+      if (!client_frame.snapshot.has_value()) {
         if (debug_render_frames_remaining > 0) {
-          log_debug_render_runtime_frame("NetworkedClientRuntime", false, false, 0);
+          log_debug_render_runtime_frame(runtime_name, false, false, 0);
           --debug_render_frames_remaining;
         }
         renderer->clear_render_view();
         renderer->clear_presentation_state();
       } else {
         const auto player_state = make_player_presentation_state(
-            *snapshot, runtime->networked_runtime->local_player_id());
+            *client_frame.snapshot, client_frame.local_player_id);
         if (player_state.has_value()) {
           const PlayerCameraFrame camera_frame = make_player_camera_frame(*player_state);
           if (debug_camera_frames_remaining > 0) {
-            log_debug_camera_frame("NetworkedClientRuntime", *player_state, camera_frame);
+            log_debug_camera_frame(runtime_name, *player_state, camera_frame);
             --debug_camera_frames_remaining;
           }
           renderer->set_render_view(make_level_render_view(camera_frame));
         } else {
           renderer->clear_render_view();
         }
-        auto presentation_frame = make_gameplay_presentation_frame(*snapshot);
+        auto presentation_frame = make_gameplay_presentation_frame(*client_frame.snapshot);
         if (debug_render_frames_remaining > 0) {
-          log_debug_render_runtime_frame("NetworkedClientRuntime", true,
-                                         player_state.has_value(),
-                                         presentation_frame.sprites.size());
-          --debug_render_frames_remaining;
-        }
-        renderer->set_presentation_state(stellar::graphics::LevelPresentationState{
-            .sprites = std::move(presentation_frame.sprites)});
-      }
-    } else if (runtime->remote_runtime) {
-      [[maybe_unused]] const NetworkedClientFrameResult remote_frame =
-          runtime->remote_runtime->update(input, delta_seconds);
-      apply_gameplay_events(hud_state, remote_frame.events);
-      [[maybe_unused]] const auto audio_result =
-          audio_router.route_events(remote_frame.events, audio_sink);
-      const auto& snapshot = runtime->remote_runtime->latest_snapshot();
-      if (!snapshot.has_value()) {
-        if (debug_render_frames_remaining > 0) {
-          log_debug_render_runtime_frame("RemoteClientRuntime", false, false, 0);
-          --debug_render_frames_remaining;
-        }
-        renderer->clear_render_view();
-        renderer->clear_presentation_state();
-      } else {
-        const auto player_state = make_player_presentation_state(
-            *snapshot, runtime->remote_runtime->local_player_id());
-        if (player_state.has_value()) {
-          const PlayerCameraFrame camera_frame = make_player_camera_frame(*player_state);
-          if (debug_camera_frames_remaining > 0) {
-            log_debug_camera_frame("RemoteClientRuntime", *player_state, camera_frame);
-            --debug_camera_frames_remaining;
-          }
-          renderer->set_render_view(make_level_render_view(camera_frame));
-        } else {
-          renderer->clear_render_view();
-        }
-        auto presentation_frame = make_gameplay_presentation_frame(*snapshot);
-        if (debug_render_frames_remaining > 0) {
-          log_debug_render_runtime_frame("RemoteClientRuntime", true,
+          log_debug_render_runtime_frame(runtime_name, true,
                                          player_state.has_value(),
                                          presentation_frame.sprites.size());
           --debug_render_frames_remaining;

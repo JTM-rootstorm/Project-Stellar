@@ -217,6 +217,7 @@ prepare_application_runtime(const ApplicationConfig &config) {
     }
     prepared.remote_runtime =
         std::make_unique<RemoteClientRuntime>(std::move(*remote));
+    prepared.active_client_runtime = prepared.remote_runtime.get();
     return prepared;
   }
 
@@ -246,11 +247,13 @@ prepare_application_runtime(const ApplicationConfig &config) {
             &authority->session)) {
       prepared.networked_runtime =
           std::make_unique<NetworkedClientRuntime>(std::move(*scripted), runtime_config);
+      prepared.active_client_runtime = prepared.networked_runtime.get();
       prepared.authority = std::make_unique<stellar::authority::PreparedAuthority>(
           std::move(*authority));
     } else {
       prepared.networked_runtime =
           std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world, runtime_config);
+      prepared.active_client_runtime = prepared.networked_runtime.get();
     }
   }
 

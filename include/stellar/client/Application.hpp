@@ -60,6 +60,9 @@ struct PreparedApplicationRuntime {
     /** @brief Optional socket-backed presentation-only runtime for remote server play. */
     std::unique_ptr<RemoteClientRuntime> remote_runtime;
 
+    /** @brief Active non-authoritative client runtime consumed by the application loop. */
+    IClientRuntime* active_client_runtime = nullptr;
+
     /** @brief Optional authority bootstrap storage that backs scripted local runtime references. */
     std::unique_ptr<stellar::authority::PreparedAuthority> authority;
 };

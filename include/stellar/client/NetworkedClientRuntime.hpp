@@ -1,12 +1,11 @@
 #pragma once
 
-#include <cstdint>
 #include <expected>
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
+#include "stellar/client/ClientRuntime.hpp"
 #include "stellar/client/ClientWorldReceiver.hpp"
 #include "stellar/client/MovementInputMapper.hpp"
 #include "stellar/network/Messages.hpp"
@@ -48,27 +47,6 @@ struct RemoteClientRuntimeConfig {
     LookInputMapperConfig look_mapper{};
 };
 
-/** @brief Result of one local networked client frame update. */
-struct NetworkedClientFrameResult {
-    /** @brief Number of authoritative fixed ticks run by the local server runtime. */
-    int ticks_run = 0;
-
-    /** @brief Count of malformed or failed packets rejected without crashing. */
-    std::uint32_t rejected_packets = 0;
-
-    /** @brief True when the authoritative runtime dropped excess accumulated time. */
-    bool dropped_excess_time = false;
-
-    /** @brief Server-approved gameplay events drained this frame for presentation. */
-    std::vector<stellar::network::GameplayEvent> events;
-
-    /** @brief Deterministic local transport/codec/receiver diagnostics for tests and tools. */
-    std::vector<std::string> diagnostics;
-
-    /** @brief Client-side session lifecycle state after this frame. */
-    stellar::network::SessionState session_state = stellar::network::SessionState::kDisconnected;
-};
-
 /**
  * @brief Client-owned local networked runtime for mapped play.
  *
@@ -76,7 +54,7 @@ struct NetworkedClientFrameResult {
  * server runtime, drains ClientWorldReceiver, and exposes only latest authoritative network
  * snapshots for presentation. It performs no prediction or reconciliation.
  */
-class NetworkedClientRuntime {
+class NetworkedClientRuntime : public IClientRuntime {
 public:
     /** @brief Construct a local networked runtime over caller-owned backend-neutral world data. */
     explicit NetworkedClientRuntime(const stellar::world::RuntimeWorld& world,
@@ -88,7 +66,10 @@ public:
 
     /** @brief Submit local input, pump authority, and drain authoritative network state. */
     [[nodiscard]] NetworkedClientFrameResult update(const stellar::platform::Input& input,
-                                                    float delta_seconds) noexcept;
+                                                    float delta_seconds) noexcept override;
+
+    /** @brief Return the temporary local mapped runtime mode for presentation dispatch. */
+    [[nodiscard]] ClientRuntimeMode mode() const noexcept override;
 
     /** @brief Return the latest received authoritative network snapshot, if any. */
     [[nodiscard]] const std::optional<stellar::network::NetworkWorldSnapshot>& latest_snapshot()
@@ -129,7 +110,7 @@ private:
  * ClientWorldReceiver. It never constructs local authority, never loads scripts, and performs no
  * prediction, reconciliation, interpolation, or map transfer.
  */
-class RemoteClientRuntime {
+class RemoteClientRuntime : public IClientRuntime {
 public:
     /** @brief Connect to a remote host:port endpoint and immediately send ClientHello. */
     [[nodiscard]] static std::expected<RemoteClientRuntime, stellar::network::TransportError>
@@ -149,7 +130,10 @@ public:
 
     /** @brief Submit input when accepted, drain authoritative network state, and expose events. */
     [[nodiscard]] NetworkedClientFrameResult update(const stellar::platform::Input& input,
-                                                    float delta_seconds) noexcept;
+                                                    float delta_seconds) noexcept override;
+
+    /** @brief Return the remote client runtime mode for presentation dispatch. */
+    [[nodiscard]] ClientRuntimeMode mode() const noexcept override;
 
     /** @brief Return latest received authoritative network snapshot, if any. */
     [[nodiscard]] const std::optional<stellar::network::NetworkWorldSnapshot>& latest_snapshot()
