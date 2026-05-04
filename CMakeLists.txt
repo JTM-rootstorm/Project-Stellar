@@ -95,16 +95,33 @@ target_link_libraries(stellar_scripting PRIVATE
     stellar_lua
 )
 
-add_library(stellar_network
-    src/network/LoopbackTransport.cpp
+add_library(stellar_protocol
     src/network/Session.cpp
-    src/network/SocketTransport.cpp
     src/network/SnapshotCodec.cpp
     src/network/SnapshotDelta.cpp
 )
 
-target_include_directories(stellar_network PUBLIC
+target_include_directories(stellar_protocol PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+)
+
+add_library(stellar_transport
+    src/network/LoopbackTransport.cpp
+    src/network/SocketTransport.cpp
+)
+
+target_include_directories(stellar_transport PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_transport PUBLIC
+    stellar_protocol
+)
+
+add_library(stellar_network INTERFACE)
+target_link_libraries(stellar_network INTERFACE
+    stellar_protocol
+    stellar_transport
 )
 
 add_library(stellar_authority
@@ -119,7 +136,7 @@ target_include_directories(stellar_authority PUBLIC
 target_link_libraries(stellar_authority PUBLIC
     stellar_server_core
     stellar_scripting
-    stellar_network
+    stellar_protocol
 )
 
 add_library(stellar_dedicated_server
@@ -133,8 +150,7 @@ target_include_directories(stellar_dedicated_server PUBLIC
 target_link_libraries(stellar_dedicated_server PUBLIC
     stellar_import_bsp
     stellar_authority
-    stellar_network
-    stellar_scripting
+    stellar_transport
 )
 
 add_library(stellar_audio
@@ -146,7 +162,7 @@ target_include_directories(stellar_audio PUBLIC
 )
 
 target_link_libraries(stellar_audio PUBLIC
-    stellar_network
+    stellar_protocol
 )
 
 add_library(stellar_import_bsp
@@ -187,7 +203,7 @@ target_include_directories(stellar_server_runtime PUBLIC
 
 target_link_libraries(stellar_server_runtime PUBLIC
     stellar_authority
-    stellar_network
+    stellar_transport
     stellar_server_core
     stellar_scripting
 )
@@ -211,29 +227,70 @@ target_link_libraries(stellar_platform PUBLIC
     ${SDL2_LIBRARIES}
 )
 
-add_library(stellar_client_runtime
+add_library(stellar_client_net
     src/client/ClientWorldReceiver.cpp
-    src/client/HudPresentation.cpp
     src/client/MovementInputMapper.cpp
-    src/client/ListenHostRuntime.cpp
     src/client/RemoteClientRuntime.cpp
+)
+
+target_include_directories(stellar_client_net PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_net PUBLIC
+    stellar_transport
+    stellar_platform
+)
+
+add_library(stellar_single_player
     src/client/SinglePlayerRuntime.cpp
+)
+
+target_include_directories(stellar_single_player PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_single_player PUBLIC
+    stellar_authority
+    stellar_client_net
+)
+
+add_library(stellar_listen_server
+    src/client/ListenHostRuntime.cpp
+)
+
+target_include_directories(stellar_listen_server PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_listen_server PUBLIC
+    stellar_authority
+    stellar_server_runtime
+    stellar_client_net
+)
+
+add_library(stellar_client_presentation
+    src/client/HudPresentation.cpp
     src/client/PlayerPresentation.cpp
     src/client/GameplayPresentation.cpp
 )
 
-target_include_directories(stellar_client_runtime PUBLIC
+target_include_directories(stellar_client_presentation PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(stellar_client_runtime PUBLIC
-    stellar_platform
-    stellar_authority
-    stellar_server_core
-    stellar_server_runtime
-    stellar_scripting
-    stellar_network
-    stellar_graphics
+target_link_libraries(stellar_client_presentation PUBLIC
+    stellar_protocol
+    stellar_assets
+    PkgConfig::GLM
+)
+
+add_library(stellar_client_runtime INTERFACE)
+target_link_libraries(stellar_client_runtime INTERFACE
+    stellar_client_net
+    stellar_single_player
+    stellar_listen_server
+    stellar_client_presentation
 )
 
 add_library(stellar_graphics
@@ -281,14 +338,33 @@ target_include_directories(stellar_client_config PUBLIC
 
 target_link_libraries(stellar_client_config PUBLIC
     stellar_assets
-    stellar_client_runtime
+    stellar_client_net
+    stellar_single_player
+    stellar_listen_server
+    stellar_graphics
     stellar_import_bsp
     stellar_world
 )
 
+add_library(stellar_client_app
+    src/client/Application.cpp
+)
+
+target_include_directories(stellar_client_app PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_client_app PUBLIC
+    stellar_client_config
+    stellar_client_runtime
+    stellar_client_presentation
+    stellar_graphics
+    stellar_audio
+    stellar_assets
+)
+
 add_executable(stellar-client
     src/client/main.cpp
-    src/client/Application.cpp
 )
 
 target_include_directories(stellar-client PRIVATE
@@ -296,11 +372,7 @@ target_include_directories(stellar-client PRIVATE
 )
 
 target_link_libraries(stellar-client PRIVATE
-    stellar_client_config
-    stellar_client_runtime
-    stellar_graphics
-    stellar_audio
-    stellar_assets
+    stellar_client_app
     miniaudio
 )
 
@@ -318,4 +390,59 @@ target_link_libraries(stellar-server PRIVATE
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+
+function(stellar_assert_no_direct_links target_name)
+    if(NOT TARGET ${target_name})
+        message(FATAL_ERROR "Boundary check target does not exist: ${target_name}")
+    endif()
+
+    set(forbidden_links ${ARGN})
+    get_target_property(public_links ${target_name} LINK_LIBRARIES)
+    get_target_property(interface_links ${target_name} INTERFACE_LINK_LIBRARIES)
+    set(all_links ${public_links} ${interface_links})
+
+    foreach(link_name IN LISTS all_links)
+        foreach(forbidden IN LISTS forbidden_links)
+            if(link_name STREQUAL forbidden)
+                message(FATAL_ERROR
+                    "Target boundary violation: ${target_name} directly links ${forbidden}")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
+
+stellar_assert_no_direct_links(stellar_protocol
+    stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
+    stellar_scripting stellar_client_runtime stellar_client_net stellar_single_player
+    stellar_listen_server stellar_client_presentation stellar_client_app stellar_graphics
+    stellar_audio stellar_platform
+)
+stellar_assert_no_direct_links(stellar_transport
+    stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
+    stellar_scripting stellar_client_runtime stellar_client_presentation stellar_client_app
+)
+stellar_assert_no_direct_links(stellar_client_net
+    stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
+    stellar_scripting
+)
+stellar_assert_no_direct_links(stellar_dedicated_server
+    stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
+    stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
+)
+stellar_assert_no_direct_links(stellar_server_runtime
+    stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
+    stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
+)
+
+add_custom_target(stellar_target_boundary_check
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/dev/check_target_boundaries.sh ${CMAKE_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Checking Stellar CMake target boundaries"
+)
+
+if(BUILD_TESTING)
+    add_test(NAME target_boundary
+        COMMAND ${CMAKE_SOURCE_DIR}/tools/dev/check_target_boundaries.sh ${CMAKE_SOURCE_DIR}
+    )
 endif()

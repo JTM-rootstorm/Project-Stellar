@@ -53,6 +53,7 @@ target_include_directories(stellar_client_connect_test PRIVATE
 )
 target_link_libraries(stellar_client_connect_test PRIVATE
     stellar_client_config
+    stellar_client_presentation
     stellar_dedicated_server
 )
 
