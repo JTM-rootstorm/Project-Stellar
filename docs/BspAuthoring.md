@@ -182,8 +182,9 @@ a room at gameplay scale:
 - Includes one sprite marker, one object-collider marker reserved for pickup work, and one trigger
   marker reserved for door/gate work.
 
-Display-free validation imports this room, builds `RuntimeWorld`, advances `LocalLoopbackRuntime`
-with authoritative movement input, verifies room-wall containment, and checks deterministic snapshots.
+Display-free validation imports this room, builds `RuntimeWorld`, advances the in-process
+single-player authoritative runtime with movement input, verifies room-wall containment, and checks
+deterministic snapshots.
 
 ### First TrenchBroom room checklist
 
