@@ -24,3 +24,9 @@ include(${STELLAR_TEST_CMAKE_DIR}/ScriptingTests.cmake)
 include(${STELLAR_TEST_CMAKE_DIR}/NetworkTests.cmake)
 include(${STELLAR_TEST_CMAKE_DIR}/AudioPlatformTests.cmake)
 include(${STELLAR_TEST_CMAKE_DIR}/TrenchBroomTests.cmake)
+
+if(STELLAR_BUILD_DOCS AND TARGET stellar_docs_doxygen)
+    add_test(NAME docs_doxygen_generate
+        COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --target stellar_docs_doxygen
+    )
+endif()
