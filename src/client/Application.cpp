@@ -158,6 +158,7 @@ void log_debug_render_startup(const PreparedApplicationRuntime &runtime) {
             << " level_collision_meshes=" << collision_mesh_count
             << " level_collision_triangles=" << collision_triangle_count
             << " active_client_runtime=" << (runtime.active_client_runtime != nullptr ? 1 : 0)
+            << " single_player_runtime=" << (runtime.single_player_runtime ? 1 : 0)
             << " networked_runtime=" << (runtime.networked_runtime ? 1 : 0)
             << " remote_runtime=" << (runtime.remote_runtime ? 1 : 0) << '\n';
 }

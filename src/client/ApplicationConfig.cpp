@@ -241,20 +241,9 @@ prepare_application_runtime(const ApplicationConfig &config) {
     prepared.runtime_world = std::make_unique<stellar::world::RuntimeWorld>(
         stellar::authority::build_authority_runtime_world(*prepared.validation->level));
 
-    NetworkedClientRuntimeConfig runtime_config{};
-    runtime_config.server.map_identity = authority->map_identity;
-    if (auto* scripted = std::get_if<stellar::scripting::ScriptedWorldSession>(
-            &authority->session)) {
-      prepared.networked_runtime =
-          std::make_unique<NetworkedClientRuntime>(std::move(*scripted), runtime_config);
-      prepared.active_client_runtime = prepared.networked_runtime.get();
-      prepared.authority = std::make_unique<stellar::authority::PreparedAuthority>(
-          std::move(*authority));
-    } else {
-      prepared.networked_runtime =
-          std::make_unique<NetworkedClientRuntime>(*prepared.runtime_world, runtime_config);
-      prepared.active_client_runtime = prepared.networked_runtime.get();
-    }
+    prepared.single_player_runtime =
+        std::make_unique<SinglePlayerRuntime>(std::move(*authority));
+    prepared.active_client_runtime = prepared.single_player_runtime.get();
   }
 
   return prepared;

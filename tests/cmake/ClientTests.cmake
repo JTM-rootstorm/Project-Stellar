@@ -39,6 +39,10 @@ stellar_add_client_runtime_test(stellar_networked_client_runtime_test networked_
     ${STELLAR_TEST_SOURCE_DIR}/client/NetworkedClientRuntime.cpp
 )
 
+stellar_add_client_runtime_test(stellar_client_single_player_runtime_test client_single_player_runtime
+    ${STELLAR_TEST_SOURCE_DIR}/client/SinglePlayerRuntime.cpp
+)
+
 stellar_add_test_executable(stellar_client_connect_test client_connect
     ${STELLAR_TEST_SOURCE_DIR}/client/ClientConnect.cpp
 )
