@@ -23,7 +23,9 @@ inline constexpr float kWorldMetadataValidationLargeObjectColliderExtentThreshol
 
 /** @brief Severity for authored world metadata validation messages. */
 enum class WorldMetadataValidationSeverity {
+    /** @brief Non-fatal authoring issue that permits runtime assembly. */
     kWarning,
+    /** @brief Fatal metadata issue that should block authoritative runtime use. */
     kError,
 };
 

@@ -20,11 +20,17 @@ using EntityId = std::uint32_t;
 
 /** @brief Minimal server-owned gameplay entity category. */
 enum class EntityKind {
+    /** @brief Server-owned player representation. */
     kPlayer,
+    /** @brief Displayable sprite marker with no gameplay authority on the client. */
     kSprite,
+    /** @brief Authoritative collectible entity. */
     kPickup,
+    /** @brief Authoritative door or gate backed by server collision state. */
     kDoor,
+    /** @brief Trigger marker routed through authoritative overlap/script systems. */
     kTrigger,
+    /** @brief Runtime object collider exposed as a server-owned gameplay entity. */
     kObjectCollider,
 };
 

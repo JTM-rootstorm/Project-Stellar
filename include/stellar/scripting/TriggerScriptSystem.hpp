@@ -13,8 +13,11 @@ namespace stellar::scripting {
 
 /** @brief Trigger callback phase exposed to Lua scripts. */
 enum class TriggerScriptPhase {
+    /** @brief Authoritative movement entered the trigger this tick. */
     kEnter,
+    /** @brief Authoritative movement remained inside the trigger this tick. */
     kStay,
+    /** @brief Authoritative movement exited the trigger this tick. */
     kExit,
 };
 

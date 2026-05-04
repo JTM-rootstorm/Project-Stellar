@@ -18,7 +18,9 @@ inline constexpr float kCollisionValidationLargeBoundsThreshold = 100000.0F;
 
 /** @brief Severity for authored collision validation messages. */
 enum class CollisionValidationSeverity {
+    /** @brief Non-fatal collision authoring issue that permits runtime assembly. */
     kWarning,
+    /** @brief Fatal collision issue that should block authoritative collision use. */
     kError,
 };
 

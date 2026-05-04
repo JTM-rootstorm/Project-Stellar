@@ -14,6 +14,7 @@ namespace stellar::graphics {
  */
 class Renderer {
 public:
+    /** @brief Release renderer-owned presentation and backend resources. */
     virtual ~Renderer() = default;
 
     /**

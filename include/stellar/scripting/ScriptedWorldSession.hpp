@@ -47,7 +47,9 @@ public:
         ScriptRegistry registry,
         LuaRuntimeConfig lua_config = {});
 
+    /** @brief Copying is disabled because native and Lua authoritative state is single-owned. */
     ScriptedWorldSession(const ScriptedWorldSession&) = delete;
+    /** @brief Copy assignment is disabled because authoritative script state is single-owned. */
     ScriptedWorldSession& operator=(const ScriptedWorldSession&) = delete;
     /** @brief Move a scripted session, transferring native and Lua runtime ownership. */
     ScriptedWorldSession(ScriptedWorldSession&& other) noexcept = default;

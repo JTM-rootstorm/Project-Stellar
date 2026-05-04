@@ -61,6 +61,7 @@ struct MeshPrimitiveDrawCommand {
  */
 class GraphicsDevice {
 public:
+    /** @brief Release backend-owned graphics resources through the concrete device. */
     virtual ~GraphicsDevice() = default;
 
     /**

@@ -47,6 +47,7 @@ struct AudioRequestResult {
 /** @brief Sink interface for presentation-only audio requests. */
 class AudioRequestSink {
 public:
+    /** @brief Release presentation audio sink resources. */
     virtual ~AudioRequestSink() = default;
 
     /** @brief Submit a one-shot presentation audio request without affecting gameplay state. */

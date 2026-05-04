@@ -81,12 +81,15 @@ public:
     [[nodiscard]] static std::expected<DedicatedServer, stellar::platform::Error> create(
         DedicatedServerConfig config);
 
+    /** @brief Copying is disabled because the server owns authoritative socket/runtime state. */
     DedicatedServer(const DedicatedServer&) = delete;
+    /** @brief Copy assignment is disabled because authoritative runtime state is single-owned. */
     DedicatedServer& operator=(const DedicatedServer&) = delete;
     /** @brief Move a dedicated server runtime and its socket/session ownership. */
     DedicatedServer(DedicatedServer&& other) noexcept;
     /** @brief Move-assign a dedicated server runtime and its socket/session ownership. */
     DedicatedServer& operator=(DedicatedServer&& other) noexcept;
+    /** @brief Stop and release the owned authoritative server runtime implementation. */
     ~DedicatedServer();
 
     /** @brief Run the server forever with bounded internal pump steps. */

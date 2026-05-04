@@ -17,34 +17,52 @@ namespace stellar::graphics::opengl {
  */
 class OpenGLGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
+    /** @brief Construct an uninitialized OpenGL graphics device. */
     OpenGLGraphicsDevice() noexcept = default;
+
+    /** @brief Destroy OpenGL resources and the owned GL context. */
     ~OpenGLGraphicsDevice() noexcept override;
 
+    /** @brief OpenGL devices own GL object state and cannot be copied. */
     OpenGLGraphicsDevice(const OpenGLGraphicsDevice&) = delete;
+
+    /** @brief OpenGL devices own GL object state and cannot be copy-assigned. */
     OpenGLGraphicsDevice& operator=(const OpenGLGraphicsDevice&) = delete;
 
+    /** @brief Initialize SDL/OpenGL state for the supplied platform window. */
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     initialize(stellar::platform::Window& window) override;
 
+    /** @brief Upload mesh primitives into OpenGL vertex/index buffers. */
     [[nodiscard]] std::expected<MeshHandle, stellar::platform::Error>
     create_mesh(const stellar::assets::MeshAsset& mesh) override;
 
+    /** @brief Upload an image into an OpenGL texture object. */
     [[nodiscard]] std::expected<TextureHandle, stellar::platform::Error>
     create_texture(const TextureUpload& texture) override;
 
+    /** @brief Store backend-neutral material bindings for OpenGL draw submission. */
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
     create_material(const MaterialUpload& material) override;
 
+    /** @brief Begin an OpenGL frame and configure the viewport and clear state. */
     void begin_frame(int width, int height) noexcept override;
 
+    /** @brief Draw uploaded mesh primitives with OpenGL shader and texture bindings. */
     void draw_mesh(MeshHandle mesh,
                    std::span<const MeshPrimitiveDrawCommand> commands,
                    const MeshDrawTransforms& transforms) noexcept override;
 
+    /** @brief Present the OpenGL back buffer for the bound SDL window. */
     void end_frame() noexcept override;
 
+    /** @brief Delete OpenGL buffers and vertex arrays for an uploaded mesh. */
     void destroy_mesh(MeshHandle mesh) noexcept override;
+
+    /** @brief Delete an OpenGL texture object created by this device. */
     void destroy_texture(TextureHandle texture) noexcept override;
+
+    /** @brief Drop a material record created by this device. */
     void destroy_material(MaterialHandle material) noexcept override;
 
 private:

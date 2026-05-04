@@ -7,9 +7,13 @@ namespace stellar::scripting {
 
 /** @brief Primitive script value type accepted by initial engine event output. */
 enum class ScriptValueType {
+    /** @brief No value is present for this script field. */
     kNil,
+    /** @brief Field stores a boolean value. */
     kBoolean,
+    /** @brief Field stores a numeric value. */
     kNumber,
+    /** @brief Field stores a string value. */
     kString,
 };
 
