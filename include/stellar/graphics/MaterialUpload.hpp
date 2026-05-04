@@ -37,6 +37,8 @@ struct MaterialUpload {
     /** @brief Scalar global level light intensity added to baked lightmap lighting. */
     float global_light_intensity = 0.0F;
     std::optional<MaterialTextureBinding> normal_texture;
+    /** @brief Optional lightweight specular strength texture binding. */
+    std::optional<MaterialTextureBinding> specular_texture;
     std::optional<MaterialTextureBinding> metallic_roughness_texture;
     std::optional<MaterialTextureBinding> occlusion_texture;
     std::optional<MaterialTextureBinding> emissive_texture;

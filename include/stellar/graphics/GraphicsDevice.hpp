@@ -25,6 +25,12 @@ struct MeshDrawTransforms {
 
     /** @brief Column-major inverse-transpose world-space normal transform matrix. */
     std::array<float, 9> normal{};
+
+    /** @brief World-space camera position used by presentation-only specular shading. */
+    std::array<float, 3> camera_world_position{};
+
+    /** @brief True when camera_world_position is valid for this draw. */
+    bool has_camera_world_position = false;
 };
 
 /**
