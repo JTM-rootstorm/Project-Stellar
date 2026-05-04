@@ -17,6 +17,32 @@
 namespace stellar::graphics {
 
 /**
+ * @brief Complete public request for rendering one level presentation frame.
+ */
+struct RenderLevelFrame {
+  /** @brief Viewport width in pixels. */
+  int width = 0;
+
+  /** @brief Viewport height in pixels. */
+  int height = 0;
+
+  /** @brief Column-major view-projection matrix. */
+  std::array<float, 16> view_projection{};
+
+  /** @brief Column-major view matrix used for transparent primitive sorting. */
+  std::array<float, 16> view{};
+
+  /** @brief Optional camera position used for static level visibility culling. */
+  std::optional<std::array<float, 3>> camera_world_position;
+
+  /** @brief Optional billboard camera basis used to generate sprite quads. */
+  const BillboardView *billboard_view = nullptr;
+
+  /** @brief Backend-neutral 3D billboard sprites submitted after static geometry. */
+  std::span<const BillboardSprite> sprites{};
+};
+
+/**
  * @brief Runtime level representation backed by uploaded GPU handles.
  *
  * Owns a CPU-side LevelAsset snapshot and GPU resources uploaded through the
@@ -43,6 +69,12 @@ public:
   initialize(std::unique_ptr<GraphicsDevice> device,
              stellar::platform::Window &window,
              stellar::assets::LevelAsset level);
+
+  /**
+   * @brief Render a level frame from the canonical public request payload.
+   * @param frame Viewport, camera, visibility, and optional billboard draw data.
+   */
+  void render(const RenderLevelFrame &frame) noexcept;
 
   /**
    * @brief Render static level geometry.
@@ -130,12 +162,6 @@ private:
     std::size_t visibility_visible_count = 0;
   };
 
-  void render(int width, int height,
-              const std::array<float, 16> &view_projection,
-              const std::array<float, 16> &view,
-              std::optional<std::array<float, 3>> camera_world_position,
-              const BillboardView *billboard_view,
-              std::span<const BillboardSprite> sprites) noexcept;
   [[nodiscard]] StaticDrawQueueStats
   queue_static_draws(const glm::mat4 &view_projection, const glm::mat4 &view,
                      std::optional<std::array<float, 3>> camera_world_position,

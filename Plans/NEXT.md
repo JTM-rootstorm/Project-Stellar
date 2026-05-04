@@ -1,6 +1,6 @@
 # Stellar Engine - Next Scope Handoff
 
-Branch target: `trenchbroom-compat`
+Status scope: completed Stellar TrenchBroom BSP30 compatibility follow-up notes.
 
 ## Current entry point
 
@@ -11,7 +11,7 @@ archived under:
 - `Plans/Archived/trenchbroom_compat/TrenchBroomCompat-AgentPlan.md`
 - `Plans/Archived/trenchbroom_compat/trenchbroom_compat_plans/00-MASTER-TrenchBroomCompat-AgentPlan.md`
 
-## Completed trenchbroom-compat scope
+## Completed TrenchBroom BSP30 Scope
 
 Full Stellar TrenchBroom BSP30 compatibility is complete for the project-owned Stellar game package.
 The branch uses Z-up runtime and authoring conventions while preserving the 1 Stellar gameplay unit =

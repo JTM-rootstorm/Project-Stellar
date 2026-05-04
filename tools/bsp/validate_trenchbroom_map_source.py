@@ -11,6 +11,9 @@ import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEVELOPER_TEXTURE_MANIFEST = SCRIPT_DIR / "developer_textures.json"
+
 KNOWN_CLASSES = {
     "worldspawn", "info_player_start", "info_player_deathmatch", "info_stellar_spawn",
     "trigger_multiple", "trigger_once", "trigger_stellar", "trigger_stellar_point",
@@ -34,13 +37,24 @@ FACE_RE = re.compile(
     r"([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)(?:\s|$)"
 )
 KV_RE = re.compile(r'^\s*"([^"]+)"\s+"([^"]*)"\s*$')
-DEV_ALIASES = {
-    "dev/grid_12", "dev/grid_16", "dev/grid_32", "dev/grid_64", "dev/player_72", "dev/wall_96",
-    "dev_grid_12", "dev_grid_16", "dev_grid_32", "dev_grid_64", "dev_player_72", "dev_wall_96",
-    "stellar_dev_grid_12", "stellar_dev_grid_16", "stellar_dev_grid_32", "stellar_dev_grid_64",
-    "stellar_dev_player_72", "stellar_dev_wall_96",
-}
 IGNORE_TEXTURES = {"NULL", "CLIP", "SKIP", "ORIGIN", "AAATRIGGER"}
+
+
+def load_developer_aliases(path: Path = DEVELOPER_TEXTURE_MANIFEST) -> set[str]:
+    """Return all developer texture aliases from the shared manifest."""
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    aliases: set[str] = set()
+    for texture in manifest.get("textures", []):
+        for key in ("canonical", "source_alias", "compiler_alias"):
+            value = texture.get(key)
+            if isinstance(value, str) and value:
+                aliases.add(value)
+    if not aliases:
+        raise ValueError(f"developer texture manifest contains no aliases: {path}")
+    return aliases
+
+
+DEV_ALIASES = load_developer_aliases()
 
 
 @dataclass

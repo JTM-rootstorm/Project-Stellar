@@ -201,7 +201,7 @@ run_negative_fixture() {
         return 0
     fi
 
-    if [[ "$fixture" != "invalid_script_escape_zup" ]]; then
+    if [[ "${negative_compile_after_preflight_failure[$fixture]:-0}" != "1" ]]; then
         record_result "$fixture" "FAIL" "expected source preflight diagnostic missing; log=$preflight_log"
         return 1
     fi
@@ -308,6 +308,8 @@ mkdir -p "$build_root"
 compile_script="$source_root/tools/bsp/compile_vhlt_bsp30.sh"
 validate_script="$source_root/tools/bsp/validate_trenchbroom_bsp30.sh"
 source_preflight_script="$source_root/tools/bsp/validate_trenchbroom_map_source.py"
+fixture_manifest="$source_root/tests/fixtures/trenchbroom/fixtures.json"
+fixture_list_script="$source_root/tools/bsp/list_trenchbroom_fixtures.py"
 src_dir="$source_root/tests/fixtures/trenchbroom/src"
 compiled_dir="$build_root/tests/fixtures/trenchbroom/vhlt/compiled"
 logs_dir="$build_root/tests/fixtures/trenchbroom/vhlt/logs"
@@ -315,39 +317,12 @@ work_dir="$build_root/tests/fixtures/trenchbroom/vhlt/work"
 summary_log="$logs_dir/matrix_summary.log"
 results=()
 failures=0
-positive_fixtures=(
-    minimal_zup_room
-    entity_matrix_zup
-    scripted_interaction_zup
-    lit_zup_room
-    spotlight_pitch_down_zup
-    spotlight_pitch_up_zup
-    spotlight_yaw_walls_zup
-    spotlight_targeted_zup
-    light_environment_pitch_zup
-    texture_axes_zup
-    material_wad_zup
-    moving_door_button_zup
-    point_volume_zup
-    illusionary_static_zup
-)
-negative_fixtures=(
-    invalid_script_escape_zup
-    invalid_incomplete_brush
-    invalid_malformed_brush
-    invalid_missing_target
-    invalid_missing_wad_texture
-)
-declare -A negative_regex=(
-    [invalid_script_escape_zup]='script.*path|path.*escape|absolute|\.\.'
-    [invalid_incomplete_brush]='fewer than 4 planes|unclosed|expected Valve 220'
-    [invalid_malformed_brush]='fewer than 4 planes|unclosed|expected Valve 220|closing brace'
-    [invalid_missing_target]='target.*does not match|MissingDoor'
-    [invalid_missing_wad_texture]='texture.*not.*resolvable|missing_tex|worldspawn wad'
-)
-declare -A negative_strict_textures=(
-    [invalid_missing_wad_texture]=1
-)
+
+[[ -f "$fixture_manifest" ]] || fail "missing fixture manifest: $fixture_manifest"
+[[ -f "$fixture_list_script" ]] || fail "missing fixture list tool: $fixture_list_script"
+fixture_shell_arrays="$(python3 "$fixture_list_script" "$fixture_manifest" --shell-arrays)" || \
+    fail "could not load fixture manifest: $fixture_manifest"
+eval "$fixture_shell_arrays"
 
 if [[ "$list_only" == "1" ]]; then
     printf 'Positive fixtures:\n'

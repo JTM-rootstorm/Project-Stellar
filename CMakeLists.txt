@@ -144,6 +144,12 @@ add_library(stellar_import_bsp
     src/import/bsp/Validation.cpp
     src/import/bsp/BspParser.cpp
     src/import/bsp/BspEntities.cpp
+    src/import/bsp/BspAssetDebugNames.cpp
+    src/import/bsp/BspEntitySchema.cpp
+    src/import/bsp/BspGeometryBuilder.cpp
+    src/import/bsp/BspImportDiagnostics.cpp
+    src/import/bsp/BspLightmapBuilder.cpp
+    src/import/bsp/BspTextureResolver.cpp
     src/import/bsp/DeveloperTextures.cpp
     src/import/bsp/Wad3Reader.cpp
     src/import/bsp/BspLevelBuilder.cpp

@@ -1,4 +1,5 @@
 #include "stellar/assets/LevelAsset.hpp"
+#include "stellar/assets/LevelVisibilityQueries.hpp"
 #include "stellar/import/bsp/Loader.hpp"
 
 #include "../../../src/import/bsp/BspBinary.hpp"

@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "fixture_root": "tests/fixtures/trenchbroom",
+  "default_generated_bsp_root": "build/tests/fixtures/trenchbroom/compiled",
+  "default_vhlt_bsp_root": "build/tests/fixtures/trenchbroom/vhlt/compiled",
+  "fixtures": [
+    {
+      "name": "minimal_zup_room",
+      "source": "src/minimal_zup_room.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/minimal_zup_room.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Client/server display-free validation succeeds."
+    },
+    {
+      "name": "entity_matrix_zup",
+      "source": "src/entity_matrix_zup.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/entity_matrix_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Import succeeds and metadata includes all supported FGD classes."
+    },
+    {
+      "name": "scripted_interaction_zup",
+      "source": "src/scripted_interaction_zup.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/scripted_interaction_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Scripted authoritative runtime loads scripts/gate.lua and scripts/pickup.lua."
+    },
+    {
+      "name": "lit_zup_room",
+      "source": "src/lit_zup_room.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/lit_zup_room.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Generated fixture imports synthetic lightmap metadata; VHLT full profile bakes real lighting."
+    },
+    {
+      "name": "spotlight_pitch_down_zup",
+      "source": "src/spotlight_pitch_down_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_pitch_down_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "VHLT full profile preserves editor-facing downward spotlight pitch after work-map normalization."
+    },
+    {
+      "name": "spotlight_pitch_up_zup",
+      "source": "src/spotlight_pitch_up_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_pitch_up_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "VHLT full profile preserves editor-facing upward spotlight pitch after work-map normalization."
+    },
+    {
+      "name": "spotlight_yaw_walls_zup",
+      "source": "src/spotlight_yaw_walls_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_yaw_walls_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "VHLT full profile preserves spotlight yaw coverage across room walls."
+    },
+    {
+      "name": "spotlight_targeted_zup",
+      "source": "src/spotlight_targeted_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_targeted_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "VHLT full profile accepts target-driven spotlight orientation."
+    },
+    {
+      "name": "light_environment_pitch_zup",
+      "source": "src/light_environment_pitch_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/light_environment_pitch_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "VHLT full profile preserves editor-facing light_environment pitch after work-map normalization."
+    },
+    {
+      "name": "texture_axes_zup",
+      "source": "src/texture_axes_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/texture_axes_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Valve 220 texture axes, shifts, and scales are preserved by the VHLT wrapper."
+    },
+    {
+      "name": "material_wad_zup",
+      "source": "src/material_wad_zup.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/material_wad_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/material_wad_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Relative WAD material workflow resolves safely or falls back deterministically."
+    },
+    {
+      "name": "moving_door_button_zup",
+      "source": "src/moving_door_button_zup.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/moving_door_button_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/moving_door_button_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "func_button targets server-authoritative func_door DoorA; collision and presentation transforms are snapshot-owned."
+    },
+    {
+      "name": "point_volume_zup",
+      "source": "src/point_volume_zup.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/point_volume_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/point_volume_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Point trigger/object collider aliases preserve Z-up extents without brush solids."
+    },
+    {
+      "name": "illusionary_static_zup",
+      "source": "src/illusionary_static_zup.map",
+      "kind": "positive",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/illusionary_static_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/illusionary_static_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "func_wall is solid/static and func_illusionary is visible/nonblocking."
+    },
+    {
+      "name": "alias_target_zup",
+      "source": "src/alias_target_zup.map",
+      "kind": "positive",
+      "generated_bsp": null,
+      "vhlt_bsp": null,
+      "expected_bsp_version": null,
+      "expected_outcome": "Alias target authoring preflight accepts supported targetname/target routing metadata.",
+      "vhlt_matrix": false
+    },
+    {
+      "name": "invalid_script_escape_zup",
+      "source": "src/invalid_script_escape_zup.map",
+      "kind": "negative",
+      "generated_bsp": "build/tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp",
+      "vhlt_bsp": "build/tests/fixtures/trenchbroom/vhlt/compiled/invalid_script_escape_zup.bsp",
+      "expected_bsp_version": 30,
+      "expected_outcome": "Validation fails because _stellar_script uses ../escape.lua.",
+      "preflight_expected_regex": "script.*path|path.*escape|absolute|\\.\\.",
+      "strict_textures": false,
+      "compile_after_preflight_failure": true
+    },
+    {
+      "name": "invalid_incomplete_brush",
+      "source": "src/invalid_incomplete_brush.map",
+      "kind": "negative",
+      "generated_bsp": null,
+      "vhlt_bsp": null,
+      "expected_bsp_version": null,
+      "expected_outcome": "Source preflight fails for fewer than four brush planes.",
+      "preflight_expected_regex": "fewer than 4 planes|unclosed|expected Valve 220",
+      "strict_textures": false,
+      "compile_after_preflight_failure": false
+    },
+    {
+      "name": "invalid_malformed_brush",
+      "source": "src/invalid_malformed_brush.map",
+      "kind": "negative",
+      "generated_bsp": null,
+      "vhlt_bsp": null,
+      "expected_bsp_version": null,
+      "expected_outcome": "Source preflight fails for malformed/unclosed brush syntax.",
+      "preflight_expected_regex": "fewer than 4 planes|unclosed|expected Valve 220|closing brace",
+      "strict_textures": false,
+      "compile_after_preflight_failure": false
+    },
+    {
+      "name": "invalid_missing_target",
+      "source": "src/invalid_missing_target.map",
+      "kind": "negative",
+      "generated_bsp": null,
+      "vhlt_bsp": null,
+      "expected_bsp_version": null,
+      "expected_outcome": "Source preflight fails deterministically for unmatched target.",
+      "preflight_expected_regex": "target.*does not match|MissingDoor",
+      "strict_textures": false,
+      "compile_after_preflight_failure": false
+    },
+    {
+      "name": "invalid_missing_wad_texture",
+      "source": "src/invalid_missing_wad_texture.map",
+      "kind": "negative",
+      "generated_bsp": null,
+      "vhlt_bsp": null,
+      "expected_bsp_version": null,
+      "expected_outcome": "Strict source preflight fails for unresolved WAD texture.",
+      "preflight_expected_regex": "texture.*not.*resolvable|missing_tex|worldspawn wad",
+      "strict_textures": true,
+      "compile_after_preflight_failure": false
+    }
+  ]
+}

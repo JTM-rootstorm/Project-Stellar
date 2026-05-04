@@ -6,10 +6,9 @@ For the current TrenchBroom BSP30 editor workflow, package setup, FGD policy, co
 validation commands, see [`docs/TrenchBroom.md`](TrenchBroom.md). This page remains the lower-level BSP
 entity and runtime metadata reference.
 
-Gameplay authoring uses inch-scale Z-up coordinates on the active `trenchbroom-compat` branch: 1
-Stellar gameplay world unit equals 1 inch, and BSP30 coordinates are imported 1:1 without hidden scale
-conversion. The default player capsule center should be authored at `origin = "0 0 36"` on a floor at
-`z = 0`.
+Gameplay authoring uses inch-scale Z-up coordinates: 1 Stellar gameplay world unit equals 1 inch, and
+BSP30 coordinates are imported 1:1 without hidden scale conversion. The default player capsule center
+should be authored at `origin = "0 0 36"` on a floor at `z = 0`.
 
 ## Minimal workflow
 
@@ -34,24 +33,25 @@ such as `_stellar_script`. The TrenchBroom package at `tools/trenchbroom/Stellar
 underscore aliases directly for reliability. It is the authoritative FGD; `tools/bsp/stellar_entities.fgd`
 is a compatibility copy with the same concrete class/key contract, verified by display-free FGD lint.
 
-For gameplay-scale branch fixtures, prefer authoring dimensions directly in inches instead of relying
-on importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft
-floor plan with an 8 ft ceiling, a player spawn at `0 0 36`, and developer grid/wall materials listed
-below.
+For gameplay-scale fixtures, prefer authoring dimensions directly in inches instead of relying on
+importer scale conversion. A practical first room is 192x192x96 authored units: a 16 ft by 16 ft floor
+plan with an 8 ft ceiling, a player spawn at `0 0 36`, and developer grid/wall materials listed below.
 
 ## Procedural developer textures
 
 BSP materials may reference these deterministic developer textures without embedding miptex pixels or
 shipping external WAD files:
 
-| Canonical runtime name | Source alias | Compiler/WAD alias | Intended scale cue |
+<!-- STELLAR_DEVELOPER_MATERIAL_TABLE_BEGIN -->
+| Runtime material | Source alias | Compiler alias | Scale cue |
 | --- | --- | --- | --- |
 | `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` | 12 inch / 1 foot grid tile. |
 | `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` | 16 inch tile/checker. |
 | `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` | 32 inch tile/checker. |
 | `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` | 64 inch tile/checker. |
-| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
-| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference marker. |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch wall-height reference with overflow band. |
+<!-- STELLAR_DEVELOPER_MATERIAL_TABLE_END -->
 
 The importer generates `ImageAsset`/`TextureAsset` data for these names during BSP material fallback,
 uses nearest filtering so markings stay crisp, and uses repeat wrapping so authored texture axes can

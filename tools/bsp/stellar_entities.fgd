@@ -1,8 +1,8 @@
 // Stellar BSP authoring helper.
 //
-// This compatibility FGD intentionally mirrors tools/trenchbroom/Stellar/stellar_entities.fgd.
-// Keep class/key coverage in lockstep; display-free FGD lint verifies this file against the
-// authoritative TrenchBroom package FGD.
+// Generated/copied by tools/bsp/sync_stellar_fgd.py from the authoritative
+// tools/trenchbroom/Stellar/stellar_entities.fgd editor contract.
+// Keep this compatibility path for existing BSP tooling and user workflows.
 //
 // Policy: TrenchBroom-facing Stellar metadata fields use importer-supported underscore aliases for
 // reliability with classic map compilers. The importer treats these aliases as the corresponding
@@ -278,7 +278,7 @@
     wait(string) : "Wait before returning; -1 means stay" : "4"
     lip(string) : "Remaining visible lip distance" : "8"
     dmg(string) : "Damage when blocked, if supported" : "0"
-    spawnflags(flags) : "Door spawn flags" =
+    spawnflags(flags) =
     [
         1 : "Starts open" : 0
         4 : "No auto return" : 0
@@ -292,7 +292,7 @@
     speed(string) : "Move speed, inches per second" : "40"
     wait(string) : "Wait before returning; -1 means stay" : "1"
     lip(string) : "Remaining visible lip distance" : "4"
-    spawnflags(flags) : "Button spawn flags" =
+    spawnflags(flags) =
     [
         1 : "Starts pressed" : 0
         32 : "Toggle" : 0

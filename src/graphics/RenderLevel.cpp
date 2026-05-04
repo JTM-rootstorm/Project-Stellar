@@ -1,5 +1,7 @@
 #include "stellar/graphics/RenderLevel.hpp"
 
+#include "stellar/assets/LevelVisibilityQueries.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -854,26 +856,36 @@ RenderLevel::initialize(std::unique_ptr<GraphicsDevice> device,
 }
 
 void RenderLevel::render(int width, int height,
-                          const std::array<float, 16> &view_projection,
-                          const std::array<float, 16> &view) noexcept {
-  render(width, height, view_projection, view, std::nullopt, nullptr, {});
+                           const std::array<float, 16> &view_projection,
+                           const std::array<float, 16> &view) noexcept {
+  render(RenderLevelFrame{.width = width,
+                          .height = height,
+                          .view_projection = view_projection,
+                          .view = view});
 }
 
 void RenderLevel::render(
     int width, int height, const std::array<float, 16> &view_projection,
     const std::array<float, 16> &view,
     std::optional<std::array<float, 3>> camera_world_position) noexcept {
-  render(width, height, view_projection, view, camera_world_position, nullptr,
-         {});
+  render(RenderLevelFrame{.width = width,
+                          .height = height,
+                          .view_projection = view_projection,
+                          .view = view,
+                          .camera_world_position = camera_world_position});
 }
 
 void RenderLevel::render(int width, int height,
                           const std::array<float, 16> &view_projection,
-                          const std::array<float, 16> &view,
-                          const BillboardView &billboard_view,
-                          std::span<const BillboardSprite> sprites) noexcept {
-  render(width, height, view_projection, view, std::nullopt, &billboard_view,
-         sprites);
+                           const std::array<float, 16> &view,
+                           const BillboardView &billboard_view,
+                           std::span<const BillboardSprite> sprites) noexcept {
+  render(RenderLevelFrame{.width = width,
+                          .height = height,
+                          .view_projection = view_projection,
+                          .view = view,
+                          .billboard_view = &billboard_view,
+                          .sprites = sprites});
 }
 
 void RenderLevel::render(
@@ -882,36 +894,37 @@ void RenderLevel::render(
     std::optional<std::array<float, 3>> camera_world_position,
     const BillboardView &billboard_view,
     std::span<const BillboardSprite> sprites) noexcept {
-  render(width, height, view_projection, view, camera_world_position,
-         &billboard_view, sprites);
+  render(RenderLevelFrame{.width = width,
+                          .height = height,
+                          .view_projection = view_projection,
+                          .view = view,
+                          .camera_world_position = camera_world_position,
+                          .billboard_view = &billboard_view,
+                          .sprites = sprites});
 }
 
 void RenderLevel::render(
     int width, int height,
     const std::array<float, 16> &view_projection) noexcept {
-  render(width, height, view_projection, view_projection, std::nullopt, nullptr,
-         {});
+  render(RenderLevelFrame{.width = width,
+                          .height = height,
+                          .view_projection = view_projection,
+                          .view = view_projection});
 }
 
-void RenderLevel::render(int width, int height,
-                          const std::array<float, 16> &view_projection,
-                          const std::array<float, 16> &view,
-                          std::optional<std::array<float, 3>>
-                              camera_world_position,
-                          const BillboardView *billboard_view,
-                          std::span<const BillboardSprite> sprites) noexcept {
+void RenderLevel::render(const RenderLevelFrame &frame) noexcept {
   if (!device_) {
     return;
   }
 
-  device_->begin_frame(width, height);
+  device_->begin_frame(frame.width, frame.height);
 
-  const glm::mat4 vp = to_glm_mat4(view_projection);
-  const glm::mat4 view_matrix = to_glm_mat4(view);
+  const glm::mat4 vp = to_glm_mat4(frame.view_projection);
+  const glm::mat4 view_matrix = to_glm_mat4(frame.view);
   std::vector<QueuedLevelDraw> opaque_draws;
   std::vector<QueuedLevelDraw> blend_draws;
   const StaticDrawQueueStats static_stats = queue_static_draws(
-      vp, view_matrix, camera_world_position, opaque_draws, blend_draws);
+      vp, view_matrix, frame.camera_world_position, opaque_draws, blend_draws);
 
   std::sort(
       blend_draws.begin(), blend_draws.end(),
@@ -928,8 +941,8 @@ void RenderLevel::render(int width, int height,
         draw.transforms);
   }
 
-  if (billboard_view != nullptr && !sprites.empty()) {
-    auto quads = build_billboard_quads(sprites, *billboard_view);
+  if (frame.billboard_view != nullptr && !frame.sprites.empty()) {
+    auto quads = build_billboard_quads(frame.sprites, *frame.billboard_view);
     draw_billboard_quads(quads, vp);
   }
 
@@ -939,8 +952,8 @@ void RenderLevel::render(int width, int height,
                  "[stellar][render] frame=%zu render_view_camera_position=%d "
                  "visibility_used=%d visibility_visible=%zu opaque_draws=%zu "
                  "blend_draws=%zu\n",
-                 debug_render_frame_index_,
-                 camera_world_position.has_value() ? 1 : 0,
+                  debug_render_frame_index_,
+                  frame.camera_world_position.has_value() ? 1 : 0,
                  static_stats.visibility_used ? 1 : 0,
                  static_stats.visibility_visible_count, opaque_draws.size(),
                  blend_draws.size());

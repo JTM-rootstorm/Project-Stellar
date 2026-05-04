@@ -1,0 +1,89 @@
+{
+  "texture_size": 128,
+  "palette": [
+    [0, 0, 0],
+    [32, 32, 36],
+    [72, 72, 80],
+    [112, 112, 124],
+    [176, 176, 188],
+    [224, 224, 232],
+    [32, 64, 128],
+    [48, 96, 192],
+    [96, 144, 224],
+    [160, 192, 240],
+    [96, 64, 32],
+    [144, 96, 48],
+    [192, 144, 72],
+    [224, 192, 112],
+    [128, 48, 48],
+    [208, 80, 72],
+    [72, 84, 96],
+    [88, 102, 116],
+    [122, 148, 176],
+    [255, 176, 48],
+    [255, 224, 128],
+    [246, 214, 168],
+    [184, 116, 64],
+    [112, 64, 40],
+    [240, 64, 48],
+    [255, 248, 220]
+  ],
+  "textures": [
+    {
+      "canonical": "stellar_dev_grid_12",
+      "source_alias": "dev/grid_12",
+      "compiler_alias": "dev_grid_12",
+      "kind": "grid",
+      "spacing": 12,
+      "intended_scale_cue": "12 inch / 1 foot grid tile.",
+      "samples": [[0, 0], [1, 1], [16, 16], [32, 32], [64, 64], [96, 96], [127, 127]]
+    },
+    {
+      "canonical": "stellar_dev_grid_16",
+      "source_alias": "dev/grid_16",
+      "compiler_alias": "dev_grid_16",
+      "kind": "grid",
+      "spacing": 16,
+      "intended_scale_cue": "16 inch tile/checker.",
+      "samples": [[0, 0], [1, 1], [16, 16], [32, 32], [64, 64], [96, 96], [127, 127]]
+    },
+    {
+      "canonical": "stellar_dev_grid_32",
+      "source_alias": "dev/grid_32",
+      "compiler_alias": "dev_grid_32",
+      "kind": "grid",
+      "spacing": 32,
+      "intended_scale_cue": "32 inch tile/checker.",
+      "samples": [[0, 0], [1, 1], [16, 16], [32, 32], [64, 64], [96, 96], [127, 127]]
+    },
+    {
+      "canonical": "stellar_dev_grid_64",
+      "source_alias": "dev/grid_64",
+      "compiler_alias": "dev_grid_64",
+      "kind": "grid",
+      "spacing": 64,
+      "intended_scale_cue": "64 inch tile/checker.",
+      "samples": [[0, 0], [1, 1], [16, 16], [32, 32], [64, 64], [96, 96], [127, 127], [64, 10]]
+    },
+    {
+      "canonical": "stellar_dev_player_72",
+      "source_alias": "dev/player_72",
+      "compiler_alias": "dev_player_72",
+      "kind": "player",
+      "spacing": 16,
+      "intended_scale_cue": "72 inch player-height reference marker.",
+      "pattern": {"half_width": 16, "half_height": 36},
+      "samples": [[0, 0], [1, 1], [16, 16], [32, 32], [64, 64], [96, 96], [127, 127]]
+    },
+    {
+      "canonical": "stellar_dev_wall_96",
+      "source_alias": "dev/wall_96",
+      "compiler_alias": "dev_wall_96",
+      "kind": "wall",
+      "spacing": 16,
+      "intended_scale_cue": "96 inch wall-height reference with overflow band.",
+      "pattern": {"wall_height": 96},
+      "samples": [[0, 0], [1, 1], [16, 16], [32, 32], [64, 64], [96, 96], [127, 127], [8, 48]]
+    }
+  ]
+}

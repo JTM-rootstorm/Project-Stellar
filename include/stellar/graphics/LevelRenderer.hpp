@@ -180,16 +180,4 @@ private:
   bool debug_render_enabled_ = false;
 };
 
-/** @brief Temporary compatibility alias for old renderer naming during BSP
- * migration. */
-using SceneBounds = LevelBounds;
-
-/** @brief Temporary compatibility alias for old camera fit naming during BSP
- * migration. */
-using SceneCameraFit = LevelCameraFit;
-
-/** @brief Temporary compatibility alias for old renderer naming during BSP
- * migration. */
-using SceneRenderer = LevelRenderer;
-
 } // namespace stellar::graphics

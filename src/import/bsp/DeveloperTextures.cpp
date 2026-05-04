@@ -1,22 +1,33 @@
 #include "DeveloperTextures.hpp"
 
+#include "DeveloperTextureSpecs.generated.hpp"
+
 #include <algorithm>
-#include <array>
 #include <cctype>
 #include <cstdint>
 #include <string>
-#include <utility>
 
 namespace stellar::import::bsp::detail {
 namespace {
-
-constexpr std::uint32_t kDeveloperTextureSize = 128U;
 
 struct DeveloperTextureSpec {
   std::string_view canonical_name;
   std::uint32_t grid_spacing = 16U;
   enum class Kind { kGrid, kPlayer, kWall } kind = Kind::kGrid;
 };
+
+[[nodiscard]] constexpr DeveloperTextureSpec::Kind to_local_kind(
+    generated::DeveloperTextureKind kind) noexcept {
+  switch (kind) {
+  case generated::DeveloperTextureKind::kGrid:
+    return DeveloperTextureSpec::Kind::kGrid;
+  case generated::DeveloperTextureKind::kPlayer:
+    return DeveloperTextureSpec::Kind::kPlayer;
+  case generated::DeveloperTextureKind::kWall:
+    return DeveloperTextureSpec::Kind::kWall;
+  }
+  return DeveloperTextureSpec::Kind::kGrid;
+}
 
 [[nodiscard]] std::string normalized_name(std::string_view name) {
   std::string normalized;
@@ -32,69 +43,14 @@ struct DeveloperTextureSpec {
 [[nodiscard]] std::optional<DeveloperTextureSpec>
 spec_for_name(std::string_view material_name) {
   const std::string name = normalized_name(material_name);
-  const std::array specs{
-      std::pair{std::string_view{"stellar_dev_grid_12"},
-                DeveloperTextureSpec{"stellar_dev_grid_12", 12,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev_grid_12"},
-                DeveloperTextureSpec{"stellar_dev_grid_12", 12,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev/grid_12"},
-                DeveloperTextureSpec{"stellar_dev_grid_12", 12,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"stellar_dev_grid_16"},
-                DeveloperTextureSpec{"stellar_dev_grid_16", 16,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev_grid_16"},
-                DeveloperTextureSpec{"stellar_dev_grid_16", 16,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev/grid_16"},
-                DeveloperTextureSpec{"stellar_dev_grid_16", 16,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"stellar_dev_grid_32"},
-                DeveloperTextureSpec{"stellar_dev_grid_32", 32,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev_grid_32"},
-                DeveloperTextureSpec{"stellar_dev_grid_32", 32,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev/grid_32"},
-                DeveloperTextureSpec{"stellar_dev_grid_32", 32,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"stellar_dev_grid_64"},
-                DeveloperTextureSpec{"stellar_dev_grid_64", 64,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev_grid_64"},
-                DeveloperTextureSpec{"stellar_dev_grid_64", 64,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"dev/grid_64"},
-                DeveloperTextureSpec{"stellar_dev_grid_64", 64,
-                                      DeveloperTextureSpec::Kind::kGrid}},
-      std::pair{std::string_view{"stellar_dev_player_72"},
-                DeveloperTextureSpec{"stellar_dev_player_72", 16,
-                                      DeveloperTextureSpec::Kind::kPlayer}},
-      std::pair{std::string_view{"dev_player_72"},
-                DeveloperTextureSpec{"stellar_dev_player_72", 16,
-                                      DeveloperTextureSpec::Kind::kPlayer}},
-      std::pair{std::string_view{"dev/player_72"},
-                DeveloperTextureSpec{"stellar_dev_player_72", 16,
-                                      DeveloperTextureSpec::Kind::kPlayer}},
-      std::pair{std::string_view{"stellar_dev_wall_96"},
-                DeveloperTextureSpec{"stellar_dev_wall_96", 16,
-                                      DeveloperTextureSpec::Kind::kWall}},
-      std::pair{std::string_view{"dev_wall_96"},
-                DeveloperTextureSpec{"stellar_dev_wall_96", 16,
-                                      DeveloperTextureSpec::Kind::kWall}},
-      std::pair{std::string_view{"dev/wall_96"},
-                DeveloperTextureSpec{"stellar_dev_wall_96", 16,
-                                      DeveloperTextureSpec::Kind::kWall}},
-  };
-
   const auto found = std::ranges::find_if(
-      specs, [&](const auto &entry) { return entry.first == name; });
-  if (found == specs.end()) {
+      generated::kDeveloperTextureSpecs,
+      [&](const auto &entry) { return entry.alias == name; });
+  if (found == generated::kDeveloperTextureSpecs.end()) {
     return std::nullopt;
   }
-  return found->second;
+  return DeveloperTextureSpec{found->canonical_name, found->spacing,
+                              to_local_kind(found->kind)};
 }
 
 void append_pixel(stellar::assets::ImageAsset &image,
@@ -148,7 +104,7 @@ void append_pixel(stellar::assets::ImageAsset &image,
 
 [[nodiscard]] std::uint8_t player_index(std::uint32_t x,
                                         std::uint32_t y) noexcept {
-  constexpr std::uint32_t kCenter = kDeveloperTextureSize / 2U;
+  constexpr std::uint32_t kCenter = generated::kDeveloperTextureSize / 2U;
   constexpr std::uint32_t kHalfWidth = 16U;
   constexpr std::uint32_t kHalfHeight = 36U;
   const std::uint32_t dx = std::max(x, kCenter) - std::min(x, kCenter);
@@ -218,8 +174,8 @@ make_developer_texture(std::string_view material_name,
 
   stellar::assets::ImageAsset image;
   image.name = std::string(spec->canonical_name);
-  image.width = kDeveloperTextureSize;
-  image.height = kDeveloperTextureSize;
+  image.width = generated::kDeveloperTextureSize;
+  image.height = generated::kDeveloperTextureSize;
   image.format = stellar::assets::ImageFormat::kR8G8B8A8;
   image.source_uri = std::string(source_uri) + "#developer_texture/" + image.name;
   image.pixels.reserve(static_cast<std::size_t>(image.width) * image.height * 4U);

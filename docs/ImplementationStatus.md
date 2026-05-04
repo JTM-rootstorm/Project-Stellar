@@ -1,6 +1,6 @@
 # Project Stellar: Implementation Status
 
-Branch target: `trenchbroom-compat`
+Status scope: completed Stellar TrenchBroom BSP30 compatibility and follow-up branch notes.
 
 ## Completed Scope — Full Stellar TrenchBroom BSP30 Compatibility
 
@@ -830,7 +830,7 @@ Completed implementation plan:
 Archived branch gameplay unit policy: 1 Stellar gameplay world unit equaled 1 inch, authored BSP
 coordinates imported without scale conversion, and player capsule center spawns were authored half the
 capsule height above the floor. Current active authoring policy is Z-up and documented in the completed
-`trenchbroom-compat` section above.
+Stellar TrenchBroom BSP30 compatibility section above.
 
 Follow-up implementation should use `Plans/NEXT.md` for the next recommended post-PN options and this
 file as the source of truth for branch completion notes. Archived phase plans under `Plans/Archived/`

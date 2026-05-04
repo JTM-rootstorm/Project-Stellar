@@ -1,6 +1,6 @@
 # TrenchBroom Workflow
 
-Branch target: `trenchbroom-compat`
+Supported BSP30 editor workflow.
 
 This is the supported editor-facing workflow for authoring Stellar BSP30 maps with TrenchBroom.
 Stellar imports authored BSP coordinates 1:1: one editor unit is one gameplay inch.
@@ -93,14 +93,16 @@ A practical first test room is 192x192x96 inches:
 Use these runtime-recognized material names for deterministic fallback rendering and display-free
 validation:
 
-| Canonical runtime name | Source alias | Compiler/WAD alias | Intended scale cue |
+<!-- STELLAR_DEVELOPER_MATERIAL_TABLE_BEGIN -->
+| Runtime material | Source alias | Compiler alias | Scale cue |
 | --- | --- | --- | --- |
 | `stellar_dev_grid_12` | `dev/grid_12` | `dev_grid_12` | 12 inch / 1 foot grid tile. |
 | `stellar_dev_grid_16` | `dev/grid_16` | `dev_grid_16` | 16 inch tile/checker. |
 | `stellar_dev_grid_32` | `dev/grid_32` | `dev_grid_32` | 32 inch tile/checker. |
 | `stellar_dev_grid_64` | `dev/grid_64` | `dev_grid_64` | 64 inch tile/checker. |
-| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference strip. |
-| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch / 8 foot wall-height reference strip. |
+| `stellar_dev_player_72` | `dev/player_72` | `dev_player_72` | 72 inch player-height reference marker. |
+| `stellar_dev_wall_96` | `dev/wall_96` | `dev_wall_96` | 96 inch wall-height reference with overflow band. |
+<!-- STELLAR_DEVELOPER_MATERIAL_TABLE_END -->
 
 The official WAD pixels and deterministic runtime fallback pixels are 128x128 for every developer
 texture. The names describe grid spacing or height reference cues, not bitmap dimensions.
@@ -349,7 +351,7 @@ export STELLAR_SERVER=/path/to/stellar-server
 ```
 
 Launch commands remain outside this package's compile wrapper. Use the normal client/server commands
-for the current branch after display-free validation passes:
+after display-free validation passes:
 
 ```bash
 build/stellar-client --validate-display
@@ -387,12 +389,14 @@ lighting smoke map. Both are 192x192x96 Z-up rooms with floor `z = 0`, ceiling `
 complete fixture matrix, expected entities, expected validation outcomes, and the manual
 open/compile/validate checklist.
 
-The complete positive source fixture matrix is `minimal_zup_room`, `entity_matrix_zup`,
-`scripted_interaction_zup`, `lit_zup_room`, `texture_axes_zup`, `material_wad_zup`,
-`moving_door_button_zup`,
-`point_volume_zup`, and `illusionary_static_zup`. Negative source fixtures cover script escapes,
-incomplete/malformed brushes, missing targets, and strict unresolved WAD textures. A full manual QA
-checklist/reporting template is available in [`docs/TrenchBroomManualQA.md`](TrenchBroomManualQA.md).
+<!-- STELLAR_TRENCHBROOM_FIXTURE_SUMMARY_BEGIN -->
+The complete positive source fixture matrix is: `minimal_zup_room`, `entity_matrix_zup`, `scripted_interaction_zup`, `lit_zup_room`, `spotlight_pitch_down_zup`, `spotlight_pitch_up_zup`, `spotlight_yaw_walls_zup`, `spotlight_targeted_zup`, `light_environment_pitch_zup`, `texture_axes_zup`, `material_wad_zup`, `moving_door_button_zup`, `point_volume_zup`, `illusionary_static_zup`, `alias_target_zup`.
+
+Negative source fixtures are: `invalid_script_escape_zup`, `invalid_incomplete_brush`, `invalid_malformed_brush`, `invalid_missing_target`, `invalid_missing_wad_texture`.
+<!-- STELLAR_TRENCHBROOM_FIXTURE_SUMMARY_END -->
+
+A full manual QA checklist/reporting template is available in
+[`docs/TrenchBroomManualQA.md`](TrenchBroomManualQA.md).
 
 Generated fixture policy:
 

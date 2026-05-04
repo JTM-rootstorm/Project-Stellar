@@ -1,6 +1,6 @@
 # TrenchBroom BSP30 Fixtures
 
-These fixtures are editor-facing references for the `trenchbroom-compat` branch. The `.map` sources use Z-up coordinates, 1 unit = 1 inch, developer materials, and Phase 5 underscore metadata aliases (`_stellar_*`) where TrenchBroom exposes smart properties.
+These fixtures are editor-facing references for the Stellar BSP30 workflow. The `.map` sources use Z-up coordinates, 1 unit = 1 inch, developer materials, and underscore metadata aliases (`_stellar_*`) where TrenchBroom exposes smart properties.
 
 ## Layout
 
@@ -16,22 +16,30 @@ and package-local compile/validate shims.
 
 ## Fixture matrix
 
+<!-- STELLAR_TRENCHBROOM_FIXTURE_TABLE_BEGIN -->
 | Fixture | Source | Generated/compiled BSP | Expected BSP version | Expected outcome |
 | --- | --- | --- | --- | --- |
 | `minimal_zup_room` | `src/minimal_zup_room.map` | `build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp` | 30 | Client/server display-free validation succeeds. |
-| `lit_zup_room` | `src/lit_zup_room.map` | generated BSP plus optional `build/tests/fixtures/trenchbroom/vhlt/compiled/lit_zup_room.bsp` | 30 | Generated fixture imports synthetic lightmap metadata; VHLT full profile bakes real lighting. |
-| `texture_axes_zup` | `src/texture_axes_zup.map` | optional `build/tests/fixtures/trenchbroom/vhlt/compiled/texture_axes_zup.bsp` | 30 | Valve 220 texture axes, shifts, and scales are preserved by the VHLT wrapper. |
 | `entity_matrix_zup` | `src/entity_matrix_zup.map` | `build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp` | 30 | Import succeeds and metadata includes all supported FGD classes. |
-| `scripted_interaction_zup` | `src/scripted_interaction_zup.map` | `build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp` | 30 | Scripted authoritative runtime loads `scripts/gate.lua` and `scripts/pickup.lua`. |
-| `material_wad_zup` | `src/material_wad_zup.map` | generated BSP plus optional VHLT output | 30 | Relative WAD material workflow resolves safely or falls back deterministically. |
-| `moving_door_button_zup` | `src/moving_door_button_zup.map` | generated BSP plus optional VHLT output | 30 | `func_button` targets server-authoritative `func_door` DoorA; collision and presentation transforms are snapshot-owned. |
-| `point_volume_zup` | `src/point_volume_zup.map` | generated BSP plus optional VHLT output | 30 | Point trigger/object collider aliases preserve Z-up extents without brush solids. |
-| `illusionary_static_zup` | `src/illusionary_static_zup.map` | generated BSP plus optional VHLT output | 30 | `func_wall` is solid/static and `func_illusionary` is visible/nonblocking. |
-| `invalid_script_escape_zup` | `src/invalid_script_escape_zup.map` | `build/tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp` | 30 | Validation fails because `_stellar_script` uses `../escape.lua`. |
-| `invalid_incomplete_brush` | `src/invalid_incomplete_brush.map` | none | n/a | Source preflight fails for fewer than four brush planes. |
-| `invalid_malformed_brush` | `src/invalid_malformed_brush.map` | none | n/a | Source preflight fails for malformed/unclosed brush syntax. |
-| `invalid_missing_target` | `src/invalid_missing_target.map` | none | n/a | Source preflight fails deterministically for unmatched `target`. |
-| `invalid_missing_wad_texture` | `src/invalid_missing_wad_texture.map` | none | n/a | Strict source preflight fails for unresolved WAD texture. |
+| `scripted_interaction_zup` | `src/scripted_interaction_zup.map` | `build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp` | 30 | Scripted authoritative runtime loads scripts/gate.lua and scripts/pickup.lua. |
+| `lit_zup_room` | `src/lit_zup_room.map` | `build/tests/fixtures/trenchbroom/compiled/lit_zup_room.bsp` | 30 | Generated fixture imports synthetic lightmap metadata; VHLT full profile bakes real lighting. |
+| `spotlight_pitch_down_zup` | `src/spotlight_pitch_down_zup.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_pitch_down_zup.bsp` | 30 | VHLT full profile preserves editor-facing downward spotlight pitch after work-map normalization. |
+| `spotlight_pitch_up_zup` | `src/spotlight_pitch_up_zup.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_pitch_up_zup.bsp` | 30 | VHLT full profile preserves editor-facing upward spotlight pitch after work-map normalization. |
+| `spotlight_yaw_walls_zup` | `src/spotlight_yaw_walls_zup.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_yaw_walls_zup.bsp` | 30 | VHLT full profile preserves spotlight yaw coverage across room walls. |
+| `spotlight_targeted_zup` | `src/spotlight_targeted_zup.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/spotlight_targeted_zup.bsp` | 30 | VHLT full profile accepts target-driven spotlight orientation. |
+| `light_environment_pitch_zup` | `src/light_environment_pitch_zup.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/light_environment_pitch_zup.bsp` | 30 | VHLT full profile preserves editor-facing light_environment pitch after work-map normalization. |
+| `texture_axes_zup` | `src/texture_axes_zup.map` | `build/tests/fixtures/trenchbroom/vhlt/compiled/texture_axes_zup.bsp` | 30 | Valve 220 texture axes, shifts, and scales are preserved by the VHLT wrapper. |
+| `material_wad_zup` | `src/material_wad_zup.map` | `build/tests/fixtures/trenchbroom/compiled/material_wad_zup.bsp` | 30 | Relative WAD material workflow resolves safely or falls back deterministically. |
+| `moving_door_button_zup` | `src/moving_door_button_zup.map` | `build/tests/fixtures/trenchbroom/compiled/moving_door_button_zup.bsp` | 30 | func_button targets server-authoritative func_door DoorA; collision and presentation transforms are snapshot-owned. |
+| `point_volume_zup` | `src/point_volume_zup.map` | `build/tests/fixtures/trenchbroom/compiled/point_volume_zup.bsp` | 30 | Point trigger/object collider aliases preserve Z-up extents without brush solids. |
+| `illusionary_static_zup` | `src/illusionary_static_zup.map` | `build/tests/fixtures/trenchbroom/compiled/illusionary_static_zup.bsp` | 30 | func_wall is solid/static and func_illusionary is visible/nonblocking. |
+| `alias_target_zup` | `src/alias_target_zup.map` | `none` | n/a | Alias target authoring preflight accepts supported targetname/target routing metadata. |
+| `invalid_script_escape_zup` | `src/invalid_script_escape_zup.map` | `build/tests/fixtures/trenchbroom/compiled/invalid_script_escape_zup.bsp` | 30 | Validation fails because _stellar_script uses ../escape.lua. |
+| `invalid_incomplete_brush` | `src/invalid_incomplete_brush.map` | `none` | n/a | Source preflight fails for fewer than four brush planes. |
+| `invalid_malformed_brush` | `src/invalid_malformed_brush.map` | `none` | n/a | Source preflight fails for malformed/unclosed brush syntax. |
+| `invalid_missing_target` | `src/invalid_missing_target.map` | `none` | n/a | Source preflight fails deterministically for unmatched target. |
+| `invalid_missing_wad_texture` | `src/invalid_missing_wad_texture.map` | `none` | n/a | Strict source preflight fails for unresolved WAD texture. |
+<!-- STELLAR_TRENCHBROOM_FIXTURE_TABLE_END -->
 
 ## VHLT fixture matrix
 
