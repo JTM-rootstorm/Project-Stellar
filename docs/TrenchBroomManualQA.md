@@ -32,7 +32,7 @@ Notes/screenshots:
 - Stellar commit/branch:
 - Package mode: repo-local / copied package
 - Compiler/toolchain: generic BSP30 / VHLT fast / VHLT full
-- Graphics backend checked: OpenGL / Vulkan / not launched
+- Graphics backend checked: OpenGL / not launched
 - Display validation result: `build/stellar-client --validate-display` pass / fail / skipped
 - Display env: DISPLAY=, WAYLAND_DISPLAY=, XAUTHORITY=, SDL_VIDEODRIVER=
 - Notes:

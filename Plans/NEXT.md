@@ -118,7 +118,9 @@ transport/session lifecycle work, TrenchBroom compatibility work, or the complet
 - Import never executes scripts.
 - Runtime collision, movement, triggers, object colliders, scripting, and networking contracts remain backend-neutral.
 - Default tests remain display-free.
-- OpenGL/Vulkan remain runtime-selectable through the shared graphics abstraction.
+- OpenGL is the current supported renderer through the shared graphics abstraction. Future native
+  backends for Windows/macOS should be planned as explicit DirectX/Metal implementation work before
+  adding enum values or CLI aliases.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
 - No client prediction, interpolation, map transfer, reconciliation, UDP/unreliable transport,
   authentication, encryption, matchmaking, or public Internet deployment is active unless a future plan
