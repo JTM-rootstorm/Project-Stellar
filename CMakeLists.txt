@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(CTest)
+include(cmake/StellarDocs.cmake)
 
 # Find packages
 find_package(PkgConfig REQUIRED)
