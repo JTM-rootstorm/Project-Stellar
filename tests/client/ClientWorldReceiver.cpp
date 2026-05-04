@@ -1,8 +1,8 @@
 #include "stellar/client/ClientWorldReceiver.hpp"
-#include "stellar/client/LocalServerBridge.hpp"
 #include "stellar/network/SnapshotCodec.hpp"
 #include "stellar/network/SnapshotDelta.hpp"
 #include "stellar/network/Transport.hpp"
+#include "stellar/server/ServerRuntime.hpp"
 #include "stellar/scripting/ScriptRegistry.hpp"
 #include "stellar/scripting/ScriptedWorldSession.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
@@ -90,14 +90,14 @@ stellar::network::TransportPacket reliable_packet(std::vector<std::uint8_t> byte
                                              .payload = stellar::network::to_payload(bytes)};
 }
 
-void accept_local_session(stellar::client::LocalServerBridge& bridge,
+void accept_local_session(stellar::server::ServerRuntime& server,
                           stellar::network::LoopbackTransportPair& transport) {
     stellar::network::ClientHello hello{};
     hello.requested_map_id = "local";
     auto encoded = stellar::network::encode_client_hello(hello);
     assert(encoded.has_value());
     assert(transport.client->send_to_server(reliable_packet(*encoded)).has_value());
-    const auto pump = bridge.pump(*transport.server, 0.0F);
+    const auto pump = server.pump(*transport.server, 0.0F);
     assert(pump.session_state == stellar::network::SessionState::kConnected);
     const auto replies = transport.client->receive_from_server();
     assert(!replies.empty());
@@ -169,16 +169,16 @@ void gameplay_event_queues_for_presentation() {
     assert(receiver.queued_events().empty());
 }
 
-void local_bridge_emits_snapshot_after_input_command() {
+void server_runtime_emits_snapshot_after_input_command() {
     const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
     const auto world = stellar::world::build_runtime_world(scene);
-    stellar::client::LocalServerBridgeConfig config{};
+    stellar::server::ServerRuntimeConfig config{};
     config.session = test_session_config();
     config.emit_deltas = false;
-    stellar::client::LocalServerBridge bridge(world, config);
+    stellar::server::ServerRuntime server(world, config);
     stellar::client::ClientWorldReceiver receiver;
     auto transport = stellar::network::make_loopback_transport_pair();
-    accept_local_session(bridge, transport);
+    accept_local_session(server, transport);
 
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 999;
@@ -188,7 +188,7 @@ void local_bridge_emits_snapshot_after_input_command() {
     assert(encoded.has_value());
     assert(transport.client->send_to_server(reliable_packet(*encoded)).has_value());
 
-    const auto pump = bridge.pump(*transport.server, 0.1F);
+    const auto pump = server.pump(*transport.server, 0.1F);
     const auto drain = receiver.drain(*transport.client);
 
     assert(pump.ticks_run == 1);
@@ -201,7 +201,7 @@ void local_bridge_emits_snapshot_after_input_command() {
     assert(receiver.latest_snapshot()->players[0].position[2] == 0.0F);
 }
 
-void scripted_bridge_propagates_server_approved_event() {
+void scripted_runtime_propagates_server_approved_event() {
     const auto scene = scene_with_trigger_and_wall();
     const auto world = stellar::world::build_runtime_world(scene);
     stellar::scripting::ScriptRegistry registry;
@@ -214,15 +214,15 @@ void scripted_bridge_propagates_server_approved_event() {
     auto scripted = stellar::scripting::ScriptedWorldSession::create(world, test_session_config(),
                                                                      std::move(registry));
     assert(scripted.has_value());
-    stellar::client::LocalServerBridgeConfig config{};
+    stellar::server::ServerRuntimeConfig config{};
     config.session = test_session_config();
     config.emit_deltas = false;
-    stellar::client::LocalServerBridge bridge(std::move(*scripted), config);
+    stellar::server::ServerRuntime server(std::move(*scripted), config);
     stellar::client::ClientWorldReceiver receiver;
     auto transport = stellar::network::make_loopback_transport_pair();
-    accept_local_session(bridge, transport);
+    accept_local_session(server, transport);
 
-    const auto pump = bridge.pump(*transport.server, 0.1F);
+    const auto pump = server.pump(*transport.server, 0.1F);
     const auto drain = receiver.drain(*transport.client);
 
     assert(pump.ticks_run == 1);
@@ -242,12 +242,12 @@ void malformed_packets_rejected_without_crash() {
 
     const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
     const auto world = stellar::world::build_runtime_world(scene);
-    stellar::client::LocalServerBridgeConfig config{};
+    stellar::server::ServerRuntimeConfig config{};
     config.session = test_session_config();
-    stellar::client::LocalServerBridge bridge(world, config);
+    stellar::server::ServerRuntime server(world, config);
     auto transport = stellar::network::make_loopback_transport_pair();
     assert(transport.client->send_to_server(reliable_packet({0xAA, 0xBB})).has_value());
-    const auto pump = bridge.pump(*transport.server, 0.0F);
+    const auto pump = server.pump(*transport.server, 0.0F);
     assert(pump.rejected_packets == 1);
 }
 
@@ -257,8 +257,8 @@ int main() {
     server_snapshot_decodes_into_receiver();
     delta_applies_to_receiver_baseline();
     gameplay_event_queues_for_presentation();
-    local_bridge_emits_snapshot_after_input_command();
-    scripted_bridge_propagates_server_approved_event();
+    server_runtime_emits_snapshot_after_input_command();
+    scripted_runtime_propagates_server_approved_event();
     malformed_packets_rejected_without_crash();
     return 0;
 }

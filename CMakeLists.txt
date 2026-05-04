@@ -177,6 +177,25 @@ target_link_libraries(stellar_authority PUBLIC
     stellar_import_bsp
 )
 
+add_library(stellar_server_runtime
+    src/server/ServerRuntime.cpp
+)
+
+target_include_directories(stellar_server_runtime PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar_server_runtime PUBLIC
+    stellar_authority
+    stellar_network
+    stellar_server_core
+    stellar_scripting
+)
+
+target_link_libraries(stellar_dedicated_server PUBLIC
+    stellar_server_runtime
+)
+
 add_library(stellar_platform
     src/platform/DisplayDiagnostics.cpp
     src/platform/Window.cpp
@@ -195,7 +214,6 @@ target_link_libraries(stellar_platform PUBLIC
 add_library(stellar_client_runtime
     src/client/ClientWorldReceiver.cpp
     src/client/HudPresentation.cpp
-    src/client/LocalServerBridge.cpp
     src/client/MovementInputMapper.cpp
     src/client/NetworkedClientRuntime.cpp
     src/client/LocalLoopbackRuntime.cpp
@@ -211,6 +229,7 @@ target_link_libraries(stellar_client_runtime PUBLIC
     stellar_platform
     stellar_authority
     stellar_server_core
+    stellar_server_runtime
     stellar_scripting
     stellar_network
     stellar_graphics

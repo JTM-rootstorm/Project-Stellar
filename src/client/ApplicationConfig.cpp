@@ -241,7 +241,7 @@ prepare_application_runtime(const ApplicationConfig &config) {
         stellar::authority::build_authority_runtime_world(*prepared.validation->level));
 
     NetworkedClientRuntimeConfig runtime_config{};
-    runtime_config.bridge.map_identity = authority->map_identity;
+    runtime_config.server.map_identity = authority->map_identity;
     if (auto* scripted = std::get_if<stellar::scripting::ScriptedWorldSession>(
             &authority->session)) {
       prepared.networked_runtime =

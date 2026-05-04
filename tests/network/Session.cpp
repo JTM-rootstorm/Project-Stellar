@@ -1,8 +1,8 @@
 #include "stellar/authority/NetworkConversion.hpp"
-#include "stellar/client/LocalServerBridge.hpp"
 #include "stellar/network/Session.hpp"
 #include "stellar/network/SnapshotCodec.hpp"
 #include "stellar/network/Transport.hpp"
+#include "stellar/server/ServerRuntime.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 #include <array>
@@ -30,8 +30,8 @@ stellar::assets::LevelAsset scene(std::string source_uri = "maps/session_test.bs
     return level;
 }
 
-stellar::client::LocalServerBridgeConfig bridge_config(const stellar::network::MapIdentity& map) {
-    stellar::client::LocalServerBridgeConfig config{};
+stellar::server::ServerRuntimeConfig runtime_config(const stellar::network::MapIdentity& map) {
+    stellar::server::ServerRuntimeConfig config{};
     config.session.local_player_id = 9;
     config.session.movement.fixed_dt = 0.1F;
     config.session.movement.gravity = 0.0F;
@@ -97,8 +97,8 @@ void protocol_mismatch_rejects() {
     const auto level = scene();
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
-    stellar::client::LocalServerBridge bridge(world,
-                                              bridge_config(stellar::authority::make_map_identity(world)));
+    stellar::server::ServerRuntime server(world,
+                                          runtime_config(stellar::authority::make_map_identity(world)));
 
     stellar::network::ClientHello hello{};
     hello.protocol_version = stellar::network::kCurrentProtocolVersion + 1;
@@ -107,7 +107,7 @@ void protocol_mismatch_rejects() {
     assert(encoded.has_value());
     assert(transports.client->send_to_server(packet(*encoded)).has_value());
 
-    const auto pump = bridge.pump(*transports.server, 0.1F);
+    const auto pump = server.pump(*transports.server, 0.1F);
     assert(pump.session_state == stellar::network::SessionState::kRejected);
     const auto replies = transports.client->receive_from_server();
     assert(replies.size() == 1);
@@ -122,8 +122,8 @@ void map_mismatch_rejects() {
     const auto level = scene();
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
-    stellar::client::LocalServerBridge bridge(world,
-                                              bridge_config(stellar::authority::make_map_identity(world)));
+    stellar::server::ServerRuntime server(world,
+                                          runtime_config(stellar::authority::make_map_identity(world)));
 
     stellar::network::ClientHello hello{};
     hello.requested_map_id = "wrong.bsp";
@@ -131,7 +131,7 @@ void map_mismatch_rejects() {
     assert(encoded.has_value());
     assert(transports.client->send_to_server(packet(*encoded)).has_value());
 
-    const auto pump = bridge.pump(*transports.server, 0.1F);
+    const auto pump = server.pump(*transports.server, 0.1F);
     assert(pump.session_state == stellar::network::SessionState::kRejected);
     const auto replies = transports.client->receive_from_server();
     assert(replies.size() == 1);
@@ -145,8 +145,8 @@ void input_before_welcome_is_rejected_without_snapshot() {
     const auto level = scene();
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
-    stellar::client::LocalServerBridge bridge(world,
-                                              bridge_config(stellar::authority::make_map_identity(world)));
+    stellar::server::ServerRuntime server(world,
+                                          runtime_config(stellar::authority::make_map_identity(world)));
 
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 123;
@@ -155,7 +155,7 @@ void input_before_welcome_is_rejected_without_snapshot() {
     assert(encoded.has_value());
     assert(transports.client->send_to_server(packet(*encoded)).has_value());
 
-    const auto pump = bridge.pump(*transports.server, 0.1F);
+    const auto pump = server.pump(*transports.server, 0.1F);
     assert(pump.rejected_packets == 1);
     assert(pump.errors[0].code == "input_before_welcome");
     assert(transports.client->receive_from_server().empty());
@@ -166,7 +166,7 @@ void accepted_welcome_then_first_snapshot_and_assignment() {
     const auto world = stellar::world::build_runtime_world(level);
     auto transports = stellar::network::make_loopback_transport_pair();
     const auto identity = stellar::authority::make_map_identity(world);
-    stellar::client::LocalServerBridge bridge(world, bridge_config(identity));
+    stellar::server::ServerRuntime server(world, runtime_config(identity));
 
     stellar::network::ClientHello hello{};
     hello.requested_map_id = identity.map_id;
@@ -174,7 +174,7 @@ void accepted_welcome_then_first_snapshot_and_assignment() {
     assert(encoded.has_value());
     assert(transports.client->send_to_server(packet(*encoded)).has_value());
 
-    const auto pump = bridge.pump(*transports.server, 0.1F);
+    const auto pump = server.pump(*transports.server, 0.1F);
     assert(pump.session_state == stellar::network::SessionState::kConnected);
     const auto replies = transports.client->receive_from_server();
     assert(replies.size() == 2);

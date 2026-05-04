@@ -71,18 +71,18 @@ stellar::assets::LevelAsset scene_with_trigger_and_wall() {
 
 stellar::client::NetworkedClientRuntimeConfig test_config() {
     stellar::client::NetworkedClientRuntimeConfig config{};
-    config.bridge.session.local_player_id = 7;
-    config.bridge.session.movement.max_speed = 10.0F;
-    config.bridge.session.movement.acceleration = 100.0F;
-    config.bridge.session.movement.gravity = 0.0F;
-    config.bridge.session.movement.terminal_fall_speed = 50.0F;
-    config.bridge.session.movement.fixed_dt = 0.1F;
-    config.bridge.session.movement.character.radius = 0.25F;
-    config.bridge.session.movement.character.height = 1.0F;
-    config.bridge.session.movement.character.skin_width = 0.0F;
-    config.bridge.session.movement.character.ground_snap_distance = 0.0F;
-    config.bridge.session.movement.character.max_slide_iterations = 4;
-    config.bridge.max_ticks_per_pump = 4;
+    config.server.session.local_player_id = 7;
+    config.server.session.movement.max_speed = 10.0F;
+    config.server.session.movement.acceleration = 100.0F;
+    config.server.session.movement.gravity = 0.0F;
+    config.server.session.movement.terminal_fall_speed = 50.0F;
+    config.server.session.movement.fixed_dt = 0.1F;
+    config.server.session.movement.character.radius = 0.25F;
+    config.server.session.movement.character.height = 1.0F;
+    config.server.session.movement.character.skin_width = 0.0F;
+    config.server.session.movement.character.ground_snap_distance = 0.0F;
+    config.server.session.movement.character.max_slide_iterations = 4;
+    config.server.max_ticks_per_pump = 4;
     return config;
 }
 
@@ -194,7 +194,7 @@ void script_events_queue_through_receiver() {
                         "{mesh = 'DoorBlocker', enabled = false})\n"
                         "end\n");
     auto scripted = stellar::scripting::ScriptedWorldSession::create(
-        world, test_config().bridge.session, std::move(registry));
+        world, test_config().server.session, std::move(registry));
     assert(scripted.has_value());
     stellar::client::NetworkedClientRuntime runtime(std::move(*scripted), test_config());
     stellar::platform::Input input;

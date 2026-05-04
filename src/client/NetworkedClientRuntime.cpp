@@ -16,9 +16,9 @@ namespace {
     };
 }
 
-void append_bridge_diagnostics(NetworkedClientFrameResult& frame,
-                               const LocalServerBridgePumpResult& pump) {
-    for (const LocalServerBridgeError& error : pump.errors) {
+void append_server_runtime_diagnostics(NetworkedClientFrameResult& frame,
+                               const stellar::server::ServerRuntimePumpResult& pump) {
+    for (const stellar::server::ServerRuntimeError& error : pump.errors) {
         frame.diagnostics.push_back(error.code + ": " + error.message);
     }
 }
@@ -48,7 +48,7 @@ NetworkedClientRuntime::NetworkedClientRuntime(const stellar::world::RuntimeWorl
                                                NetworkedClientRuntimeConfig config)
     : config_(config),
       transport_(stellar::network::make_loopback_transport_pair()),
-      bridge_(world, config_.bridge) {
+      server_(world, config_.server) {
     send_client_hello();
 }
 
@@ -57,7 +57,7 @@ NetworkedClientRuntime::NetworkedClientRuntime(
     NetworkedClientRuntimeConfig config)
     : config_(config),
       transport_(stellar::network::make_loopback_transport_pair()),
-      bridge_(std::move(scripted_session), config_.bridge) {
+      server_(std::move(scripted_session), config_.server) {
     send_client_hello();
 }
 
@@ -101,9 +101,9 @@ NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platfor
     };
 
     if (session_state_ == stellar::network::SessionState::kConnecting) {
-        const LocalServerBridgePumpResult handshake = bridge_.pump(*transport_.server, 0.0F);
+        const stellar::server::ServerRuntimePumpResult handshake = server_.pump(*transport_.server, 0.0F);
         frame.rejected_packets += handshake.rejected_packets;
-        append_bridge_diagnostics(frame, handshake);
+        append_server_runtime_diagnostics(frame, handshake);
         drain_server_packets();
     }
 
@@ -126,11 +126,11 @@ NetworkedClientFrameResult NetworkedClientRuntime::update(const stellar::platfor
         }
     }
 
-    const LocalServerBridgePumpResult pump = bridge_.pump(*transport_.server, delta_seconds);
+    const stellar::server::ServerRuntimePumpResult pump = server_.pump(*transport_.server, delta_seconds);
     frame.ticks_run = pump.ticks_run;
     frame.rejected_packets += pump.rejected_packets;
     frame.dropped_excess_time = pump.dropped_excess_time;
-    append_bridge_diagnostics(frame, pump);
+    append_server_runtime_diagnostics(frame, pump);
 
     drain_server_packets();
     frame.events = receiver_.take_queued_events();
@@ -165,7 +165,7 @@ void NetworkedClientRuntime::send_client_hello() noexcept {
     stellar::network::ClientHello hello{};
     hello.protocol_version = stellar::network::kCurrentProtocolVersion;
     hello.client_name = "local-client";
-    hello.requested_map_id = config_.bridge.map_identity.map_id;
+    hello.requested_map_id = config_.server.map_identity.map_id;
     hello.client_nonce = 1;
 
     auto encoded = stellar::network::encode_client_hello(hello);

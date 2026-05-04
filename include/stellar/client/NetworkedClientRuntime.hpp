@@ -8,20 +8,20 @@
 #include <vector>
 
 #include "stellar/client/ClientWorldReceiver.hpp"
-#include "stellar/client/LocalServerBridge.hpp"
 #include "stellar/client/MovementInputMapper.hpp"
 #include "stellar/network/Messages.hpp"
 #include "stellar/network/Session.hpp"
 #include "stellar/network/Transport.hpp"
 #include "stellar/platform/Input.hpp"
+#include "stellar/server/ServerRuntime.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::client {
 
 /** @brief Configuration for local mapped play over the transport/receiver path. */
 struct NetworkedClientRuntimeConfig {
-    /** @brief Authoritative server bridge configuration. */
-    LocalServerBridgeConfig bridge{};
+    /** @brief Authoritative server runtime configuration. */
+    stellar::server::ServerRuntimeConfig server{};
 
     /** @brief Input mapper configuration used to convert client input to network commands. */
     MovementInputMapperConfig input_mapper{};
@@ -50,13 +50,13 @@ struct RemoteClientRuntimeConfig {
 
 /** @brief Result of one local networked client frame update. */
 struct NetworkedClientFrameResult {
-    /** @brief Number of authoritative fixed ticks run by the local server bridge. */
+    /** @brief Number of authoritative fixed ticks run by the local server runtime. */
     int ticks_run = 0;
 
     /** @brief Count of malformed or failed packets rejected without crashing. */
     std::uint32_t rejected_packets = 0;
 
-    /** @brief True when the authoritative bridge dropped excess accumulated time. */
+    /** @brief True when the authoritative runtime dropped excess accumulated time. */
     bool dropped_excess_time = false;
 
     /** @brief Server-approved gameplay events drained this frame for presentation. */
@@ -73,7 +73,7 @@ struct NetworkedClientFrameResult {
  * @brief Client-owned local networked runtime for mapped play.
  *
  * The runtime sends local input through a loopback ClientTransport, pumps a server-authoritative
- * LocalServerBridge, drains ClientWorldReceiver, and exposes only latest authoritative network
+ * server runtime, drains ClientWorldReceiver, and exposes only latest authoritative network
  * snapshots for presentation. It performs no prediction or reconciliation.
  */
 class NetworkedClientRuntime {
@@ -113,7 +113,7 @@ private:
 
     NetworkedClientRuntimeConfig config_{};
     stellar::network::LoopbackTransportPair transport_{};
-    LocalServerBridge bridge_;
+    stellar::server::ServerRuntime server_;
     ClientWorldReceiver receiver_{};
     std::uint64_t next_command_sequence_ = 1;
     stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;

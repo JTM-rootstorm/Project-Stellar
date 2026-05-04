@@ -23,3 +23,8 @@ target_include_directories(stellar_dedicated_server_test PRIVATE
     ${STELLAR_TEST_FIXTURE_DIR}
 )
 target_link_libraries(stellar_dedicated_server_test PRIVATE stellar_dedicated_server)
+
+stellar_add_test_executable(stellar_server_runtime_test server_runtime
+    ${STELLAR_TEST_SOURCE_DIR}/server/ServerRuntime.cpp
+)
+target_link_libraries(stellar_server_runtime_test PRIVATE stellar_server_runtime)
