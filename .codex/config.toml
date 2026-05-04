@@ -1,0 +1,6 @@
+# Project-scoped Codex agent settings.
+# Keep custom-agent fan-out shallow and predictable unless the user explicitly asks otherwise.
+
+[agents]
+max_threads = 6
+max_depth = 1
