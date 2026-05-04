@@ -56,8 +56,6 @@ int main() {
   assert(runtime->active_client_runtime == runtime->single_player_runtime.get());
   assert(runtime->active_client_runtime->mode() ==
          stellar::client::ClientRuntimeMode::kSinglePlayer);
-  assert(runtime->networked_runtime == nullptr);
-  assert(runtime->local_loopback_runtime == nullptr);
   assert(!runtime->validation->scripted_runtime_enabled);
   stellar::platform::Input input;
   const auto runtime_frame = runtime->single_player_runtime->update(input, 0.0F);
@@ -88,8 +86,6 @@ int main() {
   assert(scripted_runtime->single_player_runtime != nullptr);
   assert(scripted_runtime->active_client_runtime ==
          scripted_runtime->single_player_runtime.get());
-  assert(scripted_runtime->networked_runtime == nullptr);
-  assert(scripted_runtime->local_loopback_runtime == nullptr);
   assert(scripted_runtime->validation->scripted_runtime_enabled);
   assert(scripted_runtime->validation->loaded_script_ids.size() == 2);
   assert(scripted_runtime->validation->loaded_script_ids[0] == "scripts/gate.lua");
@@ -118,8 +114,6 @@ int main() {
   assert(no_map_runtime->validation != nullptr);
   assert(!no_map_runtime->validation->level.has_value());
   assert(no_map_runtime->runtime_world == nullptr);
-  assert(no_map_runtime->local_loopback_runtime == nullptr);
-  assert(no_map_runtime->networked_runtime == nullptr);
   assert(no_map_runtime->single_player_runtime == nullptr);
   assert(no_map_runtime->active_client_runtime == nullptr);
 

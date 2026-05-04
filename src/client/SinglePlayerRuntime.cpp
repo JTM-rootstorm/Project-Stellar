@@ -8,7 +8,6 @@
 
 #include "stellar/authority/NetworkConversion.hpp"
 #include "stellar/server/MovementSimulation.hpp"
-#include "stellar/scripting/ScriptedWorldSession.hpp"
 
 namespace stellar::client {
 namespace {

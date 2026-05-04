@@ -27,7 +27,7 @@ int main() {
   std::filesystem::create_directories(root);
 
   const auto valid_path = root / "authored_valid.bsp";
-  stellar::tests::fixtures::write_bsp_fixture(valid_path, "playable");
+  stellar::tests::fixtures::write_bsp_fixture(valid_path, "gameplay_room");
 
   stellar::client::ApplicationConfig config;
   config.validate_only = true;

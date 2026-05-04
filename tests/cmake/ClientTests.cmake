@@ -27,16 +27,8 @@ stellar_add_client_runtime_test(stellar_gameplay_presentation_test gameplay_pres
     ${STELLAR_TEST_SOURCE_DIR}/client/GameplayPresentation.cpp
 )
 
-stellar_add_client_runtime_test(stellar_client_local_loopback_runtime_test client_local_loopback_runtime
-    ${STELLAR_TEST_SOURCE_DIR}/client/LocalLoopbackRuntime.cpp
-)
-
 stellar_add_client_runtime_test(stellar_client_world_receiver_test client_world_receiver
     ${STELLAR_TEST_SOURCE_DIR}/client/ClientWorldReceiver.cpp
-)
-
-stellar_add_client_runtime_test(stellar_networked_client_runtime_test networked_client_runtime
-    ${STELLAR_TEST_SOURCE_DIR}/client/NetworkedClientRuntime.cpp
 )
 
 stellar_add_client_runtime_test(stellar_client_single_player_runtime_test client_single_player_runtime

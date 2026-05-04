@@ -8,7 +8,6 @@
 #include "stellar/client/MovementInputMapper.hpp"
 #include "stellar/network/Messages.hpp"
 #include "stellar/platform/Input.hpp"
-#include "stellar/server/WorldSession.hpp"
 
 namespace stellar::client {
 

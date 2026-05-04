@@ -30,8 +30,7 @@ enum class ClientRuntimeMode {
  * @brief Presentation data produced by one client-runtime update.
  *
  * The frame is non-authoritative: it contains only state that presentation systems need to render,
- * route audio/HUD events, and report session diagnostics. The legacy tick/rejection fields are
- * retained for existing local networked runtime tests during the client/server split.
+ * route audio/HUD events, and report session diagnostics.
  */
 struct ClientRuntimeFrame {
     /** @brief Latest authoritative world snapshot available to presentation, if one exists. */
@@ -49,13 +48,13 @@ struct ClientRuntimeFrame {
     /** @brief Deterministic runtime/transport/codec diagnostics for tests and tools. */
     std::vector<std::string> diagnostics;
 
-    /** @brief Number of authoritative fixed ticks run by legacy local mapped runtime. */
+    /** @brief Number of authoritative fixed ticks run by in-process authoritative modes. */
     int ticks_run = 0;
 
     /** @brief Count of malformed or failed packets rejected without crashing. */
     std::uint32_t rejected_packets = 0;
 
-    /** @brief True when the legacy local authoritative runtime dropped excess accumulated time. */
+    /** @brief True when an in-process authoritative runtime dropped excess accumulated time. */
     bool dropped_excess_time = false;
 };
 
@@ -72,8 +71,5 @@ public:
     /** @brief Return the concrete runtime mode hidden behind this presentation interface. */
     [[nodiscard]] virtual ClientRuntimeMode mode() const noexcept = 0;
 };
-
-/** @brief Backward-compatible frame name retained for existing networked runtime tests. */
-using NetworkedClientFrameResult = ClientRuntimeFrame;
 
 } // namespace stellar::client

@@ -1,6 +1,6 @@
 #include "stellar/client/Application.hpp"
-#include "stellar/client/NetworkedClientRuntime.hpp"
 #include "stellar/client/PlayerPresentation.hpp"
+#include "stellar/client/RemoteClientRuntime.hpp"
 #include "stellar/network/SnapshotCodec.hpp"
 #include "stellar/network/Transport.hpp"
 #include "stellar/server/DedicatedServer.hpp"
@@ -107,8 +107,6 @@ void validate_connect_mode_constructs_no_local_authority() {
     auto prepared = stellar::client::prepare_application_runtime(config);
     assert(prepared.has_value());
     assert(!prepared->runtime_world);
-    assert(!prepared->networked_runtime);
-    assert(!prepared->local_loopback_runtime);
     assert(!prepared->remote_runtime);
     assert(!prepared->validation->level.has_value());
     assert(!prepared->validation->scripted_runtime_enabled);

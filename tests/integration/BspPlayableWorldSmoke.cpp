@@ -1,16 +1,13 @@
-#include "stellar/client/LocalLoopbackRuntime.hpp"
 #include "stellar/import/bsp/Loader.hpp"
-#include "stellar/platform/Input.hpp"
 #include "stellar/scripting/ScriptRegistry.hpp"
 #include "stellar/scripting/ScriptedWorldSession.hpp"
+#include "stellar/server/WorldSession.hpp"
 #include "stellar/world/CollisionValidation.hpp"
 #include "stellar/world/ObjectCollider.hpp"
 #include "stellar/world/RuntimeWorld.hpp"
 #include "stellar/world/WorldMetadataValidation.hpp"
 
 #include "../fixtures/BspFixture.hpp"
-
-#include <SDL2/SDL.h>
 
 #include <cassert>
 #include <cstddef>
@@ -73,23 +70,6 @@ bool has_applied_command(const stellar::scripting::ScriptedWorldFrame &frame,
     }
   }
   return false;
-}
-
-void synthesize_key(stellar::platform::Input &input, SDL_Scancode scancode,
-                    Uint32 type) {
-  SDL_Event event{};
-  event.type = type;
-  event.key.type = type;
-  event.key.keysym.scancode = scancode;
-  input.process_event(event);
-}
-
-stellar::platform::Input input_with_keys(std::initializer_list<SDL_Scancode> scancodes) {
-  stellar::platform::Input input;
-  for (const SDL_Scancode scancode : scancodes) {
-    synthesize_key(input, scancode, SDL_KEYDOWN);
-  }
-  return input;
 }
 
 void assert_same_snapshot(const stellar::server::WorldSnapshot &a,
@@ -212,29 +192,29 @@ void assert_gameplay_room_import(const stellar::assets::LevelAsset &level,
   assert(stellar::world::find_sprite_markers(world).size() == 1);
 }
 
-void assert_gameplay_room_loopback_path(const stellar::world::RuntimeWorld &world) {
-  stellar::client::LocalLoopbackRuntimeConfig config;
-  config.session.local_player_id = 11;
-  config.max_ticks_per_frame = 8;
+void assert_gameplay_room_authority_session_path(const stellar::world::RuntimeWorld &world) {
+  auto config = session_config();
+  config.local_player_id = 11;
 
-  stellar::client::LocalLoopbackRuntime runtime(world, config);
-  stellar::client::LocalLoopbackRuntime deterministic_a(world, config);
-  stellar::client::LocalLoopbackRuntime deterministic_b(world, config);
-  const auto forward_right = input_with_keys({SDL_SCANCODE_W, SDL_SCANCODE_D});
+  stellar::server::WorldSession runtime(world, config);
+  stellar::server::WorldSession deterministic_a(world, config);
+  stellar::server::WorldSession deterministic_b(world, config);
+  const std::vector<stellar::server::PlayerCommand> forward_right{{
+      .player_id = 11,
+      .movement = {.wish_direction = {1.0F, 1.0F, 0.0F}},
+  }};
 
-  auto previous = runtime.latest_snapshot();
+  auto previous = runtime.snapshot();
   assert(previous.players.size() == 1);
   assert(previous.players[0].position == (std::array<float, 3>{0.0F, 0.0F, 36.0F}));
 
   for (int i = 0; i < 8; ++i) {
-    const auto frame = runtime.update(forward_right, 1.0F / 60.0F);
-    assert(frame.ticks_run == 1);
-    assert(frame.snapshot.players.size() == 1);
-    previous = frame.snapshot;
+    previous = runtime.tick(forward_right);
+    assert(previous.players.size() == 1);
 
-    const auto a = deterministic_a.update(forward_right, 1.0F / 60.0F);
-    const auto b = deterministic_b.update(forward_right, 1.0F / 60.0F);
-    assert_same_snapshot(a.snapshot, b.snapshot);
+    const auto a = deterministic_a.tick(forward_right);
+    const auto b = deterministic_b.tick(forward_right);
+    assert_same_snapshot(a, b);
   }
 
   const auto &moved_player = previous.players[0];
@@ -243,23 +223,32 @@ void assert_gameplay_room_loopback_path(const stellar::world::RuntimeWorld &worl
   assert(moved_player.position[2] >= 16.0F);
   assert(moved_player.position[2] <= 80.0F);
 
-  const auto right = input_with_keys({SDL_SCANCODE_D});
+  const std::vector<stellar::server::PlayerCommand> right{{
+      .player_id = 11,
+      .movement = {.wish_direction = {1.0F, 0.0F, 0.0F}},
+  }};
   for (int i = 0; i < 120; ++i) {
-    previous = runtime.update(right, 1.0F / 60.0F).snapshot;
+    previous = runtime.tick(right);
   }
   assert(previous.players[0].position[0] <= 80.01F);
   assert(previous.players[0].position[0] >= -80.01F);
 
-  const auto left = input_with_keys({SDL_SCANCODE_A});
+  const std::vector<stellar::server::PlayerCommand> left{{
+      .player_id = 11,
+      .movement = {.wish_direction = {-1.0F, 0.0F, 0.0F}},
+  }};
   for (int i = 0; i < 240; ++i) {
-    previous = runtime.update(left, 1.0F / 60.0F).snapshot;
+    previous = runtime.tick(left);
   }
   assert(previous.players[0].position[0] >= -80.01F);
   assert(previous.players[0].position[0] <= 80.01F);
 
-  const auto forward = input_with_keys({SDL_SCANCODE_W});
+  const std::vector<stellar::server::PlayerCommand> forward{{
+      .player_id = 11,
+      .movement = {.wish_direction = {0.0F, 1.0F, 0.0F}},
+  }};
   for (int i = 0; i < 240; ++i) {
-    previous = runtime.update(forward, 1.0F / 60.0F).snapshot;
+    previous = runtime.tick(forward);
   }
   assert(previous.players[0].position[1] >= -80.01F);
   assert(previous.players[0].position[1] <= 80.01F);
@@ -273,7 +262,7 @@ void assert_gameplay_room_path() {
 
   const auto world = stellar::world::build_runtime_world(*level);
   assert_gameplay_room_import(*level, world);
-  assert_gameplay_room_loopback_path(world);
+  assert_gameplay_room_authority_session_path(world);
 }
 
 } // namespace

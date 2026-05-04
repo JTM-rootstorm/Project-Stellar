@@ -6,19 +6,8 @@
 
 namespace {
 
-stellar::server::GameplayEntity make_entity(stellar::server::EntityKind kind, bool active = true) {
-    stellar::server::GameplayEntity entity;
-    entity.id = 7;
-    entity.kind = kind;
-    entity.active = active;
-    entity.transform.position = {1.0F, 2.0F, 3.0F};
-    entity.metadata.size = {12.0F, 18.0F, 0.0F};
-    entity.metadata.alpha = 0.75F;
-    return entity;
-}
-
 stellar::network::NetworkGameplayEntity make_network_entity(stellar::network::EntityKind kind,
-                                                            bool active = true) {
+                                                             bool active = true) {
     stellar::network::NetworkGameplayEntity entity;
     entity.id = 7;
     entity.kind = kind;
@@ -30,8 +19,8 @@ stellar::network::NetworkGameplayEntity make_network_entity(stellar::network::En
 }
 
 void active_sprite_converts_to_billboard() {
-    stellar::server::WorldSnapshot snapshot;
-    snapshot.gameplay_world.entities.push_back(make_entity(stellar::server::EntityKind::kSprite));
+    stellar::network::NetworkWorldSnapshot snapshot;
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kSprite));
 
     const auto frame = stellar::client::make_gameplay_presentation_frame(snapshot);
 
@@ -43,10 +32,9 @@ void active_sprite_converts_to_billboard() {
 }
 
 void active_pickup_uses_pickup_color_and_inactive_pickup_is_filtered() {
-    stellar::server::WorldSnapshot snapshot;
-    snapshot.gameplay_world.entities.push_back(make_entity(stellar::server::EntityKind::kPickup));
-    snapshot.gameplay_world.entities.push_back(
-        make_entity(stellar::server::EntityKind::kPickup, false));
+    stellar::network::NetworkWorldSnapshot snapshot;
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kPickup));
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kPickup, false));
 
     const auto frame = stellar::client::make_gameplay_presentation_frame(snapshot);
 
@@ -57,10 +45,10 @@ void active_pickup_uses_pickup_color_and_inactive_pickup_is_filtered() {
 }
 
 void door_marker_requires_debug_flag_and_tracks_open_state() {
-    stellar::server::WorldSnapshot snapshot;
-    auto door = make_entity(stellar::server::EntityKind::kDoor);
+    stellar::network::NetworkWorldSnapshot snapshot;
+    auto door = make_network_entity(stellar::network::EntityKind::kDoor);
     door.open = true;
-    snapshot.gameplay_world.entities.push_back(door);
+    snapshot.entities.push_back(door);
 
     assert(stellar::client::make_gameplay_presentation_frame(snapshot).sprites.empty());
 
@@ -77,12 +65,12 @@ void door_marker_requires_debug_flag_and_tracks_open_state() {
 void unknown_metadata_uses_finite_defaults() {
     const float nan = std::numeric_limits<float>::quiet_NaN();
     const float inf = std::numeric_limits<float>::infinity();
-    stellar::server::WorldSnapshot snapshot;
-    auto sprite = make_entity(stellar::server::EntityKind::kSprite);
+    stellar::network::NetworkWorldSnapshot snapshot;
+    auto sprite = make_network_entity(stellar::network::EntityKind::kSprite);
     sprite.transform.position = {nan, inf, -4.0F};
     sprite.metadata.size = {nan, -1.0F, inf};
     sprite.metadata.alpha = inf;
-    snapshot.gameplay_world.entities.push_back(sprite);
+    snapshot.entities.push_back(sprite);
 
     const auto frame = stellar::client::make_gameplay_presentation_frame(snapshot);
 
@@ -101,18 +89,17 @@ void unknown_metadata_uses_finite_defaults() {
 }
 
 void non_presented_entity_kinds_are_hidden_by_default() {
-    stellar::server::WorldSnapshot snapshot;
-    snapshot.gameplay_world.entities.push_back(make_entity(stellar::server::EntityKind::kPlayer));
-    snapshot.gameplay_world.entities.push_back(make_entity(stellar::server::EntityKind::kTrigger));
-    snapshot.gameplay_world.entities.push_back(
-        make_entity(stellar::server::EntityKind::kObjectCollider));
+    stellar::network::NetworkWorldSnapshot snapshot;
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kPlayer));
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kTrigger));
+    snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kObjectCollider));
 
     const auto frame = stellar::client::make_gameplay_presentation_frame(snapshot);
 
     assert(frame.sprites.empty());
 }
 
-void network_snapshot_overload_matches_server_snapshot_behavior() {
+void network_snapshot_presents_supported_entities() {
     stellar::network::NetworkWorldSnapshot snapshot;
     snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kSprite));
     snapshot.entities.push_back(make_network_entity(stellar::network::EntityKind::kPickup));
@@ -141,6 +128,6 @@ int main() {
     door_marker_requires_debug_flag_and_tracks_open_state();
     unknown_metadata_uses_finite_defaults();
     non_presented_entity_kinds_are_hidden_by_default();
-    network_snapshot_overload_matches_server_snapshot_behavior();
+    network_snapshot_presents_supported_entities();
     return 0;
 }

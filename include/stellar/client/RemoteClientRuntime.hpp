@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "stellar/client/ClientRuntime.hpp"
 #include "stellar/client/ClientWorldReceiver.hpp"
@@ -12,22 +13,8 @@
 #include "stellar/network/Session.hpp"
 #include "stellar/network/Transport.hpp"
 #include "stellar/platform/Input.hpp"
-#include "stellar/server/ServerRuntime.hpp"
-#include "stellar/world/RuntimeWorld.hpp"
 
 namespace stellar::client {
-
-/** @brief Configuration for local mapped play over the transport/receiver path. */
-struct NetworkedClientRuntimeConfig {
-    /** @brief Authoritative server runtime configuration. */
-    stellar::server::ServerRuntimeConfig server{};
-
-    /** @brief Input mapper configuration used to convert client input to network commands. */
-    MovementInputMapperConfig input_mapper{};
-
-    /** @brief Look mapper configuration used to submit authoritative view angles. */
-    LookInputMapperConfig look_mapper{};
-};
 
 /** @brief Configuration for socket-backed remote presentation client mode. */
 struct RemoteClientRuntimeConfig {
@@ -45,62 +32,6 @@ struct RemoteClientRuntimeConfig {
 
     /** @brief Look mapper configuration used to submit authoritative view angles. */
     LookInputMapperConfig look_mapper{};
-};
-
-/**
- * @brief Client-owned local networked runtime for mapped play.
- *
- * The runtime sends local input through a loopback ClientTransport, pumps a server-authoritative
- * server runtime, drains ClientWorldReceiver, and exposes only latest authoritative network
- * snapshots for presentation. It performs no prediction or reconciliation.
- */
-class NetworkedClientRuntime : public IClientRuntime {
-public:
-    /** @brief Construct a local networked runtime over caller-owned backend-neutral world data. */
-    explicit NetworkedClientRuntime(const stellar::world::RuntimeWorld& world,
-                                    NetworkedClientRuntimeConfig config = {});
-
-    /** @brief Construct a local networked runtime over preloaded scripted authority. */
-    explicit NetworkedClientRuntime(stellar::scripting::ScriptedWorldSession scripted_session,
-                                    NetworkedClientRuntimeConfig config = {});
-
-    /** @brief Submit local input, pump authority, and drain authoritative network state. */
-    [[nodiscard]] NetworkedClientFrameResult update(const stellar::platform::Input& input,
-                                                    float delta_seconds) noexcept override;
-
-    /** @brief Return the temporary local mapped runtime mode for presentation dispatch. */
-    [[nodiscard]] ClientRuntimeMode mode() const noexcept override;
-
-    /** @brief Return the latest received authoritative network snapshot, if any. */
-    [[nodiscard]] const std::optional<stellar::network::NetworkWorldSnapshot>& latest_snapshot()
-        const noexcept;
-
-    /** @brief Return the local player id assigned for this local transport phase. */
-    [[nodiscard]] stellar::network::PlayerId local_player_id() const noexcept;
-
-    /** @brief Return the current client-side session lifecycle state. */
-    [[nodiscard]] stellar::network::SessionState session_state() const noexcept;
-
-    /** @brief Return the next command sequence value that will be assigned. */
-    [[nodiscard]] std::uint64_t next_command_sequence() const noexcept;
-
-    /** @brief Test hook: decode one authoritative packet through the receiver without crashing. */
-    [[nodiscard]] ClientWorldReceiverDrainResult accept_authoritative_packet_for_test(
-        const stellar::network::TransportPacket& packet) noexcept;
-
-private:
-    /** @brief Encode and send the deterministic session hello over the local transport. */
-    void send_client_hello() noexcept;
-
-    NetworkedClientRuntimeConfig config_{};
-    stellar::network::LoopbackTransportPair transport_{};
-    stellar::server::ServerRuntime server_;
-    ClientWorldReceiver receiver_{};
-    std::uint64_t next_command_sequence_ = 1;
-    stellar::network::SessionState session_state_ = stellar::network::SessionState::kConnecting;
-    stellar::network::PlayerId assigned_player_id_ = 0;
-    ClientViewState view_state_{};
-    std::vector<std::string> pending_diagnostics_;
 };
 
 /**
@@ -126,11 +57,11 @@ public:
     RemoteClientRuntime(RemoteClientRuntime&& other) noexcept = default;
     /** @brief Move-assign a remote runtime and its transport/receiver ownership. */
     RemoteClientRuntime& operator=(RemoteClientRuntime&& other) noexcept = default;
-    ~RemoteClientRuntime() = default;
+    ~RemoteClientRuntime() override = default;
 
     /** @brief Submit input when accepted, drain authoritative network state, and expose events. */
-    [[nodiscard]] NetworkedClientFrameResult update(const stellar::platform::Input& input,
-                                                    float delta_seconds) noexcept override;
+    [[nodiscard]] ClientRuntimeFrame update(const stellar::platform::Input& input,
+                                            float delta_seconds) noexcept override;
 
     /** @brief Return the remote client runtime mode for presentation dispatch. */
     [[nodiscard]] ClientRuntimeMode mode() const noexcept override;
