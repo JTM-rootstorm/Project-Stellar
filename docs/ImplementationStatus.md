@@ -9,7 +9,7 @@ Status: complete through KV-5 as of 2026-05-04.
 
 Completed handoff plan:
 
-- `Plans/kill_vulkan/00-MASTER-KillVulkan-Codex-AgentPlan.md`
+- `Plans/Archived/kill_vulkan/00-MASTER-KillVulkan-Codex-AgentPlan.md`
 
 ### Current Renderer Summary
 
