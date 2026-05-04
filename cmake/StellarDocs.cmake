@@ -5,11 +5,12 @@ find_package(Doxygen QUIET)
 if(STELLAR_BUILD_DOCS AND DOXYGEN_FOUND)
     set(STELLAR_DOXYGEN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/docs/doxygen")
     set(STELLAR_DOXYGEN_WARN_LOG "${CMAKE_BINARY_DIR}/docs/doxygen-warnings.log")
-    set(STELLAR_DOXYGEN_MAINPAGE "${CMAKE_SOURCE_DIR}/README.md")
+    set(STELLAR_DOXYGEN_MAINPAGE "${CMAKE_SOURCE_DIR}/docs/DoxygenMainPage.md")
 
     set(STELLAR_DOXYGEN_INPUT_PATHS
         "${CMAKE_SOURCE_DIR}/include/stellar"
         "${CMAKE_SOURCE_DIR}/README.md"
+        "${CMAKE_SOURCE_DIR}/docs/DoxygenMainPage.md"
         "${CMAKE_SOURCE_DIR}/docs/Design.md"
         "${CMAKE_SOURCE_DIR}/docs/ImplementationStatus.md"
         "${CMAKE_SOURCE_DIR}/docs/BspAuthoring.md"
