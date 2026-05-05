@@ -52,10 +52,16 @@ struct RenderLevelFrame {
  */
 class RenderLevel {
 public:
+  /** @brief Construct an empty runtime level with no uploaded graphics resources. */
   RenderLevel() noexcept = default;
+
+  /** @brief Release GPU handles owned by this runtime level. */
   ~RenderLevel() noexcept;
 
+  /** @brief Runtime levels own GPU handles and cannot be copied. */
   RenderLevel(const RenderLevel &) = delete;
+
+  /** @brief Runtime levels own GPU handles and cannot be copy-assigned. */
   RenderLevel &operator=(const RenderLevel &) = delete;
 
   /**

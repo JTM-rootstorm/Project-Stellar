@@ -28,34 +28,64 @@ inline constexpr ProtocolVersion kCurrentProtocolVersion = 1;
 
 /** @brief Client-to-server transport message categories. */
 enum class ClientMessageType : std::uint8_t {
+    /** @brief Client movement/view intent that must be validated by authority. */
     kInputCommand = 1,
+
+    /** @brief Session handshake request sent before authoritative input is accepted. */
     kClientHello = 2,
 };
 
 /** @brief Server-to-client transport message categories. */
 enum class ServerMessageType : std::uint8_t {
+    /** @brief Session handshake response accepting or rejecting the client. */
     kWelcome = 1,
+
+    /** @brief Complete authoritative world snapshot for client presentation. */
     kWorldSnapshot = 2,
+
+    /** @brief Delta from an explicit authoritative snapshot baseline. */
     kWorldDelta = 3,
+
+    /** @brief Server-approved gameplay event intended for presentation systems. */
     kGameplayEvent = 4,
 };
 
 /** @brief Current deterministic client/server session lifecycle state. */
 enum class SessionState : std::uint8_t {
+    /** @brief No active transport session exists. */
     kDisconnected,
+
+    /** @brief Client hello has been sent or a connection attempt is in progress. */
     kConnecting,
+
+    /** @brief Session handshake succeeded and authoritative messages may flow. */
     kConnected,
+
+    /** @brief Server rejected the session deterministically. */
     kRejected,
+
+    /** @brief Session expired after transport or authority progress stopped. */
     kTimedOut,
 };
 
 /** @brief Minimal protocol gameplay entity category. */
 enum class EntityKind : std::uint8_t {
+    /** @brief Authoritative player-controlled entity. */
     kPlayer,
+
+    /** @brief Presentation billboard or authored sprite marker. */
     kSprite,
+
+    /** @brief Authority-owned pickup entity that can emit collection events. */
     kPickup,
+
+    /** @brief Authority-owned door or gate entity with open/closed state. */
     kDoor,
+
+    /** @brief Authored trigger volume represented in protocol metadata. */
     kTrigger,
+
+    /** @brief Authored object-collider marker exposed to protocol consumers. */
     kObjectCollider,
 };
 
@@ -235,9 +265,16 @@ struct NetworkWorldSnapshot {
 
 /** @brief Server-authored gameplay/presentation event categories. */
 enum class GameplayEventKind : std::uint8_t {
+    /** @brief Authority confirmed a pickup collection. */
     kPickupCollected = 1,
+
+    /** @brief Authority changed a door or gate open state. */
     kDoorStateChanged = 2,
+
+    /** @brief Authority applied a scripted command result. */
     kScriptCommandApplied = 3,
+
+    /** @brief Authority surfaced a deterministic script error diagnostic. */
     kScriptError = 4,
 };
 

@@ -16,8 +16,11 @@ struct RuntimeWorld;
 
 /** @brief Backend-neutral runtime collider shape kind for kinematic objects. */
 enum class ObjectColliderShapeType {
+    /** @brief Spherical overlap volume. */
     kSphere,
+    /** @brief Axis-aligned box overlap volume. */
     kAabb,
+    /** @brief Vertical capsule overlap volume. */
     kCapsule,
 };
 
@@ -77,7 +80,9 @@ struct ObjectColliderOverlapEvent {
 
 /** @brief Severity for deterministic object-collider diagnostics. */
 enum class ObjectColliderDiagnosticSeverity {
+    /** @brief Non-fatal object-collider authoring or runtime issue. */
     kWarning,
+    /** @brief Fatal object-collider issue that should block authoritative use. */
     kError,
 };
 

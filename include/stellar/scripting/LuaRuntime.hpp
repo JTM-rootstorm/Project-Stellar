@@ -43,7 +43,9 @@ public:
     /** @brief Destroy the Lua state and all loaded script data. */
     ~LuaRuntime() noexcept;
 
+    /** @brief Copying is disabled because the restricted Lua state has unique ownership. */
     LuaRuntime(const LuaRuntime&) = delete;
+    /** @brief Copy assignment is disabled because the Lua runtime owns one script state. */
     LuaRuntime& operator=(const LuaRuntime&) = delete;
     /** @brief Move a Lua runtime, transferring state ownership. */
     LuaRuntime(LuaRuntime&& other) noexcept;

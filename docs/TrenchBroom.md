@@ -396,7 +396,7 @@ Negative source fixtures are: `invalid_script_escape_zup`, `invalid_incomplete_b
 <!-- STELLAR_TRENCHBROOM_FIXTURE_SUMMARY_END -->
 
 A full manual QA checklist/reporting template is available in
-[`docs/TrenchBroomManualQA.md`](TrenchBroomManualQA.md).
+<a href="TrenchBroomManualQA.md">`docs/TrenchBroomManualQA.md`</a>.
 
 Generated fixture policy:
 

@@ -12,6 +12,7 @@ namespace stellar::platform {
  */
 class Input {
 public:
+    /** @brief Construct an input tracker with all keys, buttons, and deltas cleared. */
     Input() noexcept = default;
 
     /**

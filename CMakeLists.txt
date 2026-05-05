@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
-project(StellarEngine VERSION 0.2.1 LANGUAGES C CXX)
+project(StellarEngine VERSION 0.3.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(CTest)
+include(cmake/StellarDocs.cmake)
 
 # Find packages
 find_package(PkgConfig REQUIRED)

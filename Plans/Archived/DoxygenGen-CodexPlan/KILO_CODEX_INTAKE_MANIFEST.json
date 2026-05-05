@@ -1,0 +1,51 @@
+{
+  "target_branch": "doxygen-gen",
+  "repo": "JTM-rootstorm/Project-Stellar",
+  "master_index": "00-MASTER-DoxygenGen-CodexPlan.md",
+  "phase_files": [
+    {
+      "phase": "DG-0",
+      "title": "Baseline Audit and Branch Safety",
+      "file": "DG-0-Baseline-Audit-and-Branch-Safety.md"
+    },
+    {
+      "phase": "DG-1",
+      "title": "Add Doxygen Configuration and CMake Docs Target",
+      "file": "DG-1-Add-Doxygen-Configuration-and-CMake-Docs-Target.md"
+    },
+    {
+      "phase": "DG-2",
+      "title": "Doxygen Site Structure and Markdown Inclusion",
+      "file": "DG-2-Doxygen-Site-Structure-and-Markdown-Inclusion.md"
+    },
+    {
+      "phase": "DG-3",
+      "title": "Public Header Documentation Audit and Minimal Gap Fill",
+      "file": "DG-3-Public-Header-Documentation-Audit-and-Minimal-Gap-Fill.md"
+    },
+    {
+      "phase": "DG-4",
+      "title": "Documentation Validation and Warning Policy",
+      "file": "DG-4-Documentation-Validation-and-Warning-Policy.md"
+    },
+    {
+      "phase": "DG-5",
+      "title": "Clarify Documentation Policy in Active Docs",
+      "file": "DG-5-Clarify-Documentation-Policy-in-Active-Docs.md"
+    },
+    {
+      "phase": "DG-6",
+      "title": "Final Validation, Audit, and Handoff",
+      "file": "DG-6-Final-Validation-Audit-and-Handoff.md"
+    }
+  ],
+  "recommended_order": [
+    "DG-0",
+    "DG-1",
+    "DG-2",
+    "DG-3",
+    "DG-4",
+    "DG-5",
+    "DG-6"
+  ]
+}

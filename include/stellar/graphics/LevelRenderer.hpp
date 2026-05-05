@@ -138,7 +138,10 @@ public:
    */
   ~LevelRenderer() noexcept;
 
+  /** @brief Level renderers own uploaded level resources and cannot be copied. */
   LevelRenderer(const LevelRenderer &) = delete;
+
+  /** @brief Level renderers own uploaded level resources and cannot be copy-assigned. */
   LevelRenderer &operator=(const LevelRenderer &) = delete;
 
   /**

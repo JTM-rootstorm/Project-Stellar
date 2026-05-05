@@ -9,6 +9,7 @@
 
 namespace stellar::physics {
 
+/** @cond INTERNAL */
 namespace detail {
 
 /** @brief Internal static broadphase AABB storage. */
@@ -35,6 +36,7 @@ struct CollisionBvhNode {
 };
 
 } // namespace detail
+/** @endcond */
 
 /**
  * @brief Result of a finite segment query against static collision geometry.

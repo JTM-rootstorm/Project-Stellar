@@ -37,6 +37,7 @@ struct StaticVertex {
  * @brief Primitive topology for mesh primitives.
  */
 enum class PrimitiveTopology {
+    /** @brief Triangle-list primitive topology. */
     kTriangles,
 };
 
@@ -77,8 +78,13 @@ struct MeshPrimitive {
  * @brief Imported mesh payload.
  */
 struct MeshAsset {
+    /** @brief Stable mesh name from the source asset when available. */
     std::string name;
+
+    /** @brief Drawable primitive payloads contained by this mesh. */
     std::vector<MeshPrimitive> primitives;
+
+    /** @brief Source URI or logical asset identifier used for diagnostics. */
     std::string source_uri;
 };
 

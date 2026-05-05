@@ -82,13 +82,19 @@ using Vec3 = std::array<float, 3>;
 
 /** @brief Line segment in three-dimensional float space. */
 struct Segment3 {
+    /** @brief Segment start point. */
     Vec3 start{};
+
+    /** @brief Segment end point. */
     Vec3 end{};
 };
 
 /** @brief Axis-aligned bounding box in three-dimensional float space. */
 struct Aabb3 {
+    /** @brief Minimum corner of the box. */
     Vec3 min{};
+
+    /** @brief Maximum corner of the box. */
     Vec3 max{};
 };
 

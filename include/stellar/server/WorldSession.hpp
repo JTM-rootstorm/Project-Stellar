@@ -107,10 +107,15 @@ struct PickupCollectionResult {
 
 /** @brief Authoritative runtime state for a transformable brush model. */
 enum class BrushMoverPhase : std::uint8_t {
+    /** @brief Mover is at its imported closed transform and idle. */
     kClosed,
+    /** @brief Mover is advancing toward its server-owned open transform. */
     kOpening,
+    /** @brief Mover has reached its activated/open transform and may wait. */
     kOpen,
+    /** @brief Mover is returning toward its imported closed transform. */
     kClosing,
+    /** @brief Momentary button-style mover is pressed before returning. */
     kPressed,
 };
 

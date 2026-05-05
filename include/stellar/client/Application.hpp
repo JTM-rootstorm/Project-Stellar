@@ -20,6 +20,7 @@ namespace stellar::client {
  */
 class Application {
 public:
+    /** @brief Construct the application with default startup configuration. */
     Application() noexcept = default;
 
     /**

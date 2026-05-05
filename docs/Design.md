@@ -11,25 +11,25 @@
 
 ## Table of Contents
 
-1. [Project Overview](#1-project-overview)
-2. [Documentation Authority](#2-documentation-authority)
-3. [Current Branch Direction](#3-current-branch-direction)
-4. [System Architecture](#4-system-architecture)
-5. [Core Engine Subsystem](#5-core-engine-subsystem)
-6. [Asset, Import, and World Authoring](#6-asset-import-and-world-authoring)
-7. [Graphics Subsystem](#7-graphics-subsystem)
-8. [Audio Subsystem](#8-audio-subsystem)
-9. [Entity Component System](#9-entity-component-system)
-9.5. [Server-Authoritative Scripting](#95-server-authoritative-scripting)
-10. [Networking and Client-Server Model](#10-networking-and-client-server-model)
-11. [Build System and Dependencies](#11-build-system-and-dependencies)
-12. [Directory Structure](#12-directory-structure)
-13. [Team Responsibilities and Agent Boundaries](#13-team-responsibilities-and-agent-boundaries)
-14. [Development Guidelines](#14-development-guidelines)
-15. [Documentation Standards](#15-documentation-standards)
-16. [Testing Strategy](#16-testing-strategy)
-17. [Roadmap and Deferred Work](#17-roadmap-and-deferred-work)
-18. [Change Log](#18-change-log)
+1. <a href="#1-project-overview">Project Overview</a>
+2. <a href="#2-documentation-authority">Documentation Authority</a>
+3. <a href="#3-current-branch-direction">Current Branch Direction</a>
+4. <a href="#4-system-architecture">System Architecture</a>
+5. <a href="#5-core-engine-subsystem">Core Engine Subsystem</a>
+6. <a href="#6-asset-import-and-world-authoring">Asset, Import, and World Authoring</a>
+7. <a href="#7-graphics-subsystem">Graphics Subsystem</a>
+8. <a href="#8-audio-subsystem">Audio Subsystem</a>
+9. <a href="#9-entity-component-system">Entity Component System</a>
+9.5. <a href="#95-server-authoritative-scripting">Server-Authoritative Scripting</a>
+10. <a href="#10-networking-and-client-server-model">Networking and Client-Server Model</a>
+11. <a href="#11-build-system-and-dependencies">Build System and Dependencies</a>
+12. <a href="#12-directory-structure">Directory Structure</a>
+13. <a href="#13-team-responsibilities-and-agent-boundaries">Team Responsibilities and Agent Boundaries</a>
+14. <a href="#14-development-guidelines">Development Guidelines</a>
+15. <a href="#15-documentation-standards">Documentation Standards</a>
+16. <a href="#16-testing-strategy">Testing Strategy</a>
+17. <a href="#17-roadmap-and-deferred-work">Roadmap and Deferred Work</a>
+18. <a href="#18-change-log">Change Log</a>
 
 ---
 
@@ -1141,6 +1141,15 @@ Long-term direction:
 ---
 
 ## 15. Documentation Standards
+
+### 15.0 Documentation Model
+
+Generated Doxygen documentation is the public C++ API reference for headers under
+`include/stellar/**`. Active Markdown files remain the source for architecture, current
+implementation status, authoring workflows, validation runbooks, and implementation handoff notes.
+
+Do not migrate active Markdown docs into C++ comments. Instead, include selected Markdown pages in
+the generated Doxygen site and keep API details documented near public declarations.
 
 ### 15.1 Public API Documentation
 

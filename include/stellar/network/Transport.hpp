@@ -11,7 +11,10 @@ namespace stellar::network {
 
 /** @brief Transport delivery class requested by the message path. */
 enum class TransportChannel : std::uint8_t {
+    /** @brief Ordered delivery path used for authoritative session and snapshot messages. */
     kReliable = 0,
+
+    /** @brief Best-effort delivery path reserved for latency-sensitive future messages. */
     kUnreliable = 1,
 };
 
@@ -36,6 +39,7 @@ struct TransportError {
 /** @brief Client-side endpoint for transport-neutral message exchange. */
 class ClientTransport {
 public:
+    /** @brief Destroy a client transport through the transport-neutral interface. */
     virtual ~ClientTransport() = default;
 
     /** @brief Queue one packet for delivery to the authoritative server endpoint. */
@@ -49,6 +53,7 @@ public:
 /** @brief Server-side endpoint for transport-neutral message exchange. */
 class ServerTransport {
 public:
+    /** @brief Destroy a server transport through the transport-neutral interface. */
     virtual ~ServerTransport() = default;
 
     /** @brief Drain packets delivered by the client endpoint. */

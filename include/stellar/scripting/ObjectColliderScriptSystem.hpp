@@ -14,8 +14,11 @@ namespace stellar::scripting {
 
 /** @brief Object-collider callback phase exposed to Lua scripts. */
 enum class ObjectColliderScriptPhase {
+    /** @brief Authoritative player collider entered the object collider this tick. */
     kEnter,
+    /** @brief Authoritative player collider remained inside the object collider this tick. */
     kStay,
+    /** @brief Authoritative player collider exited the object collider this tick. */
     kExit,
 };
 

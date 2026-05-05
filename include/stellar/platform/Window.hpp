@@ -20,15 +20,22 @@ class Input;
  */
 class Window {
 public:
+    /** @brief Construct an empty window wrapper with no native SDL window. */
     Window() noexcept = default;
+
+    /** @brief Destroy any owned native SDL window. */
     ~Window() noexcept;
 
-    // Non-copyable
+    /** @brief Windows own native OS resources and cannot be copied. */
     Window(const Window&) = delete;
+
+    /** @brief Windows own native OS resources and cannot be copy-assigned. */
     Window& operator=(const Window&) = delete;
 
-    // Movable
+    /** @brief Move ownership of a native SDL window from another wrapper. */
     Window(Window&& other) noexcept;
+
+    /** @brief Move-assign ownership of a native SDL window from another wrapper. */
     Window& operator=(Window&& other) noexcept;
 
     /**
