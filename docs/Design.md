@@ -587,11 +587,17 @@ and no-op fallback paths where appropriate.
 Audio should be implemented through an interface that keeps gameplay/server logic separate from
 presentation playback. The client owns playback; gameplay/server systems should produce validated
 events or state that the client can present.
-The current presentation polish includes a narrow `AudioEventRouter` that maps pickup/door events and
-optional script-error diagnostics from server-approved `GameplayEvent` records to one-shot sound ids.
-It targets an abstract request sink; production has `NoOpAudioRequestSink`, while fake sinks are
-test-only. Missing sound diagnostics are sink-contract/test-fake behavior and do not imply production
-miniaudio playback or local asset loading yet. Audio never affects authoritative gameplay.
+The current presentation polish includes a narrow `AudioEventRouter` that maps pickup/door/footstep
+events and optional script-error diagnostics from server-approved `GameplayEvent` records to one-shot
+sound ids. Footstep events are emitted by authoritative grounded movement cadence; the surface
+category comes from BSP source texture/material names carried on collision triangles through a small
+server-safe resolver. Optional `.stellar_material` render sidecars remain presentation-only and are
+not an authoritative input for footstep gameplay.
+
+`AudioEventRouter` targets an abstract request sink; production has `NoOpAudioRequestSink`, while fake
+sinks are test-only. Missing sound diagnostics are sink-contract/test-fake behavior and do not imply
+production miniaudio playback or local asset loading yet. Generated retro footstep WAVs are
+placeholder presentation assets for the current slice. Audio never affects authoritative gameplay.
 
 ### 8.2 miniaudio Target
 

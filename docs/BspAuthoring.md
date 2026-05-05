@@ -125,6 +125,31 @@ python3 tools/bsp/validate_trenchbroom_map_source.py maps/src/test_room.map
 
 The compile wrappers run this automatically unless `--skip-source-preflight` is passed.
 
+## Footstep surface audio
+
+Footstep sound categories are derived from BSP source texture/material names, not from
+`.stellar_material` sidecars. During import, collision triangles preserve the source texture/material
+name and a small resolved footstep surface id. Authoritative movement uses that collision metadata to
+emit server-approved footstep presentation events.
+
+Current resolver categories:
+
+| Source texture/material tokens | Footstep surface id |
+| --- | --- |
+| `metal`, `grate`, `pipe`, `vent` | `metal` |
+| `wood`, `plank`, `crate`, `board` | `wood` |
+| `stone`, `rock`, `brick`, `tile` | `stone` |
+| `dirt`, `mud`, `soil`, `sand` | `dirt` |
+| `grass`, `moss`, `foliage` | `grass` |
+| `water`, `slime`, `liquid` | `water` |
+| `concrete`, `cement`, `asphalt`, `dev/grid`, `stellar_dev_grid` | `concrete` |
+| anything unknown or empty | `generic` |
+
+To add a new footstep surface id, update the resolver mapping, add generated or authored one-shot
+sounds, add an `AudioEventRouter` mapping/test, and add an importer or pipeline test that proves a
+BSP source texture reaches the expected surface id. Default validation remains display-free; audible
+playback checks are optional manual smoke tests.
+
 ## Runtime brush entities and target routing
 
 `func_wall` imports as a visible, solid static brush entity. `func_illusionary` imports as visible brush

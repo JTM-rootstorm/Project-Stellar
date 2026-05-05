@@ -34,7 +34,7 @@ grounded movement cadence, and routing those events to generated retro one-shot 
 - [x] AF-1 - Collision surface identity and footstep surface resolver.
 - [x] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
 - [x] AF-3 - Presentation audio routing and generated retro footstep sounds.
-- [ ] AF-4 - End-to-end display-free hardening and documentation.
+- [x] AF-4 - End-to-end display-free hardening and documentation.
 
 ### AF-1 Collision Surface Metadata Summary
 
@@ -77,6 +77,16 @@ Generated retro placeholder WAV one-shots live under `assets/audio/footsteps/gen
 reproducible through `tools/audio/generate_retro_footsteps.py`. Default tests validate routing and
 asset presence without requiring an audio device. A miniaudio sink remains out of scope for this
 phase; existing no-op/fake sinks cover default validation.
+
+### AF-4 End-To-End Hardening Summary
+
+Status: complete as of 2026-05-04.
+
+The final display-free pipeline coverage builds synthetic collision floors with concrete and metal
+surface metadata, advances authoritative movement until server footstep events are emitted, converts
+those events through the protocol gameplay event path, and routes them through `AudioEventRouter` to
+the expected generated sound prefixes. Authoring docs now describe footstep surface categories and the
+resolver workflow for adding new categories.
 
 ## Completed Scope — Doxygen Generation
 

@@ -23,7 +23,7 @@ Active phase checklist:
 - [x] AF-1 - Collision surface identity and footstep surface resolver.
 - [x] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
 - [x] AF-3 - Presentation audio routing and generated retro footstep sounds.
-- [ ] AF-4 - End-to-end display-free hardening and documentation.
+- [x] AF-4 - End-to-end display-free hardening and documentation.
 
 Default validation remains display-free. Generated retro WAV one-shots are acceptable placeholder
 assets for this slice. Footsteps remain server-approved presentation events; no renderer, HUD, audio
