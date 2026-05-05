@@ -3,3 +3,4 @@ build
 build-*
 *.patch
 maps
+.DS_Store
