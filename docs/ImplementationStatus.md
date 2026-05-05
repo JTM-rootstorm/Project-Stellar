@@ -52,9 +52,7 @@ Result: configure passed, full build passed, full CTest passed 98/98, Doxygen ge
 generated HTML was present only under the build tree, docs consistency passed, and target boundary
 checks passed.
 
-Remaining Doxygen warnings: 53 lines in `build/docs/doxygen-warnings.log`. The remaining categories
-are Markdown anchor/reference warnings in `docs/Design.md` and `docs/TrenchBroom.md`, plus a small
-set of undocumented graphics texture-upload and physics detail members in public headers.
+Remaining Doxygen warnings: none.
 
 ## Completed Scope — Vulkan Removal
 
