@@ -146,6 +146,15 @@ void assert_same_snapshot(const stellar::server::WorldSnapshot& a,
         assert(a.object_collider_events[i].stayed == b.object_collider_events[i].stayed);
         assert(a.object_collider_events[i].exited == b.object_collider_events[i].exited);
     }
+    assert(a.footstep_events.size() == b.footstep_events.size());
+    for (std::size_t i = 0; i < a.footstep_events.size(); ++i) {
+        assert(a.footstep_events[i].tick == b.footstep_events[i].tick);
+        assert(a.footstep_events[i].player_id == b.footstep_events[i].player_id);
+        assert(a.footstep_events[i].entity_id == b.footstep_events[i].entity_id);
+        assert(a.footstep_events[i].surface_id == b.footstep_events[i].surface_id);
+        assert(a.footstep_events[i].source_material_name ==
+               b.footstep_events[i].source_material_name);
+    }
 }
 
 stellar::world::ObjectCollider sphere_collider(std::uint32_t id,
@@ -501,6 +510,41 @@ void world_session_collision_state_resets_with_world() {
     assert(new_name.applied);
 }
 
+void grounded_movement_emits_footstep_surface_event_once_per_tick() {
+    auto floor = triangle({-10.0F, -10.0F, 0.0F}, {10.0F, -10.0F, 0.0F},
+                          {10.0F, 10.0F, 0.0F}, {0.0F, 0.0F, 1.0F});
+    auto floor_b = triangle({-10.0F, -10.0F, 0.0F}, {10.0F, 10.0F, 0.0F},
+                            {-10.0F, 10.0F, 0.0F}, {0.0F, 0.0F, 1.0F});
+    floor.surface.source_material_name = "wood/plank_01";
+    floor.surface.footstep_surface_id = "wood";
+    floor_b.surface = floor.surface;
+    const auto scene =
+        scene_with_collision_and_markers({floor, floor_b}, {player_spawn({0.0F, 0.0F, 0.55F})});
+    const auto world = stellar::world::build_runtime_world(scene);
+    auto config = test_session_config();
+    config.movement.gravity = 24.0F;
+    config.movement.character.ground_snap_distance = 0.2F;
+    config.footsteps.min_horizontal_speed = 0.0F;
+    config.footsteps.walk_step_distance = 0.01F;
+    config.footsteps.run_step_distance = 0.01F;
+    stellar::server::WorldSession session(world, config);
+    const std::array commands{stellar::server::PlayerCommand{
+        .player_id = config.local_player_id,
+        .movement = stellar::server::MovementCommand{.wish_direction = {1.0F, 0.0F, 0.0F}}}};
+
+    stellar::server::WorldSnapshot moved;
+    for (int tick = 0; tick < 3 && moved.footstep_events.empty(); ++tick) {
+        moved = session.tick(commands);
+    }
+
+    assert(moved.footstep_events.size() == 1);
+    assert(moved.footstep_events[0].tick == moved.tick);
+    assert(moved.footstep_events[0].player_id == config.local_player_id);
+    assert(moved.footstep_events[0].surface_id == "wood");
+    assert(moved.footstep_events[0].source_material_name == "wood/plank_01");
+    assert(session.snapshot().footstep_events.empty());
+}
+
 void snapshot_does_not_apply_or_replay_collision_mutation() {
     const auto scene = scene_with_named_collision_meshes("Gate", 0.8F, {0.0F, 0.0F, 0.5F});
     const auto world = stellar::world::build_runtime_world(scene);
@@ -687,6 +731,7 @@ int main() {
     same_inputs_produce_same_snapshots();
     world_session_disabled_mesh_affects_next_tick();
     world_session_collision_state_resets_with_world();
+    grounded_movement_emits_footstep_surface_event_once_per_tick();
     snapshot_does_not_apply_or_replay_collision_mutation();
     same_collision_state_and_inputs_produce_same_snapshots();
     func_door_target_moves_collision_and_snapshot_transform();

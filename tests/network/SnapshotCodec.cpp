@@ -120,6 +120,36 @@ void gameplay_event_round_trip() {
     assert(decoded->message == event.message);
 }
 
+void footstep_gameplay_event_round_trip() {
+    stellar::network::GameplayEvent event{.kind = stellar::network::GameplayEventKind::kFootstep,
+                                          .tick = 123,
+                                          .entity_id = 99,
+                                          .player_id = 7,
+                                          .code = "wood",
+                                          .message = "wood/plank_01"};
+    auto encoded = stellar::network::encode_gameplay_event(event);
+    assert(encoded.has_value());
+    auto decoded = stellar::network::decode_gameplay_event(*encoded);
+    assert(decoded.has_value());
+    assert(decoded->kind == event.kind);
+    assert(decoded->tick == event.tick);
+    assert(decoded->entity_id == event.entity_id);
+    assert(decoded->player_id == event.player_id);
+    assert(decoded->code == event.code);
+    assert(decoded->message == event.message);
+}
+
+void invalid_gameplay_event_kind_fails_cleanly() {
+    stellar::network::GameplayEvent event{.kind = stellar::network::GameplayEventKind::kFootstep};
+    auto encoded = stellar::network::encode_gameplay_event(event);
+    assert(encoded.has_value());
+    assert(encoded->size() > 6);
+    (*encoded)[6] = 99;
+    auto decoded = stellar::network::decode_gameplay_event(*encoded);
+    assert(!decoded.has_value());
+    assert(decoded.error().code == "invalid_event_kind");
+}
+
 void player_command_round_trip_includes_view_angles() {
     stellar::network::NetworkPlayerCommand command{};
     command.player_id = 3;
@@ -200,6 +230,8 @@ int main() {
     snapshot_round_trip_with_player_and_no_entities();
     snapshot_round_trip_with_sprite_pickup_and_door_entities();
     gameplay_event_round_trip();
+    footstep_gameplay_event_round_trip();
+    invalid_gameplay_event_kind_fails_cleanly();
     player_command_round_trip_includes_view_angles();
     invalid_and_truncated_data_fail_cleanly();
     oversized_string_and_vector_fail_cleanly();

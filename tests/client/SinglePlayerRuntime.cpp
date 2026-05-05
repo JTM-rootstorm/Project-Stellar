@@ -84,6 +84,22 @@ stellar::assets::LevelAsset scene_with_trigger_wall_and_pickup() {
     return scene;
 }
 
+stellar::assets::LevelAsset scene_with_footstep_floor() {
+    auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.55F})});
+    auto floor_a = triangle({-10.0F, -10.0F, 0.0F}, {10.0F, -10.0F, 0.0F},
+                            {10.0F, 10.0F, 0.0F}, {0.0F, 0.0F, 1.0F});
+    auto floor_b = triangle({-10.0F, -10.0F, 0.0F}, {10.0F, 10.0F, 0.0F},
+                            {-10.0F, 10.0F, 0.0F}, {0.0F, 0.0F, 1.0F});
+    floor_a.surface.source_material_name = "metal/grate01";
+    floor_a.surface.footstep_surface_id = "metal";
+    floor_b.surface = floor_a.surface;
+    stellar::assets::CollisionMesh floor;
+    floor.name = "Floor";
+    floor.triangles = {floor_a, floor_b};
+    scene.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {floor}};
+    return scene;
+}
+
 stellar::server::WorldSessionConfig test_session_config() {
     stellar::server::WorldSessionConfig config{};
     config.local_player_id = 7;
@@ -100,6 +116,16 @@ stellar::server::WorldSessionConfig test_session_config() {
     return config;
 }
 
+stellar::server::WorldSessionConfig footstep_session_config() {
+    stellar::server::WorldSessionConfig config = test_session_config();
+    config.movement.gravity = 24.0F;
+    config.movement.character.ground_snap_distance = 0.2F;
+    config.footsteps.min_horizontal_speed = 0.0F;
+    config.footsteps.walk_step_distance = 0.01F;
+    config.footsteps.run_step_distance = 0.01F;
+    return config;
+}
+
 stellar::client::SinglePlayerRuntimeConfig test_runtime_config() {
     stellar::client::SinglePlayerRuntimeConfig config{};
     config.max_ticks_per_update = 4;
@@ -107,12 +133,14 @@ stellar::client::SinglePlayerRuntimeConfig test_runtime_config() {
     return config;
 }
 
-stellar::authority::PreparedAuthority plain_authority(stellar::assets::LevelAsset scene) {
+stellar::authority::PreparedAuthority plain_authority(
+    stellar::assets::LevelAsset scene,
+    stellar::server::WorldSessionConfig session_config = test_session_config()) {
     auto level = std::make_unique<stellar::assets::LevelAsset>(std::move(scene));
     auto world = std::make_unique<stellar::world::RuntimeWorld>(
         stellar::world::build_runtime_world(*level));
     const stellar::network::MapIdentity map_identity = stellar::authority::make_map_identity(*world);
-    stellar::server::WorldSession session(*world, test_session_config());
+    stellar::server::WorldSession session(*world, session_config);
     return stellar::authority::PreparedAuthority{
         .level = std::move(level),
         .world = std::move(world),
@@ -188,6 +216,23 @@ void movement_input_changes_player_snapshot() {
     assert(frame.snapshot->players[0].position[1] > 0.9F);
 }
 
+void footstep_events_surface_as_presentation_events() {
+    stellar::client::SinglePlayerRuntime runtime(
+        plain_authority(scene_with_footstep_floor(), footstep_session_config()),
+        test_runtime_config());
+
+    const auto frame = runtime.update(input_with_key(SDL_SCANCODE_W), 0.3F);
+
+    bool saw_footstep = false;
+    for (const auto& event : frame.events) {
+        if (event.kind == stellar::network::GameplayEventKind::kFootstep &&
+            event.code == "metal" && event.message == "metal/grate01") {
+            saw_footstep = true;
+        }
+    }
+    assert(saw_footstep);
+}
+
 void scripted_events_surface_as_presentation_events() {
     stellar::client::SinglePlayerRuntime runtime(
         scripted_authority(scene_with_trigger_wall_and_pickup()), test_runtime_config());
@@ -228,6 +273,7 @@ void no_handshake_or_welcome_diagnostics_are_generated() {
 int main() {
     first_frame_emits_initial_snapshot_without_tick();
     movement_input_changes_player_snapshot();
+    footstep_events_surface_as_presentation_events();
     scripted_events_surface_as_presentation_events();
     no_handshake_or_welcome_diagnostics_are_generated();
     return 0;

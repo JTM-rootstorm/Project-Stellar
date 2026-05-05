@@ -189,6 +189,7 @@ ServerRuntimePumpResult ServerRuntime::pump(stellar::network::ServerTransport& t
     std::vector<stellar::scripting::ScriptOutputEvent> script_events;
     std::vector<stellar::scripting::ScriptError> script_errors;
     std::vector<stellar::scripting::ScriptCommandResult> command_results;
+    std::vector<stellar::server::FootstepEvent> footstep_events;
 
     while (accumulated_seconds_ >= fixed_dt && result.ticks_run < max_ticks) {
         const stellar::server::PlayerCommand command{.player_id = config_.session.local_player_id,
@@ -198,6 +199,10 @@ ServerRuntimePumpResult ServerRuntime::pump(stellar::network::ServerTransport& t
         const std::array<stellar::server::PlayerCommand, 1> commands{command};
         if (auto* scripted = std::get_if<stellar::scripting::ScriptedWorldSession>(&session_)) {
             stellar::scripting::ScriptedWorldFrame frame = scripted->tick(commands);
+            footstep_events.insert(
+                footstep_events.end(),
+                std::make_move_iterator(frame.snapshot.footstep_events.begin()),
+                std::make_move_iterator(frame.snapshot.footstep_events.end()));
             script_events.insert(script_events.end(),
                                  std::make_move_iterator(frame.script_events.begin()),
                                  std::make_move_iterator(frame.script_events.end()));
@@ -208,8 +213,12 @@ ServerRuntimePumpResult ServerRuntime::pump(stellar::network::ServerTransport& t
                                    std::make_move_iterator(frame.command_results.begin()),
                                    std::make_move_iterator(frame.command_results.end()));
         } else {
-            [[maybe_unused]] const stellar::server::WorldSnapshot tick_snapshot =
+            stellar::server::WorldSnapshot tick_snapshot =
                 std::get<stellar::server::WorldSession>(session_).tick(commands);
+            footstep_events.insert(
+                footstep_events.end(),
+                std::make_move_iterator(tick_snapshot.footstep_events.begin()),
+                std::make_move_iterator(tick_snapshot.footstep_events.end()));
         }
         accumulated_seconds_ -= fixed_dt;
         ++result.ticks_run;
@@ -251,7 +260,8 @@ ServerRuntimePumpResult ServerRuntime::pump(stellar::network::ServerTransport& t
     }
 
     for (const stellar::network::GameplayEvent& event : stellar::authority::make_gameplay_events(
-             latest_snapshot_.tick, script_events, command_results, script_errors)) {
+             latest_snapshot_.tick, script_events, command_results, script_errors,
+             footstep_events)) {
         auto encoded_event = stellar::network::encode_gameplay_event(event);
         if (!encoded_event) {
             record_error(result, encoded_event.error().code, encoded_event.error().message);

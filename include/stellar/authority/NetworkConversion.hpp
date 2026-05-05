@@ -30,7 +30,8 @@ namespace stellar::authority {
     std::uint64_t tick,
     const std::vector<stellar::scripting::ScriptOutputEvent>& script_events,
     const std::vector<stellar::scripting::ScriptCommandResult>& command_results,
-    const std::vector<stellar::scripting::ScriptError>& script_errors);
+    const std::vector<stellar::scripting::ScriptError>& script_errors,
+    const std::vector<stellar::server::FootstepEvent>& footstep_events = {});
 
 /** @brief Convert one authoritative script error into a server-approved gameplay event. */
 [[nodiscard]] stellar::network::GameplayEvent make_script_error_event(

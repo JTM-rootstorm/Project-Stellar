@@ -276,6 +276,9 @@ enum class GameplayEventKind : std::uint8_t {
 
     /** @brief Authority surfaced a deterministic script error diagnostic. */
     kScriptError = 4,
+
+    /** @brief Authority approved a grounded movement footstep presentation event. */
+    kFootstep = 5,
 };
 
 /** @brief Server-approved presentation event derived from authoritative runtime activity. */

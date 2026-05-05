@@ -26,6 +26,46 @@ constexpr float kMaxViewPitchDegrees = 89.0F;
             .height = sanitized_config.value.character.height};
 }
 
+[[nodiscard]] FootstepSurfaceHit resolve_ground_surface(
+    const stellar::world::RuntimeWorld& world,
+    const stellar::world::RuntimeCollisionState& collision_state,
+    const MovementState& state,
+    const MovementSimulationConfig& config) noexcept {
+    if (!state.grounded || !world.collision_world.has_value()) {
+        return {};
+    }
+
+    const SanitizedMovementSimulationConfig sanitized_config =
+        sanitize_movement_simulation_config(config);
+    const auto& character = sanitized_config.value.character;
+    const float max_distance = character.height * 0.5F + character.ground_snap_distance +
+                               character.skin_width + 4.0F;
+    const stellar::physics::CollisionQueryFilter filter{
+        .enabled_meshes = &collision_state.enabled_meshes(),
+        .mesh_translations = &collision_state.mesh_translations()};
+    const stellar::physics::GroundProbeHit ground =
+        world.collision_world->probe_ground(state.position, max_distance, 0.5F, filter);
+    if (!ground.hit) {
+        return {};
+    }
+
+    const auto& collision_asset = world.collision_world->asset();
+    if (ground.raycast.mesh_index >= collision_asset.meshes.size()) {
+        return {};
+    }
+    const auto& mesh = collision_asset.meshes[ground.raycast.mesh_index];
+    if (ground.raycast.triangle_index >= mesh.triangles.size()) {
+        return {};
+    }
+
+    const auto& surface = mesh.triangles[ground.raycast.triangle_index].surface;
+    return FootstepSurfaceHit{.valid = true,
+                              .surface_id = surface.footstep_surface_id.empty()
+                                  ? "generic"
+                                  : surface.footstep_surface_id,
+                              .source_material_name = surface.source_material_name};
+}
+
 [[nodiscard]] std::string archetype_for_collider(
     const stellar::world::ObjectColliderSystem& system,
     std::uint32_t collider_id,
@@ -189,6 +229,8 @@ void WorldSession::reset(const stellar::world::RuntimeWorld& world, WorldSession
     player_pitch_degrees_ = 0.0F;
     gameplay_world_.reset_from_world(world, config_.local_player_id);
     trigger_tracker_.reset_from_world(world);
+    footstep_tracker_ = FootstepTracker(config_.footsteps);
+    footstep_tracker_.reset(player_state_.position);
     object_collider_system_.set_colliders(stellar::world::build_object_colliders(world));
     collision_state_ = stellar::world::RuntimeCollisionState::from_world(world);
     brush_movers_.clear();
@@ -318,9 +360,23 @@ WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexce
     }
     const MovementCommand command = select_local_command(commands);
     apply_view_angles(command);
+    const MovementState previous_player_state = player_state_;
     const MovementTriggerTickResult result = simulate_movement_tick_and_update_triggers(
         *world_, player_state_, command, config_.movement, &collision_state_, trigger_tracker_);
     player_state_ = result.movement.state;
+    std::vector<FootstepEvent> footstep_events;
+    if (auto footstep = footstep_tracker_.update(FootstepTrackerInput{
+            .player_id = config_.local_player_id,
+            .entity_id = entity_for_player(config_.local_player_id).value_or(0),
+            .tick = tick_index_ + 1,
+            .previous_position = previous_player_state.position,
+            .current_position = player_state_.position,
+            .current_velocity = player_state_.velocity,
+            .grounded = player_state_.grounded,
+            .surface =
+                resolve_ground_surface(*world_, collision_state_, player_state_, config_.movement)})) {
+        footstep_events.push_back(std::move(*footstep));
+    }
     auto object_events = to_server_object_events(
         config_.local_player_id, object_collider_system_,
         object_collider_system_.update_player_capsule(
@@ -350,7 +406,7 @@ WorldSnapshot WorldSession::tick(std::span<const PlayerCommand> commands) noexce
         }
     }
     ++tick_index_;
-    return make_snapshot(result.trigger_events, std::move(object_events));
+    return make_snapshot(result.trigger_events, std::move(object_events), std::move(footstep_events));
 }
 
 std::uint64_t WorldSession::tick_index() const noexcept {
@@ -488,7 +544,8 @@ ObjectColliderMutationResult WorldSession::remove_object_collider(
 
 WorldSnapshot WorldSession::make_snapshot(
     std::vector<MovementTriggerEvent> trigger_events,
-    std::vector<ObjectColliderEvent> object_collider_events) const {
+    std::vector<ObjectColliderEvent> object_collider_events,
+    std::vector<FootstepEvent> footstep_events) const {
     WorldSnapshot snapshot;
     snapshot.tick = tick_index_;
     snapshot.players.push_back(PlayerSnapshot{.player_id = config_.local_player_id,
@@ -499,6 +556,7 @@ WorldSnapshot WorldSession::make_snapshot(
                                                 .grounded = player_state_.grounded});
     snapshot.trigger_events = std::move(trigger_events);
     snapshot.object_collider_events = std::move(object_collider_events);
+    snapshot.footstep_events = std::move(footstep_events);
     snapshot.gameplay_world = gameplay_world_.snapshot();
     for (const BrushMover& mover : brush_movers_) {
         const auto translation = mul3(mover.direction, mover.progress);

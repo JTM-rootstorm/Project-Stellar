@@ -169,6 +169,26 @@ void gameplay_event_queues_for_presentation() {
     assert(receiver.queued_events().empty());
 }
 
+void footstep_gameplay_event_queues_for_presentation() {
+    stellar::client::ClientWorldReceiver receiver;
+    stellar::network::GameplayEvent event{.kind = stellar::network::GameplayEventKind::kFootstep,
+                                          .tick = 12,
+                                          .entity_id = 44,
+                                          .player_id = 7,
+                                          .code = "metal",
+                                          .message = "metal/grate01"};
+    auto encoded = stellar::network::encode_gameplay_event(event);
+    assert(encoded.has_value());
+
+    const auto result = receiver.accept_packet(reliable_packet(*encoded));
+
+    assert(result.events == 1);
+    assert(receiver.queued_events().size() == 1);
+    assert(receiver.queued_events()[0].kind == stellar::network::GameplayEventKind::kFootstep);
+    assert(receiver.queued_events()[0].code == "metal");
+    assert(receiver.queued_events()[0].message == "metal/grate01");
+}
+
 void server_runtime_emits_snapshot_after_input_command() {
     const auto scene = scene_with_markers({player_spawn({0.0F, 0.0F, 0.0F})});
     const auto world = stellar::world::build_runtime_world(scene);
@@ -257,6 +277,7 @@ int main() {
     server_snapshot_decodes_into_receiver();
     delta_applies_to_receiver_baseline();
     gameplay_event_queues_for_presentation();
+    footstep_gameplay_event_queues_for_presentation();
     server_runtime_emits_snapshot_after_input_command();
     scripted_runtime_propagates_server_approved_event();
     malformed_packets_rejected_without_crash();

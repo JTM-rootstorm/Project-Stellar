@@ -30,6 +30,28 @@ stellar::assets::LevelAsset test_level() {
     return level;
 }
 
+stellar::assets::CollisionTriangle triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 normal) {
+    return stellar::assets::CollisionTriangle{.a = a, .b = b, .c = c, .normal = normal};
+}
+
+stellar::assets::LevelAsset footstep_level() {
+    stellar::assets::LevelAsset level{};
+    level.source_uri = "maps/server_runtime_test.bsp";
+    level.world_metadata.markers.push_back(player_spawn({0.0F, 0.0F, 0.55F}));
+    auto floor_a = triangle({-10.0F, -10.0F, 0.0F}, {10.0F, -10.0F, 0.0F},
+                            {10.0F, 10.0F, 0.0F}, {0.0F, 0.0F, 1.0F});
+    auto floor_b = triangle({-10.0F, -10.0F, 0.0F}, {10.0F, 10.0F, 0.0F},
+                            {-10.0F, 10.0F, 0.0F}, {0.0F, 0.0F, 1.0F});
+    floor_a.surface.source_material_name = "metal/grate01";
+    floor_a.surface.footstep_surface_id = "metal";
+    floor_b.surface = floor_a.surface;
+    stellar::assets::CollisionMesh floor;
+    floor.name = "Floor";
+    floor.triangles = {floor_a, floor_b};
+    level.level_collision = stellar::assets::LevelCollisionAsset{.meshes = {floor}};
+    return level;
+}
+
 stellar::server::ServerRuntimeConfig test_config(const stellar::world::RuntimeWorld& world) {
     stellar::server::ServerRuntimeConfig config{};
     config.session.local_player_id = 9;
@@ -38,6 +60,22 @@ stellar::server::ServerRuntimeConfig test_config(const stellar::world::RuntimeWo
     config.max_ticks_per_pump = 2;
     config.emit_deltas = true;
     config.map_identity = stellar::network::make_map_identity("maps/server_runtime_test.bsp");
+    return config;
+}
+
+stellar::server::ServerRuntimeConfig footstep_config(const stellar::world::RuntimeWorld& world) {
+    auto config = test_config(world);
+    config.session.movement.max_speed = 10.0F;
+    config.session.movement.acceleration = 100.0F;
+    config.session.movement.gravity = 24.0F;
+    config.session.movement.character.radius = 0.25F;
+    config.session.movement.character.height = 1.0F;
+    config.session.movement.character.ground_snap_distance = 0.2F;
+    config.session.footsteps.min_horizontal_speed = 0.0F;
+    config.session.footsteps.walk_step_distance = 0.01F;
+    config.session.footsteps.run_step_distance = 0.01F;
+    config.max_ticks_per_pump = 4;
+    config.emit_deltas = false;
     return config;
 }
 
@@ -154,11 +192,46 @@ void second_client_is_rejected_while_active() {
     assert(welcome.rejection_code == "server_full");
 }
 
+void server_runtime_forwards_footstep_event_packets() {
+    const auto level = footstep_level();
+    const auto world = stellar::world::build_runtime_world(level);
+    auto transports = stellar::network::make_loopback_transport_pair();
+    stellar::server::ServerRuntime runtime(world, footstep_config(world));
+
+    send_hello(*transports.client, footstep_config(world).map_identity.map_id);
+    assert(runtime.pump(*transports.server, 0.0F).session_state ==
+           stellar::network::SessionState::kConnected);
+    static_cast<void>(transports.client->receive_from_server());
+
+    stellar::network::NetworkPlayerCommand command{};
+    command.player_id = 9;
+    command.movement.wish_direction = {1.0F, 0.0F, 0.0F};
+    auto encoded = stellar::network::encode_player_command(command);
+    assert(encoded.has_value());
+    assert(transports.client->send_to_server(packet(*encoded)).has_value());
+
+    const auto pump = runtime.pump(*transports.server, 0.3F);
+    const auto replies = transports.client->receive_from_server();
+
+    assert(pump.ticks_run > 0);
+    bool saw_footstep = false;
+    for (const auto& reply : replies) {
+        auto event = stellar::network::decode_gameplay_event(
+            stellar::network::from_payload(reply.payload));
+        if (event && event->kind == stellar::network::GameplayEventKind::kFootstep &&
+            event->code == "metal") {
+            saw_footstep = true;
+        }
+    }
+    assert(saw_footstep);
+}
+
 } // namespace
 
 int main() {
     accepted_hello_assigns_player_and_sends_first_full_snapshot();
     rejects_protocol_map_and_premature_input();
     second_client_is_rejected_while_active();
+    server_runtime_forwards_footstep_event_packets();
     return 0;
 }

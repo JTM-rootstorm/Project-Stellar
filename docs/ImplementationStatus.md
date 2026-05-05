@@ -32,7 +32,7 @@ grounded movement cadence, and routing those events to generated retro one-shot 
 
 - [x] AF-0 - Branch/docs guardrails.
 - [x] AF-1 - Collision surface identity and footstep surface resolver.
-- [ ] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
+- [x] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
 - [ ] AF-3 - Presentation audio routing and generated retro footstep sounds.
 - [ ] AF-4 - End-to-end display-free hardening and documentation.
 
@@ -49,6 +49,20 @@ The resolver is deterministic, case-insensitive, presentation-sidecar independen
 retro surface set: `generic`, `concrete`, `metal`, `wood`, `stone`, `dirt`, `grass`, and `water`.
 Ground probe hits already expose mesh/triangle indices, so authoritative code can index the hit
 triangle metadata without adding an audio or renderer dependency to collision.
+
+### AF-2 Authoritative Footstep Event Summary
+
+Status: complete as of 2026-05-04.
+
+Authoritative movement now owns deterministic distance-based footstep cadence through server-core
+`FootstepTracker`. `WorldSession` resolves the grounded collision triangle through the same runtime
+collision filter/translation overlay used by movement, emits server-owned footstep events on tick
+snapshots, and does not replay them through `snapshot()`.
+
+`GameplayEventKind::kFootstep = 5` is part of the protocol codec, and authority conversion maps
+server footstep events into server-approved presentation events using `code` for the surface id and
+`message` for the original source texture/material name. Single-player, remote/server runtime packet
+flow, and `ClientWorldReceiver` all use the existing gameplay event path.
 
 ## Completed Scope — Doxygen Generation
 

@@ -110,6 +110,8 @@ void apply_gameplay_event(HudPresentationState& state,
     case stellar::network::GameplayEventKind::kScriptError:
         push_recent_message(state, event.message);
         break;
+    case stellar::network::GameplayEventKind::kFootstep:
+        break;
     }
 }
 

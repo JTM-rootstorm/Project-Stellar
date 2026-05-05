@@ -56,6 +56,7 @@ target_link_libraries(stellar_world PUBLIC
 )
 
 add_library(stellar_server_core
+    src/server/FootstepTracker.cpp
     src/server/GameplayWorld.cpp
     src/server/MovementSimulation.cpp
     src/server/MovementTriggerIntegration.cpp
