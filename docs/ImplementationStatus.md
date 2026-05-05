@@ -1,8 +1,40 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed Doxygen generation, completed Vulkan removal, completed lightweight BSP
-normal/specular material sidecars, completed client/server decoupling handoff, and completed
-historical branch notes.
+Status scope: active audio footsteps implementation, completed Doxygen generation, completed Vulkan
+removal, completed lightweight BSP normal/specular material sidecars, completed client/server
+decoupling handoff, and completed historical branch notes.
+
+## Active Scope - Texture/Material-Dependent Audio Footsteps
+
+Status: active on `audio-impl` as of 2026-05-04.
+
+Active handoff plan:
+
+- `Plans/AudioFootsteps-AgentPlan.md`
+- `Plans/audio_footsteps_plan/00-MASTER-AudioFootsteps-AgentPlan.md`
+
+Current objective: implement texture/material-dependent footstep sounds by carrying BSP source
+texture/material identity into collision triangles, resolving a small server-safe footstep surface id,
+emitting deterministic server-approved `GameplayEventKind::kFootstep` events from authoritative
+grounded movement cadence, and routing those events to generated retro one-shot presentation sounds.
+
+### Audio Footsteps Guardrails
+
+- BSP source texture/material names are the authoritative input for footstep surface ids.
+- `.stellar_material` render sidecars remain presentation material data and are not gameplay truth.
+- Footsteps are server-approved presentation events, not client guesses.
+- Default validation remains display-free; real display/audio-device smoke tests are optional/manual.
+- Generated retro WAV one-shots are acceptable placeholder assets for this slice.
+- No full material gameplay system, client-side footstep authority, prediction/reconciliation, broad
+  spatial audio engine, or dynamic terrain/material decal system is in scope.
+
+### Audio Footsteps Phase Checklist
+
+- [x] AF-0 - Branch/docs guardrails.
+- [ ] AF-1 - Collision surface identity and footstep surface resolver.
+- [ ] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
+- [ ] AF-3 - Presentation audio routing and generated retro footstep sounds.
+- [ ] AF-4 - End-to-end display-free hardening and documentation.
 
 ## Completed Scope — Doxygen Generation
 
