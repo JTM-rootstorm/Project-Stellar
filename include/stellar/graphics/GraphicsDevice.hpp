@@ -37,7 +37,10 @@ struct MeshDrawTransforms {
  * @brief Backend-neutral image upload payload with color-space metadata.
  */
 struct TextureUpload {
+    /** @brief CPU-side image payload to upload into a backend texture. */
     stellar::assets::ImageAsset image;
+
+    /** @brief Color-space interpretation used by the backend texture upload. */
     stellar::assets::TextureColorSpace color_space = stellar::assets::TextureColorSpace::kLinear;
 };
 
