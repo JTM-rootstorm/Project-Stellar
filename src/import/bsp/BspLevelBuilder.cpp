@@ -9,6 +9,7 @@
 #include "Wad3Reader.hpp"
 
 #include "stellar/assets/LevelVisibilityQueries.hpp"
+#include "stellar/world/FootstepSurface.hpp"
 
 #include <algorithm>
 #include <array>
@@ -463,6 +464,13 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
                       point);
         include_point(collision.bounds_min, collision.bounds_max, point);
       }
+      const std::size_t surface_index = level.geometry.surfaces.size();
+      stellar::assets::CollisionSurfaceMetadata collision_surface{};
+      collision_surface.surface_index = static_cast<std::uint32_t>(surface_index);
+      collision_surface.material_index = static_cast<std::uint32_t>(mat);
+      collision_surface.source_material_name = texture;
+      collision_surface.footstep_surface_id =
+          stellar::world::resolve_footstep_surface_id(texture);
       for (std::uint32_t i = 1; i + 1 < polygon.size(); ++i) {
         primitive.indices.push_back(0);
         primitive.indices.push_back(i);
@@ -472,12 +480,12 @@ build_level_asset(BspMap map, std::vector<Entity> entities,
               stellar::assets::CollisionTriangle{.a = polygon[0],
                                                  .b = polygon[i],
                                                  .c = polygon[i + 1],
-                                                 .normal = normal});
+                                                 .normal = normal,
+                                                 .surface = collision_surface});
         }
       }
       const std::size_t primitive_index = mesh.primitives.size();
       mesh.primitives.push_back(std::move(primitive));
-      const std::size_t surface_index = level.geometry.surfaces.size();
       face_to_surface[static_cast<std::size_t>(face_index)] = surface_index;
       level.geometry.surfaces.push_back(stellar::assets::LevelSurface{
           .name = "face_" + std::to_string(face_index),

@@ -227,13 +227,22 @@ void horizontal_movement_slides_along_axis_aligned_wall() {
 }
 
 void downward_ground_probe_detects_floor() {
-    const auto asset = make_asset({floor_triangle()});
+    auto floor = floor_triangle();
+    floor.surface.source_material_name = "metal/grate01";
+    floor.surface.footstep_surface_id = "metal";
+    const auto asset = make_asset({floor});
     stellar::physics::CollisionWorld world(asset);
 
     const auto ground = world.probe_ground({0.0F, 0.0F, 3.0F}, 5.0F);
     assert(ground.hit);
     assert(nearly_equal(ground.distance, 3.0F));
     assert(nearly_equal(ground.raycast.position[2], 0.0F));
+    assert(ground.raycast.mesh_index == 0);
+    assert(ground.raycast.triangle_index == 0);
+    const auto &hit_triangle =
+        world.asset().meshes[ground.raycast.mesh_index].triangles[ground.raycast.triangle_index];
+    assert(hit_triangle.surface.source_material_name == "metal/grate01");
+    assert(hit_triangle.surface.footstep_surface_id == "metal");
 }
 
 void empty_collision_world_movement_passes_through_unchanged() {

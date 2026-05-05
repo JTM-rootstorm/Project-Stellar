@@ -31,10 +31,24 @@ grounded movement cadence, and routing those events to generated retro one-shot 
 ### Audio Footsteps Phase Checklist
 
 - [x] AF-0 - Branch/docs guardrails.
-- [ ] AF-1 - Collision surface identity and footstep surface resolver.
+- [x] AF-1 - Collision surface identity and footstep surface resolver.
 - [ ] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
 - [ ] AF-3 - Presentation audio routing and generated retro footstep sounds.
 - [ ] AF-4 - End-to-end display-free hardening and documentation.
+
+### AF-1 Collision Surface Metadata Summary
+
+Status: complete as of 2026-05-04.
+
+Collision triangles now carry backend-neutral source surface metadata: level surface index, material
+index, original BSP texture/material name, and a small resolved footstep surface id. BSP import fills
+that metadata from the same face texture/material path used by source-neutral `LevelAsset` surfaces.
+Synthetic collision triangles retain invalid indices and the default `generic` footstep surface.
+
+The resolver is deterministic, case-insensitive, presentation-sidecar independent, and maps a small
+retro surface set: `generic`, `concrete`, `metal`, `wood`, `stone`, `dirt`, `grass`, and `water`.
+Ground probe hits already expose mesh/triangle indices, so authoritative code can index the hit
+triangle metadata without adding an audio or renderer dependency to collision.
 
 ## Completed Scope — Doxygen Generation
 

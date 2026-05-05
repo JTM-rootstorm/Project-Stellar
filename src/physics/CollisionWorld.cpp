@@ -275,7 +275,8 @@ stellar::assets::CollisionTriangle translated_triangle(
     return {.a = add(triangle.a, translation),
             .b = add(triangle.b, translation),
             .c = add(triangle.c, translation),
-            .normal = triangle.normal};
+            .normal = triangle.normal,
+            .surface = triangle.surface};
 }
 
 void CollisionWorld::build_broadphase() noexcept {

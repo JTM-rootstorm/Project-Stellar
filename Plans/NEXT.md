@@ -20,7 +20,7 @@ route those events to generated retro one-shot presentation sounds.
 Active phase checklist:
 
 - [x] AF-0 - Branch/docs guardrails.
-- [ ] AF-1 - Collision surface identity and footstep surface resolver.
+- [x] AF-1 - Collision surface identity and footstep surface resolver.
 - [ ] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
 - [ ] AF-3 - Presentation audio routing and generated retro footstep sounds.
 - [ ] AF-4 - End-to-end display-free hardening and documentation.

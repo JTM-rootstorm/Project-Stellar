@@ -290,6 +290,12 @@ void bsp30_zup_room_imports_coordinates_without_axis_swaps() {
   assert(floor.normal[0] == 0.0F);
   assert(floor.normal[1] == 0.0F);
   assert(floor.normal[2] == 1.0F);
+  assert(floor.surface.surface_index !=
+         stellar::assets::kInvalidLevelSurfaceIndex);
+  assert(floor.surface.material_index !=
+         stellar::assets::kInvalidLevelMaterialIndex);
+  assert(!floor.surface.source_material_name.empty());
+  assert(!floor.surface.footstep_surface_id.empty());
 }
 
 void bsp30_entity_lump_preserves_dotted_and_alias_keys() {

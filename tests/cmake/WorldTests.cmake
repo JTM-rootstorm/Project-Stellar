@@ -24,6 +24,10 @@ stellar_add_world_test(stellar_world_metadata_validation_test world_metadata_val
     ${STELLAR_TEST_SOURCE_DIR}/world/WorldMetadataValidation.cpp
 )
 
+stellar_add_world_test(stellar_footstep_surface_test footstep_surface
+    ${STELLAR_TEST_SOURCE_DIR}/world/FootstepSurface.cpp
+)
+
 stellar_add_test_executable(stellar_core_world_axes_test world_axes
     ${STELLAR_TEST_SOURCE_DIR}/core/WorldAxes.cpp
 )
