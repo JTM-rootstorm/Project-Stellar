@@ -1,12 +1,54 @@
 # Project Stellar: Implementation Status
 
-Status scope: active audio footsteps implementation, completed Doxygen generation, completed Vulkan
-removal, completed lightweight BSP normal/specular material sidecars, completed client/server
-decoupling handoff, and completed historical branch notes.
+Status scope: active macOS compatibility and Metal backend implementation, completed audio
+footsteps implementation, completed Doxygen generation, completed Vulkan removal, completed
+lightweight BSP normal/specular material sidecars, completed client/server decoupling handoff, and
+completed historical branch notes.
 
-## Active Scope - Texture/Material-Dependent Audio Footsteps
+## Active Scope - macOS Compatibility And Metal Backend
 
-Status: active on `audio-impl` as of 2026-05-04.
+Status: active on `macos-compat` as of 2026-05-05.
+
+Active handoff plan:
+
+- `Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`
+
+Current objective: make the project build cleanly on macOS, fix platform portability issues, keep
+default validation display-free/audio-device-free, and add an Apple-gated Metal renderer through the
+existing backend-neutral graphics abstraction. Metal must not be advertised as supported by parser or
+documentation alone; support requires a real `GraphicsDevice` implementation and opt-in display
+smoke validation.
+
+### macOS Compatibility Guardrails
+
+- Server authority, scripting, transport, collision, and gameplay remain backend-neutral.
+- Rendering and audio remain presentation-only and never become gameplay truth.
+- OpenGL remains the default non-Metal renderer path where it builds, but macOS OpenGL is deprecated
+  and the current OpenGL 4.5 request is not a reliable macOS support target.
+- Metal is Apple-gated and opt-in during implementation.
+- Default CTest remains display-free and audio-device-free; GPU/display/audio-device smoke tests are
+  opt-in and must skip cleanly when unsupported.
+- Vulkan must not be reintroduced.
+
+### MC-0 Baseline Summary
+
+Status: complete as of 2026-05-05.
+
+Baseline was recorded on branch `macos-compat`. Active source/build/test files contain no Metal
+backend implementation, SDL Metal window usage, CAMetalLayer plumbing, or Metal shader files. The
+active renderer path is OpenGL-only: backend parsing accepts OpenGL aliases, the graphics factory
+creates `OpenGLGraphicsDevice`, and the client window path requests `SDL_WINDOW_OPENGL`.
+
+Known starting blockers are the expected macOS work items: the existing OpenGL device requests
+OpenGL 4.5, Metal support is absent, `thirdparty/miniaudio/CMakeLists.txt` misspells
+`POSITION_INDEPENDENT_CODE`, and the POSIX socket transport uses Linux-oriented `MSG_NOSIGNAL`
+without an Apple `SO_NOSIGPIPE` policy. Local baseline CMake configure did not reach build/test
+because `pkg-config` could not find `glew`; the macOS runbook will require installing the Homebrew
+dependency or using an Apple-gated Metal build that does not globally require OpenGL/GLEW.
+
+## Completed Scope - Texture/Material-Dependent Audio Footsteps
+
+Status: complete on `audio-impl` as of 2026-05-04.
 
 Active handoff plan:
 
