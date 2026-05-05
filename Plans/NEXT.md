@@ -1,12 +1,46 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: completed Vulkan removal, completed client/server split handoff, and completed historical scope guardrails.
+Status scope: active audio footsteps implementation, completed Vulkan removal, completed
+client/server split handoff, and completed historical scope guardrails.
 
 ## Current Entry Point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. Vulkan removal is complete
-through KV-5 as of 2026-05-04, and client/server decoupling is complete through Phase CS-9 as of
-2026-05-03.
+`docs/ImplementationStatus.md` is the source of truth for branch status. The active `audio-impl`
+scope is texture/material-dependent footstep audio, tracked by
+`Plans/AudioFootsteps-AgentPlan.md` and the detailed bundle under `Plans/audio_footsteps_plan/`.
+Vulkan removal is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete
+through Phase CS-9 as of 2026-05-03.
+
+## Active Audio Footsteps Scope
+
+Current objective: derive a tiny server-safe footstep surface id from BSP source texture/material
+names, emit deterministic server-approved footstep gameplay events from authoritative movement, and
+route those events to generated retro one-shot presentation sounds.
+
+Active phase checklist:
+
+- [x] AF-0 - Branch/docs guardrails.
+- [x] AF-1 - Collision surface identity and footstep surface resolver.
+- [x] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
+- [x] AF-3 - Presentation audio routing and generated retro footstep sounds.
+- [x] AF-4 - End-to-end display-free hardening and documentation.
+
+Default validation remains display-free. Generated retro WAV one-shots are acceptable placeholder
+assets for this slice. Footsteps remain server-approved presentation events; no renderer, HUD, audio
+sink, or client-side prediction path becomes gameplay truth.
+
+Non-goals:
+
+- No full material gameplay system.
+- No client-side footstep authority.
+- No prediction/reconciliation.
+- No broad spatial audio engine.
+- No dynamic terrain/material decals.
+
+Completed plan/proposal files:
+
+- `Plans/AudioFootsteps-AgentPlan.md`
+- `Plans/audio_footsteps_plan/00-MASTER-AudioFootsteps-AgentPlan.md`
 
 Current renderer contract:
 
@@ -17,7 +51,7 @@ Current renderer contract:
   DirectX/Direct3D or Metal support must be scoped as concrete new backend implementation work before
   adding enum values, CLI aliases, CMake options, or docs that advertise support.
 
-Completed plan/proposal files:
+Historical completed plan/proposal files:
 
 - `Plans/Archived/kill_vulkan/00-MASTER-KillVulkan-Codex-AgentPlan.md`
 - `Plans/ClientServerSplit-AgentPlan.md`

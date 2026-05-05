@@ -51,6 +51,7 @@ ClientRuntimeFrame SinglePlayerRuntime::update(const stellar::platform::Input& i
     std::vector<stellar::scripting::ScriptOutputEvent> script_events;
     std::vector<stellar::scripting::ScriptError> script_errors;
     std::vector<stellar::scripting::ScriptCommandResult> command_results;
+    std::vector<stellar::server::FootstepEvent> footstep_events;
 
     while (accumulated_seconds_ >= fixed_dt && frame.ticks_run < max_ticks) {
         const stellar::network::MovementCommand movement =
@@ -64,6 +65,10 @@ ClientRuntimeFrame SinglePlayerRuntime::update(const stellar::platform::Input& i
         if (auto* scripted = std::get_if<stellar::scripting::ScriptedWorldSession>(
                 &authority_.session)) {
             stellar::scripting::ScriptedWorldFrame scripted_frame = scripted->tick(commands);
+            footstep_events.insert(
+                footstep_events.end(),
+                std::make_move_iterator(scripted_frame.snapshot.footstep_events.begin()),
+                std::make_move_iterator(scripted_frame.snapshot.footstep_events.end()));
             script_events.insert(script_events.end(),
                                  std::make_move_iterator(scripted_frame.script_events.begin()),
                                  std::make_move_iterator(scripted_frame.script_events.end()));
@@ -75,8 +80,12 @@ ClientRuntimeFrame SinglePlayerRuntime::update(const stellar::platform::Input& i
                 std::make_move_iterator(scripted_frame.command_results.begin()),
                 std::make_move_iterator(scripted_frame.command_results.end()));
         } else {
-            [[maybe_unused]] const stellar::server::WorldSnapshot tick_snapshot =
+            stellar::server::WorldSnapshot tick_snapshot =
                 std::get<stellar::server::WorldSession>(authority_.session).tick(commands);
+            footstep_events.insert(
+                footstep_events.end(),
+                std::make_move_iterator(tick_snapshot.footstep_events.begin()),
+                std::make_move_iterator(tick_snapshot.footstep_events.end()));
         }
 
         accumulated_seconds_ -= fixed_dt;
@@ -90,7 +99,8 @@ ClientRuntimeFrame SinglePlayerRuntime::update(const stellar::platform::Input& i
 
     latest_snapshot_ = stellar::authority::make_network_snapshot(snapshot_for(authority_.session));
     frame.events = stellar::authority::make_gameplay_events(latest_snapshot_.tick, script_events,
-                                                            command_results, script_errors);
+                                                            command_results, script_errors,
+                                                            footstep_events);
     frame.snapshot = latest_snapshot_;
     frame.local_player_id = local_player_id();
     frame.session_state = stellar::network::SessionState::kConnected;

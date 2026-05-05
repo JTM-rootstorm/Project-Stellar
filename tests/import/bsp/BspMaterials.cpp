@@ -97,6 +97,14 @@ void surface_material_resolves_to_preserved_source_name() {
     const std::size_t material_index = *result->geometry.surfaces[0].material_index;
     assert(material_index < result->geometry.materials.size());
     assert(result->geometry.materials[material_index].source_name == "stone");
+    assert(result->level_collision.has_value());
+    assert(!result->level_collision->meshes.empty());
+    assert(!result->level_collision->meshes[0].triangles.empty());
+    const auto &triangle = result->level_collision->meshes[0].triangles[0];
+    assert(triangle.surface.surface_index == 0);
+    assert(triangle.surface.material_index == material_index);
+    assert(triangle.surface.source_material_name == "stone");
+    assert(triangle.surface.footstep_surface_id == "stone");
 }
 
 void developer_texture_names_are_known() {

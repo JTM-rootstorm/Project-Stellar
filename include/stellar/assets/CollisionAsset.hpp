@@ -7,6 +7,29 @@
 
 namespace stellar::assets {
 
+/** @brief Invalid LevelGeometryAsset surface index for collision metadata. */
+inline constexpr std::uint32_t kInvalidLevelSurfaceIndex = 0xFFFF'FFFFu;
+
+/** @brief Invalid LevelGeometryAsset material index for collision metadata. */
+inline constexpr std::uint32_t kInvalidLevelMaterialIndex = 0xFFFF'FFFFu;
+
+/**
+ * @brief Source material and audio-surface metadata for one collision triangle.
+ */
+struct CollisionSurfaceMetadata {
+    /** @brief LevelGeometryAsset::surfaces index, or invalid when unknown. */
+    std::uint32_t surface_index = kInvalidLevelSurfaceIndex;
+
+    /** @brief LevelGeometryAsset::materials index, or invalid when unknown. */
+    std::uint32_t material_index = kInvalidLevelMaterialIndex;
+
+    /** @brief Original source texture/material name preserved for diagnostics. */
+    std::string source_material_name;
+
+    /** @brief Server-safe resolved footstep surface id such as generic, wood, or metal. */
+    std::string footstep_surface_id = "generic";
+};
+
 /**
  * @brief Triangle in backend-neutral static level collision data.
  */
@@ -22,6 +45,9 @@ struct CollisionTriangle {
 
     /** @brief Unit-length world-space triangle normal derived from winding. */
     std::array<float, 3> normal{};
+
+    /** @brief Source surface metadata used by authoritative collision consumers. */
+    CollisionSurfaceMetadata surface{};
 };
 
 /**

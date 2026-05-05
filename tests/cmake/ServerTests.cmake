@@ -8,6 +8,10 @@ stellar_add_server_test(stellar_movement_trigger_integration_test movement_trigg
     ${STELLAR_TEST_SOURCE_DIR}/server/MovementTriggerIntegration.cpp
 )
 
+stellar_add_server_test(stellar_footstep_tracker_test footstep_tracker
+    ${STELLAR_TEST_SOURCE_DIR}/server/FootstepTracker.cpp
+)
+
 stellar_add_server_test(stellar_server_world_session_test server_world_session
     ${STELLAR_TEST_SOURCE_DIR}/server/WorldSession.cpp
 )

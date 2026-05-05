@@ -62,6 +62,15 @@ public:
     [[nodiscard]] AudioRequestResult play_one_shot(const AudioPlaybackRequest& request) override;
 };
 
+/** @brief Mapping from an authoritative footstep surface id to a presentation sound prefix. */
+struct FootstepSurfaceSound {
+    /** @brief Server-approved footstep surface id such as wood, metal, or generic. */
+    std::string surface_id;
+
+    /** @brief Presentation sound id prefix before the deterministic variant suffix. */
+    std::string sound_prefix;
+};
+
 /** @brief Router configuration for server-approved gameplay event audio mapping. */
 struct AudioEventRouterConfig {
     /** @brief Sound id for pickup collection one-shots. */
@@ -75,6 +84,19 @@ struct AudioEventRouterConfig {
 
     /** @brief Optional debug sound id for script errors; empty disables script-error audio. */
     std::string script_error_sound_id;
+
+    /** @brief Number of deterministic variants per footstep surface; zero is treated as one. */
+    std::uint32_t footstep_variant_count = 2;
+
+    /** @brief Fallback footstep sound prefix for empty or unknown surface ids. */
+    std::string footstep_generic_prefix = "footstep_generic";
+
+    /** @brief Stable surface-to-prefix mappings for server-approved footstep events. */
+    std::vector<FootstepSurfaceSound> footstep_surface_sounds = {
+        {"generic", "footstep_generic"}, {"concrete", "footstep_concrete"},
+        {"metal", "footstep_metal"},     {"wood", "footstep_wood"},
+        {"stone", "footstep_stone"},     {"dirt", "footstep_dirt"},
+        {"grass", "footstep_grass"},     {"water", "footstep_water"}};
 };
 
 /** @brief Result of routing server-approved events into presentation audio requests. */

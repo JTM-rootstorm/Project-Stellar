@@ -1,8 +1,92 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed Doxygen generation, completed Vulkan removal, completed lightweight BSP
-normal/specular material sidecars, completed client/server decoupling handoff, and completed
-historical branch notes.
+Status scope: active audio footsteps implementation, completed Doxygen generation, completed Vulkan
+removal, completed lightweight BSP normal/specular material sidecars, completed client/server
+decoupling handoff, and completed historical branch notes.
+
+## Active Scope - Texture/Material-Dependent Audio Footsteps
+
+Status: active on `audio-impl` as of 2026-05-04.
+
+Active handoff plan:
+
+- `Plans/AudioFootsteps-AgentPlan.md`
+- `Plans/audio_footsteps_plan/00-MASTER-AudioFootsteps-AgentPlan.md`
+
+Current objective: implement texture/material-dependent footstep sounds by carrying BSP source
+texture/material identity into collision triangles, resolving a small server-safe footstep surface id,
+emitting deterministic server-approved `GameplayEventKind::kFootstep` events from authoritative
+grounded movement cadence, and routing those events to generated retro one-shot presentation sounds.
+
+### Audio Footsteps Guardrails
+
+- BSP source texture/material names are the authoritative input for footstep surface ids.
+- `.stellar_material` render sidecars remain presentation material data and are not gameplay truth.
+- Footsteps are server-approved presentation events, not client guesses.
+- Default validation remains display-free; real display/audio-device smoke tests are optional/manual.
+- Generated retro WAV one-shots are acceptable placeholder assets for this slice.
+- No full material gameplay system, client-side footstep authority, prediction/reconciliation, broad
+  spatial audio engine, or dynamic terrain/material decal system is in scope.
+
+### Audio Footsteps Phase Checklist
+
+- [x] AF-0 - Branch/docs guardrails.
+- [x] AF-1 - Collision surface identity and footstep surface resolver.
+- [x] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
+- [x] AF-3 - Presentation audio routing and generated retro footstep sounds.
+- [x] AF-4 - End-to-end display-free hardening and documentation.
+
+### AF-1 Collision Surface Metadata Summary
+
+Status: complete as of 2026-05-04.
+
+Collision triangles now carry backend-neutral source surface metadata: level surface index, material
+index, original BSP texture/material name, and a small resolved footstep surface id. BSP import fills
+that metadata from the same face texture/material path used by source-neutral `LevelAsset` surfaces.
+Synthetic collision triangles retain invalid indices and the default `generic` footstep surface.
+
+The resolver is deterministic, case-insensitive, presentation-sidecar independent, and maps a small
+retro surface set: `generic`, `concrete`, `metal`, `wood`, `stone`, `dirt`, `grass`, and `water`.
+Ground probe hits already expose mesh/triangle indices, so authoritative code can index the hit
+triangle metadata without adding an audio or renderer dependency to collision.
+
+### AF-2 Authoritative Footstep Event Summary
+
+Status: complete as of 2026-05-04.
+
+Authoritative movement now owns deterministic distance-based footstep cadence through server-core
+`FootstepTracker`. `WorldSession` resolves the grounded collision triangle through the same runtime
+collision filter/translation overlay used by movement, emits server-owned footstep events on tick
+snapshots, and does not replay them through `snapshot()`.
+
+`GameplayEventKind::kFootstep = 5` is part of the protocol codec, and authority conversion maps
+server footstep events into server-approved presentation events using `code` for the surface id and
+`message` for the original source texture/material name. Single-player, remote/server runtime packet
+flow, and `ClientWorldReceiver` all use the existing gameplay event path.
+
+### AF-3 Audio Routing And Generated Sound Summary
+
+Status: complete as of 2026-05-04.
+
+`AudioEventRouter` now handles server-approved `kFootstep` events by mapping `event.code` surface ids
+to deterministic presentation sound ids. Default mappings cover `generic`, `concrete`, `metal`,
+`wood`, `stone`, `dirt`, `grass`, and `water`, with stable numbered variant selection from event
+tick/player/entity ids. Empty or unknown surface ids fall back to `footstep_generic_*`.
+
+Generated retro placeholder WAV one-shots live under `assets/audio/footsteps/generated/` and are
+reproducible through `tools/audio/generate_retro_footsteps.py`. Default tests validate routing and
+asset presence without requiring an audio device. A miniaudio sink remains out of scope for this
+phase; existing no-op/fake sinks cover default validation.
+
+### AF-4 End-To-End Hardening Summary
+
+Status: complete as of 2026-05-04.
+
+The final display-free pipeline coverage builds synthetic collision floors with concrete and metal
+surface metadata, advances authoritative movement until server footstep events are emitted, converts
+those events through the protocol gameplay event path, and routes them through `AudioEventRouter` to
+the expected generated sound prefixes. Authoring docs now describe footstep surface categories and the
+resolver workflow for adding new categories.
 
 ## Completed Scope — Doxygen Generation
 

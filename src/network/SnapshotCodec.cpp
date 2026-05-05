@@ -234,7 +234,7 @@ template <std::size_t Count>
 
 [[nodiscard]] bool valid_event_kind(std::uint8_t value) noexcept {
     return value >= static_cast<std::uint8_t>(GameplayEventKind::kPickupCollected) &&
-           value <= static_cast<std::uint8_t>(GameplayEventKind::kScriptError);
+           value <= static_cast<std::uint8_t>(GameplayEventKind::kFootstep);
 }
 
 [[nodiscard]] std::expected<void, CodecError> write_transform(

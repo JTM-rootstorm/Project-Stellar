@@ -155,9 +155,10 @@ std::vector<stellar::network::GameplayEvent> make_gameplay_events(
     std::uint64_t tick,
     const std::vector<stellar::scripting::ScriptOutputEvent>& script_events,
     const std::vector<stellar::scripting::ScriptCommandResult>& command_results,
-    const std::vector<stellar::scripting::ScriptError>& script_errors) {
+    const std::vector<stellar::scripting::ScriptError>& script_errors,
+    const std::vector<stellar::server::FootstepEvent>& footstep_events) {
     std::vector<stellar::network::GameplayEvent> events;
-    events.reserve(command_results.size() + script_errors.size());
+    events.reserve(command_results.size() + script_errors.size() + footstep_events.size());
 
     const std::size_t count = std::min(script_events.size(), command_results.size());
     for (std::size_t index = 0; index < count; ++index) {
@@ -193,6 +194,17 @@ std::vector<stellar::network::GameplayEvent> make_gameplay_events(
 
     for (const stellar::scripting::ScriptError& error : script_errors) {
         events.push_back(make_script_error_event(tick, error));
+    }
+    for (const stellar::server::FootstepEvent& footstep : footstep_events) {
+        events.push_back(
+            stellar::network::GameplayEvent{.kind = stellar::network::GameplayEventKind::kFootstep,
+                                            .tick = footstep.tick == 0 ? tick : footstep.tick,
+                                            .entity_id = footstep.entity_id,
+                                            .player_id = footstep.player_id,
+                                            .code = footstep.surface_id.empty()
+                                                ? "generic"
+                                                : footstep.surface_id,
+                                            .message = footstep.source_material_name});
     }
     return events;
 }

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "stellar/server/GameplayWorld.hpp"
+#include "stellar/server/FootstepTracker.hpp"
 #include "stellar/server/MovementSimulation.hpp"
 #include "stellar/server/MovementTriggerIntegration.hpp"
 #include "stellar/world/ObjectCollider.hpp"
@@ -151,6 +152,9 @@ struct WorldSnapshot {
     /** @brief Object-collider events produced by the tick that emitted this snapshot. */
     std::vector<ObjectColliderEvent> object_collider_events;
 
+    /** @brief Footstep events produced by authoritative grounded movement during this tick. */
+    std::vector<FootstepEvent> footstep_events;
+
     /** @brief Display-free server-owned gameplay entity snapshot. */
     GameplayWorldSnapshot gameplay_world;
 
@@ -165,6 +169,9 @@ struct WorldSessionConfig {
 
     /** @brief Single local player slot owned by this phase's session implementation. */
     PlayerId local_player_id = 1;
+
+    /** @brief Deterministic server-owned footstep cadence settings. */
+    FootstepTrackerConfig footsteps{};
 };
 
 /**
@@ -239,7 +246,8 @@ public:
 private:
     [[nodiscard]] WorldSnapshot make_snapshot(
         std::vector<MovementTriggerEvent> trigger_events = {},
-        std::vector<ObjectColliderEvent> object_collider_events = {}) const;
+        std::vector<ObjectColliderEvent> object_collider_events = {},
+        std::vector<FootstepEvent> footstep_events = {}) const;
     [[nodiscard]] MovementCommand select_local_command(
         std::span<const PlayerCommand> commands) const noexcept;
     void apply_view_angles(const MovementCommand& command) noexcept;
@@ -251,6 +259,7 @@ private:
     float player_pitch_degrees_ = 0.0F;
     GameplayWorld gameplay_world_{};
     MovementTriggerTracker trigger_tracker_{};
+    FootstepTracker footstep_tracker_{};
     stellar::world::ObjectColliderSystem object_collider_system_{};
     stellar::world::RuntimeCollisionState collision_state_{};
     struct BrushMover {
