@@ -8,6 +8,10 @@ historical branch notes.
 
 Status: complete through DG-6 as of 2026-05-04.
 
+Completed handoff plan:
+
+- `Plans/Archived/DoxygenGen-CodexPlan/00-MASTER-DoxygenGen-CodexPlan.md`
+
 Generated Doxygen documentation is the public C++ API reference for headers under
 `include/stellar/**`. Active Markdown files remain the source for architecture, current
 implementation status, authoring workflows, validation runbooks, and implementation handoff notes.
