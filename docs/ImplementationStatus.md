@@ -33,7 +33,7 @@ grounded movement cadence, and routing those events to generated retro one-shot 
 - [x] AF-0 - Branch/docs guardrails.
 - [x] AF-1 - Collision surface identity and footstep surface resolver.
 - [x] AF-2 - Authoritative footstep cadence and `GameplayEventKind::kFootstep`.
-- [ ] AF-3 - Presentation audio routing and generated retro footstep sounds.
+- [x] AF-3 - Presentation audio routing and generated retro footstep sounds.
 - [ ] AF-4 - End-to-end display-free hardening and documentation.
 
 ### AF-1 Collision Surface Metadata Summary
@@ -63,6 +63,20 @@ snapshots, and does not replay them through `snapshot()`.
 server footstep events into server-approved presentation events using `code` for the surface id and
 `message` for the original source texture/material name. Single-player, remote/server runtime packet
 flow, and `ClientWorldReceiver` all use the existing gameplay event path.
+
+### AF-3 Audio Routing And Generated Sound Summary
+
+Status: complete as of 2026-05-04.
+
+`AudioEventRouter` now handles server-approved `kFootstep` events by mapping `event.code` surface ids
+to deterministic presentation sound ids. Default mappings cover `generic`, `concrete`, `metal`,
+`wood`, `stone`, `dirt`, `grass`, and `water`, with stable numbered variant selection from event
+tick/player/entity ids. Empty or unknown surface ids fall back to `footstep_generic_*`.
+
+Generated retro placeholder WAV one-shots live under `assets/audio/footsteps/generated/` and are
+reproducible through `tools/audio/generate_retro_footsteps.py`. Default tests validate routing and
+asset presence without requiring an audio device. A miniaudio sink remains out of scope for this
+phase; existing no-op/fake sinks cover default validation.
 
 ## Completed Scope — Doxygen Generation
 

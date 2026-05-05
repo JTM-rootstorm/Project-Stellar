@@ -90,10 +90,11 @@ void no_op_sink_accepts_events_without_errors() {
 
     const auto result = router.route_events(
         {event(stellar::network::GameplayEventKind::kPickupCollected, 1, 2, "", ""),
-         event(stellar::network::GameplayEventKind::kDoorStateChanged, 2, 0, "", "Door opened")},
+         event(stellar::network::GameplayEventKind::kDoorStateChanged, 2, 0, "", "Door opened"),
+         event(stellar::network::GameplayEventKind::kFootstep, 3, 2, "wood", "wood/plank_01")},
         sink);
 
-    assert(result.submitted_requests == 2);
+    assert(result.submitted_requests == 3);
     assert(result.diagnostics.empty());
 }
 
@@ -151,6 +152,72 @@ void unknown_door_state_reports_diagnostic_without_request() {
     assert(sink.requests.empty());
 }
 
+void footstep_event_routes_to_deterministic_surface_variant() {
+    stellar::audio::AudioEventRouter router;
+    FakeAudioSink sink({"footstep_wood_0", "footstep_wood_1"});
+
+    const auto result = router.route_event(
+        event(stellar::network::GameplayEventKind::kFootstep, 10, 42, "wood", "wood/plank_01"),
+        sink);
+
+    assert(result.submitted_requests == 1);
+    assert(result.diagnostics.empty());
+    assert(sink.requests.size() == 1);
+    assert(sink.requests[0].sound_id == "footstep_wood_1");
+    assert(sink.requests[0].source_tick == 10);
+    assert(sink.requests[0].entity_id == 42);
+    assert(sink.requests[0].player_id == 7);
+}
+
+void footstep_unknown_or_empty_surface_routes_to_generic() {
+    stellar::audio::AudioEventRouter router;
+    FakeAudioSink sink({"footstep_generic_0", "footstep_generic_1"});
+
+    const auto unknown = router.route_event(
+        event(stellar::network::GameplayEventKind::kFootstep, 11, 42, "marble", "marble/floor"),
+        sink);
+    const auto empty = router.route_event(
+        event(stellar::network::GameplayEventKind::kFootstep, 12, 42, "", ""), sink);
+
+    assert(unknown.submitted_requests == 1);
+    assert(empty.submitted_requests == 1);
+    assert(unknown.diagnostics.empty());
+    assert(empty.diagnostics.empty());
+    assert(sink.requests.size() == 2);
+    assert(sink.requests[0].sound_id == "footstep_generic_0");
+    assert(sink.requests[1].sound_id == "footstep_generic_1");
+}
+
+void footstep_variant_selection_is_stable() {
+    stellar::audio::AudioEventRouter router;
+    FakeAudioSink sink({"footstep_metal_0", "footstep_metal_1"});
+    const auto footstep =
+        event(stellar::network::GameplayEventKind::kFootstep, 20, 5, "metal", "metal/grate");
+
+    const auto first = router.route_event(footstep, sink);
+    const auto second = router.route_event(footstep, sink);
+
+    assert(first.submitted_requests == 1);
+    assert(second.submitted_requests == 1);
+    assert(sink.requests.size() == 2);
+    assert(sink.requests[0].sound_id == sink.requests[1].sound_id);
+}
+
+void footstep_zero_variant_count_uses_numbered_zero_variant() {
+    stellar::audio::AudioEventRouter router(
+        stellar::audio::AudioEventRouterConfig{.footstep_variant_count = 0});
+    FakeAudioSink sink({"footstep_concrete_0"});
+
+    const auto result = router.route_event(
+        event(stellar::network::GameplayEventKind::kFootstep, 20, 5, "concrete", "dev/grid_32"),
+        sink);
+
+    assert(result.submitted_requests == 1);
+    assert(result.diagnostics.empty());
+    assert(sink.requests.size() == 1);
+    assert(sink.requests[0].sound_id == "footstep_concrete_0");
+}
+
 } // namespace
 
 int main() {
@@ -160,5 +227,9 @@ int main() {
     missing_sound_is_presentation_diagnostic_only();
     script_error_is_diagnostic_unless_debug_sound_is_configured();
     unknown_door_state_reports_diagnostic_without_request();
+    footstep_event_routes_to_deterministic_surface_variant();
+    footstep_unknown_or_empty_surface_routes_to_generic();
+    footstep_variant_selection_is_stable();
+    footstep_zero_variant_count_uses_numbered_zero_variant();
     return 0;
 }

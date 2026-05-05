@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -70,6 +71,27 @@ void submit_request(AudioEventRouteResult& result,
     append_diagnostics(result, std::move(request_result));
 }
 
+[[nodiscard]] const std::string& footstep_prefix_for_surface(
+    const AudioEventRouterConfig& config,
+    const std::string& surface_id) noexcept {
+    if (!surface_id.empty()) {
+        for (const FootstepSurfaceSound& mapping : config.footstep_surface_sounds) {
+            if (mapping.surface_id == surface_id && !mapping.sound_prefix.empty()) {
+                return mapping.sound_prefix;
+            }
+        }
+    }
+    return config.footstep_generic_prefix;
+}
+
+[[nodiscard]] std::string footstep_sound_id(const AudioEventRouterConfig& config,
+                                            const stellar::network::GameplayEvent& event) {
+    const std::uint32_t variant_count = std::max<std::uint32_t>(1, config.footstep_variant_count);
+    const std::uint64_t seed = event.tick + event.player_id + event.entity_id;
+    const std::uint32_t variant = static_cast<std::uint32_t>(seed % variant_count);
+    return footstep_prefix_for_surface(config, event.code) + "_" + std::to_string(variant);
+}
+
 } // namespace
 
 AudioRequestResult NoOpAudioRequestSink::play_one_shot(const AudioPlaybackRequest& request) {
@@ -107,6 +129,9 @@ AudioEventRouteResult AudioEventRouter::route_event(const stellar::network::Game
             result.diagnostics.push_back(
                 diagnostic("script_error", event.message, config_.script_error_sound_id));
         }
+        break;
+    case stellar::network::GameplayEventKind::kFootstep:
+        submit_request(result, sink, event, footstep_sound_id(config_, event));
         break;
     case stellar::network::GameplayEventKind::kScriptCommandApplied:
         break;
