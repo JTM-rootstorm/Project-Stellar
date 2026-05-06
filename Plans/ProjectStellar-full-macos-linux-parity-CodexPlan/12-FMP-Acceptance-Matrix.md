@@ -29,7 +29,7 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Audible miniaudio playback is opt-in and still needs a documented macOS smoke result. |
 | TrenchBroom/BSP tooling | `PASS` | `FAIL` | `FAIL` | `FAIL` | Shell syntax/docs checks pass, but optional external BSP compiler gaps currently skip with exit `0` instead of the required code `77`, and macOS tool docs need clarification. |
 | Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `PASS` | `PASS` | Metal now consumes the active OpenGL material contract in shader bindings; GPU readback parity remains tracked separately. |
-| Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Required for final Metal parity, but no tracked readback/histogram test exists yet. |
+| Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Display-free fixture coverage is tracked in `13-FMP-Render-Fixture-Matrix.md`; no tracked readback/histogram test exists yet. |
 | CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
 
 ## Active Blockers
@@ -37,8 +37,8 @@ Full macOS compatibility and Linux parity is not complete until every required r
 - FMP-3 opt-in display smoke still needs a display-attached local run. The
   projection, viewport, drawable/depth diagnostics, and display-free tests are
   in place, but the current session has no SDL display.
-- FMP-5 must add display-free material fixture assertions plus opt-in Metal
-  readback/smoke coverage.
+- FMP-5 still needs opt-in Metal readback/smoke coverage. Display-free material
+  fixture assertions and the fixture matrix are in place.
 - FMP-6 must add tracked macOS runtime smoke coverage for single-player,
   listen-host, remote-client, and dedicated-server workflows.
 - FMP-7 must capture optional audible macOS miniaudio smoke or clean device
@@ -180,3 +180,22 @@ git diff --check
 
 Both Metal builds passed the focused suite, including the display-free
 `metal_shader_compile` test. Pixel/readback comparison remains FMP-5 work.
+
+## FMP-5 Validation Notes
+
+FMP-5 expanded the display-free sidecar material fixture to assert every active
+material slot and factor that the Metal shader now consumes: normal, specular,
+metallic/roughness, occlusion, emissive, lightmap, texture transforms, texcoord
+set selection, alpha mask, double-sided, emissive factor, and scalar material
+factors. `13-FMP-Render-Fixture-Matrix.md` records the fixture coverage and keeps
+the optional GPU/readback gap explicit.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos-metal -R '^(render_level_upload|render_level_inspection|metal_shader_compile|bsp_materials|bsp_lightmaps)$' --output-on-failure
+git diff --check
+```
+
+The display-free suite passed. Metal pixel/readback validation remains
+`NOT_COVERED` until a display/GPU-backed deterministic readback test is added.

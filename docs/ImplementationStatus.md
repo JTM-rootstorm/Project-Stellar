@@ -88,6 +88,20 @@ Focused macOS Metal and Metal-only validation passed render upload, render inspe
 BSP lightmap, backend-selection, and a new display-free `metal_shader_compile` test. Opt-in
 readback/pixel comparison remains FMP-5 work.
 
+### FMP-5 Render Fixture Parity Summary
+
+Status: display-free fixture layer complete as of 2026-05-06; optional GPU readback remains open.
+
+The display-free sidecar material fixture now asserts every active material slot and factor consumed
+by the Metal shader: normal, specular, metallic/roughness, occlusion, emissive, lightmap, texture
+transforms, texcoord set selection, alpha mask, double-sided, emissive factor, and scalar material
+factors. `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/13-FMP-Render-Fixture-Matrix.md`
+tracks fixture coverage and keeps the missing Metal readback/histogram validation explicit.
+
+Focused macOS Metal validation passed render upload, render inspection, Metal shader compile, BSP
+materials, and BSP lightmaps. Deterministic Metal pixel/readback comparison remains not covered in
+the current no-display session.
+
 ## Completed Scope - macOS Compatibility And Metal Backend
 
 Status: complete on `macos-compat` as of 2026-05-05.

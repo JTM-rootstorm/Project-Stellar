@@ -234,6 +234,21 @@ stellar::assets::LevelAsset make_sidecar_material_level() {
                                   .height = 1,
                                   .format = stellar::assets::ImageFormat::kR8G8B8A8,
                                   .pixels = {255, 255, 255, 255}},
+      stellar::assets::ImageAsset{.name = "metallic_roughness",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {0, 192, 64, 255}},
+      stellar::assets::ImageAsset{.name = "occlusion",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {192, 192, 192, 255}},
+      stellar::assets::ImageAsset{.name = "emissive",
+                                  .width = 1,
+                                  .height = 1,
+                                  .format = stellar::assets::ImageFormat::kR8G8B8A8,
+                                  .pixels = {32, 64, 128, 255}},
       stellar::assets::ImageAsset{.name = "lightmap",
                                   .width = 1,
                                   .height = 1,
@@ -263,9 +278,24 @@ stellar::assets::LevelAsset make_sidecar_material_level() {
           .image_index = 2,
           .sampler_index = 0,
           .color_space = stellar::assets::TextureColorSpace::kLinear},
+      stellar::assets::TextureAsset{
+          .name = "metallic_roughness",
+          .image_index = 3,
+          .sampler_index = 0,
+          .color_space = stellar::assets::TextureColorSpace::kLinear},
+      stellar::assets::TextureAsset{
+          .name = "occlusion",
+          .image_index = 4,
+          .sampler_index = 0,
+          .color_space = stellar::assets::TextureColorSpace::kLinear},
+      stellar::assets::TextureAsset{
+          .name = "emissive",
+          .image_index = 5,
+          .sampler_index = 0,
+          .color_space = stellar::assets::TextureColorSpace::kSrgb},
   };
   level.geometry.lightmaps.push_back(stellar::assets::LevelLightmap{
-      .image_index = 3,
+      .image_index = 6,
       .size = {1, 1},
       .style = 0,
       .source_name = "face_0",
@@ -278,12 +308,26 @@ stellar::assets::LevelAsset make_sidecar_material_level() {
       stellar::assets::MaterialTextureSlot{.texture_index = 1};
   resolved.specular_texture =
       stellar::assets::MaterialTextureSlot{.texture_index = 2};
+  resolved.specular_texture->transform.enabled = true;
+  resolved.specular_texture->transform.offset = {0.25F, 0.5F};
+  resolved.specular_texture->transform.scale = {2.0F, 3.0F};
+  resolved.specular_texture->transform.rotation = 0.125F;
+  resolved.metallic_roughness_texture =
+      stellar::assets::MaterialTextureSlot{.texture_index = 3, .texcoord_set = 1};
+  resolved.occlusion_texture =
+      stellar::assets::MaterialTextureSlot{.texture_index = 4};
+  resolved.emissive_texture =
+      stellar::assets::MaterialTextureSlot{.texture_index = 5};
+  resolved.emissive_factor = {0.1F, 0.2F, 0.3F};
   resolved.normal_scale = 1.5F;
   resolved.normal_light_strength = 0.25F;
   resolved.specular_factor = 0.35F;
   resolved.specular_power = 48.0F;
-  resolved.metallic_factor = 0.0F;
+  resolved.occlusion_strength = 0.65F;
+  resolved.metallic_factor = 0.25F;
   resolved.roughness_factor = 0.75F;
+  resolved.alpha_mode = stellar::assets::AlphaMode::kMask;
+  resolved.alpha_cutoff = 0.35F;
   resolved.double_sided = true;
   resolved.unlit = false;
   level.geometry.materials.push_back(stellar::assets::LevelSurfaceMaterial{
@@ -385,17 +429,34 @@ int main() {
   auto sidecar_result = sidecar_render_level.initialize(
       std::move(sidecar_mock), window, make_sidecar_material_level());
   assert(sidecar_result.has_value());
-  assert(sidecar_mock_ptr->uploaded_textures.size() == 4);
+  assert(sidecar_mock_ptr->uploaded_textures.size() == 7);
   assert(sidecar_mock_ptr->material_uploads.size() == 2);
   const auto &sidecar_upload = sidecar_mock_ptr->material_uploads[1];
   assert(sidecar_upload.base_color_texture.has_value());
   assert(sidecar_upload.normal_texture.has_value());
   assert(sidecar_upload.specular_texture.has_value());
+  assert(sidecar_upload.metallic_roughness_texture.has_value());
+  assert(sidecar_upload.occlusion_texture.has_value());
+  assert(sidecar_upload.emissive_texture.has_value());
   assert(sidecar_upload.lightmap_texture.has_value());
+  assert(sidecar_upload.metallic_roughness_texture->texcoord_set == 1);
+  assert(sidecar_upload.specular_texture->transform.enabled);
+  assert(sidecar_upload.specular_texture->transform.offset ==
+         (std::array<float, 2>{0.25F, 0.5F}));
+  assert(sidecar_upload.specular_texture->transform.scale ==
+         (std::array<float, 2>{2.0F, 3.0F}));
+  assert(sidecar_upload.specular_texture->transform.rotation == 0.125F);
   assert(sidecar_upload.material.normal_scale == 1.5F);
   assert(sidecar_upload.material.normal_light_strength == 0.25F);
   assert(sidecar_upload.material.specular_factor == 0.35F);
   assert(sidecar_upload.material.specular_power == 48.0F);
+  assert(sidecar_upload.material.occlusion_strength == 0.65F);
+  assert(sidecar_upload.material.metallic_factor == 0.25F);
+  assert(sidecar_upload.material.roughness_factor == 0.75F);
+  assert(sidecar_upload.material.emissive_factor ==
+         (std::array<float, 3>{0.1F, 0.2F, 0.3F}));
+  assert(sidecar_upload.material.alpha_mode == stellar::assets::AlphaMode::kMask);
+  assert(sidecar_upload.material.alpha_cutoff == 0.35F);
   sidecar_render_level.render(64, 64, vp, identity,
                               std::array<float, 3>{1.0F, 2.0F, 3.0F});
   assert(!sidecar_mock_ptr->draw_transforms.empty());
