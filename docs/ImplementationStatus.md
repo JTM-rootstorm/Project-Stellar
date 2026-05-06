@@ -115,6 +115,26 @@ The optional `opengl_context_smoke` test remains display/GPU opt-in through
 `STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` plus `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, so default CTest
 continues to stay display-free.
 
+### MC-5 Metal Backend Scaffold Summary
+
+Status: complete as of 2026-05-05.
+
+Metal is now an Apple-gated compiled backend behind `STELLAR_ENABLE_METAL=ON` and
+`STELLAR_ENABLE_METAL_BACKEND`. The parser accepts `metal` and `mtl` only in Metal-enabled builds;
+default builds still reject those names with `Metal backend not built`. `GraphicsDeviceFactory`
+creates `MetalGraphicsDevice` for the Metal enum, and the client requests
+`SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI` for Metal display windows.
+
+`MetalGraphicsDevice` is a real clear-only scaffold: it creates an SDL Metal view, obtains the
+CAMetalLayer, creates the default MTLDevice, assigns it to the layer, creates an MTLCommandQueue, and
+presents a black clear frame when a drawable is available. Mesh, texture, and material creation
+return tracked placeholder handles until MC-6 resource upload replaces them with real Metal
+resources.
+
+The opt-in `metal_context_smoke` test is registered only for Metal-enabled builds and skips by
+default unless `STELLAR_RUN_METAL_CONTEXT_TESTS=1` is set. Local macOS validation passed
+`build-macos-metal/stellar-client --validate-display --renderer metal`.
+
 ## Completed Scope - Texture/Material-Dependent Audio Footsteps
 
 Status: complete on `audio-impl` as of 2026-05-04.

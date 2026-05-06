@@ -15,11 +15,25 @@ int main() {
     assert(gl_alias.has_value());
     assert(*gl_alias == stellar::graphics::GraphicsBackend::kOpenGL);
 
+    const auto metal = stellar::graphics::parse_graphics_backend("metal");
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+    assert(metal.has_value());
+    assert(*metal == stellar::graphics::GraphicsBackend::kMetal);
+    assert(stellar::graphics::graphics_backend_name(*metal) == "metal");
+
+    const auto metal_alias = stellar::graphics::parse_graphics_backend("mtl");
+    assert(metal_alias.has_value());
+    assert(*metal_alias == stellar::graphics::GraphicsBackend::kMetal);
+#else
+    assert(!metal.has_value());
+    assert(metal.error().message ==
+           "Unsupported graphics backend: metal (Metal backend not built)");
+#endif
+
     const std::string removed_backend = std::string("vul") + "kan";
     const auto removed = stellar::graphics::parse_graphics_backend(removed_backend);
     assert(!removed.has_value());
-    assert(removed.error().message ==
-           "Unsupported graphics backend: " + removed_backend + " (expected opengl)");
+    assert(removed.error().message.find("Unsupported graphics backend: " + removed_backend) == 0);
 
     const std::string removed_alias = std::string("v") + "k";
     const auto alias = stellar::graphics::parse_graphics_backend(removed_alias);
@@ -46,6 +60,12 @@ int main() {
     assert(selected_opengl_device != nullptr);
 #else
     assert(selected_opengl_device == nullptr);
+#endif
+
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+    auto selected_metal_device = stellar::graphics::create_graphics_device(
+        stellar::graphics::GraphicsBackend::kMetal);
+    assert(selected_metal_device != nullptr);
 #endif
 
     return 0;

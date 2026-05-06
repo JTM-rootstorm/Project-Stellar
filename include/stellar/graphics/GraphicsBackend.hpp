@@ -16,6 +16,10 @@ namespace stellar::graphics {
 enum class GraphicsBackend {
     /** @brief OpenGL backend. */
     kOpenGL,
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+    /** @brief Apple Metal backend. */
+    kMetal,
+#endif
 };
 
 /**

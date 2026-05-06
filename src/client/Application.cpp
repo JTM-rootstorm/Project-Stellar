@@ -31,7 +31,15 @@ constexpr int kDisplayValidationWindowHeight = 240;
 constexpr int kTargetFps = 60;
 constexpr int kFrameDelayMs = 1000 / kTargetFps;
 
-Uint32 backend_window_flags(stellar::graphics::GraphicsBackend /*backend*/) noexcept {
+Uint32 backend_window_flags(stellar::graphics::GraphicsBackend backend) noexcept {
+  switch (backend) {
+  case stellar::graphics::GraphicsBackend::kOpenGL:
+    return SDL_WINDOW_OPENGL;
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  case stellar::graphics::GraphicsBackend::kMetal:
+    return SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+  }
   return SDL_WINDOW_OPENGL;
 }
 

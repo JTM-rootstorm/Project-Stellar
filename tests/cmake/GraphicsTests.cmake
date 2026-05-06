@@ -41,3 +41,20 @@ if(STELLAR_ENABLE_OPENGL_BACKEND AND STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
     add_test(NAME opengl_context_smoke COMMAND $<TARGET_FILE:stellar_opengl_context_smoke_test>)
     set_tests_properties(opengl_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
 endif()
+
+if(STELLAR_ENABLE_METAL AND STELLAR_ENABLE_METAL_CONTEXT_TESTS)
+    add_executable(stellar_metal_context_smoke_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/MetalContextSmoke.cpp
+    )
+
+    target_include_directories(stellar_metal_context_smoke_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_metal_context_smoke_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME metal_context_smoke COMMAND $<TARGET_FILE:stellar_metal_context_smoke_test>)
+    set_tests_properties(metal_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+endif()

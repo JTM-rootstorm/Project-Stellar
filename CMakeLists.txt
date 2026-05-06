@@ -356,6 +356,12 @@ if(STELLAR_ENABLE_OPENGL_BACKEND)
     )
 endif()
 
+if(STELLAR_ENABLE_METAL)
+    list(APPEND STELLAR_GRAPHICS_SOURCES
+        src/graphics/metal/MetalGraphicsDevice.mm
+    )
+endif()
+
 add_library(stellar_graphics
     ${STELLAR_GRAPHICS_SOURCES}
 )
@@ -379,6 +385,15 @@ if(STELLAR_ENABLE_OPENGL_BACKEND)
     target_link_libraries(stellar_graphics PUBLIC
         ${OPENGL_LIBRARIES}
         PkgConfig::GLEW
+    )
+endif()
+
+if(STELLAR_ENABLE_METAL)
+    target_compile_definitions(stellar_graphics PUBLIC STELLAR_ENABLE_METAL_BACKEND=1)
+    target_link_libraries(stellar_graphics PRIVATE
+        ${METAL_FRAMEWORK}
+        ${QUARTZCORE_FRAMEWORK}
+        ${FOUNDATION_FRAMEWORK}
     )
 endif()
 
