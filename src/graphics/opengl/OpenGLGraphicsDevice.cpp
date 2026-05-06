@@ -9,6 +9,7 @@
 #include <expected>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
@@ -17,6 +18,10 @@
 namespace stellar::graphics::opengl {
 
 namespace {
+
+constexpr int kRequestedOpenGLMajorVersion = 4;
+constexpr int kRequestedOpenGLMinorVersion = 5;
+constexpr int kRequestedOpenGLDepthBits = 24;
 
 class ScopedUnpackAlignment {
 public:
@@ -268,14 +273,45 @@ std::string current_sdl_video_driver_text() {
   return driver;
 }
 
-std::string opengl_context_failure_message() {
-  std::string message = "Failed to create OpenGL context";
-  message += " (backend=OpenGL, requested_context=4.5 core, depth_bits=24";
+std::string opengl_initialization_context_text() {
+  std::string message = "(backend=OpenGL, requested_context=";
+  message += std::to_string(kRequestedOpenGLMajorVersion);
+  message += ".";
+  message += std::to_string(kRequestedOpenGLMinorVersion);
+  message += " core, depth_bits=";
+  message += std::to_string(kRequestedOpenGLDepthBits);
   message += ", sdl_video_driver=";
   message += current_sdl_video_driver_text();
-  message += "): ";
-  message += stable_sdl_error_text();
+  message += ")";
   return message;
+}
+
+std::string append_macos_opengl_support_note(std::string message) {
+#if defined(__APPLE__)
+  message += ". macOS OpenGL is deprecated; Stellar's OpenGL backend "
+             "currently requests OpenGL 4.5 Core and is experimental/"
+             "unsupported on macOS. Use --renderer metal once the Metal "
+             "backend lands.";
+#endif
+  return message;
+}
+
+std::string append_macos_opengl_initialization_diagnostics(
+    std::string message) {
+#if defined(__APPLE__)
+  message += " ";
+  message += opengl_initialization_context_text();
+#endif
+  return append_macos_opengl_support_note(std::move(message));
+}
+
+std::string opengl_context_failure_message() {
+  std::string message = "Failed to create OpenGL context";
+  message += " ";
+  message += opengl_initialization_context_text();
+  message += ": ";
+  message += stable_sdl_error_text();
+  return append_macos_opengl_support_note(std::move(message));
 }
 
 bool env_flag_enabled(const char *name) noexcept {
@@ -505,8 +541,9 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   if (glewInit() != GLEW_OK) {
     SDL_GL_DeleteContext(context_);
     context_ = nullptr;
-    return std::unexpected(
-        stellar::platform::Error("Failed to initialize GLEW"));
+    return std::unexpected(stellar::platform::Error(
+        append_macos_opengl_initialization_diagnostics(
+            "Failed to initialize GLEW")));
   }
 
   auto shader_program =
@@ -514,7 +551,9 @@ OpenGLGraphicsDevice::initialize(stellar::platform::Window &window) {
   if (!shader_program) {
     SDL_GL_DeleteContext(context_);
     context_ = nullptr;
-    return std::unexpected(shader_program.error());
+    return std::unexpected(stellar::platform::Error(
+        append_macos_opengl_initialization_diagnostics(
+            shader_program.error().message)));
   }
 
   shader_program_ = *shader_program;
