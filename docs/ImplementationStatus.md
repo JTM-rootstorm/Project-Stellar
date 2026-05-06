@@ -58,6 +58,21 @@ and Metal-only macOS builds. `stellar-client --validate-config --renderer metal`
 builds; `--renderer opengl` fails clearly in Metal-only builds; removed Vulkan names still fail
 early with unsupported-backend diagnostics.
 
+### FMP-3 Metal Projection Viewport And Depth Summary
+
+Status: implemented for display-free validation as of 2026-05-06.
+
+Metal rendering now applies an explicit projection correction from OpenGL-style clip depth to
+Metal's zero-to-one depth convention. The Metal backend sets an explicit viewport from the SDL Metal
+drawable pixel size, continues to recreate the depth texture when drawable dimensions change, and
+prints `STELLAR_DEBUG_RENDER=1` diagnostics for drawable size, layer drawable size, depth texture
+size, viewport, and projection convention. Level-renderer debug logs now include backend and
+projection convention.
+
+Focused render upload/inspection/backend-selection tests passed in macOS default and macOS Metal
+builds. The local opt-in Metal display validation could not run in the current no-display session
+because SDL reported that no displays were available.
+
 ## Completed Scope - macOS Compatibility And Metal Backend
 
 Status: complete on `macos-compat` as of 2026-05-05.

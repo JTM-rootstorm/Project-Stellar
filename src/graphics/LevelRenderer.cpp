@@ -62,11 +62,36 @@ std::array<float, 16> to_array(const glm::mat4 &matrix) noexcept {
   return result;
 }
 
-glm::mat4 make_projection_for_backend(GraphicsBackend /*backend*/,
+std::string_view projection_convention(GraphicsBackend backend) noexcept {
+  switch (backend) {
+  case GraphicsBackend::kOpenGL:
+    return "opengl_ndc_z_minus_one_to_one";
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  case GraphicsBackend::kMetal:
+    return "metal_ndc_z_zero_to_one";
+#endif
+  }
+  return "unknown";
+}
+
+glm::mat4 make_projection_for_backend(GraphicsBackend backend,
                                       float vertical_fov_degrees, float aspect,
                                       float near_plane, float far_plane) {
-  return glm::perspective(glm::radians(vertical_fov_degrees), aspect,
-                          near_plane, far_plane);
+  const glm::mat4 perspective = glm::perspective(
+      glm::radians(vertical_fov_degrees), aspect, near_plane, far_plane);
+  switch (backend) {
+  case GraphicsBackend::kOpenGL:
+    return perspective;
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  case GraphicsBackend::kMetal: {
+    glm::mat4 correction(1.0F);
+    correction[2][2] = 0.5F;
+    correction[3][2] = 0.5F;
+    return correction * perspective;
+  }
+#endif
+  }
+  return perspective;
 }
 
 void include_point(LevelBounds &bounds, const glm::vec3 &point) noexcept {
@@ -229,7 +254,7 @@ BillboardView compute_billboard_view(const LevelRenderState &state) noexcept {
 
 LevelRenderer::LevelRenderer(
     std::optional<stellar::assets::LevelAsset> level) noexcept
-    : LevelRenderer(GraphicsBackend::kOpenGL, std::move(level)) {}
+    : LevelRenderer(default_graphics_backend(), std::move(level)) {}
 
 LevelRenderer::LevelRenderer(
     GraphicsBackend backend,
@@ -282,9 +307,14 @@ void LevelRenderer::render(float /*elapsed_seconds*/, float /*delta_seconds*/,
   if (debug_render_enabled_ &&
       debug_render_frame_index_ < debug_render_frame_limit_) {
     std::fprintf(stderr,
-                 "[stellar][render] view frame=%zu render_view_present=%d "
-                 "camera_world_position_present=%d sprites=%zu\n",
-                 debug_render_frame_index_, render_view_.has_value() ? 1 : 0,
+                 "[stellar][render] view frame=%zu backend=%.*s projection=%.*s "
+                 "render_view_present=%d camera_world_position_present=%d sprites=%zu\n",
+                 debug_render_frame_index_,
+                 static_cast<int>(graphics_backend_name(backend_).size()),
+                 graphics_backend_name(backend_).data(),
+                 static_cast<int>(projection_convention(backend_).size()),
+                 projection_convention(backend_).data(),
+                 render_view_.has_value() ? 1 : 0,
                  state.camera_world_position.has_value() ? 1 : 0,
                  presentation_state_.sprites.size());
   }

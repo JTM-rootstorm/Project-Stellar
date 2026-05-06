@@ -629,6 +629,26 @@ void verify_level_render_state_can_disable_culling_for_fallback() {
   assert(state.view_projection[0] != 0.0F);
 }
 
+void verify_metal_projection_uses_zero_to_one_depth_range() {
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  stellar::graphics::LevelRenderView view;
+  view.eye = {0.0F, 0.0F, 8.0F};
+  view.target = {0.0F, 0.0F, 0.0F};
+  view.near_plane = 0.25F;
+  view.far_plane = 64.0F;
+
+  const auto opengl_state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
+  const auto metal_state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kMetal, 1.0F);
+
+  assert(opengl_state.view_projection[0] == metal_state.view_projection[0]);
+  assert(opengl_state.view_projection[5] == metal_state.view_projection[5]);
+  assert(opengl_state.view_projection[10] != metal_state.view_projection[10]);
+  assert(opengl_state.view_projection[14] != metal_state.view_projection[14]);
+#endif
+}
+
 void verify_billboard_view_is_derived_from_render_state() {
   stellar::graphics::LevelRenderView view;
   view.eye = {0.0F, -8.0F, 4.0F};
@@ -691,6 +711,7 @@ int main() {
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();
   verify_level_render_state_can_disable_culling_for_fallback();
+  verify_metal_projection_uses_zero_to_one_depth_range();
   verify_billboard_view_is_derived_from_render_state();
   verify_graphics_up_defaults_use_world_axis_contract();
   verify_level_renderer_retains_and_clears_presentation_state();

@@ -8,10 +8,13 @@
 #include <SDL2/SDL_metal.h>
 
 #include <array>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -170,6 +173,29 @@ struct MaterialRecord {
     return pixels;
 }
 
+[[nodiscard]] bool env_flag_enabled(const char* name) noexcept {
+    const char* value = std::getenv(name);
+    if (value == nullptr || value[0] == '\0') {
+        return false;
+    }
+    const std::string_view text(value);
+    return text == "1" || text == "true" || text == "TRUE" || text == "on" ||
+           text == "ON";
+}
+
+[[nodiscard]] std::size_t env_frame_limit(const char* name, std::size_t fallback) noexcept {
+    const char* value = std::getenv(name);
+    if (value == nullptr || value[0] == '\0') {
+        return fallback;
+    }
+    char* end = nullptr;
+    const unsigned long parsed = std::strtoul(value, &end, 10);
+    if (end == value) {
+        return fallback;
+    }
+    return static_cast<std::size_t>(parsed);
+}
+
 } // namespace
 
 struct MetalGraphicsDevice::Impl {
@@ -192,6 +218,9 @@ struct MetalGraphicsDevice::Impl {
     std::uint64_t next_handle = 1;
     int depth_width = 0;
     int depth_height = 0;
+    bool debug_render_enabled = false;
+    std::size_t debug_render_frame_limit = 0;
+    std::size_t debug_render_frame_index = 0;
 
     [[nodiscard]] std::uint64_t allocate_handle() noexcept {
         return next_handle++;
@@ -242,6 +271,11 @@ MetalGraphicsDevice::initialize(stellar::platform::Window& window) {
     impl_->layer.device = impl_->device;
     impl_->layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
     impl_->layer.framebufferOnly = YES;
+    impl_->debug_render_enabled = env_flag_enabled("STELLAR_DEBUG_RENDER");
+    impl_->debug_render_frame_limit =
+        env_frame_limit("STELLAR_DEBUG_RENDER_FRAMES",
+                        impl_->debug_render_enabled ? 3U : 0U);
+    impl_->debug_render_frame_index = 0;
 
     NSError* library_error = nil;
     NSString* source = [NSString stringWithUTF8String:kMetalShaderSource];
@@ -453,7 +487,26 @@ void MetalGraphicsDevice::begin_frame(int width, int height) noexcept {
     impl_->encoder = [impl_->command_buffer renderCommandEncoderWithDescriptor:pass];
     if (impl_->encoder != nil) {
         [impl_->encoder setDepthStencilState:impl_->depth_state];
+        const MTLViewport viewport{0.0,
+                                   0.0,
+                                   static_cast<double>(width),
+                                   static_cast<double>(height),
+                                   0.0,
+                                   1.0};
+        [impl_->encoder setViewport:viewport];
     }
+    if (impl_->debug_render_enabled &&
+        impl_->debug_render_frame_index < impl_->debug_render_frame_limit) {
+        const CGSize drawable_size = impl_->layer.drawableSize;
+        std::fprintf(stderr,
+                     "[stellar][metal] frame=%zu drawable=%dx%d layer_drawable=%.0fx%.0f "
+                     "depth=%dx%d viewport=%dx%d projection=metal_ndc_z_zero_to_one\n",
+                     impl_->debug_render_frame_index, width, height,
+                     static_cast<double>(drawable_size.width),
+                     static_cast<double>(drawable_size.height), impl_->depth_width,
+                     impl_->depth_height, width, height);
+    }
+    ++impl_->debug_render_frame_index;
 }
 
 void MetalGraphicsDevice::draw_mesh(MeshHandle mesh,

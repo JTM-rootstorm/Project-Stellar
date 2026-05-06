@@ -34,8 +34,9 @@ Full macOS compatibility and Linux parity is not complete until every required r
 
 ## Active Blockers
 
-- FMP-3 must add explicit Metal projection, viewport, drawable/depth diagnostics,
-  and `STELLAR_DEBUG_RENDER=1` output for the frame contract.
+- FMP-3 opt-in display smoke still needs a display-attached local run. The
+  projection, viewport, drawable/depth diagnostics, and display-free tests are
+  in place, but the current session has no SDL display.
 - FMP-4 must make Metal consume every material slot currently consumed by OpenGL:
   lightmap, normal, specular, metallic/roughness, occlusion, emissive, texture
   transforms, texcoord set selection, alpha cutoff/blend, double-sided culling,
@@ -136,3 +137,28 @@ build-macos/stellar-client --validate-config --renderer opengl
 The valid renderer selections succeeded. Invalid selections failed early with
 compiled-backend diagnostics, including `opengl` in Metal-only builds and
 `metal` in OpenGL-only builds.
+
+## FMP-3 Validation Notes
+
+FMP-3 added a Metal projection correction from OpenGL-style clip depth to Metal
+zero-to-one clip depth, explicit Metal viewport setup from SDL drawable pixels,
+and `STELLAR_DEBUG_RENDER=1` diagnostics for backend projection convention,
+drawable size, depth texture size, and viewport.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos -R '^(render_level_inspection|render_level_upload|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build-macos-metal -R '^(render_level_inspection|render_level_upload|graphics_backend_selection|metal_context_smoke)$' --output-on-failure
+git diff --check
+```
+
+The display-free tests passed. `metal_context_smoke` skipped by default. The
+opt-in display validation command:
+
+```bash
+STELLAR_DEBUG_RENDER=1 STELLAR_DEBUG_RENDER_FRAMES=1 build-macos-metal/stellar-client --validate-display --renderer metal
+```
+
+could not run in this session because SDL reported that the video driver did not
+add any displays.
