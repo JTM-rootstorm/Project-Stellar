@@ -13,7 +13,7 @@
 
 namespace stellar::graphics::metal {
 
-/** @brief Apple Metal graphics device scaffold for SDL Metal windows. */
+/** @brief Apple Metal graphics device implementation for SDL Metal windows. */
 class MetalGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
     /** @brief Construct an empty Metal graphics device. */
@@ -29,22 +29,22 @@ public:
     [[nodiscard]] std::expected<void, stellar::platform::Error>
     initialize(stellar::platform::Window& window) override;
 
-    /** @brief Register a mesh handle for later Metal upload work. */
+    /** @brief Upload a static mesh into Metal buffers. */
     [[nodiscard]] std::expected<MeshHandle, stellar::platform::Error>
     create_mesh(const stellar::assets::MeshAsset& mesh) override;
 
-    /** @brief Register a texture handle for later Metal upload work. */
+    /** @brief Upload a texture into Metal storage. */
     [[nodiscard]] std::expected<TextureHandle, stellar::platform::Error>
     create_texture(const TextureUpload& texture) override;
 
-    /** @brief Register a material handle for later Metal upload work. */
+    /** @brief Register a resolved material upload for Metal rendering. */
     [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
     create_material(const MaterialUpload& material) override;
 
-    /** @brief Begin a clear-only Metal frame when a drawable is available. */
+    /** @brief Begin a Metal frame when a drawable is available. */
     void begin_frame(int width, int height) noexcept override;
 
-    /** @brief No-op draw placeholder until MC-6 resource upload lands. */
+    /** @brief Draw an uploaded static mesh with Metal pipelines. */
     void draw_mesh(MeshHandle mesh,
                    std::span<const MeshPrimitiveDrawCommand> commands,
                    const MeshDrawTransforms& transforms) noexcept override;
@@ -65,5 +65,10 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+
+/**
+ * @brief Return the embedded Metal shader source used by MetalGraphicsDevice.
+ */
+[[nodiscard]] const char* metal_shader_source() noexcept;
 
 } // namespace stellar::graphics::metal

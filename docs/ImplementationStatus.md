@@ -73,6 +73,21 @@ Focused render upload/inspection/backend-selection tests passed in macOS default
 builds. The local opt-in Metal display validation could not run in the current no-display session
 because SDL reported that no displays were available.
 
+### FMP-4 Metal Material And Shader Parity Summary
+
+Status: implemented for shader-compile and display-free validation as of 2026-05-06.
+
+The Metal shader and draw path now consume the active OpenGL material contract: base color, vertex
+color, base color texture, lightmaps with secondary UVs, normal maps through tangent/bitangent basis,
+specular texture/factor/power, metallic/roughness texture and factors, occlusion texture/strength,
+emissive texture/factor, texture transforms, texcoord set selection, alpha mask/blend, double-sided
+culling, unlit behavior, camera-dependent specular, and global/key light constants. The backend now
+caches Metal samplers and emits first-material slot diagnostics under `STELLAR_DEBUG_RENDER=1`.
+
+Focused macOS Metal and Metal-only validation passed render upload, render inspection, BSP material,
+BSP lightmap, backend-selection, and a new display-free `metal_shader_compile` test. Opt-in
+readback/pixel comparison remains FMP-5 work.
+
 ## Completed Scope - macOS Compatibility And Metal Backend
 
 Status: complete on `macos-compat` as of 2026-05-05.
@@ -210,14 +225,10 @@ Status: implemented as a first Metal rendering path as of 2026-05-05.
 The Metal backend now uploads static mesh vertex/index buffers, converts RGB/RGBA image payloads into
 Metal RGBA textures with linear/sRGB pixel formats, stores backend-neutral material uploads, creates
 opaque and alpha-blend render pipelines from embedded MSL, maintains a depth texture sized to the
-drawable, and issues indexed triangle draws with MVP transforms. The current shader path covers
-fallback/base color, vertex color, base color texture sampling, alpha discard/blend, depth testing,
-and sampler wrap/filter mapping.
-
-Normal/specular/lightmap material data remains preserved in `MaterialUpload` records for backend
-parity, but the first Metal shader does not yet reproduce the full OpenGL normal/specular/lightmap
-lighting model. Follow-up work should extend the embedded MSL or move to a `.metal` library with the
-full material slot contract before claiming final visual parity on authored BSP material fixtures.
+drawable, and issues indexed triangle draws with MVP transforms. This MC-6/MC-7 slice originally
+covered fallback/base color, vertex color, base color texture sampling, alpha discard/blend, depth
+testing, and sampler wrap/filter mapping; FMP-4 has since extended the shader path to the full active
+OpenGL material contract.
 
 Local validation passed default graphics tests, Metal backend selection, opt-in
 `STELLAR_RUN_METAL_CONTEXT_TESTS=1` Metal context smoke, and

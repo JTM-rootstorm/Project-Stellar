@@ -23,6 +23,25 @@ stellar_add_graphics_test(stellar_graphics_backend_selection_test graphics_backe
     ${STELLAR_TEST_SOURCE_DIR}/graphics/BackendSelection.cpp
 )
 
+if(STELLAR_ENABLE_METAL)
+    add_executable(stellar_metal_shader_compile_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/MetalShaderCompile.mm
+    )
+
+    target_include_directories(stellar_metal_shader_compile_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_metal_shader_compile_test PRIVATE
+        stellar_graphics
+        ${METAL_FRAMEWORK}
+        ${FOUNDATION_FRAMEWORK}
+    )
+
+    add_test(NAME metal_shader_compile COMMAND $<TARGET_FILE:stellar_metal_shader_compile_test>)
+    set_tests_properties(metal_shader_compile PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
 if(STELLAR_ENABLE_OPENGL_BACKEND AND STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
     add_executable(stellar_opengl_context_smoke_test
         ${STELLAR_TEST_SOURCE_DIR}/graphics/OpenGLContextSmoke.cpp

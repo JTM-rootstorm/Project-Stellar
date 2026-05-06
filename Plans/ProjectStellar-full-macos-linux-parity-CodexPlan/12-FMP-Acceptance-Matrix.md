@@ -28,7 +28,7 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | Generated footstep audio no-device path | `PASS` | `PASS` | `PASS` | `PASS` | Default audio tests use no-device/no-op behavior and presentation diagnostics. |
 | Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Audible miniaudio playback is opt-in and still needs a documented macOS smoke result. |
 | TrenchBroom/BSP tooling | `PASS` | `FAIL` | `FAIL` | `FAIL` | Shell syntax/docs checks pass, but optional external BSP compiler gaps currently skip with exit `0` instead of the required code `77`, and macOS tool docs need clarification. |
-| Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `FAIL` | `FAIL` | OpenGL consumes the full active material contract. Metal currently draws the base path and ignores required lightmap/normal/specular/material slots. |
+| Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `PASS` | `PASS` | Metal now consumes the active OpenGL material contract in shader bindings; GPU readback parity remains tracked separately. |
 | Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Required for final Metal parity, but no tracked readback/histogram test exists yet. |
 | CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
 
@@ -37,10 +37,6 @@ Full macOS compatibility and Linux parity is not complete until every required r
 - FMP-3 opt-in display smoke still needs a display-attached local run. The
   projection, viewport, drawable/depth diagnostics, and display-free tests are
   in place, but the current session has no SDL display.
-- FMP-4 must make Metal consume every material slot currently consumed by OpenGL:
-  lightmap, normal, specular, metallic/roughness, occlusion, emissive, texture
-  transforms, texcoord set selection, alpha cutoff/blend, double-sided culling,
-  unlit behavior, camera-dependent specular, and global/key light constants.
 - FMP-5 must add display-free material fixture assertions plus opt-in Metal
   readback/smoke coverage.
 - FMP-6 must add tracked macOS runtime smoke coverage for single-player,
@@ -72,8 +68,9 @@ Current findings:
   Apple sockets install `SO_NOSIGPIPE`.
 - The historical `POSITION_INDEPENDIENT_CODE` typo appears only in archived plan
   text; active miniaudio CMake uses `POSITION_INDEPENDENT_CODE`.
-- `MaterialUpload` preserves the full material data needed for parity, but the
-  current Metal shader only consumes base color, vertex color, and base texture.
+- The FMP-0 audit found that `MaterialUpload` preserved full material data while
+  Metal consumed only base color, vertex color, and base texture; FMP-4 updated
+  the Metal shader path to consume the active material contract.
 - BSP and TrenchBroom shell wrappers pass syntax checks, Python docs consistency
   passes, and generated footstep WAV regeneration is byte-stable in the stopped
   tooling audit.
@@ -162,3 +159,24 @@ STELLAR_DEBUG_RENDER=1 STELLAR_DEBUG_RENDER_FRAMES=1 build-macos-metal/stellar-c
 
 could not run in this session because SDL reported that the video driver did not
 add any displays.
+
+## FMP-4 Validation Notes
+
+FMP-4 expanded the embedded Metal shader and binding path to consume the active
+OpenGL material contract: base color and vertex color, base textures, lightmaps
+on secondary UVs, normal maps with tangent basis, metallic/roughness, occlusion,
+emissive, specular texture/factors, texture transforms, texcoord set selection,
+alpha mask/blend, double-sided culling, unlit materials, camera-dependent
+specular, and global/key light constants. Metal material debug logs list bound
+slots for the first few materials when `STELLAR_DEBUG_RENDER=1`.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos-metal -R '^(metal_shader_compile|render_level_upload|render_level_inspection|bsp_materials|bsp_lightmaps|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build-macos-metal-only -R '^(metal_shader_compile|render_level_upload|render_level_inspection|bsp_materials|bsp_lightmaps|graphics_backend_selection)$' --output-on-failure
+git diff --check
+```
+
+Both Metal builds passed the focused suite, including the display-free
+`metal_shader_compile` test. Pixel/readback comparison remains FMP-5 work.
