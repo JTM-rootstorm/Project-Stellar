@@ -23,7 +23,7 @@ stellar_add_graphics_test(stellar_graphics_backend_selection_test graphics_backe
     ${STELLAR_TEST_SOURCE_DIR}/graphics/BackendSelection.cpp
 )
 
-if(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
+if(STELLAR_ENABLE_OPENGL_BACKEND AND STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
     add_executable(stellar_opengl_context_smoke_test
         ${STELLAR_TEST_SOURCE_DIR}/graphics/OpenGLContextSmoke.cpp
     )

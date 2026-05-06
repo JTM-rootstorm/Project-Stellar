@@ -34,11 +34,19 @@ int main() {
     assert(invalid.error().message.find("Unsupported graphics backend") != std::string::npos);
 
     auto default_device = stellar::graphics::create_graphics_device();
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
     assert(default_device != nullptr);
+#else
+    assert(default_device == nullptr);
+#endif
 
     auto selected_opengl_device = stellar::graphics::create_graphics_device(
         stellar::graphics::GraphicsBackend::kOpenGL);
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
     assert(selected_opengl_device != nullptr);
+#else
+    assert(selected_opengl_device == nullptr);
+#endif
 
     return 0;
 }

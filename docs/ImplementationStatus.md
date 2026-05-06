@@ -46,6 +46,26 @@ without an Apple `SO_NOSIGPIPE` policy. Local baseline CMake configure did not r
 because `pkg-config` could not find `glew`; the macOS runbook will require installing the Homebrew
 dependency or using an Apple-gated Metal build that does not globally require OpenGL/GLEW.
 
+### MC-1 macOS Build And Toolchain Hygiene Summary
+
+Status: complete as of 2026-05-05.
+
+The CMake graph now has explicit `STELLAR_ENABLE_OPENGL_BACKEND` and `STELLAR_ENABLE_METAL` build
+options. Metal remains parser/API-invisible until a real backend lands, but `STELLAR_ENABLE_METAL=ON`
+now fails clearly on non-Apple platforms and enables Objective-C++ plus Apple framework discovery on
+Apple platforms. OpenGL and GLEW discovery are gated behind `STELLAR_ENABLE_OPENGL_BACKEND`, while
+the default build still keeps OpenGL enabled.
+
+`thirdparty/miniaudio/CMakeLists.txt` now uses the correct `POSITION_INDEPENDENT_CODE` property. The
+existing stb image-loader dependency is vendored through a small `stellar_stb` interface target so
+macOS builds do not depend on an undeclared system `stb` package.
+
+Local MC-1 validation on macOS installed the missing Homebrew packages `glew` and `glm`, then passed
+configure/build for the default OpenGL build, an OpenGL-disabled build, and a Metal-prep
+Objective-C++ build. `target_boundary` and `graphics_backend_selection` passed in all validated build
+trees. The default focused CTest slice still fails `socket_transport` on macOS; that is the expected
+MC-2 portability blocker and is not treated as resolved by MC-1.
+
 ## Completed Scope - Texture/Material-Dependent Audio Footsteps
 
 Status: complete on `audio-impl` as of 2026-05-04.
