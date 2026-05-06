@@ -66,6 +66,55 @@ Objective-C++ build. `target_boundary` and `graphics_backend_selection` passed i
 trees. The default focused CTest slice still fails `socket_transport` on macOS; that is the expected
 MC-2 portability blocker and is not treated as resolved by MC-1.
 
+### MC-2 POSIX Socket Portability Summary
+
+Status: complete as of 2026-05-05.
+
+`SocketTransport` no longer passes Linux-oriented `MSG_NOSIGNAL` unconditionally. Send calls now use
+a small platform helper that selects `MSG_NOSIGNAL` only when the platform defines it and otherwise
+passes zero flags. Apple sockets also install `SO_NOSIGPIPE` after outbound, listening, and accepted
+socket creation so broken-pipe behavior remains explicit without adding presentation or gameplay
+dependencies to transport.
+
+Socket transport tests now accumulate TCP packet batches instead of assuming three logical packets
+arrive in one receive call. This keeps FIFO coverage deterministic on macOS while preserving the
+existing packet envelope and bounded nonblocking I/O behavior.
+
+### MC-3 macOS Audio Runtime Sink Summary
+
+Status: implemented for focused validation as of 2026-05-05.
+
+The audio router remains display-free/audio-device-free by default through `NoOpAudioRequestSink`.
+`MiniaudioRequestSink` is now available as a presentation-only sink behind a separate
+`stellar_audio_miniaudio` target that links the vendored `miniaudio` target without adding miniaudio
+to protocol, authority, server, or router-only audio targets. `stellar-client` selects the sink at
+runtime with `STELLAR_ENABLE_AUDIO=1`; disabled audio or miniaudio initialization failure falls back
+to no-op playback and prints presentation diagnostics rather than affecting gameplay.
+
+Generated footstep sound ids map to the checked-in retro WAV assets under
+`assets/audio/footsteps/generated/`. Missing sound ids, missing local assets, uninitialized audio,
+and miniaudio playback failures return `AudioPresentationDiagnostic` entries. Default tests cover
+the sound registry and no-device fallback path; audible playback remains an optional local smoke path.
+
+The vendored miniaudio target now supports `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` on Apple
+platforms, adding `MA_NO_RUNTIME_LINKING` and explicit CoreFoundation/CoreAudio/AudioToolbox
+framework links for notarization-oriented builds.
+
+### MC-4 OpenGL macOS Fallback Diagnostics Summary
+
+Status: complete as of 2026-05-05.
+
+MC-4 followed Path A from the macOS compatibility plan. The OpenGL backend still requests OpenGL 4.5
+Core and remains experimental/unsupported on macOS rather than attempting a transitional OpenGL 4.1
+fallback. Apple-only initialization diagnostics now include the requested OpenGL context, current SDL
+video driver, macOS OpenGL deprecation status, and guidance to use `--renderer metal` once the Metal
+backend lands. Linux/default OpenGL behavior and backend parsing remain OpenGL-only; no Metal enum or
+CLI alias is added by MC-4.
+
+The optional `opengl_context_smoke` test remains display/GPU opt-in through
+`STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` plus `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, so default CTest
+continues to stay display-free.
+
 ## Completed Scope - Texture/Material-Dependent Audio Footsteps
 
 Status: complete on `audio-impl` as of 2026-05-04.
