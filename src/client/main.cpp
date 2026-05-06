@@ -11,14 +11,14 @@ int main(int argc, char *argv[]) {
   if (!config) {
     std::fprintf(stderr, "Client startup failed: %s\n",
                  config.error().message.c_str());
-    return EXIT_FAILURE;
+    return config.error().exit_code;
   }
 
   stellar::client::Application application(std::move(*config));
   if (auto result = application.run(); !result) {
     std::fprintf(stderr, "Client startup failed: %s\n",
                  result.error().message.c_str());
-    return EXIT_FAILURE;
+    return result.error().exit_code;
   }
   return EXIT_SUCCESS;
 }

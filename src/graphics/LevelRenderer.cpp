@@ -350,4 +350,14 @@ const LevelPresentationState &LevelRenderer::presentation_state() const noexcept
   return presentation_state_;
 }
 
+std::expected<void, stellar::platform::Error>
+LevelRenderer::request_frame_readback() noexcept {
+  return level_.request_frame_readback();
+}
+
+std::expected<std::optional<FrameReadback>, stellar::platform::Error>
+LevelRenderer::take_frame_readback() noexcept {
+  return level_.take_frame_readback();
+}
+
 } // namespace stellar::graphics

@@ -142,6 +142,44 @@ stellar_add_validate_map_test(
     FIXTURES_REQUIRED trenchbroom_package_material_wad_fixture_writer
 )
 
+if(STELLAR_ENABLE_METAL AND STELLAR_ENABLE_METAL_CONTEXT_TESTS)
+    add_test(NAME metal_readback_material_sidecar_fixture_copy
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${STELLAR_TEST_FIXTURE_DIR}/materials
+            ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/materials
+    )
+    set_tests_properties(metal_readback_material_sidecar_fixture_copy PROPERTIES
+        FIXTURES_SETUP metal_readback_material_sidecars
+    )
+
+    add_test(NAME metal_readback_lit_fixture
+        COMMAND $<TARGET_FILE:stellar-client>
+            --validate-display
+            --map ${STELLAR_TB_LIT_BSP_FIXTURE}
+            --renderer metal
+            --readback-output
+            ${CMAKE_BINARY_DIR}/tests/fixtures/trenchbroom/compiled/metal_readback_lit.json
+    )
+    set_tests_properties(metal_readback_lit_fixture PROPERTIES
+        FIXTURES_REQUIRED bsp_lightmaps_lit_fixture_writer
+        SKIP_RETURN_CODE 77
+    )
+
+    add_test(NAME metal_readback_material_fixture
+        COMMAND $<TARGET_FILE:stellar-client>
+            --validate-display
+            --map ${STELLAR_TB_MATERIAL_WAD_BSP_FIXTURE}
+            --renderer metal
+            --readback-output
+            ${CMAKE_BINARY_DIR}/tests/fixtures/trenchbroom/compiled/metal_readback_material.json
+    )
+    set_tests_properties(metal_readback_material_fixture PROPERTIES
+        FIXTURES_REQUIRED
+            "trenchbroom_package_material_wad_fixture_writer;metal_readback_material_sidecars"
+        SKIP_RETURN_CODE 77
+    )
+endif()
+
 stellar_add_validate_map_test(
     TEST_NAME brush_mover_door_button_fixture_validate
     COMMAND_TARGET stellar-client

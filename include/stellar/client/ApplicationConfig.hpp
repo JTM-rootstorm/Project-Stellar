@@ -33,6 +33,9 @@ struct ApplicationConfig {
   /** @brief Validate SDL display and graphics context startup, then exit. */
   bool validate_display = false;
 
+  /** @brief Optional JSON path for one-frame display readback validation output. */
+  std::optional<std::string> readback_output_path;
+
   /** @brief Optional root used to resolve asset-relative authoritative script ids. */
   std::optional<std::string> script_root;
 

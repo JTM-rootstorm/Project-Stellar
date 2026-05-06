@@ -123,6 +123,15 @@ parse_application_config(int argc, const char *const argv[]) {
       continue;
     }
 
+    if (std::strcmp(argv[i], "--readback-output") == 0) {
+      auto value = require_value("--readback-output");
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      config.readback_output_path = std::move(*value);
+      continue;
+    }
+
     if (std::strcmp(argv[i], "--map") == 0) {
       auto value = require_value("--map");
       if (!value) {
@@ -215,10 +224,24 @@ parse_application_config(int argc, const char *const argv[]) {
       return std::unexpected(stellar::platform::Error(
           "--validate-display cannot be combined with --validate-config or --validate-map"));
     }
-    if (config.map_path.has_value() || config.connect_endpoint.has_value() ||
+    if (config.map_path.has_value() && !config.readback_output_path.has_value()) {
+      return std::unexpected(stellar::platform::Error(
+          "--validate-display can use --map only with --readback-output"));
+    }
+    if (config.connect_endpoint.has_value() ||
         config.script_root.has_value() || config.host || config.listen_endpoint.has_value()) {
       return std::unexpected(stellar::platform::Error(
           "--validate-display does not require --map, --connect, or --script-root"));
+    }
+  }
+  if (config.readback_output_path.has_value()) {
+    if (!config.validate_display) {
+      return std::unexpected(stellar::platform::Error(
+          "--readback-output requires --validate-display"));
+    }
+    if (!config.map_path.has_value()) {
+      return std::unexpected(stellar::platform::Error(
+          "--readback-output requires --map"));
     }
   }
   if (config.connect_endpoint.has_value() && config.script_root.has_value()) {

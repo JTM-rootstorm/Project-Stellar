@@ -5,6 +5,7 @@
 #include <span>
 
 #include "stellar/assets/MeshAsset.hpp"
+#include "stellar/graphics/FrameReadback.hpp"
 #include "stellar/graphics/GraphicsDevice.hpp"
 #include "stellar/graphics/GraphicsHandles.hpp"
 #include "stellar/graphics/MaterialUpload.hpp"
@@ -14,7 +15,8 @@
 namespace stellar::graphics::metal {
 
 /** @brief Apple Metal graphics device implementation for SDL Metal windows. */
-class MetalGraphicsDevice final : public stellar::graphics::GraphicsDevice {
+class MetalGraphicsDevice final : public stellar::graphics::GraphicsDevice,
+                                  public stellar::graphics::FrameReadbackDevice {
 public:
     /** @brief Construct an empty Metal graphics device. */
     MetalGraphicsDevice();
@@ -51,6 +53,14 @@ public:
 
     /** @brief Present and commit the current clear-only Metal frame. */
     void end_frame() noexcept override;
+
+    /** @brief Request a CPU-readable copy of the next committed drawable. */
+    void request_frame_readback() noexcept override;
+
+    /** @brief Take the most recently completed Metal drawable readback. */
+    [[nodiscard]] std::expected<std::optional<stellar::graphics::FrameReadback>,
+                                stellar::platform::Error>
+    take_frame_readback() noexcept override;
 
     /** @brief Destroy a registered mesh handle. */
     void destroy_mesh(MeshHandle mesh) noexcept override;

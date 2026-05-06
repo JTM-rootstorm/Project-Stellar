@@ -139,6 +139,32 @@ int main() {
   assert(invalid_validate_display_config.error().message.find("--validate-display") !=
          std::string::npos);
 
+  const char *validate_display_readback_args[] = {
+      "stellar-client", "--validate-display", "--map", "room.bsp",
+      "--readback-output", "readback.json"};
+  const auto validate_display_readback_config =
+      stellar::client::parse_application_config(6, validate_display_readback_args);
+  assert(validate_display_readback_config.has_value());
+  assert(validate_display_readback_config->validate_display);
+  assert(validate_display_readback_config->map_path == "room.bsp");
+  assert(validate_display_readback_config->readback_output_path == "readback.json");
+
+  const char *readback_without_display_args[] = {
+      "stellar-client", "--map", "room.bsp", "--readback-output", "readback.json"};
+  const auto readback_without_display_config =
+      stellar::client::parse_application_config(5, readback_without_display_args);
+  assert(!readback_without_display_config.has_value());
+  assert(readback_without_display_config.error().message.find(
+             "--readback-output requires --validate-display") != std::string::npos);
+
+  const char *readback_without_map_args[] = {
+      "stellar-client", "--validate-display", "--readback-output", "readback.json"};
+  const auto readback_without_map_config =
+      stellar::client::parse_application_config(4, readback_without_map_args);
+  assert(!readback_without_map_config.has_value());
+  assert(readback_without_map_config.error().message.find(
+             "--readback-output requires --map") != std::string::npos);
+
   const std::string removed_backend = std::string("vul") + "kan";
   const std::string removed_backend_message_prefix =
       "Unsupported graphics backend: " + removed_backend;

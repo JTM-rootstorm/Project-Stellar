@@ -9,6 +9,7 @@
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/assets/MeshAsset.hpp"
 #include "stellar/core/WorldAxes.hpp"
+#include "stellar/graphics/FrameReadback.hpp"
 #include "stellar/graphics/GraphicsBackend.hpp"
 #include "stellar/graphics/RenderLevel.hpp"
 #include "stellar/graphics/Renderer.hpp"
@@ -170,6 +171,19 @@ public:
 
   /** @brief Inspect retained presentation data without mutating renderer state. */
   [[nodiscard]] const LevelPresentationState &presentation_state() const noexcept;
+
+  /**
+   * @brief Request a CPU-readable framebuffer copy during the next render call.
+   */
+  [[nodiscard]] std::expected<void, stellar::platform::Error>
+  request_frame_readback() noexcept;
+
+  /**
+   * @brief Take the most recently completed framebuffer copy, when available.
+   */
+  [[nodiscard]] std::expected<std::optional<FrameReadback>,
+                              stellar::platform::Error>
+  take_frame_readback() noexcept;
 
 private:
   GraphicsBackend backend_ = GraphicsBackend::kOpenGL;

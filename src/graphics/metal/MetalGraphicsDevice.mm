@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <expected>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -443,6 +444,11 @@ transform1_for(const std::optional<MaterialTextureBinding>& binding) noexcept {
     return static_cast<std::size_t>(parsed);
 }
 
+[[nodiscard]] NSUInteger aligned_readback_bytes_per_row(int width) noexcept {
+    const NSUInteger raw = static_cast<NSUInteger>(width) * 4U;
+    return (raw + 255U) & ~static_cast<NSUInteger>(255U);
+}
+
 } // namespace
 
 struct MetalGraphicsDevice::Impl {
@@ -466,6 +472,11 @@ struct MetalGraphicsDevice::Impl {
     std::uint64_t next_handle = 1;
     int depth_width = 0;
     int depth_height = 0;
+    int drawable_width = 0;
+    int drawable_height = 0;
+    bool readback_requested = false;
+    std::optional<stellar::graphics::FrameReadback> last_readback;
+    std::optional<std::string> last_readback_error;
     bool debug_render_enabled = false;
     std::size_t debug_render_frame_limit = 0;
     std::size_t debug_render_frame_index = 0;
@@ -699,10 +710,15 @@ void MetalGraphicsDevice::begin_frame(int width, int height) noexcept {
         height = drawable_height > 0 ? drawable_height : height;
     }
     if (width <= 0 || height <= 0) {
+        if (impl_->readback_requested) {
+            impl_->last_readback_error = "Metal readback failed: drawable size is empty";
+            impl_->readback_requested = false;
+        }
         return;
     }
     impl_->layer.drawableSize =
         CGSizeMake(static_cast<CGFloat>(width), static_cast<CGFloat>(height));
+    impl_->layer.framebufferOnly = impl_->readback_requested ? NO : YES;
 
     if (impl_->depth_texture == nil || impl_->depth_width != width ||
         impl_->depth_height != height) {
@@ -720,13 +736,23 @@ void MetalGraphicsDevice::begin_frame(int width, int height) noexcept {
 
     impl_->drawable = [impl_->layer nextDrawable];
     if (impl_->drawable == nil || impl_->depth_texture == nil) {
+        if (impl_->readback_requested) {
+            impl_->last_readback_error = "Metal readback failed: no drawable is available";
+            impl_->readback_requested = false;
+        }
         return;
     }
     impl_->command_buffer = [impl_->command_queue commandBuffer];
     if (impl_->command_buffer == nil) {
+        if (impl_->readback_requested) {
+            impl_->last_readback_error = "Metal readback failed: could not create command buffer";
+            impl_->readback_requested = false;
+        }
         impl_->drawable = nil;
         return;
     }
+    impl_->drawable_width = width;
+    impl_->drawable_height = height;
 
     MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture = impl_->drawable.texture;
@@ -961,12 +987,122 @@ void MetalGraphicsDevice::end_frame() noexcept {
         [impl_->encoder endEncoding];
         impl_->encoder = nil;
     }
+    const bool readback_requested = impl_->readback_requested;
+    id<MTLBuffer> readback_buffer = nil;
+    NSUInteger readback_bytes_per_row = 0;
+    int readback_width = 0;
+    int readback_height = 0;
+    if (impl_->command_buffer != nil && impl_->drawable != nil && readback_requested) {
+        readback_width = impl_->drawable_width;
+        readback_height = impl_->drawable_height;
+        if (readback_width <= 0 || readback_height <= 0) {
+            impl_->last_readback_error = "Metal readback failed: drawable size is empty";
+        } else {
+            readback_bytes_per_row = aligned_readback_bytes_per_row(readback_width);
+            const NSUInteger readback_bytes =
+                readback_bytes_per_row * static_cast<NSUInteger>(readback_height);
+            readback_buffer = [impl_->device newBufferWithLength:readback_bytes
+                                                         options:MTLResourceStorageModeShared];
+            if (readback_buffer == nil) {
+                impl_->last_readback_error = "Metal readback failed: could not allocate buffer";
+            } else {
+                id<MTLBlitCommandEncoder> blit = [impl_->command_buffer blitCommandEncoder];
+                if (blit == nil) {
+                    impl_->last_readback_error =
+                        "Metal readback failed: could not create blit encoder";
+                } else {
+                    const MTLOrigin origin = MTLOriginMake(0, 0, 0);
+                    const MTLSize size =
+                        MTLSizeMake(static_cast<NSUInteger>(readback_width),
+                                    static_cast<NSUInteger>(readback_height), 1);
+                    [blit copyFromTexture:impl_->drawable.texture
+                              sourceSlice:0
+                              sourceLevel:0
+                             sourceOrigin:origin
+                               sourceSize:size
+                                 toBuffer:readback_buffer
+                        destinationOffset:0
+                   destinationBytesPerRow:readback_bytes_per_row
+                 destinationBytesPerImage:readback_bytes];
+                    [blit endEncoding];
+                }
+            }
+        }
+    }
+
     if (impl_->command_buffer != nil && impl_->drawable != nil) {
         [impl_->command_buffer presentDrawable:impl_->drawable];
         [impl_->command_buffer commit];
+        if (readback_requested) {
+            [impl_->command_buffer waitUntilCompleted];
+            if (impl_->last_readback_error.has_value()) {
+                // Preserve the more specific setup error recorded above.
+            } else if (impl_->command_buffer.status == MTLCommandBufferStatusError) {
+                std::string message = "Metal readback failed: command buffer failed";
+                NSError* command_error = impl_->command_buffer.error;
+                if (command_error != nil && command_error.localizedDescription != nil) {
+                    message += ": ";
+                    message += [command_error.localizedDescription UTF8String];
+                }
+                impl_->last_readback_error = std::move(message);
+            } else if (readback_buffer != nil) {
+                stellar::graphics::FrameReadback readback;
+                readback.width = readback_width;
+                readback.height = readback_height;
+                readback.rgba_pixels.resize(
+                    static_cast<std::size_t>(readback_width) *
+                    static_cast<std::size_t>(readback_height) * 4U);
+                const auto* source =
+                    static_cast<const std::uint8_t*>([readback_buffer contents]);
+                for (int y = 0; y < readback_height; ++y) {
+                    const std::uint8_t* row =
+                        source + static_cast<std::size_t>(y) * readback_bytes_per_row;
+                    for (int x = 0; x < readback_width; ++x) {
+                        const std::size_t source_index =
+                            static_cast<std::size_t>(x) * 4U;
+                        const std::size_t dest_index =
+                            (static_cast<std::size_t>(y) *
+                                 static_cast<std::size_t>(readback_width) +
+                             static_cast<std::size_t>(x)) *
+                            4U;
+                        readback.rgba_pixels[dest_index + 0] = row[source_index + 2];
+                        readback.rgba_pixels[dest_index + 1] = row[source_index + 1];
+                        readback.rgba_pixels[dest_index + 2] = row[source_index + 0];
+                        readback.rgba_pixels[dest_index + 3] = row[source_index + 3];
+                    }
+                }
+                impl_->last_readback = std::move(readback);
+            }
+        }
     }
+    impl_->readback_requested = false;
     impl_->command_buffer = nil;
     impl_->drawable = nil;
+}
+
+void MetalGraphicsDevice::request_frame_readback() noexcept {
+    if (impl_ == nullptr) {
+        return;
+    }
+    impl_->readback_requested = true;
+    impl_->last_readback.reset();
+    impl_->last_readback_error.reset();
+}
+
+std::expected<std::optional<stellar::graphics::FrameReadback>, stellar::platform::Error>
+MetalGraphicsDevice::take_frame_readback() noexcept {
+    if (impl_ == nullptr) {
+        return std::unexpected(error("Metal readback failed: device is not initialized"));
+    }
+    if (impl_->last_readback_error.has_value()) {
+        return std::unexpected(error(std::move(*impl_->last_readback_error)));
+    }
+    std::optional<stellar::graphics::FrameReadback> result;
+    if (impl_->last_readback.has_value()) {
+        result = std::move(impl_->last_readback);
+        impl_->last_readback.reset();
+    }
+    return result;
 }
 
 void MetalGraphicsDevice::destroy_mesh(MeshHandle mesh) noexcept {

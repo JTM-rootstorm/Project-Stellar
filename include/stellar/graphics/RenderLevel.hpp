@@ -12,6 +12,7 @@
 
 #include "stellar/assets/LevelAsset.hpp"
 #include "stellar/graphics/BillboardSprite.hpp"
+#include "stellar/graphics/FrameReadback.hpp"
 #include "stellar/graphics/GraphicsDevice.hpp"
 
 namespace stellar::graphics {
@@ -161,6 +162,19 @@ public:
    */
   void render(int width, int height,
               const std::array<float, 16> &view_projection) noexcept;
+
+  /**
+   * @brief Request a CPU-readable framebuffer copy during the next render call.
+   */
+  [[nodiscard]] std::expected<void, stellar::platform::Error>
+  request_frame_readback() noexcept;
+
+  /**
+   * @brief Take the most recently completed framebuffer copy, when available.
+   */
+  [[nodiscard]] std::expected<std::optional<FrameReadback>,
+                              stellar::platform::Error>
+  take_frame_readback() noexcept;
 
 private:
   struct StaticDrawQueueStats {

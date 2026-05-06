@@ -102,6 +102,28 @@ Focused macOS Metal and Metal-only validation passed render upload, render inspe
 compile, BSP materials, BSP lightmaps, display validation, and the forced single-player Metal
 runtime smoke. Deterministic Metal pixel/readback comparison remains not covered.
 
+### FMP-5.1 Metal Display Readback Summary
+
+Status: implemented for opt-in display-attached Metal readback as of 2026-05-06.
+
+The Metal backend now exposes an opt-in framebuffer readback path through a backend-neutral extension
+interface. Normal runtime frames keep the Metal layer framebuffer-only; validation frames temporarily
+allow drawable blits, copy BGRA drawable content into a shared buffer, convert it to CPU-side RGBA8,
+and return a tightly packed frame snapshot after command-buffer completion.
+
+`stellar-client --validate-display --map <bsp> --renderer metal --readback-output <json>` now loads
+the BSP for authority validation, loads a presentation copy with disk-side `.stellar_material`
+sidecars, renders one frame, and writes a JSON report containing drawable dimensions, projection
+convention, material-slot coverage counts, and per-channel 256-bin histograms. The generated CTest
+fixtures cover `lit_zup_room` and `material_wad_zup`; the material readback setup copies sidecars so
+normal/specular slots are represented in the report. `tools/graphics/compare_readback.py` compares
+two readback reports with a configurable normalized-bin tolerance.
+
+Focused validation passed in both `build-macos-metal` and `build-macos-metal-only`: the client parser
+smoke, generated BSP fixture writers, Metal readback JSON runs, and self-comparison helper. The
+standalone env-gated Metal context/readback harnesses still skip with CTest return code 77 unless
+`STELLAR_RUN_METAL_CONTEXT_TESTS=1` is set.
+
 ### FMP-6 Client/Server Runtime Parity Summary
 
 Status: implemented for display-free runtime coverage as of 2026-05-06; macOS Metal display smoke
