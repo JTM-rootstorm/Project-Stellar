@@ -40,6 +40,6 @@ Prove runtime modes behave on macOS the same way they behave on Linux.
 ## Validation
 
 ```bash
-ctest --test-dir build-macos-metal -R '^(transport|socket_transport|network_session|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_world_receiver|client_map_validation)' --output-on-failure
+ctest --test-dir build-macos-metal -R '^(loopback_transport|transport_loopback|transport_socket|socket_transport|network_session|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_world_receiver|client_map_validation_smoke|client_cli_validate_map)$' --output-on-failure
 tools/ci/run_macos_runtime_smoke.sh
 ```

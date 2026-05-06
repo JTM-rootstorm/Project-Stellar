@@ -600,10 +600,13 @@ category comes from BSP source texture/material names carried on collision trian
 server-safe resolver. Optional `.stellar_material` render sidecars remain presentation-only and are
 not an authoritative input for footstep gameplay.
 
-`AudioEventRouter` targets an abstract request sink; production has `NoOpAudioRequestSink`, while fake
-sinks are test-only. Missing sound diagnostics are sink-contract/test-fake behavior and do not imply
-production miniaudio playback or local asset loading yet. Generated retro footstep WAVs are
-placeholder presentation assets for the current slice. Audio never affects authoritative gameplay.
+`AudioEventRouter` targets an abstract request sink. Production has `NoOpAudioRequestSink` for
+default no-device behavior and an optional `MiniaudioRequestSink` selected by the client when
+`STELLAR_ENABLE_AUDIO=1` is set. Missing sound ids, missing local assets, uninitialized sinks, decode
+failures, initialization failures, and playback failures are presentation diagnostics. They do not
+affect authoritative gameplay. Generated retro footstep WAVs are placeholder presentation assets for
+the current slice, and default tests validate their registry and decode path without opening an audio
+device. Audio never affects authoritative gameplay.
 
 ### 8.2 miniaudio Target
 

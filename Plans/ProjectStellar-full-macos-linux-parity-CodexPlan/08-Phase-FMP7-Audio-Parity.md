@@ -19,8 +19,13 @@ Make audio behavior equivalent across Linux and macOS while keeping default test
    - failure returns diagnostics and no gameplay failure.
 2. Add optional audible smoke:
    ```bash
-   STELLAR_ENABLE_AUDIO=1 build-macos-metal/stellar-client --map <walking_fixture> --renderer metal
+   STELLAR_ENABLE_AUDIO=1 build-macos-metal/stellar-client \
+       --map build-macos-metal/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp \
+       --renderer metal
    ```
+   Run this only from a display-attached macOS session with an available output device. It is a
+   manual smoke path: walk in the loaded map to trigger generated footstep one-shots, and treat
+   device initialization/playback failures as presentation diagnostics rather than gameplay failures.
 3. Add no-device tests for registry entries, missing asset diagnostics, unknown sound ID diagnostics, and uninitialized sink diagnostics.
 4. Add a decode-only WAV load test if practical.
 5. Validate `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` on macOS.

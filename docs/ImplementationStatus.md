@@ -13,9 +13,9 @@ Active handoff plan:
 
 - `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`
 
-Current objective: close the remaining gap between macOS Metal and Linux/OpenGL parity. The active
-blocking area remains Metal material/shader parity for the full OpenGL material contract plus
-runtime/audio/tooling smoke coverage.
+Current objective: close the remaining environment-gated validation gaps between macOS Metal and
+Linux/OpenGL parity. The remaining active blockers are display-attached Metal smoke/readback
+coverage, optional audible audio smoke, and Linux-host execution of the tracked presets.
 
 ### FMP-0 Gap Audit And Acceptance Matrix Summary
 
@@ -101,6 +101,54 @@ tracks fixture coverage and keeps the missing Metal readback/histogram validatio
 Focused macOS Metal validation passed render upload, render inspection, Metal shader compile, BSP
 materials, and BSP lightmaps. Deterministic Metal pixel/readback comparison remains not covered in
 the current no-display session.
+
+### FMP-6 Client/Server Runtime Parity Summary
+
+Status: implemented for display-free runtime coverage as of 2026-05-06; full display smoke remains
+manual.
+
+`tools/ci/run_macos_runtime_smoke.sh` now validates the macOS Metal runtime path without requiring a
+display by checking renderer configuration, map validation from repository and build working
+directories, server map configuration on `127.0.0.1:0`, and the focused runtime/network CTest slice.
+When an attached display is available, the same script can run a short single-player Metal smoke; in
+the current no-display session that path is reported as skipped.
+
+Focused runtime validation passed the display-free client/server, listen-host, remote-client, map
+validation, transport, and socket slices. Runtime authority remains server-owned and renderer choice
+does not add server dependencies.
+
+### FMP-7 Audio Parity Summary
+
+Status: implemented for no-device parity and framework-link validation as of 2026-05-06; optional
+audible smoke remains manual.
+
+The miniaudio sink now exposes a decode-only metadata probe for local audio assets that does not
+initialize an audio device. Default audio tests cover generated footstep registry entries, decode all
+generated WAV assets, no-audio environment selection, missing asset diagnostics, unknown sound id
+diagnostics, and uninitialized sink diagnostics. These paths remain presentation-only and do not
+affect gameplay/server authority.
+
+The optional audible macOS smoke command is documented in
+`Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/08-Phase-FMP7-Audio-Parity.md`; it must be
+run from a display-attached macOS session with an available output device. The current no-display
+session did not execute audible playback.
+
+Focused validation passed the default, macOS Metal, and macOS Metal-only no-device audio CTest
+slices. A separate `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` build configured and built
+`stellar_miniaudio_sink_test`, `stellar-client`, and `stellar-server`; `otool -L` showed
+CoreFoundation/CoreAudio/AudioToolbox on `stellar-client` and no audio framework/miniaudio
+dependency on `stellar-server`.
+
+### FMP-8 Tooling, Editor, And Script Parity Summary
+
+Status: implemented for BSP/TrenchBroom tooling as of 2026-05-06.
+
+Optional external BSP compiler coverage now skips clearly with CTest skip return code `77` when
+required tools are missing or not executable on the current host. BSP/TrenchBroom wrappers avoid
+selecting Linux ELF VHLT tools on macOS unless host-native tools are provided through
+`STELLAR_VHLT_DIR`, per-tool overrides, or a single BSP30 compiler override. The editor package docs
+now include macOS TrenchBroom install paths, Homebrew setup notes, terminal-launch environment
+guidance, and the Linux-only status of checked-in VHLT binaries.
 
 ## Completed Scope - macOS Compatibility And Metal Backend
 

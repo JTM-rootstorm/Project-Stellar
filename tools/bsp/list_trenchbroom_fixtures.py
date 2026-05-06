@@ -86,21 +86,23 @@ def emit_shell_arrays(data: dict[str, Any]) -> str:
     lines.append("negative_fixtures=(")
     lines.extend(f"    {shell_quote(fixture['name'])}" for fixture in negatives)
     lines.append(")")
-    lines.append("declare -A negative_regex=(")
+    lines.append("negative_regex_names=(")
     for fixture in negatives:
-        lines.append(
-            f"    [{fixture['name']}]={shell_quote(fixture['preflight_expected_regex'])}"
-        )
+        lines.append(f"    {shell_quote(fixture['name'])}")
     lines.append(")")
-    lines.append("declare -A negative_strict_textures=(")
+    lines.append("negative_regex_values=(")
+    for fixture in negatives:
+        lines.append(f"    {shell_quote(fixture['preflight_expected_regex'])}")
+    lines.append(")")
+    lines.append("negative_strict_texture_fixtures=(")
     for fixture in negatives:
         if fixture.get("strict_textures"):
-            lines.append(f"    [{fixture['name']}]=1")
+            lines.append(f"    {shell_quote(fixture['name'])}")
     lines.append(")")
-    lines.append("declare -A negative_compile_after_preflight_failure=(")
+    lines.append("negative_compile_after_preflight_failure_fixtures=(")
     for fixture in negatives:
         if fixture.get("compile_after_preflight_failure"):
-            lines.append(f"    [{fixture['name']}]=1")
+            lines.append(f"    {shell_quote(fixture['name'])}")
     lines.append(")")
     return "\n".join(lines) + "\n"
 

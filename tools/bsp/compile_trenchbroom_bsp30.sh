@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: tools/bsp/compile_trenchbroom_bsp30.sh --map maps/src/room.map --out maps/compiled/room.bsp [--profile fast|full|validate-only] [--toolchain auto|single|vhlt] [--skip-source-preflight]
+Usage: tools/bsp/compile_trenchbroom_bsp30.sh --map maps/src/room.map --out maps/compiled/room.bsp [--profile fast|full|validate-only] [--toolchain auto|single|vhlt] [--allow-skip] [--skip-source-preflight]
 
 Examples:
   tools/bsp/compile_trenchbroom_bsp30.sh --map maps/src/room.map --out maps/compiled/room.bsp --profile fast
@@ -36,21 +36,46 @@ fail() {
     exit 1
 }
 
+skip_or_fail() {
+    if [[ "$allow_skip" == "1" ]]; then
+        printf 'compile_trenchbroom_bsp30.sh: skipping: %s\n' "$1" >&2
+        exit 77
+    fi
+    fail "$1"
+}
+
 repo_root() {
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cd "$script_dir/../.." && pwd
 }
 
+host_tool_is_executable() {
+    local path="$1"
+    local host
+    local info
+
+    [[ -x "$path" ]] || return 1
+    host="$(uname -s 2>/dev/null || printf 'unknown')"
+    if command -v file >/dev/null 2>&1; then
+        info="$(file "$path" 2>/dev/null || true)"
+        case "$host:$info" in
+            Darwin:*ELF*) return 1 ;;
+            Linux:*Mach-O*) return 1 ;;
+        esac
+    fi
+    return 0
+}
+
 find_compiler() {
     if [[ -n "${STELLAR_BSP30_COMPILER:-}" ]]; then
-        [[ -x "$STELLAR_BSP30_COMPILER" ]] || fail "STELLAR_BSP30_COMPILER is not executable: $STELLAR_BSP30_COMPILER"
+        host_tool_is_executable "$STELLAR_BSP30_COMPILER" || skip_or_fail "STELLAR_BSP30_COMPILER is not executable on this host: $STELLAR_BSP30_COMPILER"
         printf '%s\n' "$STELLAR_BSP30_COMPILER"
         return 0
     fi
 
     if [[ -n "${QBSP:-}" ]]; then
-        [[ -x "$QBSP" ]] || fail "QBSP is not executable: $QBSP"
+        host_tool_is_executable "$QBSP" || skip_or_fail "QBSP is not executable on this host: $QBSP"
         printf '%s\n' "$QBSP"
         return 0
     fi
@@ -58,12 +83,15 @@ find_compiler() {
     local candidate
     for candidate in ericw-qbsp qbsp hqbsp tyr-qbsp; do
         if command -v "$candidate" >/dev/null 2>&1; then
-            command -v "$candidate"
-            return 0
+            candidate="$(command -v "$candidate")"
+            if host_tool_is_executable "$candidate"; then
+                printf '%s\n' "$candidate"
+                return 0
+            fi
         fi
     done
 
-    fail "no BSP30 compiler found. Set STELLAR_BSP30_COMPILER or install qbsp/ericw-qbsp/hqbsp."
+    skip_or_fail "no BSP30 compiler found. Set STELLAR_BSP30_COMPILER or install qbsp/ericw-qbsp/hqbsp."
 }
 
 find_legacy_compiler() {
@@ -80,13 +108,13 @@ find_legacy_compiler() {
 
 explicit_single_compiler() {
     if [[ -n "${STELLAR_BSP30_COMPILER:-}" ]]; then
-        [[ -x "$STELLAR_BSP30_COMPILER" ]] || fail "STELLAR_BSP30_COMPILER is not executable: $STELLAR_BSP30_COMPILER"
+        host_tool_is_executable "$STELLAR_BSP30_COMPILER" || skip_or_fail "STELLAR_BSP30_COMPILER is not executable on this host: $STELLAR_BSP30_COMPILER"
         printf '%s\n' "$STELLAR_BSP30_COMPILER"
         return 0
     fi
 
     if [[ -n "${QBSP:-}" ]]; then
-        [[ -x "$QBSP" ]] || fail "QBSP is not executable: $QBSP"
+        host_tool_is_executable "$QBSP" || skip_or_fail "QBSP is not executable on this host: $QBSP"
         printf '%s\n' "$QBSP"
         return 0
     fi
@@ -106,7 +134,7 @@ has_vhlt_tools_under_bsp() {
             "$root/tools/bsp/$tool" \
             "$root/tools/bsp/vhlt/$tool" \
             "$root/tools/bsp/bin/$tool"; do
-            if [[ -x "$candidate" ]]; then
+            if host_tool_is_executable "$candidate"; then
                 found="1"
                 break
             fi
@@ -135,7 +163,7 @@ select_auto_toolchain() {
         return 0
     fi
 
-    fail "no BSP30 toolchain found. Set STELLAR_BSP30_COMPILER, QBSP, STELLAR_BSP30_TOOLCHAIN=vhlt, or install VHLT/qbsp tools."
+    skip_or_fail "no BSP30 toolchain found. Set STELLAR_BSP30_COMPILER, QBSP, STELLAR_BSP30_TOOLCHAIN=vhlt, or install VHLT/qbsp tools."
 }
 
 read_bsp_version() {
@@ -154,6 +182,7 @@ out_path=""
 profile="fast"
 toolchain="${STELLAR_BSP30_TOOLCHAIN:-auto}"
 source_preflight="1"
+allow_skip="0"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --map)
@@ -178,6 +207,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-source-preflight)
             source_preflight="0"
+            shift
+            ;;
+        --allow-skip)
+            allow_skip="1"
             shift
             ;;
         --help|-h)
@@ -220,6 +253,9 @@ if [[ "$selected_toolchain" == "vhlt" ]]; then
         vhlt_args=(--map "$map_path" --out "$out_path" --profile "$profile")
         if [[ "$source_preflight" == "0" ]]; then
             vhlt_args+=(--skip-source-preflight)
+        fi
+        if [[ "$allow_skip" == "1" ]]; then
+            vhlt_args+=(--allow-skip)
         fi
         bash "$vhlt_script" "${vhlt_args[@]}"
     fi

@@ -54,6 +54,23 @@ absolute_path() {
     printf '%s/%s\n' "$dir" "$base"
 }
 
+host_tool_is_executable() {
+    local path="$1"
+    local host
+    local info
+
+    [[ -x "$path" ]] || return 1
+    host="$(uname -s 2>/dev/null || printf 'unknown')"
+    if command -v file >/dev/null 2>&1; then
+        info="$(file "$path" 2>/dev/null || true)"
+        case "$host:$info" in
+            Darwin:*ELF*) return 1 ;;
+            Linux:*Mach-O*) return 1 ;;
+        esac
+    fi
+    return 0
+}
+
 find_tool() {
     local tool_name="$1"
     local override_value="$2"
@@ -61,19 +78,19 @@ find_tool() {
     local candidate
 
     if [[ -n "$override_value" ]]; then
-        if [[ -x "$override_value" ]]; then
+        if host_tool_is_executable "$override_value"; then
             absolute_path "$override_value"
             return 0
         fi
         if [[ "$required" == "1" ]]; then
-            skip_or_fail "$tool_name override is not executable: $override_value"
+            skip_or_fail "$tool_name override is not executable on this host: $override_value"
         fi
         return 1
     fi
 
     if [[ -n "${STELLAR_VHLT_DIR:-}" ]]; then
         candidate="$STELLAR_VHLT_DIR/$tool_name"
-        if [[ -x "$candidate" ]]; then
+        if host_tool_is_executable "$candidate"; then
             absolute_path "$candidate"
             return 0
         fi
@@ -84,19 +101,22 @@ find_tool() {
         "$root/tools/bsp/$tool_name" \
         "$root/tools/bsp/vhlt/$tool_name" \
         "$root/tools/bsp/bin/$tool_name"; do
-        if [[ -x "$candidate" ]]; then
+        if host_tool_is_executable "$candidate"; then
             absolute_path "$candidate"
             return 0
         fi
     done
 
     if command -v "$tool_name" >/dev/null 2>&1; then
-        command -v "$tool_name"
-        return 0
+        candidate="$(command -v "$tool_name")"
+        if host_tool_is_executable "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
     fi
 
     if [[ "$required" == "1" ]]; then
-        skip_or_fail "$tool_name not found or not executable. Set STELLAR_VHLT_DIR or $tool_name override."
+        skip_or_fail "$tool_name not found or not executable on this host. Set STELLAR_VHLT_DIR or $tool_name override."
     fi
     return 1
 }

@@ -33,6 +33,22 @@ void generated_footstep_registry_maps_expected_assets() {
     assert(entries.back().path == root / "footstep_water_1.wav");
 }
 
+void generated_footstep_wavs_decode_without_audio_device() {
+    const std::filesystem::path root = std::filesystem::path(STELLAR_PROJECT_SOURCE_DIR) /
+                                      "assets" / "audio" / "footsteps" / "generated";
+    const std::vector<stellar::audio::MiniaudioSoundRegistryEntry> entries =
+        stellar::audio::generated_footstep_sound_entries(root);
+
+    for (const stellar::audio::MiniaudioSoundRegistryEntry& entry : entries) {
+        const auto info = stellar::audio::decode_audio_file_info(entry.path);
+
+        assert(info.has_value());
+        assert(info->channels == 1);
+        assert(info->sample_rate == 22050);
+        assert(info->pcm_frame_count > 0);
+    }
+}
+
 void environment_factory_defaults_to_no_op_without_device() {
     clear_audio_environment();
 
@@ -55,7 +71,7 @@ void environment_factory_defaults_to_no_op_without_device() {
     assert(result.diagnostics.empty());
 }
 
-void uninitialized_sink_reports_presentation_diagnostics_without_device() {
+void unavailable_sound_requests_report_presentation_diagnostics_without_device() {
     const std::filesystem::path missing_root = std::filesystem::path(STELLAR_PROJECT_SOURCE_DIR) /
                                               "build" / "definitely_missing_audio_assets";
     stellar::audio::MiniaudioRequestSink sink(
@@ -76,11 +92,27 @@ void uninitialized_sink_reports_presentation_diagnostics_without_device() {
     assert(unknown.diagnostics[0].sound_id == "not_registered");
 }
 
+void uninitialized_sink_reports_presentation_diagnostics_without_device() {
+    const std::filesystem::path root = std::filesystem::path(STELLAR_PROJECT_SOURCE_DIR) /
+                                      "assets" / "audio" / "footsteps" / "generated";
+    stellar::audio::MiniaudioRequestSink sink(
+        stellar::audio::MiniaudioRequestSinkConfig{.generated_footstep_root = root});
+
+    const stellar::audio::AudioRequestResult uninitialized = sink.play_one_shot(
+        stellar::audio::AudioPlaybackRequest{.sound_id = "footstep_wood_0"});
+    assert(!uninitialized.accepted);
+    assert(uninitialized.diagnostics.size() == 1);
+    assert(uninitialized.diagnostics[0].code == "audio_sink_uninitialized");
+    assert(uninitialized.diagnostics[0].sound_id == "footstep_wood_0");
+}
+
 } // namespace
 
 int main() {
     generated_footstep_registry_maps_expected_assets();
+    generated_footstep_wavs_decode_without_audio_device();
     environment_factory_defaults_to_no_op_without_device();
+    unavailable_sound_requests_report_presentation_diagnostics_without_device();
     uninitialized_sink_reports_presentation_diagnostics_without_device();
     return 0;
 }

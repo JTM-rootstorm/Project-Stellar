@@ -19,15 +19,15 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | Configure/build | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
 | Default CTest | `PASS` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
 | `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Backend CLI selection is tested for OpenGL-only, dual-backend, and Metal-only builds. |
-| `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `FAIL` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Metal-only default selection still assumes OpenGL until FMP-2. |
-| `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `NOT_COVERED` | Import/map validation is backend-neutral; Metal-only validation needs a tracked run. |
-| Single-player `stellar-client --map <fixture>` | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | Existing unit tests cover single-player runtime pieces, but full macOS smoke is not tracked. |
-| Listen-host mode | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | Requires FMP-6 runtime smoke coverage. |
-| Remote client mode | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | Requires FMP-6 loopback runtime smoke coverage. |
+| `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Metal display validation still needs a display-attached run. |
+| `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Import/map validation is backend-neutral and covered by CLI/runtime smoke. |
+| Single-player `stellar-client --map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Display-free runtime tests cover single-player simulation startup. Full display smoke is skipped without an attached display. |
+| Listen-host mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free listen-host and loopback runtime tests cover the macOS socket path. |
+| Remote client mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free client/server loopback runtime tests cover remote-client connection flow. |
 | Dedicated server | `PASS` | `PASS` | `PASS` | `PASS` | Server targets remain backend-neutral and do not link graphics or miniaudio in the current CMake graph. |
-| Generated footstep audio no-device path | `PASS` | `PASS` | `PASS` | `PASS` | Default audio tests use no-device/no-op behavior and presentation diagnostics. |
-| Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Audible miniaudio playback is opt-in and still needs a documented macOS smoke result. |
-| TrenchBroom/BSP tooling | `PASS` | `FAIL` | `FAIL` | `FAIL` | Shell syntax/docs checks pass, but optional external BSP compiler gaps currently skip with exit `0` instead of the required code `77`, and macOS tool docs need clarification. |
+| Generated footstep audio no-device path | `PASS` | `PASS` | `PASS` | `PASS` | Default audio tests use no-device/no-op behavior, decode generated WAV assets without opening a device, and cover presentation diagnostics. |
+| Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Audible miniaudio playback is opt-in; the manual macOS smoke command is documented, but the current no-display session did not execute it. |
+| TrenchBroom/BSP tooling | `PASS` | `PASS` | `PASS` | `PASS` | Shell syntax/docs checks pass. Optional external BSP compiler gaps skip with CTest return code `77`, and macOS TrenchBroom/VHLT notes are documented. |
 | Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `PASS` | `PASS` | Metal now consumes the active OpenGL material contract in shader bindings; GPU readback parity remains tracked separately. |
 | Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Display-free fixture coverage is tracked in `13-FMP-Render-Fixture-Matrix.md`; no tracked readback/histogram test exists yet. |
 | CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
@@ -39,13 +39,14 @@ Full macOS compatibility and Linux parity is not complete until every required r
   in place, but the current session has no SDL display.
 - FMP-5 still needs opt-in Metal readback/smoke coverage. Display-free material
   fixture assertions and the fixture matrix are in place.
-- FMP-6 must add tracked macOS runtime smoke coverage for single-player,
-  listen-host, remote-client, and dedicated-server workflows.
-- FMP-7 must capture optional audible macOS miniaudio smoke or clean device
-  diagnostics while keeping default tests audio-device-free. A decode-only WAV
-  load test is not covered yet.
-- FMP-8 must validate shell/Python tooling on macOS and make optional external
-  BSP compiler gaps skip clearly with exit code `77`.
+- FMP-6 added tracked display-free runtime smoke coverage for single-player,
+  listen-host, remote-client, and dedicated-server workflows. Full Metal display
+  smoke remains gated on an attached display.
+- FMP-7 covered no-device diagnostics, decode-only generated WAV loading, and
+  `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` framework-link validation. Optional
+  audible macOS miniaudio smoke still needs a display/audio-device session.
+- FMP-8 covered shell/Python tooling on macOS and made optional external BSP
+  compiler gaps skip clearly with exit code `77`.
 
 ## FMP-0 Audit Commands
 
@@ -199,3 +200,74 @@ git diff --check
 
 The display-free suite passed. Metal pixel/readback validation remains
 `NOT_COVERED` until a display/GPU-backed deterministic readback test is added.
+
+## FMP-6 Validation Notes
+
+FMP-6 added `tools/ci/run_macos_runtime_smoke.sh` as a local/CI-oriented runtime
+smoke wrapper for macOS Metal builds. The script validates client renderer
+configuration, map lookup from repository and build working directories, server
+map configuration on `127.0.0.1:0`, the focused display-free runtime CTest
+slice, and optional single-player display smoke when an attached display is
+available.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos-metal -R '^(loopback_transport|transport_loopback|transport_socket|socket_transport|network_session|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_world_receiver|client_map_validation_smoke|client_cli_validate_map)$' --output-on-failure
+STELLAR_SKIP_DISPLAY_SMOKE=1 tools/ci/run_macos_runtime_smoke.sh
+```
+
+The display-free runtime paths passed. The full Metal single-player display
+smoke remains skipped in the current no-display session.
+
+## FMP-7 Validation Notes
+
+FMP-7 added device-free miniaudio decode coverage for generated footstep WAV
+assets and tightened presentation diagnostics around missing assets, unknown
+sound ids, and uninitialized sinks. The optional audible smoke path is
+documented in `08-Phase-FMP7-Audio-Parity.md` and remains manual because it
+requires a display-attached macOS session and an available audio output device.
+
+Local focused validation on 2026-05-06:
+
+```bash
+cmake --build build --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
+ctest --test-dir build -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
+cmake --build build-macos-metal --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
+ctest --test-dir build-macos-metal -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
+cmake --build build-macos-metal-only --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
+ctest --test-dir build-macos-metal-only -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
+cmake -S . -B build-macos-audio-frameworks -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON
+cmake --build build-macos-audio-frameworks --target stellar_miniaudio_sink_test stellar-client stellar-server
+ctest --test-dir build-macos-audio-frameworks -R '^miniaudio_sink$' --output-on-failure
+otool -L build-macos-audio-frameworks/stellar-client
+otool -L build-macos-audio-frameworks/stellar-server
+```
+
+The default, macOS Metal, and macOS Metal-only audio slices passed. The
+framework-link build configured and built; `stellar-client` links CoreFoundation,
+CoreAudio, and AudioToolbox when `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON`,
+while `stellar-server` links only libc++ and libSystem in that build tree.
+
+## FMP-8 Validation Notes
+
+FMP-8 made BSP/TrenchBroom tooling skip optional external compilers with return
+code `77` when host-native tools are unavailable or incompatible, avoids
+selecting repository-local Linux ELF VHLT binaries on macOS, and documents macOS
+TrenchBroom package setup plus Homebrew dependency notes.
+
+Local focused validation on 2026-05-06:
+
+```bash
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_compile.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_validate.sh
+python3 tools/docs/check_docs_consistency.py
+ctest --test-dir build-macos-metal -R '^(trenchbroom|bsp_)' --output-on-failure
+```
+
+The focused tooling/import slice passed with optional external compiler coverage
+reported as skipped where host-native tools were unavailable.

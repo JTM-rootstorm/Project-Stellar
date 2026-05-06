@@ -184,7 +184,15 @@ stellar_add_expected_failure_test(
 )
 
 add_test(NAME bsp_authoring_smoke_compile_wrapper
-    COMMAND bash -c "if command -v ericw-qbsp >/dev/null 2>&1 || command -v qbsp >/dev/null 2>&1 || command -v hqbsp >/dev/null 2>&1 || command -v tyr-qbsp >/dev/null 2>&1 || [[ -n \"$STELLAR_BSP30_COMPILER\" || -n \"$QBSP\" ]]; then STELLAR_CLIENT='$<TARGET_FILE:stellar-client>' STELLAR_SERVER='$<TARGET_FILE:stellar-server>' '${STELLAR_PROJECT_SOURCE_DIR}/tools/bsp/compile_trenchbroom_bsp30.sh' --map '${STELLAR_TEST_FIXTURE_DIR}/trenchbroom/src/minimal_zup_room.map' --out '${STELLAR_TRENCHBROOM_FIXTURE_DIR}/compile_wrapper_smoke.bsp' --profile fast; else printf 'Skipping BSP30 compile wrapper smoke: no compiler found.\\n'; fi"
+    COMMAND bash "${STELLAR_PROJECT_SOURCE_DIR}/tools/bsp/compile_trenchbroom_bsp30.sh"
+        --map "${STELLAR_TEST_FIXTURE_DIR}/trenchbroom/src/minimal_zup_room.map"
+        --out "${STELLAR_TRENCHBROOM_FIXTURE_DIR}/compile_wrapper_smoke.bsp"
+        --profile fast
+        --allow-skip
+)
+set_tests_properties(bsp_authoring_smoke_compile_wrapper PROPERTIES
+    ENVIRONMENT "STELLAR_CLIENT=$<TARGET_FILE:stellar-client>;STELLAR_SERVER=$<TARGET_FILE:stellar-server>"
+    SKIP_RETURN_CODE 77
 )
 
 add_test(NAME trenchbroom_package_path_smoke

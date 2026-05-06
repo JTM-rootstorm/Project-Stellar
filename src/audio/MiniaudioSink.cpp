@@ -107,6 +107,33 @@ bool audio_enabled_from_environment() {
     return value != nullptr && explicit_audio_enabled_value(value);
 }
 
+std::expected<MiniaudioDecodedAudioInfo, stellar::platform::Error> decode_audio_file_info(
+    const std::filesystem::path& path) {
+    ma_decoder decoder{};
+    const std::string path_string = path.string();
+    const ma_result init_result = ma_decoder_init_file(path_string.c_str(), nullptr, &decoder);
+    if (init_result != MA_SUCCESS) {
+        return std::unexpected(stellar::platform::Error(miniaudio_result_message(
+            "miniaudio decoder failed to open audio file", init_result)));
+    }
+
+    ma_uint64 frame_count = 0;
+    const ma_result length_result = ma_decoder_get_length_in_pcm_frames(&decoder, &frame_count);
+    const MiniaudioDecodedAudioInfo info{
+        .channels = decoder.outputChannels,
+        .sample_rate = decoder.outputSampleRate,
+        .pcm_frame_count = frame_count,
+    };
+    ma_decoder_uninit(&decoder);
+
+    if (length_result != MA_SUCCESS) {
+        return std::unexpected(stellar::platform::Error(miniaudio_result_message(
+            "miniaudio decoder failed to report audio file length", length_result)));
+    }
+
+    return info;
+}
+
 MiniaudioRequestSink::MiniaudioRequestSink() : MiniaudioRequestSink(MiniaudioRequestSinkConfig{}) {}
 
 MiniaudioRequestSink::MiniaudioRequestSink(MiniaudioRequestSinkConfig config)

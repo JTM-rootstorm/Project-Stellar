@@ -3,6 +3,7 @@
 #include "stellar/audio/AudioEventRouter.hpp"
 #include "stellar/platform/Error.hpp"
 
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -29,6 +30,18 @@ struct MiniaudioRequestSinkConfig {
     std::vector<MiniaudioSoundRegistryEntry> sound_entries;
 };
 
+/** @brief Device-free decoded metadata for a local audio asset. */
+struct MiniaudioDecodedAudioInfo {
+    /** @brief Number of decoded output channels. */
+    std::uint32_t channels = 0;
+
+    /** @brief Decoded output sample rate in hertz. */
+    std::uint32_t sample_rate = 0;
+
+    /** @brief Decoded PCM frame count reported by miniaudio. */
+    std::uint64_t pcm_frame_count = 0;
+};
+
 /** @brief Result of selecting the runtime audio request sink for the client presentation layer. */
 struct RuntimeAudioRequestSink {
     /** @brief Selected presentation audio sink; never null on return. */
@@ -53,6 +66,10 @@ struct RuntimeAudioRequestSink {
 
 /** @brief Return true when an environment value explicitly requests audible audio. */
 [[nodiscard]] bool audio_enabled_from_environment();
+
+/** @brief Decode local audio metadata without initializing an audio playback device. */
+[[nodiscard]] std::expected<MiniaudioDecodedAudioInfo, stellar::platform::Error>
+decode_audio_file_info(const std::filesystem::path& path);
 
 /** @brief Presentation-only miniaudio sink for one-shot audio requests. */
 class MiniaudioRequestSink final : public AudioRequestSink {
