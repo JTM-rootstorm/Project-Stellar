@@ -155,6 +155,35 @@ Local validation passed default graphics tests, Metal backend selection, opt-in
 `STELLAR_RUN_METAL_CONTEXT_TESTS=1` Metal context smoke, and
 `build-macos-metal/stellar-client --validate-display --renderer metal`.
 
+### MC-8 Documentation And Final Handoff Summary
+
+Status: complete as of 2026-05-05.
+
+README, Design, NEXT, and this status document now describe the current macOS state: default
+display-free validation remains the baseline, macOS dependencies are installed through Homebrew,
+Metal is Apple-gated behind `STELLAR_ENABLE_METAL=ON`, and local Metal display smoke requires a
+macOS display/GPU. The docs do not claim full Metal normal/specular/lightmap parity; that remains an
+explicit follow-up over the first rendering path.
+
+Final local validation passed:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j8
+ctest --test-dir build --output-on-failure
+cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON -DSTELLAR_ENABLE_METAL_CONTEXT_TESTS=ON
+cmake --build build-macos-metal -j8
+ctest --test-dir build-macos-metal --output-on-failure
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal -R '^metal_context_smoke$' --output-on-failure
+build-macos-metal/stellar-client --validate-display --renderer metal
+tools/dev/check_target_boundaries.sh .
+git diff --check
+```
+
+Results: default CTest passed 102/102, Metal build CTest passed 102/102 with
+`metal_context_smoke` skipped by default, opt-in Metal context smoke passed, Metal display validation
+passed, target boundaries passed, and diff whitespace checks passed.
+
 ## Completed Scope - Texture/Material-Dependent Audio Footsteps
 
 Status: complete on `audio-impl` as of 2026-05-04.

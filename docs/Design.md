@@ -1,11 +1,11 @@
 # Stellar Engine - Game Framework Development Document
 
 **Project:** Stellar Engine  
-**Target Platform:** Linux-first, with cross-platform architecture  
+**Target Platform:** Linux/macOS with cross-platform architecture
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.3.2 (OpenGL-only renderer after Vulkan removal)
-**Last Updated:** 2026-05-04
+**Version:** 0.3.3 (macOS build compatibility and experimental Metal renderer)
+**Last Updated:** 2026-05-05
 
 ---
 
@@ -48,10 +48,10 @@ Listen and dedicated servers share the server runtime and authority bootstrap. T
 direction is not to become a full physically based renderer. BSP maps are the canonical playable level
 source, and active runtime, server, client validation, and rendering paths use BSP-backed,
 source-neutral `LevelAsset` data.
-The rendering target is lightweight OpenGL BSP surface/material and billboard rendering suitable for
-game content. Graphics remain behind a backend-neutral abstraction so future native platform
-backends, such as DirectX/Direct3D on Windows or Metal on macOS, can be added when explicitly
-scoped.
+The rendering target is lightweight BSP surface/material and billboard rendering suitable for game
+content. OpenGL remains the default renderer where it builds. Metal is available as an Apple-gated
+experimental backend for macOS display validation and initial static rendering through the same
+backend-neutral abstraction.
 
 ### Key Design Principles
 
@@ -63,8 +63,8 @@ scoped.
   explicit interfaces.
 - **Data-oriented ECS:** gameplay state should remain serializable, cache-friendly, and
   server-owned.
-- **Renderer abstraction:** OpenGL is the current supported renderer, with backend-neutral
-  graphics contracts preserved for future native backend additions.
+- **Renderer abstraction:** OpenGL remains the default renderer, while Metal is an Apple-gated
+  experimental backend. Both use backend-neutral graphics contracts.
 - **Display-free default validation:** default tests must not require a GPU, display, or
   OpenGL runtime context.
 - **Server-authoritative scripting:** gameplay scripts run on the authoritative runtime side and
@@ -76,7 +76,7 @@ scoped.
 
 - **Language:** C++23 plus C99 where required for C dependencies.
 - **Build:** CMake 3.20+.
-- **Rendering:** OpenGL 4.5+ is the current supported renderer.
+- **Rendering:** OpenGL 4.5+ by default where supported; experimental Metal on Apple platforms.
 - **World style:** 3D static world geometry with 2D billboard entities and props.
 - **Asset format:** BSP maps are the canonical playable level format.
 - **Math:** GLM.
@@ -477,14 +477,15 @@ Outside the current Stellar BSP30 profile unless a concrete requirement appears:
 ## 7. Graphics Subsystem
 
 **Primary ownership:** `@miyamoto`, coordinated by `@director` for cross-subsystem changes.  
-**Responsibility:** graphics abstraction, OpenGL backend, level geometry upload, shader paths,
-materials, cameras, BSP level rendering, billboard sprite rendering, and graphics tests.
+**Responsibility:** graphics abstraction, OpenGL and Metal backends, level geometry upload, shader
+paths, materials, cameras, BSP level rendering, billboard sprite rendering, and graphics tests.
 
 ### 7.1 Graphics Abstraction
 
-Graphics backends are hidden behind a shared interface. OpenGL is the current implemented backend and
-receives backend-neutral level geometry, material, texture, and sprite data. Future native backends
-should reuse the same contracts when their implementations are explicitly scoped.
+Graphics backends are hidden behind a shared interface. OpenGL is the default implemented backend,
+and Metal is available in Apple-gated builds. Both receive backend-neutral level geometry, material,
+texture, and sprite data. Future native backends should reuse the same contracts when their
+implementations are explicitly scoped.
 
 Representative direction:
 
@@ -514,12 +515,17 @@ draw commands should log, skip, or return an error from fallible setup/upload pa
 
 Current branch status:
 
-- OpenGL is the current supported renderer through the shared abstraction.
-- OpenGL is render-capable for the current lightweight level path.
-- Other native backends should not be added to enums, CLI aliases, or CMake options until a real
-  implementation exists.
+- OpenGL is the default renderer through the shared abstraction.
+- Metal is an Apple-gated experimental backend behind `STELLAR_ENABLE_METAL=ON`.
+- OpenGL is render-capable for the current lightweight level path; macOS OpenGL is deprecated and
+  treated as unsupported/experimental.
+- Metal currently supports device/layer/command-queue creation, clear/present display validation,
+  static mesh buffers, RGB/RGBA textures, base-color texture sampling, vertex color, alpha blend,
+  and depth-tested indexed draws.
+- Metal preserves normal/specular/lightmap material records but does not yet reproduce the full
+  OpenGL lighting/material shader.
 - Default tests remain display-free.
-- GPU/display-dependent OpenGL context tests remain opt-in.
+- GPU/display-dependent OpenGL and Metal context tests remain opt-in.
 
 ### 7.3 Lightweight BSP Material Parity
 
@@ -917,6 +923,7 @@ dependencies.
 | SDL2 | Windowing/input | Platform abstraction and graphics context/surface support |
 | miniaudio | Audio | Client-side playback and spatial audio |
 | OpenGL loader | OpenGL backend | Use the loader already selected by the project |
+| Metal frameworks | macOS graphics backend | Enabled only by `STELLAR_ENABLE_METAL=ON` on Apple platforms |
 | Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` |
 | stb_image | Image decode | Used by importer image paths |
 | Test framework | Unit/integration tests | Keep default tests display-free |
@@ -953,7 +960,8 @@ Boundary enforcement:
   dedicated-server-to-client-runtime/presentation, and server-runtime-to-client modules.
 - `tools/dev/check_target_boundaries.sh` audits the build graph/source tree for the same ownership
   rules and is part of final CS-8/CS-9 validation.
-- Display-free unit/regression tests remain the default. OpenGL context tests remain opt-in.
+- Display-free unit/regression tests remain the default. OpenGL and Metal context tests remain
+  opt-in.
 
 ### 11.4 Validation Commands
 
@@ -961,8 +969,17 @@ Default build and tests:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j$(nproc)
+cmake --build build -j$(sysctl -n hw.ncpu 2>/dev/null || nproc)
 ctest --test-dir build --output-on-failure
+```
+
+macOS Metal build and local display smoke:
+
+```bash
+cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
+cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
+ctest --test-dir build-macos-metal --output-on-failure
+build-macos-metal/stellar-client --validate-display --renderer metal
 ```
 
 BSP-focused validation:
@@ -983,7 +1000,7 @@ ctest --test-dir build \
   --output-on-failure
 ```
 
-Opt-in OpenGL context validation should remain similarly gated.
+Opt-in OpenGL/Metal context validation should remain similarly gated.
 
 ---
 
@@ -1376,7 +1393,7 @@ Deferred unless future requirements justify it:
 - Deterministic GPU readback validation.
 - Model/skinning/animation systems.
 - Imported cameras and lights.
-- DirectX, Metal, or WebAssembly backends.
+- DirectX/WebAssembly backends and full Metal material-lighting parity.
 
 ### 17.4 Deferred Gameplay and World Work
 
@@ -1422,6 +1439,7 @@ Deferred unless scoped:
 | 2026-05-03 | 0.3.0 | Kilo | Mark client/server split complete through CS-9; document explicit runtime modes, split CMake targets, build-boundary checks, and post-split deferred networking/presentation work |
 | 2026-05-04 | 0.3.1 | Codex | Mark lightweight BSP normal/specular sidecars complete through SNT-8; document optional `.stellar_material` lookup, tangent-aware rendering, then-current backend parity, and full-PBR deferral |
 | 2026-05-04 | 0.3.2 | Codex | Remove Vulkan from active renderer support, keep OpenGL as the current backend, and preserve backend-neutral seams for future DirectX/Metal work |
+| 2026-05-05 | 0.3.3 | Codex | Add macOS build hygiene, POSIX socket portability, optional miniaudio playback, and an Apple-gated experimental Metal backend |
 
 ---
 
@@ -1439,8 +1457,8 @@ Deferred unless scoped:
 - **Snapshot:** Serialized state sent from server to client.
 - **Interpolation:** Presentation-side smoothing between received snapshots.
 - **Client prediction:** Optional future local simulation that must reconcile with server authority.
-- **Lightweight material rendering:** OpenGL rendering of the engine's supported material subset
-  without claiming full PBR compliance.
+- **Lightweight material rendering:** Rendering of the engine's supported material subset without
+  claiming full PBR compliance.
 - **Server-authoritative scripting:** Gameplay scripts executed on the authoritative runtime side,
   producing validated events or requests instead of directly mutating presentation or native state.
 

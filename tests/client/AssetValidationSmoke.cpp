@@ -140,21 +140,21 @@ int main() {
          std::string::npos);
 
   const std::string removed_backend = std::string("vul") + "kan";
-  const std::string removed_backend_message =
-      "Unsupported graphics backend: " + removed_backend + " (expected opengl)";
+  const std::string removed_backend_message_prefix =
+      "Unsupported graphics backend: " + removed_backend;
   const char *invalid_renderer_args[] = {
       "stellar-client", "--renderer", removed_backend.c_str()};
   const auto invalid_renderer_config =
       stellar::client::parse_application_config(3, invalid_renderer_args);
   assert(!invalid_renderer_config.has_value());
-  assert(invalid_renderer_config.error().message == removed_backend_message);
+  assert(invalid_renderer_config.error().message.find(removed_backend_message_prefix) == 0);
 
   const char *invalid_graphics_backend_args[] = {
       "stellar-client", "--graphics-backend", removed_backend.c_str()};
   const auto invalid_graphics_backend_config =
       stellar::client::parse_application_config(3, invalid_graphics_backend_args);
   assert(!invalid_graphics_backend_config.has_value());
-  assert(invalid_graphics_backend_config.error().message == removed_backend_message);
+  assert(invalid_graphics_backend_config.error().message.find(removed_backend_message_prefix) == 0);
 
   const std::string removed_backend_alias = std::string("v") + "k";
   const char *invalid_graphics_backend_alias_args[] = {
@@ -163,8 +163,8 @@ int main() {
       stellar::client::parse_application_config(
           3, invalid_graphics_backend_alias_args);
   assert(!invalid_graphics_backend_alias_config.has_value());
-  assert(invalid_graphics_backend_alias_config.error().message ==
-         "Unsupported graphics backend: " + removed_backend_alias + " (expected opengl)");
+  assert(invalid_graphics_backend_alias_config.error().message.find(
+             "Unsupported graphics backend: " + removed_backend_alias) == 0);
 
   const auto bad_script_path = root / "bad_script.bsp";
   const auto bad_script =

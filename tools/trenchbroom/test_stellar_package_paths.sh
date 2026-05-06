@@ -23,11 +23,22 @@ compiler_available() {
     for compiler in ericw-qbsp qbsp hqbsp tyr-qbsp; do
         command -v "$compiler" >/dev/null 2>&1 && return 0
     done
-    if [[ -n "${STELLAR_VHLT_DIR:-}" ]] && [[ -x "$STELLAR_VHLT_DIR/hlcsg" ]] && [[ -x "$STELLAR_VHLT_DIR/hlbsp" ]]; then
+    host_can_execute_pair() {
+        local csg="$1"
+        local bsp="$2"
+        [[ -x "$csg" && -x "$bsp" ]] || return 1
+        if [[ "$(uname -s)" == "Darwin" ]] && command -v file >/dev/null 2>&1; then
+            if file "$csg" "$bsp" | grep -q 'ELF .* x86-64'; then
+                return 1
+            fi
+        fi
+        return 0
+    }
+    if [[ -n "${STELLAR_VHLT_DIR:-}" ]] && host_can_execute_pair "$STELLAR_VHLT_DIR/hlcsg" "$STELLAR_VHLT_DIR/hlbsp"; then
         return 0
     fi
     for dir in "$repo_root/tools/bsp" "$repo_root/tools/bsp/vhlt" "$repo_root/tools/bsp/bin"; do
-        [[ -x "$dir/hlcsg" && -x "$dir/hlbsp" ]] && return 0
+        host_can_execute_pair "$dir/hlcsg" "$dir/hlbsp" && return 0
     done
     return 1
 }
@@ -183,12 +194,12 @@ missing_root_package="$work_dir/MissingRoot/Stellar"
 mkdir -p "$(dirname "$missing_root_package")"
 cp -a "$package" "$missing_root_package"
 rm -f "$missing_root_package/.stellar_repo_root"
-if (cd "$work_dir" && env -u STELLAR_REPO_ROOT "$missing_root_package/bin/stellar_tb_compile.sh" --out nowhere.bsp) >/tmp/stellar_tb_missing_root.out 2>&1; then
+missing_root_out="$work_dir/stellar_tb_missing_root.out"
+if (cd "$work_dir" && env -u STELLAR_REPO_ROOT "$missing_root_package/bin/stellar_tb_compile.sh" --out nowhere.bsp) >"$missing_root_out" 2>&1; then
     fail "copied package without repo root unexpectedly succeeded"
 fi
-if ! grep -q 'unable to locate Stellar repository root' /tmp/stellar_tb_missing_root.out; then
+if ! grep -q 'unable to locate Stellar repository root' "$missing_root_out"; then
     fail "missing-root diagnostic was not actionable"
 fi
-rm -f /tmp/stellar_tb_missing_root.out
 
 printf 'Stellar TrenchBroom package path smoke passed.\n'
