@@ -1,16 +1,19 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: completed macOS compatibility and experimental Metal backend slice, completed audio
-footsteps implementation, completed Vulkan removal, completed client/server split handoff, and
-completed historical scope guardrails.
+Status scope: active full macOS/Linux parity validation, completed macOS compatibility and Metal
+backend implementation, completed audio footsteps implementation, completed Vulkan removal,
+completed client/server split handoff, and completed historical scope guardrails.
 
 ## Current Entry Point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. The macOS compatibility and
-experimental Metal backend slice is complete through MC-8 on `macos-compat` as of 2026-05-05 and is
-tracked by `Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`.
-Vulkan removal is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete
-through Phase CS-9 as of 2026-05-03.
+`docs/ImplementationStatus.md` is the source of truth for branch status. The active full
+macOS/Linux parity work is tracked by
+`Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`.
+The earlier macOS compatibility and Metal backend slice is complete through MC-8 on `macos-compat`
+as of 2026-05-05 and is tracked by
+`Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`. Vulkan
+removal is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete through
+Phase CS-9 as of 2026-05-03.
 
 ## Completed macOS Compatibility And Metal Backend Scope
 
@@ -35,11 +38,12 @@ Current renderer contract:
 - Metal parser aliases `metal` and `mtl` exist only in Metal-enabled builds; default builds reject
   them with a clear unsupported-backend diagnostic.
 - The Metal backend creates a real SDL Metal view, CAMetalLayer, MTLDevice, command queue, depth
-  target, mesh buffers, RGB/RGBA textures, material records, and base-color/texture/vertex-color
-  shader path.
-- Full Metal parity for OpenGL normal/specular/lightmap lighting is still follow-up work; material
-  records preserve the data but the first Metal shader does not yet reproduce that complete lighting
-  model.
+  target, mesh buffers, RGB/RGBA textures, material records, and a shader path that consumes the
+  active OpenGL material contract, including lightmaps, normal/specular maps, metallic/roughness,
+  occlusion, emissive, texture transforms, alpha behavior, culling, unlit behavior, and
+  camera-dependent specular.
+- Remaining parity work is validation-gated: Linux-host preset execution, display-attached Metal
+  smoke/readback coverage, and optional audible miniaudio smoke.
 
 macOS runbook:
 

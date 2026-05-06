@@ -16,8 +16,8 @@ Full macOS compatibility and Linux parity is not complete until every required r
 
 | Acceptance row | Linux OpenGL default | macOS default build | macOS Metal build | macOS Metal-only build | Notes |
 |---|---|---|---|---|---|
-| Configure/build | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
-| Default CTest | `PASS` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
+| Configure/build | `NOT_COVERED` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
+| Default CTest | `NOT_COVERED` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
 | `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Backend CLI selection is tested for OpenGL-only, dual-backend, and Metal-only builds. |
 | `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Metal display validation still needs a display-attached run. |
 | `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Import/map validation is backend-neutral and covered by CLI/runtime smoke. |
@@ -37,6 +37,8 @@ Full macOS compatibility and Linux parity is not complete until every required r
 - FMP-3 opt-in display smoke still needs a display-attached local run. The
   projection, viewport, drawable/depth diagnostics, and display-free tests are
   in place, but the current session has no SDL display.
+- FMP-1 Linux preset execution still needs a Linux host or CI runner. The local
+  macOS session validated preset syntax only.
 - FMP-5 still needs opt-in Metal readback/smoke coverage. Display-free material
   fixture assertions and the fixture matrix are in place.
 - FMP-6 added tracked display-free runtime smoke coverage for single-player,
@@ -214,11 +216,13 @@ Local focused validation on 2026-05-06:
 
 ```bash
 ctest --test-dir build-macos-metal -R '^(loopback_transport|transport_loopback|transport_socket|socket_transport|network_session|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_world_receiver|client_map_validation_smoke|client_cli_validate_map)$' --output-on-failure
-STELLAR_SKIP_DISPLAY_SMOKE=1 tools/ci/run_macos_runtime_smoke.sh
+tools/ci/run_macos_runtime_smoke.sh
 ```
 
-The display-free runtime paths passed. The full Metal single-player display
-smoke remains skipped in the current no-display session.
+The display-free runtime paths passed. The full smoke script passed outside the
+local command sandbox; inside the sandbox, loopback socket tests are blocked for
+script-launched CTest children. The full Metal single-player display smoke
+remains skipped in the current no-display session.
 
 ## FMP-7 Validation Notes
 

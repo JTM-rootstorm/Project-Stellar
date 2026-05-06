@@ -4,8 +4,8 @@
 **Target Platform:** Linux/macOS with cross-platform architecture
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.3.3 (macOS build compatibility and experimental Metal renderer)
-**Last Updated:** 2026-05-05
+**Version:** 0.3.4 (macOS Metal parity implementation and validation gates)
+**Last Updated:** 2026-05-06
 
 ---
 
@@ -50,8 +50,8 @@ source, and active runtime, server, client validation, and rendering paths use B
 source-neutral `LevelAsset` data.
 The rendering target is lightweight BSP surface/material and billboard rendering suitable for game
 content. OpenGL remains the default renderer where it builds. Metal is available as an Apple-gated
-experimental backend for macOS display validation and initial static rendering through the same
-backend-neutral abstraction.
+backend for macOS through the same backend-neutral abstraction; display-attached smoke/readback
+validation remains opt-in and environment-gated.
 
 ### Key Design Principles
 
@@ -64,7 +64,7 @@ backend-neutral abstraction.
 - **Data-oriented ECS:** gameplay state should remain serializable, cache-friendly, and
   server-owned.
 - **Renderer abstraction:** OpenGL remains the default renderer, while Metal is an Apple-gated
-  experimental backend. Both use backend-neutral graphics contracts.
+  macOS backend. Both use backend-neutral graphics contracts.
 - **Display-free default validation:** default tests must not require a GPU, display, or
   OpenGL runtime context.
 - **Server-authoritative scripting:** gameplay scripts run on the authoritative runtime side and
@@ -76,7 +76,7 @@ backend-neutral abstraction.
 
 - **Language:** C++23 plus C99 where required for C dependencies.
 - **Build:** CMake 3.20+.
-- **Rendering:** OpenGL 4.5+ by default where supported; experimental Metal on Apple platforms.
+- **Rendering:** OpenGL 4.5+ by default where supported; Metal on Apple platforms.
 - **World style:** 3D static world geometry with 2D billboard entities and props.
 - **Asset format:** BSP maps are the canonical playable level format.
 - **Math:** GLM.
@@ -1442,7 +1442,8 @@ Deferred unless scoped:
 | 2026-05-03 | 0.3.0 | Kilo | Mark client/server split complete through CS-9; document explicit runtime modes, split CMake targets, build-boundary checks, and post-split deferred networking/presentation work |
 | 2026-05-04 | 0.3.1 | Codex | Mark lightweight BSP normal/specular sidecars complete through SNT-8; document optional `.stellar_material` lookup, tangent-aware rendering, then-current backend parity, and full-PBR deferral |
 | 2026-05-04 | 0.3.2 | Codex | Remove Vulkan from active renderer support, keep OpenGL as the current backend, and preserve backend-neutral seams for future DirectX/Metal work |
-| 2026-05-05 | 0.3.3 | Codex | Add macOS build hygiene, POSIX socket portability, optional miniaudio playback, and an Apple-gated experimental Metal backend |
+| 2026-05-05 | 0.3.3 | Codex | Add macOS build hygiene, POSIX socket portability, optional miniaudio playback, and an Apple-gated initial Metal backend |
+| 2026-05-06 | 0.3.4 | Codex | Expand Metal material parity, runtime smoke coverage, no-device audio validation, and macOS BSP tooling parity while tracking environment-gated validation |
 
 ---
 

@@ -24,9 +24,8 @@ Status: complete as of 2026-05-06.
 `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/12-FMP-Acceptance-Matrix.md` now tracks the
 required configure/build, CTest, client/server runtime, audio, tooling, and renderer-material rows
 across Linux OpenGL default, macOS default, macOS Metal, and macOS Metal-only builds. The matrix
-keeps known gaps explicit: Metal material parity still fails for lightmap/normal/specular/material
-slots, optional Metal readback coverage is not yet implemented, and runtime/audio/tooling smokes
-remain follow-up phases.
+keeps known gaps explicit: Linux-host build/test execution, display-attached Metal validation,
+optional Metal readback coverage, and audible audio smoke remain environment-gated validation work.
 
 ### FMP-1 Build Matrix And CI Parity Summary
 
