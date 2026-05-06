@@ -16,8 +16,8 @@ Full macOS compatibility and Linux parity is not complete until every required r
 
 | Acceptance row | Linux OpenGL default | macOS default build | macOS Metal build | macOS Metal-only build | Notes |
 |---|---|---|---|---|---|
-| Configure/build | `NOT_COVERED` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
-| Default CTest | `NOT_COVERED` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
+| Configure/build | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. Linux default passed configure/build on a Linux host on 2026-05-06; macOS default, macOS Metal, and macOS Metal-only configure/build passed locally. |
+| Default CTest | `PASS` | `PASS` | `PASS` | `PASS` | Linux default passed 103/103 tests on 2026-05-06. macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. |
 | `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Backend CLI selection is tested for OpenGL-only, dual-backend, and Metal-only builds. |
 | `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Both Metal-enabled macOS builds passed display-attached validation. |
 | `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Import/map validation is backend-neutral and covered by CLI/runtime smoke. |
@@ -32,10 +32,11 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Display-free fixture coverage is tracked in `13-FMP-Render-Fixture-Matrix.md`; no tracked readback/histogram test exists yet. |
 | CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
 
-## Active Blockers
+## Validation Status And Remaining Blockers
 
-- FMP-1 Linux preset execution still needs a Linux host or CI runner. The local
-  macOS session validated preset syntax only.
+- FMP-1 Linux preset execution passed on a Linux host on 2026-05-06:
+  `cmake --preset linux-default`, `cmake --build --preset linux-default --parallel 8`,
+  and `ctest --preset linux-default` passed 103/103 tests.
 - FMP-5 still needs opt-in Metal readback/smoke coverage. Display-free material
   fixture assertions and the fixture matrix are in place.
 - FMP-6 added tracked display-free runtime smoke coverage for single-player,
@@ -101,10 +102,16 @@ git diff --check
 ```
 
 `macos-default` passed 102/102 tests. `macos-metal` and `macos-metal-only`
-passed 103/103 tests with `metal_context_smoke` skipped by default. The
-`linux-default` preset was configured on the local macOS host only to validate
-preset syntax; Linux build/test execution still belongs to a Linux host or CI
-runner.
+passed 103/103 tests with `metal_context_smoke` skipped by default. Linux host
+validation on 2026-05-06 passed:
+
+```bash
+cmake --preset linux-default
+cmake --build --preset linux-default --parallel 8
+ctest --preset linux-default
+```
+
+Result: configure passed, build passed, and CTest passed 103/103.
 
 ## FMP-2 Validation Notes
 

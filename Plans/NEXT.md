@@ -42,8 +42,9 @@ Current renderer contract:
   active OpenGL material contract, including lightmaps, normal/specular maps, metallic/roughness,
   occlusion, emissive, texture transforms, alpha behavior, culling, unlit behavior, and
   camera-dependent specular.
-- Remaining parity work is validation-gated: Linux-host preset execution, display-attached Metal
-  smoke/readback coverage, and optional audible miniaudio smoke.
+- Remaining parity work is validation-gated: display-attached Metal smoke/readback coverage and
+  optional audible miniaudio smoke. The Linux `linux-default` preset passed configure, build, and
+  CTest 103/103 on a Linux host on 2026-05-06.
 
 macOS runbook:
 
