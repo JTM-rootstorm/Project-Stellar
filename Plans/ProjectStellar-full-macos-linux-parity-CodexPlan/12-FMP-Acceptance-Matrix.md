@@ -16,8 +16,8 @@ Full macOS compatibility and Linux parity is not complete until every required r
 
 | Acceptance row | Linux OpenGL default | macOS default build | macOS Metal build | macOS Metal-only build | Notes |
 |---|---|---|---|---|---|
-| Configure/build | `PASS` | `PASS` | `PASS` | `NOT_COVERED` | Existing docs report passing default and Metal builds. Metal-only appears CMake-gated away from OpenGL/GLEW, but needs tracked validation. |
-| Default CTest | `PASS` | `PASS` | `PASS` | `NOT_COVERED` | Existing docs report 102/102 for default and Metal builds. Metal-only CTest is not yet captured. |
+| Configure/build | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
+| Default CTest | `PASS` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
 | `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Metal-only still requires explicit renderer selection for render use. |
 | `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `FAIL` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Metal-only default selection still assumes OpenGL until FMP-2. |
 | `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `NOT_COVERED` | Import/map validation is backend-neutral; Metal-only validation needs a tracked run. |
@@ -30,14 +30,10 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | TrenchBroom/BSP tooling | `PASS` | `FAIL` | `FAIL` | `FAIL` | Shell syntax/docs checks pass, but optional external BSP compiler gaps currently skip with exit `0` instead of the required code `77`, and macOS tool docs need clarification. |
 | Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `FAIL` | `FAIL` | OpenGL consumes the full active material contract. Metal currently draws the base path and ignores required lightmap/normal/specular/material slots. |
 | Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Required for final Metal parity, but no tracked readback/histogram test exists yet. |
-| CI or preset build matrix | `FAIL` | `FAIL` | `FAIL` | `FAIL` | No tracked `.github` workflow, `CMakePresets.json`, or equivalent matrix script exists yet. |
+| CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
 
 ## Active Blockers
 
-- FMP-1 must add tracked build matrix commands or presets and validate the
-  `macos-metal-only` build/test path.
-- FMP-1 should harden target-boundary checks so server/authority targets also
-  reject `stellar_audio_miniaudio` and raw `miniaudio`, not only `stellar_audio`.
 - FMP-2 must add deterministic backend availability/default helpers. OpenGL is
   still the default even in OpenGL-disabled/Metal-enabled builds.
 - FMP-3 must add explicit Metal projection, viewport, drawable/depth diagnostics,
@@ -85,3 +81,30 @@ Current findings:
 - The `bsp_authoring_smoke_compile_wrapper` path reports a missing external BSP
   compiler as a textual skip but exits `0`; FMP-8 requires a clear skip status
   of `77`.
+
+## FMP-1 Validation Notes
+
+FMP-1 added `CMakePresets.json` entries for `linux-default`, `macos-default`,
+`macos-metal`, and `macos-metal-only`, plus matching build and test presets. The
+macOS presets were validated locally on 2026-05-06:
+
+```bash
+cmake --list-presets=all
+cmake --preset macos-default
+cmake --build --preset macos-default -j8
+ctest --test-dir build-macos --output-on-failure
+cmake --preset macos-metal
+cmake --build --preset macos-metal -j8
+ctest --test-dir build-macos-metal --output-on-failure
+cmake --preset macos-metal-only
+cmake --build --preset macos-metal-only -j8
+ctest --test-dir build-macos-metal-only --output-on-failure
+tools/dev/check_target_boundaries.sh .
+git diff --check
+```
+
+`macos-default` passed 102/102 tests. `macos-metal` and `macos-metal-only`
+passed 103/103 tests with `metal_context_smoke` skipped by default. The
+`linux-default` preset was configured on the local macOS host only to validate
+preset syntax; Linux build/test execution still belongs to a Linux host or CI
+runner.

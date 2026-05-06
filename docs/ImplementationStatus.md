@@ -1,13 +1,51 @@
 # Project Stellar: Implementation Status
 
-Status scope: active macOS compatibility and Metal backend implementation, completed audio
-footsteps implementation, completed Doxygen generation, completed Vulkan removal, completed
-lightweight BSP normal/specular material sidecars, completed client/server decoupling handoff, and
-completed historical branch notes.
+Status scope: active full macOS/Linux parity implementation, completed macOS compatibility and Metal
+backend implementation, completed audio footsteps implementation, completed Doxygen generation,
+completed Vulkan removal, completed lightweight BSP normal/specular material sidecars, completed
+client/server decoupling handoff, and completed historical branch notes.
 
-## Active Scope - macOS Compatibility And Metal Backend
+## Active Scope - Full macOS Compatibility And Linux Parity
 
-Status: active on `macos-compat` as of 2026-05-05.
+Status: active on `macos-compat` as of 2026-05-06.
+
+Active handoff plan:
+
+- `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`
+
+Current objective: close the remaining gap between macOS Metal and Linux/OpenGL parity. The active
+blocking area remains Metal material/shader parity for the full OpenGL material contract plus
+runtime/audio/tooling smoke coverage.
+
+### FMP-0 Gap Audit And Acceptance Matrix Summary
+
+Status: complete as of 2026-05-06.
+
+`Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/12-FMP-Acceptance-Matrix.md` now tracks the
+required configure/build, CTest, client/server runtime, audio, tooling, and renderer-material rows
+across Linux OpenGL default, macOS default, macOS Metal, and macOS Metal-only builds. The matrix
+keeps known gaps explicit: Metal material parity still fails for lightmap/normal/specular/material
+slots, optional Metal readback coverage is not yet implemented, and runtime/audio/tooling smokes
+remain follow-up phases.
+
+### FMP-1 Build Matrix And CI Parity Summary
+
+Status: complete as of 2026-05-06.
+
+`CMakePresets.json` now provides configure/build/test presets for `linux-default`, `macos-default`,
+`macos-metal`, and `macos-metal-only`. The macOS default, macOS Metal, and macOS Metal-only presets
+configure and build locally; the Linux preset is tracked for Linux host/CI execution. Target boundary
+checks now also reject `stellar_audio_miniaudio` and raw `miniaudio` links from protocol/server
+boundary targets.
+
+Local FMP-1 validation passed macOS default CTest 102/102 and macOS Metal/Metal-only CTest 103/103
+with `metal_context_smoke` skipped by default. A small POSIX socket hardening change retries
+ephemeral `127.0.0.1:0` listener setup on transient bind/listen failures so full-suite loopback
+validation remains stable on macOS.
+
+## Completed Scope - macOS Compatibility And Metal Backend
+
+Status: complete on `macos-compat` as of 2026-05-05.
 
 Active handoff plan:
 

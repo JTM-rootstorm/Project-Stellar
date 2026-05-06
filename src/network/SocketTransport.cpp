@@ -466,28 +466,36 @@ std::expected<TcpServerTransportHandle, TransportError> listen_tcp_server_once_w
     if (!resolved) {
         return std::unexpected(resolved.error());
     }
-    SocketHandle socket(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
-    if (!socket.valid()) {
-        return std::unexpected(errno_error("socket_failed", "TCP socket creation failed"));
+    const int attempts = address->port == 0 ? 8 : 1;
+    TransportError last_error = error("listen_failed", "TCP listen failed");
+    for (int attempt = 0; attempt < attempts; ++attempt) {
+        SocketHandle socket(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
+        if (!socket.valid()) {
+            return std::unexpected(errno_error("socket_failed", "TCP socket creation failed"));
+        }
+        configure_sigpipe_policy(socket.get());
+        const int reuse = 1;
+        (void)::setsockopt(socket.get(), SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        if (::bind(socket.get(), reinterpret_cast<sockaddr*>(&*resolved), sizeof(sockaddr_in)) !=
+            0) {
+            last_error = errno_error("bind_failed", "TCP bind failed");
+            continue;
+        }
+        if (::listen(socket.get(), 1) != 0) {
+            last_error = errno_error("listen_failed", "TCP listen failed");
+            continue;
+        }
+        if (auto nonblocking = set_nonblocking(socket.get(), config.nonblocking); !nonblocking) {
+            return std::unexpected(nonblocking.error());
+        }
+        const SocketAddress bound = bound_address_for(socket.get(), address->host);
+        TcpServerTransportHandle handle{
+            .server = std::make_unique<TcpServerTransport>(std::move(socket), config),
+            .bound_address = bound,
+        };
+        return handle;
     }
-    configure_sigpipe_policy(socket.get());
-    const int reuse = 1;
-    (void)::setsockopt(socket.get(), SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    if (::bind(socket.get(), reinterpret_cast<sockaddr*>(&*resolved), sizeof(sockaddr_in)) != 0) {
-        return std::unexpected(errno_error("bind_failed", "TCP bind failed"));
-    }
-    if (::listen(socket.get(), 1) != 0) {
-        return std::unexpected(errno_error("listen_failed", "TCP listen failed"));
-    }
-    if (auto nonblocking = set_nonblocking(socket.get(), config.nonblocking); !nonblocking) {
-        return std::unexpected(nonblocking.error());
-    }
-    const SocketAddress bound = bound_address_for(socket.get(), address->host);
-    TcpServerTransportHandle handle{
-        .server = std::make_unique<TcpServerTransport>(std::move(socket), config),
-        .bound_address = bound,
-    };
-    return handle;
+    return std::unexpected(std::move(last_error));
 #else
     (void)bind_endpoint;
     (void)config;

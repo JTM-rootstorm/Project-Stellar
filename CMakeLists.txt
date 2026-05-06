@@ -487,7 +487,7 @@ stellar_assert_no_direct_links(stellar_protocol
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
     stellar_scripting stellar_client_runtime stellar_client_net stellar_single_player
     stellar_listen_server stellar_client_presentation stellar_client_app stellar_graphics
-    stellar_audio stellar_audio_miniaudio stellar_platform
+    stellar_audio stellar_audio_miniaudio miniaudio stellar_platform
 )
 stellar_assert_no_direct_links(stellar_transport
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
@@ -500,10 +500,12 @@ stellar_assert_no_direct_links(stellar_client_net
 stellar_assert_no_direct_links(stellar_dedicated_server
     stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
     stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
+    stellar_audio_miniaudio miniaudio
 )
 stellar_assert_no_direct_links(stellar_server_runtime
     stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
     stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
+    stellar_audio_miniaudio miniaudio
 )
 
 add_custom_target(stellar_target_boundary_check

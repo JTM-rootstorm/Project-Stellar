@@ -32,7 +32,7 @@ forbid("stellar_protocol", {
     "stellar_authority", "stellar_server_core", "stellar_server_runtime", "stellar_dedicated_server",
     "stellar_scripting", "stellar_client_runtime", "stellar_client_net", "stellar_single_player",
     "stellar_listen_server", "stellar_client_presentation", "stellar_client_app", "stellar_graphics",
-    "stellar_audio", "stellar_platform",
+    "stellar_audio", "stellar_audio_miniaudio", "miniaudio", "stellar_platform",
 })
 forbid("stellar_transport", {
     "stellar_authority", "stellar_server_core", "stellar_server_runtime", "stellar_dedicated_server",
@@ -45,10 +45,12 @@ forbid("stellar_client_net", {
 forbid("stellar_dedicated_server", {
     "stellar_client_runtime", "stellar_client_net", "stellar_single_player", "stellar_listen_server",
     "stellar_client_presentation", "stellar_client_app", "stellar_graphics", "stellar_audio",
+    "stellar_audio_miniaudio", "miniaudio",
 })
 forbid("stellar_server_runtime", {
     "stellar_client_runtime", "stellar_client_net", "stellar_single_player", "stellar_listen_server",
     "stellar_client_presentation", "stellar_client_app", "stellar_graphics", "stellar_audio",
+    "stellar_audio_miniaudio", "miniaudio",
 })
 
 source_checks = [
