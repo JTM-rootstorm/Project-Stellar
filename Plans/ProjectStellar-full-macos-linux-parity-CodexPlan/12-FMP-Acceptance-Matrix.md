@@ -18,7 +18,7 @@ Full macOS compatibility and Linux parity is not complete until every required r
 |---|---|---|---|---|---|
 | Configure/build | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
 | Default CTest | `PASS` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
-| `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Metal-only still requires explicit renderer selection for render use. |
+| `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Backend CLI selection is tested for OpenGL-only, dual-backend, and Metal-only builds. |
 | `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `FAIL` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Metal-only default selection still assumes OpenGL until FMP-2. |
 | `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `NOT_COVERED` | Import/map validation is backend-neutral; Metal-only validation needs a tracked run. |
 | Single-player `stellar-client --map <fixture>` | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | `NOT_COVERED` | Existing unit tests cover single-player runtime pieces, but full macOS smoke is not tracked. |
@@ -34,8 +34,6 @@ Full macOS compatibility and Linux parity is not complete until every required r
 
 ## Active Blockers
 
-- FMP-2 must add deterministic backend availability/default helpers. OpenGL is
-  still the default even in OpenGL-disabled/Metal-enabled builds.
 - FMP-3 must add explicit Metal projection, viewport, drawable/depth diagnostics,
   and `STELLAR_DEBUG_RENDER=1` output for the frame contract.
 - FMP-4 must make Metal consume every material slot currently consumed by OpenGL:
@@ -108,3 +106,33 @@ passed 103/103 tests with `metal_context_smoke` skipped by default. The
 `linux-default` preset was configured on the local macOS host only to validate
 preset syntax; Linux build/test execution still belongs to a Linux host or CI
 runner.
+
+## FMP-2 Validation Notes
+
+FMP-2 added deterministic backend defaults and availability checks:
+
+- `default_graphics_backend()` returns OpenGL when compiled, otherwise Metal in
+  Metal-only builds.
+- `graphics_backend_available()` reports whether a requested backend has a
+  compiled device implementation.
+- Unsupported backend diagnostics now include compiled backend names and a
+  suggested backend for the current build.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos -R '^(graphics_backend_selection|client_map_validation_smoke)$' --output-on-failure
+ctest --test-dir build-macos-metal -R '^(graphics_backend_selection|client_map_validation_smoke)$' --output-on-failure
+ctest --test-dir build-macos-metal-only -R '^(graphics_backend_selection|client_map_validation_smoke)$' --output-on-failure
+build-macos-metal/stellar-client --validate-config --renderer metal
+build-macos-metal/stellar-client --validate-config --renderer opengl
+build-macos-metal/stellar-client --validate-config --renderer vulkan
+build-macos-metal-only/stellar-client --validate-config --renderer metal
+build-macos-metal-only/stellar-client --validate-config --renderer opengl
+build-macos/stellar-client --validate-config --renderer metal
+build-macos/stellar-client --validate-config --renderer opengl
+```
+
+The valid renderer selections succeeded. Invalid selections failed early with
+compiled-backend diagnostics, including `opengl` in Metal-only builds and
+`metal` in OpenGL-only builds.

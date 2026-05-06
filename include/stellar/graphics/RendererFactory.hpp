@@ -11,7 +11,7 @@
 namespace stellar::graphics {
 
 /**
- * @brief Create a renderer using the OpenGL default backend.
+ * @brief Create a renderer using the current build's default backend.
  */
 [[nodiscard]] std::unique_ptr<Renderer> create_renderer(
     std::optional<stellar::assets::LevelAsset> level = std::nullopt);
@@ -19,8 +19,7 @@ namespace stellar::graphics {
 /**
  * @brief Create a renderer using a runtime-selected backend.
  *
- * The renderer remains backend-neutral. OpenGL is the current implemented
- * backend; future native backends should be added only with real device
+ * The renderer remains backend-neutral and only uses compiled backend
  * implementations.
  */
 [[nodiscard]] std::unique_ptr<Renderer> create_renderer(

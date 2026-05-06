@@ -12,7 +12,7 @@
 namespace stellar::graphics {
 
 std::unique_ptr<GraphicsDevice> create_graphics_device() {
-    return create_graphics_device(GraphicsBackend::kOpenGL);
+    return create_graphics_device(default_graphics_backend());
 }
 
 std::unique_ptr<GraphicsDevice> create_graphics_device(GraphicsBackend backend) {

@@ -166,6 +166,46 @@ int main() {
   assert(invalid_graphics_backend_alias_config.error().message.find(
              "Unsupported graphics backend: " + removed_backend_alias) == 0);
 
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  const char *metal_renderer_args[] = {"stellar-client", "--validate-config",
+                                       "--renderer", "metal"};
+  const auto metal_renderer_config =
+      stellar::client::parse_application_config(4, metal_renderer_args);
+  assert(metal_renderer_config.has_value());
+  assert(metal_renderer_config->graphics_backend ==
+         stellar::graphics::GraphicsBackend::kMetal);
+
+  const char *metal_alias_args[] = {"stellar-client", "--validate-config",
+                                    "--renderer", "mtl"};
+  const auto metal_alias_config =
+      stellar::client::parse_application_config(4, metal_alias_args);
+  assert(metal_alias_config.has_value());
+  assert(metal_alias_config->graphics_backend ==
+         stellar::graphics::GraphicsBackend::kMetal);
+#else
+  const char *metal_renderer_args[] = {"stellar-client", "--validate-config",
+                                       "--renderer", "metal"};
+  const auto metal_renderer_config =
+      stellar::client::parse_application_config(4, metal_renderer_args);
+  assert(!metal_renderer_config.has_value());
+  assert(metal_renderer_config.error().message.find("compiled backends: opengl") !=
+         std::string::npos);
+#endif
+
+  const char *opengl_renderer_args[] = {"stellar-client", "--validate-config",
+                                        "--renderer", "opengl"};
+  const auto opengl_renderer_config =
+      stellar::client::parse_application_config(4, opengl_renderer_args);
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+  assert(opengl_renderer_config.has_value());
+  assert(opengl_renderer_config->graphics_backend ==
+         stellar::graphics::GraphicsBackend::kOpenGL);
+#else
+  assert(!opengl_renderer_config.has_value());
+  assert(opengl_renderer_config.error().message.find("compiled backends: metal") !=
+         std::string::npos);
+#endif
+
   const auto bad_script_path = root / "bad_script.bsp";
   const auto bad_script =
       stellar::tests::fixtures::build_bsp_trenchbroom_invalid_script_escape_fixture();

@@ -43,6 +43,21 @@ with `metal_context_smoke` skipped by default. A small POSIX socket hardening ch
 ephemeral `127.0.0.1:0` listener setup on transient bind/listen failures so full-suite loopback
 validation remains stable on macOS.
 
+### FMP-2 Backend Selection Defaults Summary
+
+Status: complete as of 2026-05-06.
+
+The graphics backend layer now exposes `default_graphics_backend()` and
+`graphics_backend_available()`. Default device/renderer construction uses the compiled default
+backend instead of assuming OpenGL, which makes Metal-only builds deterministic. Backend parsing now
+rejects unavailable compiled-out backends as well as removed backends, and diagnostics include the
+requested backend, compiled backend list, and suggested backend for the current build.
+
+Focused validation passed backend-selection and client CLI coverage for OpenGL-only, OpenGL+Metal,
+and Metal-only macOS builds. `stellar-client --validate-config --renderer metal` succeeds in Metal
+builds; `--renderer opengl` fails clearly in Metal-only builds; removed Vulkan names still fail
+early with unsupported-backend diagnostics.
+
 ## Completed Scope - macOS Compatibility And Metal Backend
 
 Status: complete on `macos-compat` as of 2026-05-05.

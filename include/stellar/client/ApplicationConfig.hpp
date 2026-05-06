@@ -22,10 +22,9 @@ struct ApplicationConfig {
    * source. */
   std::optional<std::string> map_path;
 
-  /** @brief Graphics backend selected at startup. OpenGL remains the default.
-   */
+  /** @brief Graphics backend selected at startup. */
   stellar::graphics::GraphicsBackend graphics_backend =
-      stellar::graphics::GraphicsBackend::kOpenGL;
+      stellar::graphics::default_graphics_backend();
 
   /** @brief Validate startup inputs and return before creating a window or
    * graphics context. */

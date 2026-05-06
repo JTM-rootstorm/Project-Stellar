@@ -3,11 +3,50 @@
 #include <string>
 
 namespace stellar::graphics {
+namespace {
+
+[[nodiscard]] std::string compiled_backend_list() {
+    std::string names;
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+    names += "opengl";
+#endif
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+    if (!names.empty()) {
+        names += ", ";
+    }
+    names += "metal";
+#endif
+    if (names.empty()) {
+        names = "none";
+    }
+    return names;
+}
+
+[[nodiscard]] stellar::platform::Error unsupported_backend_error(std::string_view name) {
+    std::string message = "Unsupported graphics backend: ";
+    message.append(name.data(), name.size());
+    message += " (compiled backends: ";
+    message += compiled_backend_list();
+    message += "; suggested backend: ";
+    if (graphics_backend_available(default_graphics_backend())) {
+        message += graphics_backend_name(default_graphics_backend());
+    } else {
+        message += "none";
+    }
+    message += ")";
+    return stellar::platform::Error(std::move(message));
+}
+
+} // namespace
 
 std::expected<GraphicsBackend, stellar::platform::Error>
 parse_graphics_backend(std::string_view name) {
     if (name == "opengl" || name == "gl" || name == "OpenGL") {
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
         return GraphicsBackend::kOpenGL;
+#else
+        return std::unexpected(unsupported_backend_error(name));
+#endif
     }
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
     if (name == "metal" || name == "mtl") {
@@ -15,21 +54,38 @@ parse_graphics_backend(std::string_view name) {
     }
 #else
     if (name == "metal" || name == "mtl") {
-        std::string message = "Unsupported graphics backend: ";
-        message.append(name.data(), name.size());
-        message += " (Metal backend not built)";
-        return std::unexpected(stellar::platform::Error(std::move(message)));
+        return std::unexpected(unsupported_backend_error(name));
     }
 #endif
 
-    std::string message = "Unsupported graphics backend: ";
-    message.append(name.data(), name.size());
-    message += " (expected opengl";
-#if defined(STELLAR_ENABLE_METAL_BACKEND)
-    message += " or metal";
+    return std::unexpected(unsupported_backend_error(name));
+}
+
+GraphicsBackend default_graphics_backend() noexcept {
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+    return GraphicsBackend::kOpenGL;
+#elif defined(STELLAR_ENABLE_METAL_BACKEND)
+    return GraphicsBackend::kMetal;
+#else
+    return GraphicsBackend::kOpenGL;
 #endif
-    message += ")";
-    return std::unexpected(stellar::platform::Error(std::move(message)));
+}
+
+bool graphics_backend_available(GraphicsBackend backend) noexcept {
+    switch (backend) {
+        case GraphicsBackend::kOpenGL:
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+            return true;
+#else
+            return false;
+#endif
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+        case GraphicsBackend::kMetal:
+            return true;
+#endif
+        default:
+            return false;
+    }
 }
 
 std::string_view graphics_backend_name(GraphicsBackend backend) noexcept {

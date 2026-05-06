@@ -183,6 +183,11 @@ parse_application_config(int argc, const char *const argv[]) {
       if (!backend) {
         return std::unexpected(backend.error());
       }
+      if (!stellar::graphics::graphics_backend_available(*backend)) {
+        return std::unexpected(stellar::platform::Error(
+            "Selected graphics backend is not available: " +
+            std::string(stellar::graphics::graphics_backend_name(*backend))));
+      }
       config.graphics_backend = *backend;
       continue;
     }

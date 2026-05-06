@@ -8,7 +8,7 @@
 namespace stellar::graphics {
 
 /**
- * @brief Create the OpenGL graphics device used as the default backend.
+ * @brief Create the graphics device for the current build's default backend.
  */
 [[nodiscard]] std::unique_ptr<GraphicsDevice> create_graphics_device();
 

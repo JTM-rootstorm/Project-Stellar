@@ -31,6 +31,16 @@ enum class GraphicsBackend {
 parse_graphics_backend(std::string_view name);
 
 /**
+ * @brief Return the deterministic default backend for the current compiled build.
+ */
+[[nodiscard]] GraphicsBackend default_graphics_backend() noexcept;
+
+/**
+ * @brief Return whether a backend has a compiled device implementation in this build.
+ */
+[[nodiscard]] bool graphics_backend_available(GraphicsBackend backend) noexcept;
+
+/**
  * @brief Convert a graphics backend to a stable lowercase name.
  */
 [[nodiscard]] std::string_view graphics_backend_name(GraphicsBackend backend) noexcept;
