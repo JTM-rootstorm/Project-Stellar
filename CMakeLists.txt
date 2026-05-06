@@ -459,6 +459,18 @@ target_link_libraries(stellar-server PRIVATE
     stellar_dedicated_server
 )
 
+add_executable(stellar-audio-smoke
+    tools/audio/AudioSmokeMain.cpp
+)
+
+target_include_directories(stellar-audio-smoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar-audio-smoke PRIVATE
+    stellar_audio_miniaudio
+)
+
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
