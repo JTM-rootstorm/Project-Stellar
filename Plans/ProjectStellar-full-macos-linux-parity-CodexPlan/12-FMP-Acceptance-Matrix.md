@@ -19,9 +19,9 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | Configure/build | `NOT_COVERED` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. macOS default, macOS Metal, and macOS Metal-only configure/build passed locally; Linux default must run on a Linux host. |
 | Default CTest | `NOT_COVERED` | `PASS` | `PASS` | `PASS` | macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. Linux default must run on a Linux host. |
 | `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Backend CLI selection is tested for OpenGL-only, dual-backend, and Metal-only builds. |
-| `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Metal display validation still needs a display-attached run. |
+| `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Both Metal-enabled macOS builds passed display-attached validation. |
 | `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Import/map validation is backend-neutral and covered by CLI/runtime smoke. |
-| Single-player `stellar-client --map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Display-free runtime tests cover single-player simulation startup. Full display smoke is skipped without an attached display. |
+| Single-player `stellar-client --map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Display-free runtime tests cover single-player simulation startup. Both Metal-enabled macOS builds also passed forced display-attached single-player smoke. |
 | Listen-host mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free listen-host and loopback runtime tests cover the macOS socket path. |
 | Remote client mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free client/server loopback runtime tests cover remote-client connection flow. |
 | Dedicated server | `PASS` | `PASS` | `PASS` | `PASS` | Server targets remain backend-neutral and do not link graphics or miniaudio in the current CMake graph. |
@@ -34,16 +34,14 @@ Full macOS compatibility and Linux parity is not complete until every required r
 
 ## Active Blockers
 
-- FMP-3 opt-in display smoke still needs a display-attached local run. The
-  projection, viewport, drawable/depth diagnostics, and display-free tests are
-  in place, but the current session has no SDL display.
 - FMP-1 Linux preset execution still needs a Linux host or CI runner. The local
   macOS session validated preset syntax only.
 - FMP-5 still needs opt-in Metal readback/smoke coverage. Display-free material
   fixture assertions and the fixture matrix are in place.
 - FMP-6 added tracked display-free runtime smoke coverage for single-player,
-  listen-host, remote-client, and dedicated-server workflows. Full Metal display
-  smoke remains gated on an attached display.
+  listen-host, remote-client, and dedicated-server workflows. Both Metal-enabled
+  macOS builds passed forced single-player display smoke in an attached-display
+  session.
 - FMP-7 covered no-device diagnostics, decode-only generated WAV loading, and
   `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` framework-link validation. Optional
   audible macOS miniaudio smoke still needs a display/audio-device session.
@@ -153,15 +151,19 @@ ctest --test-dir build-macos-metal -R '^(render_level_inspection|render_level_up
 git diff --check
 ```
 
-The display-free tests passed. `metal_context_smoke` skipped by default. The
-opt-in display validation command:
+The display-free tests passed. `metal_context_smoke` skipped by default. Later
+display-attached validation runs passed for both Metal-enabled macOS builds:
 
 ```bash
-STELLAR_DEBUG_RENDER=1 STELLAR_DEBUG_RENDER_FRAMES=1 build-macos-metal/stellar-client --validate-display --renderer metal
+build-macos-metal/stellar-client --validate-display --renderer metal
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal -R '^metal_context_smoke$' --output-on-failure
+build-macos-metal-only/stellar-client --validate-display --renderer metal
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R '^metal_context_smoke$' --output-on-failure
 ```
 
-could not run in this session because SDL reported that the video driver did not
-add any displays.
+The direct display validation reported `stellar-client: display validation
+succeeded (backend=metal)` for both builds. The opt-in CTest passed 1/1 in each
+build tree.
 
 ## FMP-4 Validation Notes
 
@@ -217,12 +219,18 @@ Local focused validation on 2026-05-06:
 ```bash
 ctest --test-dir build-macos-metal -R '^(loopback_transport|transport_loopback|transport_socket|socket_transport|network_session|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_world_receiver|client_map_validation_smoke|client_cli_validate_map)$' --output-on-failure
 tools/ci/run_macos_runtime_smoke.sh
+STELLAR_FORCE_DISPLAY_SMOKE=1 tools/ci/run_macos_runtime_smoke.sh
+STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only tools/ci/run_macos_runtime_smoke.sh
+STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only STELLAR_FORCE_DISPLAY_SMOKE=1 tools/ci/run_macos_runtime_smoke.sh
 ```
 
-The display-free runtime paths passed. The full smoke script passed outside the
-local command sandbox; inside the sandbox, loopback socket tests are blocked for
-script-launched CTest children. The full Metal single-player display smoke
-remains skipped in the current no-display session.
+The display-free runtime paths passed. The normal smoke script passed its
+display-free/runtime checks but skipped single-player display smoke because the
+script's display detector did not report an attached display. The forced
+display smoke runs passed with 0 skips for both `build-macos-metal` and
+`build-macos-metal-only`, launched the Metal client for 5 seconds, and logged a
+2560x1440 drawable with matching layer drawable, depth texture, and viewport
+sizes.
 
 ## FMP-7 Validation Notes
 

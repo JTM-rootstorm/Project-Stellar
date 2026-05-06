@@ -14,8 +14,8 @@ Active handoff plan:
 - `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`
 
 Current objective: close the remaining environment-gated validation gaps between macOS Metal and
-Linux/OpenGL parity. The remaining active blockers are display-attached Metal smoke/readback
-coverage, optional audible audio smoke, and Linux-host execution of the tracked presets.
+Linux/OpenGL parity. The remaining active blockers are Metal GPU readback coverage, optional audible
+audio smoke, and Linux-host execution of the tracked presets.
 
 ### FMP-0 Gap Audit And Acceptance Matrix Summary
 
@@ -24,8 +24,8 @@ Status: complete as of 2026-05-06.
 `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/12-FMP-Acceptance-Matrix.md` now tracks the
 required configure/build, CTest, client/server runtime, audio, tooling, and renderer-material rows
 across Linux OpenGL default, macOS default, macOS Metal, and macOS Metal-only builds. The matrix
-keeps known gaps explicit: Linux-host build/test execution, display-attached Metal validation,
-optional Metal readback coverage, and audible audio smoke remain environment-gated validation work.
+keeps known gaps explicit: Linux-host build/test execution, optional Metal readback coverage,
+and audible audio smoke remain environment-gated validation work.
 
 ### FMP-1 Build Matrix And CI Parity Summary
 
@@ -68,9 +68,10 @@ prints `STELLAR_DEBUG_RENDER=1` diagnostics for drawable size, layer drawable si
 size, viewport, and projection convention. Level-renderer debug logs now include backend and
 projection convention.
 
-Focused render upload/inspection/backend-selection tests passed in macOS default and macOS Metal
-builds. The local opt-in Metal display validation could not run in the current no-display session
-because SDL reported that no displays were available.
+Focused render upload/inspection/backend-selection tests passed in macOS default, macOS Metal, and
+macOS Metal-only builds. Later display-attached macOS runs passed the Metal `--validate-display`
+client path and the opt-in `metal_context_smoke` CTest against both `build-macos-metal` and
+`build-macos-metal-only`.
 
 ### FMP-4 Metal Material And Shader Parity Summary
 
@@ -97,24 +98,26 @@ transforms, texcoord set selection, alpha mask, double-sided, emissive factor, a
 factors. `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/13-FMP-Render-Fixture-Matrix.md`
 tracks fixture coverage and keeps the missing Metal readback/histogram validation explicit.
 
-Focused macOS Metal validation passed render upload, render inspection, Metal shader compile, BSP
-materials, and BSP lightmaps. Deterministic Metal pixel/readback comparison remains not covered in
-the current no-display session.
+Focused macOS Metal and Metal-only validation passed render upload, render inspection, Metal shader
+compile, BSP materials, BSP lightmaps, display validation, and the forced single-player Metal
+runtime smoke. Deterministic Metal pixel/readback comparison remains not covered.
 
 ### FMP-6 Client/Server Runtime Parity Summary
 
-Status: implemented for display-free runtime coverage as of 2026-05-06; full display smoke remains
-manual.
+Status: implemented for display-free runtime coverage as of 2026-05-06; macOS Metal display smoke
+passed for both Metal-enabled build variants.
 
 `tools/ci/run_macos_runtime_smoke.sh` now validates the macOS Metal runtime path without requiring a
 display by checking renderer configuration, map validation from repository and build working
 directories, server map configuration on `127.0.0.1:0`, and the focused runtime/network CTest slice.
-When an attached display is available, the same script can run a short single-player Metal smoke; in
-the current no-display session that path is reported as skipped.
+When an attached display is available, the same script can run a short single-player Metal smoke.
+Forced display-attached runs passed against `build-macos-metal` and `build-macos-metal-only`, each
+with a 2560x1440 Metal drawable, matching layer drawable, depth texture, and viewport sizes.
 
 Focused runtime validation passed the display-free client/server, listen-host, remote-client, map
-validation, transport, and socket slices. Runtime authority remains server-owned and renderer choice
-does not add server dependencies.
+validation, transport, socket slices, direct Metal display validation, opt-in Metal context smoke,
+and forced single-player Metal display smoke for both Metal-enabled build variants. Runtime
+authority remains server-owned and renderer choice does not add server dependencies.
 
 ### FMP-7 Audio Parity Summary
 
