@@ -4,6 +4,7 @@
 #include "stellar/client/HudPresentation.hpp"
 #include "stellar/client/PlayerPresentation.hpp"
 #include "stellar/audio/AudioEventRouter.hpp"
+#include "stellar/audio/MiniaudioSink.hpp"
 #include "stellar/graphics/LevelRenderer.hpp"
 #include "stellar/platform/DisplayDiagnostics.hpp"
 #include "stellar/platform/Input.hpp"
@@ -17,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace stellar::client {
 
@@ -99,6 +101,15 @@ void print_map_validation_diagnostics(
   for (const auto &diagnostic : report.diagnostics) {
     std::cout << "stellar-client: BSP diagnostic severity="
               << diagnostic_severity_name(diagnostic.severity)
+              << " message=\"" << diagnostic.message << "\"\n";
+  }
+}
+
+void print_audio_diagnostics(
+    const std::vector<stellar::audio::AudioPresentationDiagnostic> &diagnostics) {
+  for (const auto &diagnostic : diagnostics) {
+    std::cerr << "stellar-client: audio diagnostic code=" << diagnostic.code
+              << " sound_id=" << diagnostic.sound_id
               << " message=\"" << diagnostic.message << "\"\n";
   }
 }
@@ -307,7 +318,10 @@ std::expected<void, stellar::platform::Error> Application::run() {
   stellar::platform::Input input;
   HudPresentationState hud_state;
   stellar::audio::AudioEventRouter audio_router;
-  stellar::audio::NoOpAudioRequestSink audio_sink;
+  stellar::audio::RuntimeAudioRequestSink runtime_audio_sink =
+      stellar::audio::make_runtime_audio_request_sink();
+  print_audio_diagnostics(runtime_audio_sink.diagnostics);
+  stellar::audio::AudioRequestSink& audio_sink = *runtime_audio_sink.sink;
   Uint32 previous_frame_start = SDL_GetTicks();
   IClientRuntime* active_client_runtime = runtime->active_client_runtime;
   const bool has_live_runtime = active_client_runtime != nullptr;
@@ -340,6 +354,7 @@ std::expected<void, stellar::platform::Error> Application::run() {
       apply_gameplay_events(hud_state, client_frame.events);
       [[maybe_unused]] const auto audio_result =
           audio_router.route_events(client_frame.events, audio_sink);
+      print_audio_diagnostics(audio_result.diagnostics);
       const char* runtime_name = client_runtime_mode_name(active_client_runtime->mode());
       if (!client_frame.snapshot.has_value()) {
         if (debug_render_frames_remaining > 0) {

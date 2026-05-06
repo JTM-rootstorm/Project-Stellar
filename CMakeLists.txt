@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(STELLAR_ENABLE_OPENGL_BACKEND "Build the OpenGL graphics backend" ON)
 option(STELLAR_ENABLE_METAL "Build the experimental Metal graphics backend on Apple platforms" OFF)
+option(STELLAR_MINIAUDIO_NO_RUNTIME_LINKING
+       "Use explicit CoreAudio framework links for miniaudio on Apple platforms" OFF)
 
 if(STELLAR_ENABLE_METAL AND NOT APPLE)
     message(FATAL_ERROR "STELLAR_ENABLE_METAL requires an Apple platform")
@@ -186,6 +188,26 @@ target_include_directories(stellar_audio PUBLIC
 
 target_link_libraries(stellar_audio PUBLIC
     stellar_protocol
+)
+
+add_library(stellar_audio_miniaudio
+    src/audio/MiniaudioSink.cpp
+)
+
+target_include_directories(stellar_audio_miniaudio PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(stellar_audio_miniaudio PRIVATE
+    STELLAR_PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_link_libraries(stellar_audio_miniaudio PUBLIC
+    stellar_audio
+)
+
+target_link_libraries(stellar_audio_miniaudio PRIVATE
+    miniaudio
 )
 
 add_library(stellar_import_bsp
@@ -394,6 +416,7 @@ target_link_libraries(stellar_client_app PUBLIC
     stellar_client_presentation
     stellar_graphics
     stellar_audio
+    stellar_audio_miniaudio
     stellar_assets
 )
 
@@ -407,7 +430,6 @@ target_include_directories(stellar-client PRIVATE
 
 target_link_libraries(stellar-client PRIVATE
     stellar_client_app
-    miniaudio
 )
 
 add_executable(stellar-server
@@ -450,7 +472,7 @@ stellar_assert_no_direct_links(stellar_protocol
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
     stellar_scripting stellar_client_runtime stellar_client_net stellar_single_player
     stellar_listen_server stellar_client_presentation stellar_client_app stellar_graphics
-    stellar_audio stellar_platform
+    stellar_audio stellar_audio_miniaudio stellar_platform
 )
 stellar_assert_no_direct_links(stellar_transport
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
