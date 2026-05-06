@@ -135,6 +135,26 @@ The opt-in `metal_context_smoke` test is registered only for Metal-enabled build
 default unless `STELLAR_RUN_METAL_CONTEXT_TESTS=1` is set. Local macOS validation passed
 `build-macos-metal/stellar-client --validate-display --renderer metal`.
 
+### MC-6/MC-7 Metal Resource And Shader Summary
+
+Status: implemented as a first Metal rendering path as of 2026-05-05.
+
+The Metal backend now uploads static mesh vertex/index buffers, converts RGB/RGBA image payloads into
+Metal RGBA textures with linear/sRGB pixel formats, stores backend-neutral material uploads, creates
+opaque and alpha-blend render pipelines from embedded MSL, maintains a depth texture sized to the
+drawable, and issues indexed triangle draws with MVP transforms. The current shader path covers
+fallback/base color, vertex color, base color texture sampling, alpha discard/blend, depth testing,
+and sampler wrap/filter mapping.
+
+Normal/specular/lightmap material data remains preserved in `MaterialUpload` records for backend
+parity, but the first Metal shader does not yet reproduce the full OpenGL normal/specular/lightmap
+lighting model. Follow-up work should extend the embedded MSL or move to a `.metal` library with the
+full material slot contract before claiming final visual parity on authored BSP material fixtures.
+
+Local validation passed default graphics tests, Metal backend selection, opt-in
+`STELLAR_RUN_METAL_CONTEXT_TESTS=1` Metal context smoke, and
+`build-macos-metal/stellar-client --validate-display --renderer metal`.
+
 ## Completed Scope - Texture/Material-Dependent Audio Footsteps
 
 Status: complete on `audio-impl` as of 2026-05-04.
