@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-7 frame readback complete on `GL-to-vulkan` as of 2026-05-07.
+Status: VK-8 tests and validation matrix complete on `GL-to-vulkan` as of 2026-05-07.
 
 Active plan:
 
@@ -281,7 +281,47 @@ Validation results:
   tests/fixtures/trenchbroom/out/lit_zup_room.bsp --readback-output /tmp/stellar-vulkan-lit.json`:
   skipped with return code 77 because SDL reported `x11 not available` in this session.
 
-Next phase: VK-8 tests and validation matrix.
+### VK-8 Tests And Validation Matrix Summary
+
+Status: complete for Linux Vulkan validation matrix coverage as of 2026-05-07.
+
+The Linux Vulkan matrix now has display-free default coverage for backend selection, Vulkan
+compiled/uncompiled parser behavior, Vulkan default-backend selection in Vulkan-enabled builds,
+render-level upload and inspection, BSP material slot coverage, BSP lightmap slot coverage, shader
+generation, docs consistency, and target boundaries. The opt-in Linux Vulkan display/GPU rows are
+registered as `vulkan_context_smoke` and `vulkan_render_readback`; both require
+`STELLAR_RUN_VULKAN_CONTEXT_TESTS=1` and skip with CTest return code 77 when no display/device is
+available.
+
+The Linux `linux-vulkan` and `linux-vulkan-only` presets both configure, build, and pass full CTest
+locally. `linux-vulkan-only` proves the current branch can build and test without OpenGL/GLEW while
+OpenGL retirement remains a VK-9 documentation/build-policy step. macOS Metal regression remains a
+separate host-required row; this Linux run did not execute macOS presets, but the Vulkan CMake and
+test gates continue to reject non-Linux Vulkan context tests and do not add macOS Vulkan/MoltenVK
+paths.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan-only --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary|docs_consistency)$'
+  --output-on-failure`: passed, 6/6 plus the expected context/readback skips.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary)$'
+  --output-on-failure`: passed, 5/5 plus the expected context/readback skips.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_(context_smoke|render_readback)$' --output-on-failure`: skipped with return code 77
+  because display access was unavailable.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+Next phase: VK-9 docs, handoff, and OpenGL retirement.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 

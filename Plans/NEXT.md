@@ -10,8 +10,8 @@ handoff, and completed historical scope guardrails.
 `docs/ImplementationStatus.md` is the source of truth for branch status. The active implementation
 slice is the Linux-only GL-to-Vulkan migration tracked by
 `Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`.
-VK-7 frame readback is complete on `GL-to-vulkan` as of 2026-05-07, and the next phase is VK-8 tests
-and validation matrix.
+VK-8 tests and validation matrix is complete on `GL-to-vulkan` as of 2026-05-07, and the next phase
+is VK-9 docs, handoff, and OpenGL retirement.
 
 Historical status remains relevant but is no longer the active branch objective: full macOS/Linux
 parity validation is complete on `macos-compat` as of 2026-05-06, the earlier macOS compatibility
