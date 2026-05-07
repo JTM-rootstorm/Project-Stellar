@@ -176,11 +176,12 @@ framework/miniaudio dependency on `stellar-server`.
 Status: implemented for BSP/TrenchBroom tooling as of 2026-05-06.
 
 Optional external BSP compiler coverage now skips clearly with CTest skip return code `77` when
-required tools are missing or not executable on the current host. BSP/TrenchBroom wrappers avoid
-selecting Linux ELF VHLT tools on macOS unless host-native tools are provided through
+required tools are missing or not executable on the current host. BSP/TrenchBroom wrappers select the
+checked-in host platform VHLT directory (`tools/bsp/macos-arm64` on Apple silicon or
+`tools/bsp/linux-x86_64` on x86_64 Linux) before legacy flat layouts, and still accept
 `STELLAR_VHLT_DIR`, per-tool overrides, or a single BSP30 compiler override. The editor package docs
 now include macOS TrenchBroom install paths, Homebrew setup notes, terminal-launch environment
-guidance, and the Linux-only status of checked-in VHLT binaries.
+guidance, and the platform-specific status of checked-in VHLT binaries.
 
 ## Completed Scope - macOS Compatibility And Metal Backend
 

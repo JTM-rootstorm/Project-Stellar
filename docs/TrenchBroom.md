@@ -139,22 +139,28 @@ developer materials path. Parent-directory escapes are rejected. Absolute WAD pa
 
 ## VHLT and external BSP compilers
 
-The supported multi-stage external BSP30 path is the VHLT wrapper in `tools/bsp/`. The checked-in
-`tools/bsp/hlcsg`, `hlbsp`, `hlvis`, `hlrad`, and `ripent` binaries are Linux x86-64 tools. macOS
-users must provide host-native VHLT tools with `STELLAR_VHLT_DIR` or per-tool overrides, or use a
-single BSP30 compiler through `STELLAR_BSP30_COMPILER`/`QBSP`.
-
-Place executable host-native VHLT tools in one of these repository-local locations, or point
-`STELLAR_VHLT_DIR` at a directory containing them:
+The supported multi-stage external BSP30 path is the VHLT wrapper in `tools/bsp/`. Checked-in VHLT
+tools are split by host platform:
 
 ```text
-tools/bsp/hlcsg
-tools/bsp/hlbsp
-tools/bsp/hlvis
-tools/bsp/hlrad
-tools/bsp/ripent      optional
-tools/bsp/vhlt/<tool> alternate layout
-tools/bsp/bin/<tool>  alternate layout
+tools/bsp/macos-arm64/<tool>    Apple silicon macOS
+tools/bsp/linux-x86_64/<tool>   x86_64 Linux
+```
+
+The wrappers select the matching checked-in platform directory automatically when the current host can
+execute it. Other hosts, including Intel macOS and non-x86_64 Linux, should provide host-native VHLT
+tools with `STELLAR_VHLT_DIR` or per-tool overrides, or use a single BSP30 compiler through
+`STELLAR_BSP30_COMPILER`/`QBSP`.
+
+For custom or legacy layouts, place executable host-native VHLT tools in one of these repository-local
+locations, or point `STELLAR_VHLT_DIR` at a directory containing them:
+
+```text
+tools/bsp/macos-arm64/<tool>  checked-in Apple silicon layout
+tools/bsp/linux-x86_64/<tool> checked-in x86_64 Linux layout
+tools/bsp/<tool>             legacy flat layout
+tools/bsp/vhlt/<tool>        alternate layout
+tools/bsp/bin/<tool>         alternate layout
 ```
 
 The wrapper also accepts explicit per-tool overrides: `HLCSG`, `HLBSP`, `HLVIS`, `HLRAD`, and
@@ -313,8 +319,8 @@ brew install cmake sdl2 glew glm
 ```
 
 External map compilers are optional for default validation. Use a host-native BSP30 compiler or wrapper
-when compiling from TrenchBroom; Linux ELF tools found in the repository are skipped by optional CTest
-coverage on macOS instead of being treated as required.
+when compiling from TrenchBroom. The checked-in VHLT directories are selected only for matching hosts;
+incompatible binaries are skipped by optional CTest coverage instead of being treated as required.
 
 The generic single-compiler path remains supported. It invokes the configured compiler as
 `<compiler> <map> <out>`, so compilers with different command lines should be wrapped in a small adapter
@@ -453,11 +459,11 @@ Use CTest group names such as `trenchbroom_package_*`, `trenchbroom_fgd_*`,
 
 - `No BSP30 compiler configured`: set `STELLAR_BSP30_COMPILER` or use `--profile validate-only` for an
   existing BSP.
-- Missing VHLT tools: install or copy executable `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` under
-  `tools/bsp/`, `tools/bsp/vhlt/`, `tools/bsp/bin/`, or set `STELLAR_VHLT_DIR`. On macOS, the
-  repository's Linux ELF VHLT binaries are ignored for optional coverage unless replaced with
-  host-native tools. The fixture matrix exits with skip code `77` when required tools are unavailable
-  or incompatible with the current host.
+- Missing VHLT tools: use the checked-in `tools/bsp/macos-arm64/` or `tools/bsp/linux-x86_64/`
+  directory on matching hosts, install or copy executable `hlcsg`, `hlbsp`, `hlvis`, and `hlrad`
+  under a legacy/alternate repo-local layout, or set `STELLAR_VHLT_DIR`. Incompatible binaries are
+  ignored for optional coverage. The fixture matrix exits with skip code `77` when required tools are
+  unavailable or incompatible with the current host.
 - `BSP header version is not 30`: use the Stellar BSP30 profile and avoid Source/VBSP compilers.
 - WAD generation failures: verify `python3` is available and the build/work output directory is
   writable. VHLT needs a temporary WAD reference in the copied work map; do not add absolute WAD paths

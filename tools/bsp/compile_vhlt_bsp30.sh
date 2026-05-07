@@ -57,18 +57,48 @@ absolute_path() {
 host_tool_is_executable() {
     local path="$1"
     local host
+    local machine
     local info
 
     [[ -x "$path" ]] || return 1
     host="$(uname -s 2>/dev/null || printf 'unknown')"
+    machine="$(uname -m 2>/dev/null || printf 'unknown')"
     if command -v file >/dev/null 2>&1; then
         info="$(file "$path" 2>/dev/null || true)"
         case "$host:$info" in
             Darwin:*ELF*) return 1 ;;
             Linux:*Mach-O*) return 1 ;;
         esac
+        case "$host:$machine:$info" in
+            Darwin:arm64:*x86_64*) return 1 ;;
+            Darwin:aarch64:*x86_64*) return 1 ;;
+            Darwin:x86_64:*arm64*) return 1 ;;
+            Linux:x86_64:*aarch64*) return 1 ;;
+            Linux:x86_64:*ARM\ aarch64*) return 1 ;;
+            Linux:amd64:*aarch64*) return 1 ;;
+            Linux:amd64:*ARM\ aarch64*) return 1 ;;
+            Linux:aarch64:*x86-64*) return 1 ;;
+            Linux:arm64:*x86-64*) return 1 ;;
+        esac
     fi
     return 0
+}
+
+platform_vhlt_dir() {
+    local root="$1"
+    local host
+    local machine
+
+    host="$(uname -s 2>/dev/null || printf 'unknown')"
+    machine="$(uname -m 2>/dev/null || printf 'unknown')"
+    case "$host:$machine" in
+        Darwin:arm64|Darwin:aarch64)
+            printf '%s/tools/bsp/macos-arm64\n' "$root"
+            ;;
+        Linux:x86_64|Linux:amd64)
+            printf '%s/tools/bsp/linux-x86_64\n' "$root"
+            ;;
+    esac
 }
 
 find_tool() {
@@ -97,10 +127,14 @@ find_tool() {
     fi
 
     local root="$4"
+    local platform_dir
+    platform_dir="$(platform_vhlt_dir "$root")"
     for candidate in \
+        "${platform_dir:+$platform_dir/$tool_name}" \
         "$root/tools/bsp/$tool_name" \
         "$root/tools/bsp/vhlt/$tool_name" \
         "$root/tools/bsp/bin/$tool_name"; do
+        [[ -n "$candidate" ]] || continue
         if host_tool_is_executable "$candidate"; then
             absolute_path "$candidate"
             return 0

@@ -55,11 +55,12 @@ the compile profiles are quoted for checkouts and maps with spaces.
 Set `STELLAR_BSP30_COMPILER` to your BSP30-capable `.map` to `.bsp` compiler, or place a supported
 compiler such as `qbsp`, `ericw-qbsp`, or `hqbsp` on `PATH`.
 
-The repository-local `tools/bsp/hlcsg`, `hlbsp`, `hlvis`, `hlrad`, and `ripent` binaries are Linux
-x86-64 VHLT tools. macOS users must provide host-native VHLT tools with `STELLAR_VHLT_DIR` or
-per-tool overrides, or use a single compiler through `STELLAR_BSP30_COMPILER`/`QBSP`. Optional CTest
-coverage skips with return code `77` when external compilers are missing or incompatible with the
-current host.
+The repository-local VHLT binaries are split into `tools/bsp/macos-arm64/` and
+`tools/bsp/linux-x86_64/`. The project wrappers select the matching directory automatically on Apple
+silicon macOS or x86_64 Linux. Other hosts should provide host-native VHLT tools with
+`STELLAR_VHLT_DIR` or per-tool overrides, or use a single compiler through
+`STELLAR_BSP30_COMPILER`/`QBSP`. Optional CTest coverage skips with return code `77` when external
+compilers are missing or incompatible with the current host.
 
 Set `STELLAR_CLIENT` and `STELLAR_SERVER` if your built binaries are not available as
 `build/stellar-client` and `build/stellar-server`.
@@ -88,9 +89,9 @@ Copied packages inherit the same external tool environment as repo-local package
   helper in `--copy` mode so `.stellar_repo_root` is written.
 - Spaces in paths: use the provided compilation profiles and shims; do not remove the quotes around
   `${MAP_FULL_PATH}` or `${WORK_DIR_PATH}` in `CompilationProfiles.cfg`.
-- Missing VHLT tools: set `STELLAR_VHLT_DIR`, individual `HLCSG`/`HLBSP`/`HLVIS`/`HLRAD` variables, or
-  use the generic `STELLAR_BSP30_COMPILER`/`QBSP` path. On macOS, replace the repository's Linux VHLT
-  binaries with host-native tools or leave optional compiler coverage skipped.
+- Missing VHLT tools: use the checked-in `tools/bsp/macos-arm64/` or `tools/bsp/linux-x86_64/`
+  directory on matching hosts, set `STELLAR_VHLT_DIR`, individual `HLCSG`/`HLBSP`/`HLVIS`/`HLRAD`
+  variables, or use the generic `STELLAR_BSP30_COMPILER`/`QBSP` path.
 - Missing Stellar binaries during validation: build the project or set `STELLAR_CLIENT` and
   `STELLAR_SERVER` to executable paths.
 
