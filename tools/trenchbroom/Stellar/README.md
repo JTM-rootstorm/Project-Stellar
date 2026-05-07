@@ -43,6 +43,15 @@ The compilation profiles call package-local shims:
 - `bin/stellar_tb_compile.sh`
 - `bin/stellar_tb_validate.sh`
 
+### TrenchBroom tool path setup
+
+The Stellar game config declares compilation tool variables named `STELLAR_BSP30_COMPILE` and
+`STELLAR_BSP30_VALIDATE`. In TrenchBroom Preferences > Games > Stellar, set these paths to the
+installed package shims:
+
+- `STELLAR_BSP30_COMPILE`: `<package>/bin/stellar_tb_compile.sh`
+- `STELLAR_BSP30_VALIDATE`: `<package>/bin/stellar_tb_validate.sh`
+
 Those shims locate the checkout and delegate to:
 
 - `tools/bsp/compile_trenchbroom_bsp30.sh`
@@ -87,8 +96,13 @@ Copied packages inherit the same external tool environment as repo-local package
 
 - Missing repository root: export `STELLAR_REPO_ROOT=/path/to/Stellar_Engine` or rerun the install
   helper in `--copy` mode so `.stellar_repo_root` is written.
+- Unset compile tool variables: in TrenchBroom Preferences > Games > Stellar, set
+  `STELLAR_BSP30_COMPILE` and `STELLAR_BSP30_VALIDATE` to the package-local shims listed above.
+- Undefined variable at compile time: verify `CompilationProfiles.cfg` does not use
+  `${WORK_DIR_PATH}` in `workdir` and does not use `${MAP_FULL_PATH}` anywhere.
 - Spaces in paths: use the provided compilation profiles and shims; do not remove the quotes around
-  `${MAP_FULL_PATH}` or `${WORK_DIR_PATH}` in `CompilationProfiles.cfg`.
+  `${MAP_DIR_PATH}/${MAP_FULL_NAME}` or `${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp` in
+  `CompilationProfiles.cfg`.
 - Missing VHLT tools: use the checked-in `tools/bsp/macos-arm64/` or `tools/bsp/linux-x86_64/`
   directory on matching hosts, set `STELLAR_VHLT_DIR`, individual `HLCSG`/`HLBSP`/`HLVIS`/`HLRAD`
   variables, or use the generic `STELLAR_BSP30_COMPILER`/`QBSP` path.
