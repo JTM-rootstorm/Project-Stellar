@@ -120,7 +120,10 @@ Next steps:
   1. Open TrenchBroom Preferences > Games.
   2. Add or refresh the game package directory: $target_package
   3. Select the Stellar game profile.
-  4. For copied packages, keep STELLAR_REPO_ROOT exported if you move the checkout:
+  4. Set compilation tool paths:
+       STELLAR_BSP30_COMPILE  = $target_package/bin/stellar_tb_compile.sh
+       STELLAR_BSP30_VALIDATE = $target_package/bin/stellar_tb_validate.sh
+  5. For copied packages, keep STELLAR_REPO_ROOT exported if you move the checkout:
        export STELLAR_REPO_ROOT="$repo_root"
-  5. Build Stellar before validation profiles, or set STELLAR_CLIENT/STELLAR_SERVER.
+  6. Build Stellar before validation profiles, or set STELLAR_CLIENT/STELLAR_SERVER.
 EOF

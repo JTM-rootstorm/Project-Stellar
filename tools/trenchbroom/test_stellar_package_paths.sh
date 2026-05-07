@@ -217,9 +217,18 @@ fi
 
 copy_dest="$work_dir/Games With Spaces"
 mkdir -p "$copy_dest"
-"$install_helper" --repo-root "$repo_root" --dest "$copy_dest" --copy >/dev/null
+install_output="$work_dir/install_output.txt"
+"$install_helper" --repo-root "$repo_root" --dest "$copy_dest" --copy >"$install_output"
 copied_package="$copy_dest/Stellar"
 [[ -f "$copied_package/.stellar_repo_root" ]] || fail "copied package missing .stellar_repo_root"
+if ! grep -Fq "STELLAR_BSP30_COMPILE  = $copied_package/bin/stellar_tb_compile.sh" \
+    "$install_output"; then
+    fail "install helper did not print compile shim tool path guidance"
+fi
+if ! grep -Fq "STELLAR_BSP30_VALIDATE = $copied_package/bin/stellar_tb_validate.sh" \
+    "$install_output"; then
+    fail "install helper did not print validate shim tool path guidance"
+fi
 STELLAR_REPO_ROOT="$repo_root" "$copied_package/bin/stellar_tb_compile.sh" --help >/dev/null
 STELLAR_REPO_ROOT="$repo_root" "$copied_package/bin/stellar_tb_validate.sh" --help >/dev/null
 
