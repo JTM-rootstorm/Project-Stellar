@@ -10,10 +10,13 @@ namespace stellar::graphics {
 /**
  * @brief Runtime-selectable graphics backend.
  *
- * Currently only OpenGL is implemented. Future native backends such as
- * DirectX or Metal should be added here only when their implementations exist.
+ * Backends are exposed only when their build-time support is available.
  */
 enum class GraphicsBackend {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+    /** @brief Linux Vulkan backend. */
+    kVulkan,
+#endif
     /** @brief OpenGL backend. */
     kOpenGL,
 #if defined(STELLAR_ENABLE_METAL_BACKEND)

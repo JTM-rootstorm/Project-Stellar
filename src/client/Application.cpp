@@ -40,6 +40,10 @@ constexpr int kSkipExitCode = 77;
 
 Uint32 backend_window_flags(stellar::graphics::GraphicsBackend backend) noexcept {
   switch (backend) {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+  case stellar::graphics::GraphicsBackend::kVulkan:
+    return SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
   case stellar::graphics::GraphicsBackend::kOpenGL:
     return SDL_WINDOW_OPENGL;
 #if defined(STELLAR_ENABLE_METAL_BACKEND)

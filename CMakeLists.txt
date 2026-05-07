@@ -374,6 +374,12 @@ if(STELLAR_ENABLE_METAL)
     )
 endif()
 
+if(STELLAR_ENABLE_VULKAN_BACKEND)
+    list(APPEND STELLAR_GRAPHICS_SOURCES
+        src/graphics/vulkan/VulkanGraphicsDevice.cpp
+    )
+endif()
+
 add_library(stellar_graphics
     ${STELLAR_GRAPHICS_SOURCES}
 )

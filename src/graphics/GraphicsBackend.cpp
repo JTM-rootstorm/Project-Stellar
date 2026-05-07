@@ -7,7 +7,13 @@ namespace {
 
 [[nodiscard]] std::string compiled_backend_list() {
     std::string names;
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+    names += "vulkan";
+#endif
 #if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+    if (!names.empty()) {
+        names += ", ";
+    }
     names += "opengl";
 #endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
@@ -41,6 +47,13 @@ namespace {
 
 std::expected<GraphicsBackend, stellar::platform::Error>
 parse_graphics_backend(std::string_view name) {
+    if (name == "vulkan" || name == "vk" || name == "Vulkan") {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+        return GraphicsBackend::kVulkan;
+#else
+        return std::unexpected(unsupported_backend_error(name));
+#endif
+    }
     if (name == "opengl" || name == "gl" || name == "OpenGL") {
 #if defined(STELLAR_ENABLE_OPENGL_BACKEND)
         return GraphicsBackend::kOpenGL;
@@ -62,7 +75,9 @@ parse_graphics_backend(std::string_view name) {
 }
 
 GraphicsBackend default_graphics_backend() noexcept {
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+    return GraphicsBackend::kVulkan;
+#elif defined(STELLAR_ENABLE_OPENGL_BACKEND)
     return GraphicsBackend::kOpenGL;
 #elif defined(STELLAR_ENABLE_METAL_BACKEND)
     return GraphicsBackend::kMetal;
@@ -73,6 +88,10 @@ GraphicsBackend default_graphics_backend() noexcept {
 
 bool graphics_backend_available(GraphicsBackend backend) noexcept {
     switch (backend) {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+        case GraphicsBackend::kVulkan:
+            return true;
+#endif
         case GraphicsBackend::kOpenGL:
 #if defined(STELLAR_ENABLE_OPENGL_BACKEND)
             return true;
@@ -90,6 +109,10 @@ bool graphics_backend_available(GraphicsBackend backend) noexcept {
 
 std::string_view graphics_backend_name(GraphicsBackend backend) noexcept {
     switch (backend) {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+        case GraphicsBackend::kVulkan:
+            return "vulkan";
+#endif
         case GraphicsBackend::kOpenGL:
             return "opengl";
 #if defined(STELLAR_ENABLE_METAL_BACKEND)

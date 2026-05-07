@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-1 build/dependency/preset gates complete on `GL-to-vulkan` as of 2026-05-06.
+Status: VK-2 backend selection/platform routing complete on `GL-to-vulkan` as of 2026-05-06.
 
 Active plan:
 
@@ -72,7 +72,43 @@ Validation results:
   --output-on-failure`: passed, 7/7 tests.
 - `tools/dev/check_target_boundaries.sh`: passed.
 
-Next phase: VK-2 backend selection and platform routing.
+### VK-2 Backend Selection And Platform Routing Summary
+
+Status: complete as of 2026-05-06.
+
+Runtime backend selection now exposes `GraphicsBackend::kVulkan` only in Vulkan-enabled builds.
+The parser accepts `vulkan`, `vk`, and `Vulkan` when `STELLAR_ENABLE_VULKAN_BACKEND=ON`, rejects
+those names clearly when Vulkan is not compiled, and reports Vulkan in the compiled-backend
+diagnostic list for Linux Vulkan presets. Vulkan-enabled builds now choose Vulkan as the default
+backend ahead of migration OpenGL fallback.
+
+Client window routing now selects `SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI` for Vulkan while
+leaving Metal's `SDL_WINDOW_METAL` path unchanged. `GraphicsDeviceFactory` can construct a
+Linux-gated `VulkanGraphicsDevice` placeholder so backend selection and CLI validation are wired
+before VK-3 replaces the placeholder initialization with real instance/surface/device/swapchain
+bring-up. Level-renderer projection reporting now includes Vulkan's zero-to-one clip-depth
+convention.
+
+Validation results:
+
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection|target_boundary)$'
+  --output-on-failure`: passed, 6/6 tests.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection|target_boundary)$'
+  --output-on-failure`: passed, 6/6 tests.
+- `ctest --test-dir build -R
+  '^(graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection)$'
+  --output-on-failure`: passed, 5/5 tests.
+- `build-linux-vulkan/stellar-client --validate-config --renderer vulkan`: passed.
+- `build-linux-vulkan/stellar-client --validate-config --renderer vk`: passed.
+- `build/stellar-client --validate-config --renderer vulkan`: failed clearly as unsupported in the
+  non-Vulkan build.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+Next phase: VK-3 Linux Vulkan device scaffold.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 
