@@ -23,6 +23,16 @@ repo_root() {
     cd "$script_dir/../.." && pwd
 }
 
+env_name_for_binary() {
+    case "$1" in
+        stellar-client) printf 'STELLAR_CLIENT\n' ;;
+        stellar-server) printf 'STELLAR_SERVER\n' ;;
+        *)
+            printf '%s\n' "$1"
+            ;;
+    esac
+}
+
 find_binary() {
     local env_value="$1"
     local default_path="$2"
@@ -44,7 +54,7 @@ find_binary() {
         return 0
     fi
 
-    fail "$binary_name not found. Build the project or set ${binary_name^^} path override."
+    fail "$binary_name not found. Build the project or set $(env_name_for_binary "$binary_name") path override."
 }
 
 read_bsp_version() {
