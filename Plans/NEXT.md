@@ -10,8 +10,9 @@ handoff, and completed historical scope guardrails.
 `docs/ImplementationStatus.md` is the source of truth for branch status. The active implementation
 slice is the Linux-only GL-to-Vulkan migration tracked by
 `Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`.
-VK-8 tests and validation matrix is complete on `GL-to-vulkan` as of 2026-05-07, and the next phase
-is VK-9 docs, handoff, and OpenGL retirement.
+VK-8 tests and validation matrix is complete on `GL-to-vulkan` as of 2026-05-07. The follow-up
+macOS Metal-only display/regression row has also passed on a display-attached macOS host, so the
+next phase is VK-9 docs, handoff, and OpenGL retirement.
 
 Historical status remains relevant but is no longer the active branch objective: full macOS/Linux
 parity validation is complete on `macos-compat` as of 2026-05-06, the earlier macOS compatibility
@@ -64,6 +65,21 @@ cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
 ctest --test-dir build-macos-metal --output-on-failure
 build-macos-metal/stellar-client --validate-display --renderer metal
 ```
+
+Latest VK-9 unblocker evidence on `GL-to-vulkan`:
+
+- `macos-metal-only` configure/build passed on 2026-05-07.
+- `ctest --preset macos-metal-only --output-on-failure` passed 108/108 outside the sandbox; the
+  env-gated `metal_context_smoke` and `metal_render_readback` tests skipped by default.
+- `build-macos-metal-only/stellar-client --validate-display --renderer metal` passed.
+- `STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R
+  '^metal_(context_smoke|render_readback)$' --output-on-failure` passed 2/2.
+- `STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R
+  '^metal_readback_(lit_fixture|material_fixture)$' --output-on-failure` passed 5/5 with fixture
+  setup.
+- `STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only STELLAR_FORCE_DISPLAY_SMOKE=1
+  tools/ci/run_macos_runtime_smoke.sh` passed with 0 skips, including the forced single-player Metal
+  display smoke.
 
 Opt-in audible audio smoke:
 

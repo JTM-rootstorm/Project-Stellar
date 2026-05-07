@@ -8,7 +8,8 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-8 tests and validation matrix complete on `GL-to-vulkan` as of 2026-05-07.
+Status: VK-8 tests and validation matrix complete on `GL-to-vulkan` as of 2026-05-07;
+macOS Metal-only display/regression validation has also passed and no longer blocks VK-9.
 
 Active plan:
 
@@ -295,10 +296,9 @@ available.
 
 The Linux `linux-vulkan` and `linux-vulkan-only` presets both configure, build, and pass full CTest
 locally. `linux-vulkan-only` proves the current branch can build and test without OpenGL/GLEW while
-OpenGL retirement remains a VK-9 documentation/build-policy step. macOS Metal regression remains a
-separate host-required row; this Linux run did not execute macOS presets, but the Vulkan CMake and
-test gates continue to reject non-Linux Vulkan context tests and do not add macOS Vulkan/MoltenVK
-paths.
+OpenGL retirement remains a VK-9 documentation/build-policy step. macOS Metal-only regression
+was refreshed on a display-attached macOS host after this Linux run; Vulkan CMake and test gates
+continue to reject non-Linux Vulkan context tests and do not add macOS Vulkan/MoltenVK paths.
 
 Validation results:
 
@@ -321,7 +321,48 @@ Validation results:
   because display access was unavailable.
 - `tools/dev/check_target_boundaries.sh`: passed.
 
-Next phase: VK-9 docs, handoff, and OpenGL retirement.
+### VK-8.1 macOS Metal Display And Regression Refresh
+
+Status: complete on a display-attached macOS host as of 2026-05-07.
+
+The VK-9 macOS blocker is cleared for the Metal-only row. `macos-metal-only` configured, rebuilt,
+and passed full CTest when run outside the sandbox so loopback socket tests could bind localhost.
+The default full CTest run still keeps `metal_context_smoke` and `metal_render_readback` opt-in, but
+the display-attached BSP readback fixtures ran during the full suite and passed. The two env-gated
+Metal context/readback tests were then run explicitly with `STELLAR_RUN_METAL_CONTEXT_TESTS=1` and
+passed.
+
+Direct display validation passed with `build-macos-metal-only/stellar-client --validate-display
+--renderer metal`. The runtime smoke script also passed with zero skips, including renderer config,
+repo-root and build-directory map validation, server map validation, the focused runtime/network
+CTest slice, and a forced 5-second single-player Metal display run. Debug output reported a
+2560x1440 Metal drawable, matching layer drawable, depth texture, and viewport using
+`metal_ndc_z_zero_to_one`.
+
+Readback reports were regenerated for `lit_zup_room.bsp` and `material_wad_zup.bsp` under
+`build-macos-metal-only/tests/fixtures/trenchbroom/compiled/`. Both reports use
+`stellar.frame_readback.v1`, backend `metal`, 640x480 `rgba8` frames, and material slot coverage of
+3 base-color materials plus 2 normal/specular sidecar materials.
+
+Validation results:
+
+- `cmake --preset macos-metal-only`: passed.
+- `cmake --build --preset macos-metal-only --parallel 8`: passed.
+- `ctest --preset macos-metal-only --output-on-failure`: passed, 108/108 outside the sandbox with
+  `metal_context_smoke` and `metal_render_readback` skipped by default.
+- `build-macos-metal-only/stellar-client --validate-display --renderer metal`: passed.
+- `STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R
+  '^metal_(context_smoke|render_readback)$' --output-on-failure`: passed, 2/2.
+- `STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R
+  '^metal_readback_(lit_fixture|material_fixture)$' --output-on-failure`: passed, 5/5 including
+  fixture setup.
+- `STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only STELLAR_FORCE_DISPLAY_SMOKE=1
+  tools/ci/run_macos_runtime_smoke.sh`: passed with 0 skips.
+
+Note: a sandboxed full CTest attempt failed five localhost socket/listen tests before escalation;
+the same tests passed in the full CTest and runtime-smoke runs outside the sandbox.
+
+Next phase: VK-9 docs, handoff, and OpenGL retirement is unblocked.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 
