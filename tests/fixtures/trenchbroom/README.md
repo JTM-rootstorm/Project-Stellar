@@ -50,8 +50,9 @@ tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profil
 ```
 
 The matrix skips with exit code `77` when required VHLT tools are unavailable. It expects executable
-`hlcsg`, `hlbsp`, `hlvis`, and `hlrad` under `tools/bsp/`, `tools/bsp/vhlt/`, `tools/bsp/bin/`, or the
-directory named by `STELLAR_VHLT_DIR`.
+`hlcsg`, `hlbsp`, `hlvis`, and `hlrad` under the matching checked-in platform directory
+(`tools/bsp/macos-arm64/` or `tools/bsp/linux-x86_64/`), a legacy/alternate repo-local layout
+(`tools/bsp/`, `tools/bsp/vhlt/`, or `tools/bsp/bin/`), or the directory named by `STELLAR_VHLT_DIR`.
 
 | Fixture | VHLT compile outcome | Stellar validation outcome | Expected result |
 | --- | --- | --- | --- |

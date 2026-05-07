@@ -10,12 +10,13 @@ namespace stellar::graphics {
 /**
  * @brief Runtime-selectable graphics backend.
  *
- * Currently only OpenGL is implemented. Future native backends such as
- * DirectX or Metal should be added here only when their implementations exist.
+ * Backends are exposed only when their build-time support is available.
  */
 enum class GraphicsBackend {
-    /** @brief OpenGL backend. */
-    kOpenGL,
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+    /** @brief Linux Vulkan backend. */
+    kVulkan,
+#endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
     /** @brief Apple Metal backend. */
     kMetal,
@@ -24,7 +25,7 @@ enum class GraphicsBackend {
 
 /**
  * @brief Parse a user-supplied graphics backend name.
- * @param name Backend name such as "opengl" or "gl".
+ * @param name Backend name such as "vulkan", "vk", "metal", or "mtl".
  * @return Parsed backend or an Error describing the unsupported value.
  */
 [[nodiscard]] std::expected<GraphicsBackend, stellar::platform::Error>

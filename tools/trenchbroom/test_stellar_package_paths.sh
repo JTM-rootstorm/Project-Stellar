@@ -26,18 +26,53 @@ compiler_available() {
     host_can_execute_pair() {
         local csg="$1"
         local bsp="$2"
+        local host
+        local machine
+        local info
+
         [[ -x "$csg" && -x "$bsp" ]] || return 1
-        if [[ "$(uname -s)" == "Darwin" ]] && command -v file >/dev/null 2>&1; then
-            if file "$csg" "$bsp" | grep -q 'ELF .* x86-64'; then
-                return 1
-            fi
+        host="$(uname -s 2>/dev/null || printf 'unknown')"
+        machine="$(uname -m 2>/dev/null || printf 'unknown')"
+        if command -v file >/dev/null 2>&1; then
+            info="$(file "$csg" "$bsp" 2>/dev/null || true)"
+            case "$host:$info" in
+                Darwin:*ELF*) return 1 ;;
+                Linux:*Mach-O*) return 1 ;;
+            esac
+            case "$host:$machine:$info" in
+                Darwin:arm64:*x86_64*) return 1 ;;
+                Darwin:aarch64:*x86_64*) return 1 ;;
+                Darwin:x86_64:*arm64*) return 1 ;;
+                Linux:x86_64:*aarch64*) return 1 ;;
+                Linux:x86_64:*ARM\ aarch64*) return 1 ;;
+                Linux:amd64:*aarch64*) return 1 ;;
+                Linux:amd64:*ARM\ aarch64*) return 1 ;;
+                Linux:aarch64:*x86-64*) return 1 ;;
+                Linux:arm64:*x86-64*) return 1 ;;
+            esac
         fi
         return 0
+    }
+    platform_vhlt_dir() {
+        case "$(uname -s 2>/dev/null || printf 'unknown'):$(uname -m 2>/dev/null || printf 'unknown')" in
+            Darwin:arm64|Darwin:aarch64)
+                printf '%s/tools/bsp/macos-arm64\n' "$repo_root"
+                ;;
+            Linux:x86_64|Linux:amd64)
+                printf '%s/tools/bsp/linux-x86_64\n' "$repo_root"
+                ;;
+        esac
     }
     if [[ -n "${STELLAR_VHLT_DIR:-}" ]] && host_can_execute_pair "$STELLAR_VHLT_DIR/hlcsg" "$STELLAR_VHLT_DIR/hlbsp"; then
         return 0
     fi
-    for dir in "$repo_root/tools/bsp" "$repo_root/tools/bsp/vhlt" "$repo_root/tools/bsp/bin"; do
+    platform_dir="$(platform_vhlt_dir)"
+    for dir in \
+        "${platform_dir:+$platform_dir}" \
+        "$repo_root/tools/bsp" \
+        "$repo_root/tools/bsp/vhlt" \
+        "$repo_root/tools/bsp/bin"; do
+        [[ -n "$dir" ]] || continue
         host_can_execute_pair "$dir/hlcsg" "$dir/hlbsp" && return 0
     done
     return 1

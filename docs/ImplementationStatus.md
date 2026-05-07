@@ -1,9 +1,418 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
-backend implementation, completed audio footsteps implementation, completed Doxygen generation,
-completed Vulkan removal, completed lightweight BSP normal/specular material sidecars, completed
-client/server decoupling handoff, and completed historical branch notes.
+Status scope: active Linux-only GL-to-Vulkan migration on `GL-to-vulkan`, completed full
+macOS/Linux parity validation, completed macOS compatibility and Metal backend implementation,
+completed audio footsteps implementation, completed Doxygen generation, completed Vulkan removal,
+completed lightweight BSP normal/specular material sidecars, completed client/server decoupling
+handoff, and completed historical branch notes.
+
+## Active Scope - Linux Vulkan Renderer Migration
+
+Status: VK-9 docs, handoff, and OpenGL retirement complete on `GL-to-vulkan` as of 2026-05-07.
+
+Active plan:
+
+- `Plans/Archived/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`
+
+Current objective: complete VK-9 by retiring the former OpenGL renderer path, keeping Linux on the
+Linux-gated Vulkan backend, and preserving the existing macOS Metal backend. macOS Vulkan,
+MoltenVK, and Apple-side Vulkan package discovery remain out of scope.
+
+### VK-0 Baseline Notes
+
+Branch: `GL-to-vulkan`
+Commit: `6b547ae00aa732ba5f1a78eae8ce40abb30d1732`
+Date: 2026-05-06
+
+Summary:
+
+- Current renderer defaults: OpenGL is still the default where enabled; Metal remains Apple-gated
+  behind `STELLAR_ENABLE_METAL=ON`.
+- Current CMake backend options: the former OpenGL backend option defaults on, and
+  `STELLAR_ENABLE_METAL` defaults `OFF`.
+- Current active docs that need renderer updates: `Plans/NEXT.md`, `docs/Design.md`, `README.md`,
+  and this status file still contain completed Vulkan-removal/OpenGL-default language from older
+  branch work.
+- Validation results: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`, `cmake --build build
+  -j$(nproc)`, `ctest --test-dir build --output-on-failure`, and
+  `tools/dev/check_target_boundaries.sh` passed on 2026-05-06.
+
+Risks:
+
+- The Linux host must provide Vulkan loader/headers and shader tooling before VK-1/VK-4 can
+  validate Vulkan-enabled presets.
+- Active historical docs still mention Vulkan removal and OpenGL defaults until later phases rewrite
+  them to match implementation evidence.
+
+### VK-1 Linux Vulkan Build, Dependency Gates, And Presets Summary
+
+Status: complete as of 2026-05-06.
+
+The build graph now exposes `STELLAR_ENABLE_VULKAN_BACKEND` and
+`STELLAR_ENABLE_VULKAN_VALIDATION`. Vulkan remains off by default and is strictly Linux-gated:
+non-Linux Vulkan configure attempts fail with a clear message that macOS should use Metal. Vulkan
+package discovery and the `Vulkan::Vulkan` link are active only when the Vulkan backend option is
+enabled, while macOS presets explicitly keep Vulkan disabled.
+
+`CMakePresets.json` now includes `linux-vulkan` and `linux-vulkan-only` configure/build/test
+presets. The Linux Vulkan preset keeps the migration renderer enabled, while the Vulkan-only preset
+proves the build can configure and compile without the retired OpenGL loader stack. Target boundary checks now also
+forbid direct `Vulkan::Vulkan` links from protocol and server-side boundary targets.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed; Vulkan loader and shader tools were discovered.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 103/103 tests.
+- `cmake --preset linux-vulkan-only`: passed without retired OpenGL loader discovery.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|render_level_upload|render_level_inspection|client_cli_map_validation|target_boundary|docs_consistency)$'
+  --output-on-failure`: passed, 7/7 tests.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-2 Backend Selection And Platform Routing Summary
+
+Status: complete as of 2026-05-06.
+
+Runtime backend selection now exposes `GraphicsBackend::kVulkan` only in Vulkan-enabled builds.
+The parser accepts `vulkan`, `vk`, and `Vulkan` when `STELLAR_ENABLE_VULKAN_BACKEND=ON`, rejects
+those names clearly when Vulkan is not compiled, and reports Vulkan in the compiled-backend
+diagnostic list for Linux Vulkan presets. Vulkan-enabled builds now choose Vulkan as the default
+backend ahead of migration OpenGL fallback.
+
+Client window routing now selects `SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI` for Vulkan while
+leaving Metal's `SDL_WINDOW_METAL` path unchanged. `GraphicsDeviceFactory` can construct a
+Linux-gated `VulkanGraphicsDevice` placeholder so backend selection and CLI validation are wired
+before VK-3 replaces the placeholder initialization with real instance/surface/device/swapchain
+bring-up. Level-renderer projection reporting now includes Vulkan's zero-to-one clip-depth
+convention.
+
+Validation results:
+
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection|target_boundary)$'
+  --output-on-failure`: passed, 6/6 tests.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection|target_boundary)$'
+  --output-on-failure`: passed, 6/6 tests.
+- `ctest --test-dir build -R
+  '^(graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection)$'
+  --output-on-failure`: passed, 5/5 tests.
+- `build-linux-vulkan/stellar-client --validate-config --renderer vulkan`: passed.
+- `build-linux-vulkan/stellar-client --validate-config --renderer vk`: passed.
+- `build/stellar-client --validate-config --renderer vulkan`: failed clearly as unsupported in the
+  non-Vulkan build.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-3 Linux Vulkan Device Scaffold Summary
+
+Status: complete for clear-present scaffold as of 2026-05-06.
+
+`VulkanGraphicsDevice` now performs real Linux Vulkan initialization through SDL's Vulkan surface
+API. The device owns the Vulkan instance, SDL-created surface, selected physical device, logical
+device, graphics/present queues, swapchain, image views, render pass, framebuffers, command pool,
+command buffers, frame semaphores, and frame fence. `begin_frame()` acquires a swapchain image,
+records a black clear render pass, and `end_frame()` submits and presents. Mesh, texture, and
+material uploads intentionally still return clear "not implemented yet" diagnostics until VK-5/VK-6.
+
+The Vulkan context smoke test is now registered only for Vulkan-enabled Linux presets and remains
+default-safe by skipping with return code 77 unless `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1` is set.
+In this local environment, the opt-in smoke and manual display validation skip because SDL cannot
+open the current X11/Wayland display from the session.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 104/104 with
+  `vulkan_context_smoke` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(vulkan_context_smoke|graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection|target_boundary)$'
+  --output-on-failure`: passed, 6 tests plus one expected skip.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_context_smoke$' --output-on-failure`: skipped with return code 77 because display access
+  was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan`: skipped with return code
+  77 because SDL reported `x11 not available` in this session.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-4 SPIR-V Shader Pipeline Summary
+
+Status: complete for build-time shader generation as of 2026-05-06.
+
+The Linux Vulkan build now compiles `assets/shaders/vulkan/static_level.vert` and
+`assets/shaders/vulkan/static_level.frag` with `glslc` into
+`build-*/generated/shaders/vulkan/*.spv`. Vulkan configure fails clearly if `glslc` is unavailable
+for a Vulkan-enabled build, and macOS presets still keep Vulkan disabled. The initial GLSL shaders
+declare the active `StaticVertex` attribute locations: position, normal, primary UV, tangent,
+secondary UV, and vertex color. A display-free `vulkan_shader_compile` test verifies both generated
+SPIR-V files exist and contain the SPIR-V magic value.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed and generated SPIR-V outputs.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed and generated SPIR-V
+  outputs.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(vulkan_shader_compile|vulkan_context_smoke|graphics_backend_selection|target_boundary)$'
+  --output-on-failure`: passed, 3/3 plus the expected Vulkan context skip.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(vulkan_shader_compile|vulkan_context_smoke|graphics_backend_selection|target_boundary)$'
+  --output-on-failure`: passed, 3/3 plus the expected Vulkan context skip.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-5 Resource Upload And Descriptors Summary
+
+Status: complete for Vulkan upload/storage/descriptors as of 2026-05-07.
+
+`VulkanGraphicsDevice` now uploads mesh primitives through host-visible staging buffers into
+device-local vertex and index buffers, preserving primitive index count, tangent availability, and
+vertex-color availability. Texture upload now supports RGB and RGBA CPU payloads, expands RGB to
+RGBA8, selects linear or sRGB Vulkan formats from the backend-neutral texture color space, uploads
+through a staging buffer into an optimal tiled image, transitions to shader-read layout, and creates
+an image view. Material upload now allocates a seven-binding combined-image-sampler descriptor set
+for the active material texture contract and uses deterministic fallback textures for missing slots:
+white, black, and flat normal. Vulkan samplers are cached by backend-neutral filter and wrap state.
+
+Destroy paths now release Vulkan mesh buffers, texture image views/images/memory, material descriptor
+sets, cached samplers, descriptor pools/layouts, and fallback resources without exposing Vulkan
+handles outside the backend. The implementation still does not draw uploaded resources; VK-6 owns
+pipeline binding, descriptor binding, indexed draws, and material shader parity.
+
+Validation results:
+
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(render_level_upload|render_level_inspection|graphics_backend_selection|vulkan_shader_compile|target_boundary)$'
+  --output-on-failure`: passed, 5/5 tests.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(render_level_upload|render_level_inspection|graphics_backend_selection|vulkan_shader_compile|target_boundary)$'
+  --output-on-failure`: passed, 5/5 tests.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_context_smoke$' --output-on-failure`: skipped with return code 77 because display access
+  was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan`: skipped with return code
+  77 because SDL reported `x11 not available` in this session.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-6 Draw Path And Material Parity Summary
+
+Status: complete for Vulkan static level draw submission as of 2026-05-07.
+
+`VulkanGraphicsDevice` now binds static-level graphics pipelines, material descriptor sets, dynamic
+draw uniform buffers, uploaded vertex/index buffers, and submits indexed draws for each primitive.
+The Vulkan shader path consumes the same active material presentation contract as OpenGL and Metal:
+base color and vertex color, lightmaps, normal maps with tangent-space perturbation, metallic and
+roughness factors/textures, occlusion, emissive, specular, texture transforms, per-slot texcoord
+selection, alpha mask/blend selection, double-sided culling control, unlit materials, global level
+light contribution, camera-dependent specular, and fallback material color for missing material
+handles.
+
+The swapchain render pass now owns a depth attachment and the graphics pipeline enables depth test
+and writes with `VK_COMPARE_OP_LESS`, matching the existing static level ordering assumptions in the
+OpenGL and Metal backends. Vulkan still requires an attached Linux display/GPU session for visual
+parity confirmation; the local opt-in display commands skip cleanly in the current headless session.
+
+Validation results:
+
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 105/105 with
+  `vulkan_context_smoke` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(render_level_upload|render_level_inspection|bsp_materials|bsp_lightmaps|graphics_backend_selection|vulkan_shader_compile|target_boundary)$'
+  --output-on-failure`: passed, 7/7 tests.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(render_level_upload|render_level_inspection|graphics_backend_selection|vulkan_shader_compile|target_boundary)$'
+  --output-on-failure`: passed, 5/5 tests.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_context_smoke$' --output-on-failure`: skipped with return code 77 because display access
+  was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan`: skipped with return code
+  77 because SDL reported `x11 not available` in this session.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-7 Frame Readback Summary
+
+Status: complete for opt-in Vulkan frame readback plumbing as of 2026-05-07.
+
+`VulkanGraphicsDevice` now implements the backend-neutral `FrameReadbackDevice` extension used by
+`RenderLevel` and `LevelRenderer`. Readback remains opt-in: normal frames render directly to the
+swapchain with no staging-buffer copy, while requested readback frames copy the completed color
+output into CPU-readable RGBA8 pixels. The direct path requests `VK_IMAGE_USAGE_TRANSFER_SRC_BIT`
+on compatible swapchains and synchronizes color-attachment writes before copying. If direct
+swapchain readback is unavailable, Vulkan creates a dedicated transfer-source offscreen color
+attachment, renders the requested frame there, copies it to the swapchain for presentation, and
+copies it to the staging buffer for readback.
+
+The client readback report schema is now backend-neutral (`stellar.frame_readback.v1`) and reports
+the active backend plus the backend projection convention, including `vulkan_ndc_z_zero_to_one` for
+Vulkan. A new opt-in `vulkan_render_readback` CTest validates the clear-frame readback path when a
+Linux display/GPU session is available and otherwise skips with return code 77 like the existing
+context smoke tests.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary|docs_consistency)$'
+  --output-on-failure`: passed, 6/6 plus the expected context/readback skips.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary)$'
+  --output-on-failure`: passed, 5/5 plus the expected context/readback skips.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_(context_smoke|render_readback)$' --output-on-failure`: skipped with return code 77
+  because display access was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan --map
+  tests/fixtures/trenchbroom/out/lit_zup_room.bsp --readback-output /tmp/stellar-vulkan-lit.json`:
+  skipped with return code 77 because SDL reported `x11 not available` in this session.
+
+### VK-8 Tests And Validation Matrix Summary
+
+Status: complete for Linux Vulkan validation matrix coverage as of 2026-05-07.
+
+The Linux Vulkan matrix now has display-free default coverage for backend selection, Vulkan
+compiled/uncompiled parser behavior, Vulkan default-backend selection in Vulkan-enabled builds,
+render-level upload and inspection, BSP material slot coverage, BSP lightmap slot coverage, shader
+generation, docs consistency, and target boundaries. The opt-in Linux Vulkan display/GPU rows are
+registered as `vulkan_context_smoke` and `vulkan_render_readback`; both require
+`STELLAR_RUN_VULKAN_CONTEXT_TESTS=1` and skip with CTest return code 77 when no display/device is
+available.
+
+The Linux `linux-vulkan` and `linux-vulkan-only` presets both configure, build, and pass full CTest
+locally. `linux-vulkan-only` proves the current branch can build and test without the retired OpenGL loader stack while
+OpenGL retirement remains a VK-9 documentation/build-policy step. macOS Metal-only regression
+was refreshed on a display-attached macOS host after this Linux run; Vulkan CMake and test gates
+continue to reject non-Linux Vulkan context tests and do not add macOS Vulkan/MoltenVK paths.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan-only --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary|docs_consistency)$'
+  --output-on-failure`: passed, 6/6 plus the expected context/readback skips.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary)$'
+  --output-on-failure`: passed, 5/5 plus the expected context/readback skips.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_(context_smoke|render_readback)$' --output-on-failure`: skipped with return code 77
+  because display access was unavailable.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+### VK-8.1 macOS Metal Display And Regression Refresh
+
+Status: complete on a display-attached macOS host as of 2026-05-07.
+
+The VK-9 macOS blocker is cleared for the Metal-only row. `macos-metal-only` configured, rebuilt,
+and passed full CTest when run outside the sandbox so loopback socket tests could bind localhost.
+The default full CTest run still keeps `metal_context_smoke` and `metal_render_readback` opt-in, but
+the display-attached BSP readback fixtures ran during the full suite and passed. The two env-gated
+Metal context/readback tests were then run explicitly with `STELLAR_RUN_METAL_CONTEXT_TESTS=1` and
+passed.
+
+Direct display validation passed with `build-macos-metal-only/stellar-client --validate-display
+--renderer metal`. The runtime smoke script also passed with zero skips, including renderer config,
+repo-root and build-directory map validation, server map validation, the focused runtime/network
+CTest slice, and a forced 5-second single-player Metal display run. Debug output reported a
+2560x1440 Metal drawable, matching layer drawable, depth texture, and viewport using
+`metal_ndc_z_zero_to_one`.
+
+Readback reports were regenerated for `lit_zup_room.bsp` and `material_wad_zup.bsp` under
+`build-macos-metal-only/tests/fixtures/trenchbroom/compiled/`. Both reports use
+`stellar.frame_readback.v1`, backend `metal`, 640x480 `rgba8` frames, and material slot coverage of
+3 base-color materials plus 2 normal/specular sidecar materials.
+
+Validation results:
+
+- `cmake --preset macos-metal-only`: passed.
+- `cmake --build --preset macos-metal-only --parallel 8`: passed.
+- `ctest --preset macos-metal-only --output-on-failure`: passed, 108/108 outside the sandbox with
+  `metal_context_smoke` and `metal_render_readback` skipped by default.
+- `build-macos-metal-only/stellar-client --validate-display --renderer metal`: passed.
+- `STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R
+  '^metal_(context_smoke|render_readback)$' --output-on-failure`: passed, 2/2.
+- `STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R
+  '^metal_readback_(lit_fixture|material_fixture)$' --output-on-failure`: passed, 5/5 including
+  fixture setup.
+- `STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only STELLAR_FORCE_DISPLAY_SMOKE=1
+  tools/ci/run_macos_runtime_smoke.sh`: passed with 0 skips.
+
+Note: a sandboxed full CTest attempt failed five localhost socket/listen tests before escalation;
+the same tests passed in the full CTest and runtime-smoke runs outside the sandbox.
+
+Next phase: GL-to-Vulkan Linux-only handoff is ready for final review.
+
+### VK-9 Docs, Handoff, And OpenGL Retirement Summary
+
+Status: complete as of 2026-05-07.
+
+Linux uses Vulkan as the supported/default renderer. macOS uses the native Metal backend. OpenGL
+has been retired from active support after the Linux Vulkan migration. Vulkan is intentionally
+Linux-only; macOS Vulkan/MoltenVK is not part of the project renderer matrix.
+
+The active OpenGL backend, loader discovery, parser aliases, SDL OpenGL window routing, and optional
+OpenGL context smoke test were removed from the build and runtime path. `linux-default`,
+`linux-vulkan`, and `linux-vulkan-only` now configure Vulkan without OpenGL fallback variables, and
+the macOS presets route to Metal without requiring Vulkan.
+
+Validation results:
+
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan-only --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `tools/dev/check_target_boundaries.sh`: passed.
+- `cmake --preset linux-default`: passed and discovered Vulkan as the default Linux renderer path.
+- OpenGL dependency audit: passed with no active OpenGL loader, SDL OpenGL window flag, CMake
+  OpenGL backend option, package discovery, or OpenGL device references in active code/build/docs.
+- macOS Vulkan/MoltenVK audit: active code/build files are clean; remaining hits are the explicit
+  unsupported-matrix notes required by this phase.
+- macOS Metal validation: reused the VK-8.1 display-attached `macos-metal-only` evidence above:
+  configure/build/full CTest, Metal display validation, Metal context/readback tests, material
+  readback fixtures, and runtime smoke all passed.
+
+### Linux Vulkan Manual Display Validation Correction
+
+Status: operator-confirmed passed before push.
+
+After the automated/headless validation notes above were written, manual Linux Vulkan validation was
+run in a display-capable Linux session and passed before the branch was pushed. The
+post-implementation audit initially saw only the earlier headless-session skip notes; this entry
+records the corrected manual validation state.
+
+Validated target:
+
+- Linux Vulkan display/context path.
+- Linux Vulkan readback/display validation path.
+- Linux Vulkan default renderer behavior.
+
+Evidence source:
+
+- User/operator confirmation in post-implementation audit follow-up.
+- Exact terminal logs were not attached to this handoff. If local logs are available, replace this
+  paragraph with exact commands and results.
+
+Remaining follow-up: none for VK-9.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 
@@ -176,11 +585,12 @@ framework/miniaudio dependency on `stellar-server`.
 Status: implemented for BSP/TrenchBroom tooling as of 2026-05-06.
 
 Optional external BSP compiler coverage now skips clearly with CTest skip return code `77` when
-required tools are missing or not executable on the current host. BSP/TrenchBroom wrappers avoid
-selecting Linux ELF VHLT tools on macOS unless host-native tools are provided through
+required tools are missing or not executable on the current host. BSP/TrenchBroom wrappers select the
+checked-in host platform VHLT directory (`tools/bsp/macos-arm64` on Apple silicon or
+`tools/bsp/linux-x86_64` on x86_64 Linux) before legacy flat layouts, and still accept
 `STELLAR_VHLT_DIR`, per-tool overrides, or a single BSP30 compiler override. The editor package docs
 now include macOS TrenchBroom install paths, Homebrew setup notes, terminal-launch environment
-guidance, and the Linux-only status of checked-in VHLT binaries.
+guidance, and the platform-specific status of checked-in VHLT binaries.
 
 ## Completed Scope - macOS Compatibility And Metal Backend
 
@@ -214,30 +624,31 @@ Status: complete as of 2026-05-05.
 Baseline was recorded on branch `macos-compat`. Active source/build/test files contain no Metal
 backend implementation, SDL Metal window usage, CAMetalLayer plumbing, or Metal shader files. The
 active renderer path is OpenGL-only: backend parsing accepts OpenGL aliases, the graphics factory
-creates `OpenGLGraphicsDevice`, and the client window path requests `SDL_WINDOW_OPENGL`.
+creates the OpenGL device, and the client window path requests an SDL OpenGL window.
 
 Known starting blockers are the expected macOS work items: the existing OpenGL device requests
 OpenGL 4.5, Metal support is absent, `thirdparty/miniaudio/CMakeLists.txt` misspells
 `POSITION_INDEPENDENT_CODE`, and the POSIX socket transport uses Linux-oriented `MSG_NOSIGNAL`
 without an Apple `SO_NOSIGPIPE` policy. Local baseline CMake configure did not reach build/test
-because `pkg-config` could not find `glew`; the macOS runbook will require installing the Homebrew
-dependency or using an Apple-gated Metal build that does not globally require OpenGL/GLEW.
+because `pkg-config` could not find the OpenGL loader; the macOS runbook will require installing
+that Homebrew dependency or using an Apple-gated Metal build that does not globally require the
+retired OpenGL loader stack.
 
 ### MC-1 macOS Build And Toolchain Hygiene Summary
 
 Status: complete as of 2026-05-05.
 
-The CMake graph now has explicit `STELLAR_ENABLE_OPENGL_BACKEND` and `STELLAR_ENABLE_METAL` build
+The CMake graph now has explicit OpenGL and Metal build
 options. Metal remains parser/API-invisible until a real backend lands, but `STELLAR_ENABLE_METAL=ON`
 now fails clearly on non-Apple platforms and enables Objective-C++ plus Apple framework discovery on
-Apple platforms. OpenGL and GLEW discovery are gated behind `STELLAR_ENABLE_OPENGL_BACKEND`, while
-the default build still keeps OpenGL enabled.
+Apple platforms. OpenGL loader discovery is gated behind the OpenGL backend option, while the
+default build still keeps OpenGL enabled.
 
 `thirdparty/miniaudio/CMakeLists.txt` now uses the correct `POSITION_INDEPENDENT_CODE` property. The
 existing stb image-loader dependency is vendored through a small `stellar_stb` interface target so
 macOS builds do not depend on an undeclared system `stb` package.
 
-Local MC-1 validation on macOS installed the missing Homebrew packages `glew` and `glm`, then passed
+Local MC-1 validation on macOS installed the missing Homebrew graphics-loader package and `glm`, then passed
 configure/build for the default OpenGL build, an OpenGL-disabled build, and a Metal-prep
 Objective-C++ build. `target_boundary` and `graphics_backend_selection` passed in all validated build
 trees. The default focused CTest slice still fails `socket_transport` on macOS; that is the expected
@@ -289,8 +700,8 @@ video driver, macOS OpenGL deprecation status, and guidance to use `--renderer m
 backend lands. Linux/default OpenGL behavior and backend parsing remain OpenGL-only; no Metal enum or
 CLI alias is added by MC-4.
 
-The optional `opengl_context_smoke` test remains display/GPU opt-in through
-`STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` plus `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, so default CTest
+The optional `opengl_context_smoke` test remains display/GPU opt-in through its retired CMake and
+environment gates, so default CTest
 continues to stay display-free.
 
 ### MC-5 Metal Backend Scaffold Summary

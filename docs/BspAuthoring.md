@@ -468,8 +468,9 @@ tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compile
 ```
 
 Run the VHLT fixture matrix when host-native VHLT tools are installed locally or provided through
-`STELLAR_VHLT_DIR`. The checked-in VHLT binaries are Linux x86-64 tools; optional CTest coverage skips
-with return code `77` on hosts that cannot execute the required tools.
+`STELLAR_VHLT_DIR`. The checked-in VHLT binaries are split under `tools/bsp/macos-arm64/` and
+`tools/bsp/linux-x86_64/`; optional CTest coverage skips with return code `77` on hosts that cannot
+execute the required tools.
 
 ```bash
 tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full

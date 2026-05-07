@@ -4,12 +4,16 @@
 # the repository root CMakeLists.txt can stay focused on production libraries and
 # applications.
 
-option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
-       "Build optional OpenGL context/readback smoke tests" OFF)
 option(STELLAR_ENABLE_METAL_CONTEXT_TESTS
        "Build optional Metal context/presentation smoke tests" OFF)
+option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS
+       "Build optional Linux Vulkan context/readback smoke tests" OFF)
 option(STELLAR_ENABLE_DISPLAY_STARTUP_TESTS
        "Run SDL display startup smoke tests" OFF)
+
+if(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    message(FATAL_ERROR "Vulkan context tests are Linux-only; use Metal tests on macOS")
+endif()
 
 set(STELLAR_PROJECT_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
 set(STELLAR_TEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -40,14 +40,16 @@ constexpr int kSkipExitCode = 77;
 
 Uint32 backend_window_flags(stellar::graphics::GraphicsBackend backend) noexcept {
   switch (backend) {
-  case stellar::graphics::GraphicsBackend::kOpenGL:
-    return SDL_WINDOW_OPENGL;
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+  case stellar::graphics::GraphicsBackend::kVulkan:
+    return SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
   case stellar::graphics::GraphicsBackend::kMetal:
     return SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
   }
-  return SDL_WINDOW_OPENGL;
+  return 0;
 }
 
 stellar::graphics::LevelRenderView
@@ -366,6 +368,21 @@ void write_histogram_array(std::ostream &out,
   out << ']';
 }
 
+std::string_view projection_convention(
+    stellar::graphics::GraphicsBackend backend) noexcept {
+  switch (backend) {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+  case stellar::graphics::GraphicsBackend::kVulkan:
+    return "vulkan_ndc_z_zero_to_one";
+#endif
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  case stellar::graphics::GraphicsBackend::kMetal:
+    return "metal_ndc_z_zero_to_one";
+#endif
+  }
+  return "unknown";
+}
+
 std::expected<void, stellar::platform::Error> write_readback_report(
     const ApplicationConfig &config,
     const std::optional<stellar::assets::LevelAsset> &rendered_level,
@@ -387,7 +404,7 @@ std::expected<void, stellar::platform::Error> write_readback_report(
   const std::array<const char *, 4> channel_names{"r", "g", "b", "a"};
 
   out << "{\n";
-  out << "  \"schema\": \"stellar.metal_readback.v1\",\n";
+  out << "  \"schema\": \"stellar.frame_readback.v1\",\n";
   out << "  \"backend\": ";
   write_json_string(out,
                     stellar::graphics::graphics_backend_name(config.graphics_backend));
@@ -395,7 +412,9 @@ std::expected<void, stellar::platform::Error> write_readback_report(
   out << "  \"map\": ";
   write_json_string(out, config.map_path.value_or(std::string{}));
   out << ",\n";
-  out << "  \"projection\": \"metal_ndc_z_zero_to_one\",\n";
+  out << "  \"projection\": ";
+  write_json_string(out, projection_convention(config.graphics_backend));
+  out << ",\n";
   out << "  \"frame\": {\"width\": " << readback.width
       << ", \"height\": " << readback.height << ", \"format\": \"rgba8\"},\n";
   out << "  \"material_slots\": {";

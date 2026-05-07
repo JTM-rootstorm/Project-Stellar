@@ -608,7 +608,7 @@ void verify_level_render_state_uses_override_camera_for_culling() {
   view.far_plane = 512.0F;
 
   const auto state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 16.0F / 9.0F);
+      view, stellar::graphics::default_graphics_backend(), 16.0F / 9.0F);
 
   assert(state.camera_world_position.has_value());
   assert(*state.camera_world_position == view.eye);
@@ -623,13 +623,25 @@ void verify_level_render_state_can_disable_culling_for_fallback() {
   view.visibility_culling = false;
 
   const auto state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 0.0F);
+      view, stellar::graphics::default_graphics_backend(), 0.0F);
 
   assert(!state.camera_world_position.has_value());
   assert(state.view_projection[0] != 0.0F);
 }
 
-void verify_metal_projection_uses_zero_to_one_depth_range() {
+void verify_backend_projection_conventions_are_platform_specific() {
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+  stellar::graphics::LevelRenderView vulkan_view;
+  vulkan_view.eye = {0.0F, 0.0F, 8.0F};
+  vulkan_view.target = {0.0F, 0.0F, 0.0F};
+  vulkan_view.near_plane = 0.25F;
+  vulkan_view.far_plane = 64.0F;
+  const auto standalone_vulkan_state =
+      stellar::graphics::compute_level_render_state(
+          vulkan_view, stellar::graphics::GraphicsBackend::kVulkan, 1.0F);
+  assert(standalone_vulkan_state.view_projection[5] < 0.0F);
+#endif
+
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
   stellar::graphics::LevelRenderView view;
   view.eye = {0.0F, 0.0F, 8.0F};
@@ -637,15 +649,22 @@ void verify_metal_projection_uses_zero_to_one_depth_range() {
   view.near_plane = 0.25F;
   view.far_plane = 64.0F;
 
-  const auto opengl_state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+  const auto vulkan_state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kVulkan, 1.0F);
   const auto metal_state = stellar::graphics::compute_level_render_state(
       view, stellar::graphics::GraphicsBackend::kMetal, 1.0F);
 
-  assert(opengl_state.view_projection[0] == metal_state.view_projection[0]);
-  assert(opengl_state.view_projection[5] == metal_state.view_projection[5]);
-  assert(opengl_state.view_projection[10] != metal_state.view_projection[10]);
-  assert(opengl_state.view_projection[14] != metal_state.view_projection[14]);
+  assert(vulkan_state.view_projection[0] == metal_state.view_projection[0]);
+  assert(vulkan_state.view_projection[5] == -metal_state.view_projection[5]);
+  assert(vulkan_state.view_projection[10] == metal_state.view_projection[10]);
+  assert(vulkan_state.view_projection[14] == metal_state.view_projection[14]);
+#else
+  const auto state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kMetal, 1.0F);
+  assert(state.view_projection[0] != 0.0F);
+  assert(state.view_projection[5] != 0.0F);
+#endif
 #endif
 }
 
@@ -655,7 +674,7 @@ void verify_billboard_view_is_derived_from_render_state() {
   view.target = {0.0F, 0.0F, 0.0F};
 
   const auto state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
+      view, stellar::graphics::default_graphics_backend(), 1.0F);
   const auto billboard_view = stellar::graphics::compute_billboard_view(state);
 
   assert(billboard_view.view == state.view);
@@ -711,7 +730,7 @@ int main() {
   verify_level_bounds_and_camera_fit();
   verify_level_render_state_uses_override_camera_for_culling();
   verify_level_render_state_can_disable_culling_for_fallback();
-  verify_metal_projection_uses_zero_to_one_depth_range();
+  verify_backend_projection_conventions_are_platform_specific();
   verify_billboard_view_is_derived_from_render_state();
   verify_graphics_up_defaults_use_world_axis_contract();
   verify_level_renderer_retains_and_clears_presentation_state();
