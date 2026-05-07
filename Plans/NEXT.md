@@ -1,14 +1,14 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: active full macOS/Linux parity validation, completed macOS compatibility and Metal
+Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
 backend implementation, completed audio footsteps implementation, completed Vulkan removal,
 completed client/server split handoff, and completed historical scope guardrails.
 
 ## Current Entry Point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. The active full
-macOS/Linux parity work is tracked by
-`Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`.
+`docs/ImplementationStatus.md` is the source of truth for branch status. Full macOS/Linux parity
+validation is complete on `macos-compat` as of 2026-05-06, with final audible smoke evidence tracked
+by `Plans/ProjectStellar-final-audible-audio-smoke-CodexPlan/00-MASTER-FinalAudibleAudioSmoke-CodexPlan.md`.
 The earlier macOS compatibility and Metal backend slice is complete through MC-8 on `macos-compat`
 as of 2026-05-05 and is tracked by
 `Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`. Vulkan
@@ -42,9 +42,9 @@ Current renderer contract:
   active OpenGL material contract, including lightmaps, normal/specular maps, metallic/roughness,
   occlusion, emissive, texture transforms, alpha behavior, culling, unlit behavior, and
   camera-dependent specular.
-- Remaining parity work is validation-gated: display-attached Metal smoke/readback coverage and
-  optional audible miniaudio smoke. The Linux `linux-default` preset passed configure, build, and
-  CTest 103/103 on a Linux host on 2026-05-06.
+- Full parity validation is closed: display-attached Metal smoke/readback coverage passed, optional
+  audible miniaudio smoke passed on Metal and Metal-only macOS builds, and the Linux `linux-default`
+  preset passed configure, build, and CTest 103/103 on a Linux host on 2026-05-06.
 
 macOS runbook:
 
@@ -58,6 +58,16 @@ cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=
 cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
 ctest --test-dir build-macos-metal --output-on-failure
 build-macos-metal/stellar-client --validate-display --renderer metal
+```
+
+Opt-in audible audio smoke:
+
+```bash
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard \
+  build-macos-metal/stellar-audio-smoke \
+  --sound footstep_concrete_0 \
+  --sound footstep_metal_1 \
+  --duration-ms 2500
 ```
 
 ## Completed Audio Footsteps Scope

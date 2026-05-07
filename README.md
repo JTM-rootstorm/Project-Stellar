@@ -32,6 +32,16 @@ cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
 build-macos-metal/stellar-client --validate-display --renderer metal
 ```
 
+Opt-in audible audio smoke on macOS:
+
+```bash
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard \
+  build-macos-metal/stellar-audio-smoke \
+  --sound footstep_concrete_0 \
+  --sound footstep_metal_1 \
+  --duration-ms 2500
+```
+
 To generate public C++ API reference docs when Doxygen is installed:
 
 ```bash

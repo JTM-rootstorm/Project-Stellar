@@ -15,8 +15,8 @@ Freeze the exact full-parity target before writing renderer/runtime changes.
 
 1. Create a tracked acceptance matrix with rows for configure/build, CTest, `stellar-client --validate-config`, `--validate-display`, `--validate-map`, single-player `--map`, listen-host, remote client, dedicated server, generated footstep audio, TrenchBroom/BSP tooling, and renderer material fixtures.
 2. Columns: Linux OpenGL default, macOS default build, macOS Metal build, macOS Metal-only build.
-3. Mark each row: `PASS`, `FAIL`, `SKIP_EXPECTED`, or `NOT_COVERED`.
-4. Add a short note: full parity is not reached until no required row is `NOT_COVERED` or `FAIL`.
+3. Mark each row: `PASS`, `FAIL`, `SKIP_EXPECTED`, or an uncovered status for missing evidence.
+4. Add a short note: full parity is not reached until no required row lacks coverage or fails.
 5. Audit current code:
    ```bash
    git grep -n 'STELLAR_ENABLE_METAL\|kMetal\|SDL_WINDOW_METAL\|MetalGraphicsDevice' -- CMakeLists.txt include src tests docs Plans/NEXT.md

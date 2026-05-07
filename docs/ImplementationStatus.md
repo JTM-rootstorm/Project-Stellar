@@ -1,31 +1,32 @@
 # Project Stellar: Implementation Status
 
-Status scope: active full macOS/Linux parity implementation, completed macOS compatibility and Metal
+Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
 backend implementation, completed audio footsteps implementation, completed Doxygen generation,
 completed Vulkan removal, completed lightweight BSP normal/specular material sidecars, completed
 client/server decoupling handoff, and completed historical branch notes.
 
-## Active Scope - Full macOS Compatibility And Linux Parity
+## Completed Scope - Full macOS Compatibility And Linux Parity
 
-Status: active on `macos-compat` as of 2026-05-06.
+Status: complete on `macos-compat` as of 2026-05-06.
 
-Active handoff plan:
+Completion evidence:
 
-- `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`
+- `Plans/Archived/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`
+- `Plans/ProjectStellar-final-audible-audio-smoke-CodexPlan/00-MASTER-FinalAudibleAudioSmoke-CodexPlan.md`
 
-Current objective: close the remaining environment-gated validation gaps between macOS Metal and
-Linux/OpenGL parity. The Linux default preset now passes on a Linux host; the remaining active
-blockers are Metal GPU readback coverage and optional audible audio smoke.
+Current objective: complete. Linux default, macOS default, macOS Metal, and macOS Metal-only
+validation rows now have tracked evidence, including opt-in Metal readback and confirmed audible
+miniaudio smoke on both Metal-enabled macOS build variants.
 
 ### FMP-0 Gap Audit And Acceptance Matrix Summary
 
 Status: complete as of 2026-05-06.
 
-`Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/12-FMP-Acceptance-Matrix.md` now tracks the
-required configure/build, CTest, client/server runtime, audio, tooling, and renderer-material rows
-across Linux OpenGL default, macOS default, macOS Metal, and macOS Metal-only builds. The matrix
-keeps known gaps explicit: Linux default preset validation now passes, while optional Metal readback
-coverage and audible audio smoke remain environment-gated validation work.
+`Plans/Archived/ProjectStellar-full-macos-linux-parity-CodexPlan/12-FMP-Acceptance-Matrix.md` tracks
+the required configure/build, CTest, client/server runtime, audio, tooling, and renderer-material
+rows across Linux OpenGL default, macOS default, macOS Metal, and macOS Metal-only builds. Linux
+default preset validation passed on a Linux host, optional Metal readback passed on macOS, and
+audible miniaudio smoke passed with operator confirmation on both Metal-enabled macOS build variants.
 
 ### FMP-1 Build Matrix And CI Parity Summary
 
@@ -92,17 +93,17 @@ readback/pixel comparison remains FMP-5 work.
 
 ### FMP-5 Render Fixture Parity Summary
 
-Status: display-free fixture layer complete as of 2026-05-06; optional GPU readback remains open.
+Status: complete as of 2026-05-06.
 
 The display-free sidecar material fixture now asserts every active material slot and factor consumed
 by the Metal shader: normal, specular, metallic/roughness, occlusion, emissive, lightmap, texture
 transforms, texcoord set selection, alpha mask, double-sided, emissive factor, and scalar material
-factors. `Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/13-FMP-Render-Fixture-Matrix.md`
-tracks fixture coverage and keeps the missing Metal readback/histogram validation explicit.
+factors. `Plans/Archived/ProjectStellar-full-macos-linux-parity-CodexPlan/13-FMP-Render-Fixture-Matrix.md`
+tracks fixture coverage; FMP-5.1 later added the opt-in Metal readback/histogram validation path.
 
 Focused macOS Metal and Metal-only validation passed render upload, render inspection, Metal shader
-compile, BSP materials, BSP lightmaps, display validation, and the forced single-player Metal
-runtime smoke. Deterministic Metal pixel/readback comparison remains not covered.
+compile, BSP materials, BSP lightmaps, display validation, forced single-player Metal runtime smoke,
+and the FMP-5.1 opt-in readback JSON/self-comparison path.
 
 ### FMP-5.1 Metal Display Readback Summary
 
@@ -145,8 +146,7 @@ authority remains server-owned and renderer choice does not add server dependenc
 
 ### FMP-7 Audio Parity Summary
 
-Status: implemented for no-device parity and framework-link validation as of 2026-05-06; optional
-audible smoke remains manual.
+Status: complete as of 2026-05-06.
 
 The miniaudio sink now exposes a decode-only metadata probe for local audio assets that does not
 initialize an audio device. Default audio tests cover generated footstep registry entries, decode all
@@ -154,16 +154,22 @@ generated WAV assets, no-audio environment selection, missing asset diagnostics,
 diagnostics, and uninitialized sink diagnostics. These paths remain presentation-only and do not
 affect gameplay/server authority.
 
-The optional audible macOS smoke command is documented in
-`Plans/ProjectStellar-full-macos-linux-parity-CodexPlan/08-Phase-FMP7-Audio-Parity.md`; it must be
-run from a display-attached macOS session with an available output device. The current no-display
-session did not execute audible playback.
+The opt-in `stellar-audio-smoke` executable initializes `MiniaudioRequestSink`, requests generated
+footstep sounds, waits long enough for audible playback, and requires
+`STELLAR_AUDIO_SMOKE_CONFIRM=heard` for exit code `0`. The default CTest suite remains
+audio-device-free; unconfirmed or unavailable audio smoke paths return CTest skip code `77`.
 
 Focused validation passed the default, macOS Metal, and macOS Metal-only no-device audio CTest
-slices. A separate `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` build configured and built
-`stellar_miniaudio_sink_test`, `stellar-client`, and `stellar-server`; `otool -L` showed
-CoreFoundation/CoreAudio/AudioToolbox on `stellar-client` and no audio framework/miniaudio
-dependency on `stellar-server`.
+slices. Confirmed audible smoke passed for `build-macos-metal/stellar-audio-smoke --sound
+footstep_concrete_0 --sound footstep_metal_1 --duration-ms 2500` and
+`build-macos-metal-only/stellar-audio-smoke --sound footstep_wood_0 --sound footstep_water_1
+--duration-ms 2500`, both with `STELLAR_ENABLE_AUDIO=1` and
+`STELLAR_AUDIO_SMOKE_CONFIRM=heard`.
+
+A separate `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` build configured and built
+`stellar-audio-smoke`, `stellar-client`, and `stellar-server`; `otool -L` showed
+CoreFoundation/CoreAudio/AudioToolbox on `stellar-audio-smoke` and `stellar-client`, and no audio
+framework/miniaudio dependency on `stellar-server`.
 
 ### FMP-8 Tooling, Editor, And Script Parity Summary
 
@@ -265,7 +271,8 @@ to no-op playback and prints presentation diagnostics rather than affecting game
 Generated footstep sound ids map to the checked-in retro WAV assets under
 `assets/audio/footsteps/generated/`. Missing sound ids, missing local assets, uninitialized audio,
 and miniaudio playback failures return `AudioPresentationDiagnostic` entries. Default tests cover
-the sound registry and no-device fallback path; audible playback remains an optional local smoke path.
+the sound registry and no-device fallback path. Confirmed audible playback is covered by the opt-in
+`stellar-audio-smoke` tool and remains outside default CTest.
 
 The vendored miniaudio target now supports `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` on Apple
 platforms, adding `MA_NO_RUNTIME_LINKING` and explicit CoreFoundation/CoreAudio/AudioToolbox

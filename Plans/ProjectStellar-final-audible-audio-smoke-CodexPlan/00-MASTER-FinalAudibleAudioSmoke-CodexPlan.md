@@ -3,7 +3,7 @@ project: Project Stellar
 branch: macos-compat
 plan_family: final_audible_audio_smoke
 agent_optimized_for: Codex-style implementation agents
-status: proposed_handoff
+status: complete
 generated: 2026-05-06
 ---
 
@@ -12,6 +12,10 @@ generated: 2026-05-06
 ## Goal
 
 Prove that the presentation-only miniaudio sink can initialize a real macOS audio output device and audibly play generated footstep WAV assets without changing gameplay/server authority.
+
+Status: complete as of 2026-05-06. Confirmed audible smoke passed for both `build-macos-metal` and
+`build-macos-metal-only`, with operator confirmation recorded through
+`STELLAR_AUDIO_SMOKE_CONFIRM=heard`.
 
 ## Current evidence to assume
 

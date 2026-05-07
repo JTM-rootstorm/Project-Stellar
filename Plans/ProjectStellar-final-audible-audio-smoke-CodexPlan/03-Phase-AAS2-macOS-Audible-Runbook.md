@@ -51,6 +51,11 @@ Audible audio smoke completed on 2026-05-06.
 Build: build-macos-metal
 Command: STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard build-macos-metal/stellar-audio-smoke --sound footstep_concrete_0 --sound footstep_metal_1 --duration-ms 2500
 Result: exit code 0, miniaudio_active=1, operator heard both sounds.
+
+Audible audio smoke completed on 2026-05-06.
+Build: build-macos-metal-only
+Command: STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard build-macos-metal-only/stellar-audio-smoke --sound footstep_wood_0 --sound footstep_water_1 --duration-ms 2500
+Result: exit code 0, miniaudio_active=1, operator heard both sounds.
 ```
 
 ## Stop conditions

@@ -15,7 +15,7 @@ Confirm audible audio smoke is the only remaining full-parity blocker.
 ```bash
 git branch --show-current
 git status --short
-git grep -n 'audible\|audio smoke\|remaining active blockers\|full macOS' -- docs Plans README.md
+git grep -n 'audible\|audio smoke\|full macOS' -- docs Plans README.md
 ctest --test-dir build-macos-metal -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
 ```
 

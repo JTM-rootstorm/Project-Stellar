@@ -6,10 +6,8 @@ Status values:
 - `FAIL`: covered and currently failing, incomplete, or known to violate parity.
 - `SKIP_EXPECTED`: intentionally skipped for this matrix entry, usually because the
   platform/backend combination is unsupported or opt-in hardware is unavailable.
-- `NOT_COVERED`: required for full parity but not yet validated by tracked tests,
-  scripts, CI, or documented local transcripts.
 
-Full macOS compatibility and Linux parity is not complete until every required row is
+Full macOS compatibility and Linux parity is complete because every required row is
 `PASS` or `SKIP_EXPECTED`.
 
 ## Build And Runtime Matrix
@@ -26,26 +24,26 @@ Full macOS compatibility and Linux parity is not complete until every required r
 | Remote client mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free client/server loopback runtime tests cover remote-client connection flow. |
 | Dedicated server | `PASS` | `PASS` | `PASS` | `PASS` | Server targets remain backend-neutral and do not link graphics or miniaudio in the current CMake graph. |
 | Generated footstep audio no-device path | `PASS` | `PASS` | `PASS` | `PASS` | Default audio tests use no-device/no-op behavior, decode generated WAV assets without opening a device, and cover presentation diagnostics. |
-| Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Audible miniaudio playback is opt-in; the manual macOS smoke command is documented, but the current no-display session did not execute it. |
+| Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Audible miniaudio playback is opt-in and passed with `stellar-audio-smoke` plus `STELLAR_AUDIO_SMOKE_CONFIRM=heard` on both Metal-enabled macOS builds on 2026-05-06. |
 | TrenchBroom/BSP tooling | `PASS` | `PASS` | `PASS` | `PASS` | Shell syntax/docs checks pass. Optional external BSP compiler gaps skip with CTest return code `77`, and macOS TrenchBroom/VHLT notes are documented. |
 | Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `PASS` | `PASS` | Metal now consumes the active OpenGL material contract in shader bindings; GPU readback parity remains tracked separately. |
-| Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `NOT_COVERED` | `NOT_COVERED` | Display-free fixture coverage is tracked in `13-FMP-Render-Fixture-Matrix.md`; no tracked readback/histogram test exists yet. |
+| Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Opt-in Metal readback JSON generation and self-comparison passed for both Metal-enabled macOS builds. |
 | CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
 
-## Validation Status And Remaining Blockers
+## Validation Status
 
 - FMP-1 Linux preset execution passed on a Linux host on 2026-05-06:
   `cmake --preset linux-default`, `cmake --build --preset linux-default --parallel 8`,
   and `ctest --preset linux-default` passed 103/103 tests.
-- FMP-5 still needs opt-in Metal readback/smoke coverage. Display-free material
-  fixture assertions and the fixture matrix are in place.
+- FMP-5.1 covered opt-in Metal readback/smoke coverage. Display-free material
+  fixture assertions and the fixture matrix are also in place.
 - FMP-6 added tracked display-free runtime smoke coverage for single-player,
   listen-host, remote-client, and dedicated-server workflows. Both Metal-enabled
   macOS builds passed forced single-player display smoke in an attached-display
   session.
 - FMP-7 covered no-device diagnostics, decode-only generated WAV loading, and
   `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` framework-link validation. Optional
-  audible macOS miniaudio smoke still needs a display/audio-device session.
+  audible macOS miniaudio smoke passed with operator confirmation on both Metal-enabled builds.
 - FMP-8 covered shell/Python tooling on macOS and made optional external BSP
   compiler gaps skip clearly with exit code `77`.
 
@@ -209,8 +207,8 @@ ctest --test-dir build-macos-metal -R '^(render_level_upload|render_level_inspec
 git diff --check
 ```
 
-The display-free suite passed. Metal pixel/readback validation remains
-`NOT_COVERED` until a display/GPU-backed deterministic readback test is added.
+The display-free suite passed. FMP-5.1 later added display/GPU-backed Metal readback JSON reporting
+and self-comparison validation for both Metal-enabled macOS build variants.
 
 ## FMP-6 Validation Notes
 
@@ -243,9 +241,9 @@ sizes.
 
 FMP-7 added device-free miniaudio decode coverage for generated footstep WAV
 assets and tightened presentation diagnostics around missing assets, unknown
-sound ids, and uninitialized sinks. The optional audible smoke path is
-documented in `08-Phase-FMP7-Audio-Parity.md` and remains manual because it
-requires a display-attached macOS session and an available audio output device.
+sound ids, and uninitialized sinks. The final audible smoke path is implemented
+by `stellar-audio-smoke` and remains opt-in because it requires a macOS audio
+output device plus operator confirmation.
 
 Local focused validation on 2026-05-06:
 
@@ -257,16 +255,21 @@ ctest --test-dir build-macos-metal -R '^(audio_event_router|miniaudio_sink|gener
 cmake --build build-macos-metal-only --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
 ctest --test-dir build-macos-metal-only -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
 cmake -S . -B build-macos-audio-frameworks -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON
-cmake --build build-macos-audio-frameworks --target stellar_miniaudio_sink_test stellar-client stellar-server
+cmake --build build-macos-audio-frameworks --target stellar-audio-smoke stellar-client stellar-server
 ctest --test-dir build-macos-audio-frameworks -R '^miniaudio_sink$' --output-on-failure
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard build-macos-metal/stellar-audio-smoke --sound footstep_concrete_0 --sound footstep_metal_1 --duration-ms 2500
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard build-macos-metal-only/stellar-audio-smoke --sound footstep_wood_0 --sound footstep_water_1 --duration-ms 2500
+otool -L build-macos-audio-frameworks/stellar-audio-smoke
 otool -L build-macos-audio-frameworks/stellar-client
 otool -L build-macos-audio-frameworks/stellar-server
 ```
 
 The default, macOS Metal, and macOS Metal-only audio slices passed. The
-framework-link build configured and built; `stellar-client` links CoreFoundation,
-CoreAudio, and AudioToolbox when `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON`,
-while `stellar-server` links only libc++ and libSystem in that build tree.
+confirmed audible smoke commands returned exit code `0` with `miniaudio_active=1`, accepted play
+requests, and `operator_confirmation=heard`. The framework-link build configured and built;
+`stellar-audio-smoke` and `stellar-client` link CoreFoundation, CoreAudio, and AudioToolbox when
+`STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON`, while `stellar-server` links only libc++ and libSystem in
+that build tree.
 
 ## FMP-8 Validation Notes
 
