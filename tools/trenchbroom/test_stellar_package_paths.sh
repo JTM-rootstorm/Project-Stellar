@@ -112,10 +112,10 @@ for token in required_game_tokens:
         raise SystemExit(f"GameConfig.cfg missing expected token: {token}")
 for token in [
     '"version": 1',
-    '"workdir": "${WORK_DIR_PATH}"',
+    '"workdir": "${MAP_DIR_PATH}/../compiled"',
     '"tool": "${STELLAR_BSP30_COMPILE}"',
     '"tool": "${STELLAR_BSP30_VALIDATE}"',
-    '--map \\"${MAP_FULL_PATH}\\"',
+    '--map \\"${MAP_DIR_PATH}/${MAP_FULL_NAME}\\"',
     '--out \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
     '--toolchain vhlt',
     '--map \\"${WORK_DIR_PATH}/${MAP_BASE_NAME}.bsp\\"',
@@ -130,18 +130,46 @@ PY
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
-bad_profiles="$work_dir/BadCompilationProfiles.cfg"
-cat > "$bad_profiles" <<'JSON'
+bad_workdir_profiles="$work_dir/BadWorkdirCompilationProfiles.cfg"
+cat > "$bad_workdir_profiles" <<'JSON'
 {
     "version": 1,
     "profiles": [
         {
-            "name": "Old Display Name Tool Reference",
+            "name": "Bad Workdir Scope",
             "workdir": "${WORK_DIR_PATH}",
             "tasks": [
                 {
                     "type": "tool",
-                    "tool": "Stellar BSP30 compile wrapper",
+                    "tool": "${STELLAR_BSP30_COMPILE}",
+                    "parameters": "--map \"${MAP_DIR_PATH}/${MAP_FULL_NAME}\""
+                }
+            ]
+        }
+    ]
+}
+JSON
+if python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
+    --game-config "$package/GameConfig.cfg" \
+    --profiles "$bad_workdir_profiles" >"$work_dir/bad_workdir_profiles.out" 2>&1; then
+    fail "profile linter accepted WORK_DIR_PATH in workdir"
+fi
+if ! grep -q 'workdir cannot use ${WORK_DIR_PATH}' "$work_dir/bad_workdir_profiles.out"; then
+    fail "profile linter did not explain invalid WORK_DIR_PATH workdir scope"
+fi
+
+bad_map_full_profiles="$work_dir/BadMapFullPathCompilationProfiles.cfg"
+cat > "$bad_map_full_profiles" <<'JSON'
+{
+    "version": 1,
+    "profiles": [
+        {
+            "name": "Bad Map Full Path Variable",
+            "workdir": "${MAP_DIR_PATH}/../compiled",
+            "tasks": [
+                {
+                    "type": "tool",
+                    "tool": "${STELLAR_BSP30_COMPILE}",
                     "parameters": "--map \"${MAP_FULL_PATH}\""
                 }
             ]
@@ -151,10 +179,39 @@ cat > "$bad_profiles" <<'JSON'
 JSON
 if python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
     --game-config "$package/GameConfig.cfg" \
-    --profiles "$bad_profiles" >"$work_dir/bad_profiles.out" 2>&1; then
+    --profiles "$bad_map_full_profiles" >"$work_dir/bad_map_full_profiles.out" 2>&1; then
+    fail "profile linter accepted unsupported MAP_FULL_PATH variable"
+fi
+if ! grep -q 'unsupported TrenchBroom variable ${MAP_FULL_PATH}' \
+    "$work_dir/bad_map_full_profiles.out"; then
+    fail "profile linter did not explain unsupported MAP_FULL_PATH variable"
+fi
+
+bad_tool_ref_profiles="$work_dir/BadToolReferenceCompilationProfiles.cfg"
+cat > "$bad_tool_ref_profiles" <<'JSON'
+{
+    "version": 1,
+    "profiles": [
+        {
+            "name": "Old Display Name Tool Reference",
+            "workdir": "${MAP_DIR_PATH}/../compiled",
+            "tasks": [
+                {
+                    "type": "tool",
+                    "tool": "Stellar BSP30 compile wrapper",
+                    "parameters": "--map \"${MAP_DIR_PATH}/${MAP_FULL_NAME}\""
+                }
+            ]
+        }
+    ]
+}
+JSON
+if python3 "$repo_root/tools/trenchbroom/lint_stellar_compilation_profiles.py" \
+    --game-config "$package/GameConfig.cfg" \
+    --profiles "$bad_tool_ref_profiles" >"$work_dir/bad_tool_ref_profiles.out" 2>&1; then
     fail "profile linter accepted old display-name tool reference"
 fi
-if ! grep -q 'tool reference contains spaces' "$work_dir/bad_profiles.out"; then
+if ! grep -q 'tool reference contains spaces' "$work_dir/bad_tool_ref_profiles.out"; then
     fail "profile linter did not explain old display-name tool reference"
 fi
 
