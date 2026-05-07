@@ -61,6 +61,24 @@ if(STELLAR_ENABLE_OPENGL_BACKEND AND STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
     set_tests_properties(opengl_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
+if(STELLAR_ENABLE_VULKAN_BACKEND AND STELLAR_ENABLE_VULKAN_CONTEXT_TESTS)
+    add_executable(stellar_vulkan_context_smoke_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/VulkanContextSmoke.cpp
+    )
+
+    target_include_directories(stellar_vulkan_context_smoke_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_vulkan_context_smoke_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME vulkan_context_smoke
+        COMMAND $<TARGET_FILE:stellar_vulkan_context_smoke_test>)
+    set_tests_properties(vulkan_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
 if(STELLAR_ENABLE_METAL AND STELLAR_ENABLE_METAL_CONTEXT_TESTS)
     add_executable(stellar_metal_context_smoke_test
         ${STELLAR_TEST_SOURCE_DIR}/graphics/MetalContextSmoke.cpp

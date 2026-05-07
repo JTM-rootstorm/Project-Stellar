@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-2 backend selection/platform routing complete on `GL-to-vulkan` as of 2026-05-06.
+Status: VK-3 Linux Vulkan device scaffold complete on `GL-to-vulkan` as of 2026-05-06.
 
 Active plan:
 
@@ -108,7 +108,41 @@ Validation results:
   non-Vulkan build.
 - `tools/dev/check_target_boundaries.sh`: passed.
 
-Next phase: VK-3 Linux Vulkan device scaffold.
+### VK-3 Linux Vulkan Device Scaffold Summary
+
+Status: complete for clear-present scaffold as of 2026-05-06.
+
+`VulkanGraphicsDevice` now performs real Linux Vulkan initialization through SDL's Vulkan surface
+API. The device owns the Vulkan instance, SDL-created surface, selected physical device, logical
+device, graphics/present queues, swapchain, image views, render pass, framebuffers, command pool,
+command buffers, frame semaphores, and frame fence. `begin_frame()` acquires a swapchain image,
+records a black clear render pass, and `end_frame()` submits and presents. Mesh, texture, and
+material uploads intentionally still return clear "not implemented yet" diagnostics until VK-5/VK-6.
+
+The Vulkan context smoke test is now registered only for Vulkan-enabled Linux presets and remains
+default-safe by skipping with return code 77 unless `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1` is set.
+In this local environment, the opt-in smoke and manual display validation skip because SDL cannot
+open the current X11/Wayland display from the session.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 104/104 with
+  `vulkan_context_smoke` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(vulkan_context_smoke|graphics_backend_selection|client_cli_map_validation|render_level_upload|render_level_inspection|target_boundary)$'
+  --output-on-failure`: passed, 6 tests plus one expected skip.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_context_smoke$' --output-on-failure`: skipped with return code 77 because display access
+  was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan`: skipped with return code
+  77 because SDL reported `x11 not available` in this session.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+Next phase: VK-4 SPIR-V shader pipeline.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 

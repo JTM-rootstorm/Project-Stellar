@@ -2,6 +2,8 @@
 
 #include "stellar/graphics/GraphicsDevice.hpp"
 
+#include <memory>
+
 namespace stellar::graphics::vulkan {
 
 /**
@@ -10,10 +12,10 @@ namespace stellar::graphics::vulkan {
 class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
 public:
     /** @brief Construct an uninitialized Vulkan graphics device. */
-    VulkanGraphicsDevice() noexcept = default;
+    VulkanGraphicsDevice();
 
     /** @brief Destroy Vulkan resources owned by the device. */
-    ~VulkanGraphicsDevice() noexcept override = default;
+    ~VulkanGraphicsDevice() noexcept override;
 
     /** @brief Vulkan devices own backend state and cannot be copied. */
     VulkanGraphicsDevice(const VulkanGraphicsDevice&) = delete;
@@ -56,6 +58,10 @@ public:
 
     /** @brief Destroy a Vulkan material resource. */
     void destroy_material(MaterialHandle material) noexcept override;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace stellar::graphics::vulkan

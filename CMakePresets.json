@@ -28,6 +28,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
+        "STELLAR_ENABLE_VULKAN_CONTEXT_TESTS": "ON",
         "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
         "STELLAR_ENABLE_METAL": "OFF"
       }
@@ -41,6 +42,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
+        "STELLAR_ENABLE_VULKAN_CONTEXT_TESTS": "ON",
         "STELLAR_ENABLE_OPENGL_BACKEND": "OFF",
         "STELLAR_ENABLE_METAL": "OFF"
       }
