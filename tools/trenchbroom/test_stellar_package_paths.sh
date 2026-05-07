@@ -103,8 +103,8 @@ required_game_tokens = [
     '"icon": "Icon.png"',
     '"name": "STELLAR_BSP30_COMPILE"',
     '"name": "STELLAR_BSP30_VALIDATE"',
-    '"path": "bin/stellar_tb_compile.sh"',
-    '"path": "bin/stellar_tb_validate.sh"',
+    '"description": "Path to the package-local Stellar BSP30 compile shim"',
+    '"description": "Path to the package-local Stellar BSP30 validate shim"',
     '"root": "materials"',
 ]
 for token in required_game_tokens:
