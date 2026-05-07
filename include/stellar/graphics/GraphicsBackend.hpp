@@ -16,6 +16,10 @@ namespace stellar::graphics {
 enum class GraphicsBackend {
     /** @brief OpenGL backend. */
     kOpenGL,
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+    /** @brief Apple Metal backend. */
+    kMetal,
+#endif
 };
 
 /**
@@ -25,6 +29,16 @@ enum class GraphicsBackend {
  */
 [[nodiscard]] std::expected<GraphicsBackend, stellar::platform::Error>
 parse_graphics_backend(std::string_view name);
+
+/**
+ * @brief Return the deterministic default backend for the current compiled build.
+ */
+[[nodiscard]] GraphicsBackend default_graphics_backend() noexcept;
+
+/**
+ * @brief Return whether a backend has a compiled device implementation in this build.
+ */
+[[nodiscard]] bool graphics_backend_available(GraphicsBackend backend) noexcept;
 
 /**
  * @brief Convert a graphics backend to a stable lowercase name.

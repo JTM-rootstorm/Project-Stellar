@@ -1,17 +1,76 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: active audio footsteps implementation, completed Vulkan removal, completed
-client/server split handoff, and completed historical scope guardrails.
+Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
+backend implementation, completed audio footsteps implementation, completed Vulkan removal,
+completed client/server split handoff, and completed historical scope guardrails.
 
 ## Current Entry Point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. The active `audio-impl`
-scope is texture/material-dependent footstep audio, tracked by
-`Plans/AudioFootsteps-AgentPlan.md` and the detailed bundle under `Plans/audio_footsteps_plan/`.
-Vulkan removal is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete
-through Phase CS-9 as of 2026-05-03.
+`docs/ImplementationStatus.md` is the source of truth for branch status. Full macOS/Linux parity
+validation is complete on `macos-compat` as of 2026-05-06, with final audible smoke evidence tracked
+by `Plans/ProjectStellar-final-audible-audio-smoke-CodexPlan/00-MASTER-FinalAudibleAudioSmoke-CodexPlan.md`.
+The earlier macOS compatibility and Metal backend slice is complete through MC-8 on `macos-compat`
+as of 2026-05-05 and is tracked by
+`Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`. Vulkan
+removal is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete through
+Phase CS-9 as of 2026-05-03.
 
-## Active Audio Footsteps Scope
+## Completed macOS Compatibility And Metal Backend Scope
+
+Completed phase checklist:
+
+- [x] MC-0 - Baseline, guardrails, and branch truth.
+- [x] MC-1 - macOS build and toolchain hygiene.
+- [x] MC-2 - macOS POSIX socket portability.
+- [x] MC-3 - macOS audio runtime sink.
+- [x] MC-4 - OpenGL macOS fallback diagnostics.
+- [x] MC-5 - Metal backend scaffold.
+- [x] MC-6 - Metal resource upload and frame lifecycle.
+- [x] MC-7 - Initial Metal shader/material path.
+- [x] MC-8 - Documentation, validation, and handoff.
+
+Current renderer contract:
+
+- OpenGL remains the default renderer where it builds.
+- macOS OpenGL is deprecated and treated as unsupported/experimental; diagnostics point developers
+  toward Metal.
+- Metal is compiled only on Apple platforms with `STELLAR_ENABLE_METAL=ON`.
+- Metal parser aliases `metal` and `mtl` exist only in Metal-enabled builds; default builds reject
+  them with a clear unsupported-backend diagnostic.
+- The Metal backend creates a real SDL Metal view, CAMetalLayer, MTLDevice, command queue, depth
+  target, mesh buffers, RGB/RGBA textures, material records, and a shader path that consumes the
+  active OpenGL material contract, including lightmaps, normal/specular maps, metallic/roughness,
+  occlusion, emissive, texture transforms, alpha behavior, culling, unlit behavior, and
+  camera-dependent specular.
+- Full parity validation is closed: display-attached Metal smoke/readback coverage passed, optional
+  audible miniaudio smoke passed on Metal and Metal-only macOS builds, and the Linux `linux-default`
+  preset passed configure, build, and CTest 103/103 on a Linux host on 2026-05-06.
+
+macOS runbook:
+
+```bash
+brew install cmake sdl2 glew glm
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(sysctl -n hw.ncpu)
+ctest --test-dir build --output-on-failure
+
+cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
+cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
+ctest --test-dir build-macos-metal --output-on-failure
+build-macos-metal/stellar-client --validate-display --renderer metal
+```
+
+Opt-in audible audio smoke:
+
+```bash
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard \
+  build-macos-metal/stellar-audio-smoke \
+  --sound footstep_concrete_0 \
+  --sound footstep_metal_1 \
+  --duration-ms 2500
+```
+
+## Completed Audio Footsteps Scope
 
 Current objective: derive a tiny server-safe footstep surface id from BSP source texture/material
 names, emit deterministic server-approved footstep gameplay events from authoritative movement, and
@@ -41,15 +100,6 @@ Completed plan/proposal files:
 
 - `Plans/AudioFootsteps-AgentPlan.md`
 - `Plans/audio_footsteps_plan/00-MASTER-AudioFootsteps-AgentPlan.md`
-
-Current renderer contract:
-
-- OpenGL is the only active supported renderer.
-- The project no longer requires Vulkan SDK headers, loader libraries, CMake packages, source files,
-  CLI aliases, enum values, or context smoke tests.
-- The backend-neutral graphics abstraction remains in place for future native backend work, but
-  DirectX/Direct3D or Metal support must be scoped as concrete new backend implementation work before
-  adding enum values, CLI aliases, CMake options, or docs that advertise support.
 
 Historical completed plan/proposal files:
 
@@ -210,9 +260,9 @@ client/server split.
 - Import never executes scripts.
 - Runtime collision, movement, triggers, object colliders, scripting, and networking contracts remain backend-neutral.
 - Default tests remain display-free.
-- OpenGL is the current supported renderer through the shared graphics abstraction. Future native
-  backends for Windows/macOS should be planned as explicit DirectX/Metal implementation work before
-  adding enum values or CLI aliases.
+- OpenGL is the default renderer through the shared graphics abstraction. Metal is an Apple-gated
+  experimental backend behind `STELLAR_ENABLE_METAL=ON`; full Metal normal/specular/lightmap parity
+  remains follow-up work.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
 - No client prediction, interpolation, map transfer, reconciliation, UDP/unreliable transport,
   authentication, encryption, matchmaking, or public Internet deployment is active unless a future plan
@@ -237,6 +287,17 @@ tools/dev/check_target_boundaries.sh
 For renderer-support changes, also run the active Vulkan-removal audits shown above and confirm that
 `stellar-client --renderer vulkan --validate-config` and `stellar-client --graphics-backend vk --validate-config`
 fail early with unsupported-backend errors.
+
+For Metal changes on macOS, also run:
+
+```bash
+cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
+cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
+ctest --test-dir build-macos-metal --output-on-failure
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 \
+  ctest --test-dir build-macos-metal -R '^metal_context_smoke$' --output-on-failure
+build-macos-metal/stellar-client --validate-display --renderer metal
+```
 
 CS-8 committed validation from `8dce477c757e293fdb6f39cbca81b809b202b7e8` passed configure,
 selected target builds, CTest regex 10/10 after protocol/transport aliases, and the target-boundary

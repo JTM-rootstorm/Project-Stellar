@@ -1,12 +1,366 @@
 # Project Stellar: Implementation Status
 
-Status scope: active audio footsteps implementation, completed Doxygen generation, completed Vulkan
-removal, completed lightweight BSP normal/specular material sidecars, completed client/server
-decoupling handoff, and completed historical branch notes.
+Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
+backend implementation, completed audio footsteps implementation, completed Doxygen generation,
+completed Vulkan removal, completed lightweight BSP normal/specular material sidecars, completed
+client/server decoupling handoff, and completed historical branch notes.
 
-## Active Scope - Texture/Material-Dependent Audio Footsteps
+## Completed Scope - Full macOS Compatibility And Linux Parity
 
-Status: active on `audio-impl` as of 2026-05-04.
+Status: complete on `macos-compat` as of 2026-05-06.
+
+Completion evidence:
+
+- `Plans/Archived/ProjectStellar-full-macos-linux-parity-CodexPlan/00-MASTER-FullMacOSLinuxParity-CodexPlan.md`
+- `Plans/ProjectStellar-final-audible-audio-smoke-CodexPlan/00-MASTER-FinalAudibleAudioSmoke-CodexPlan.md`
+
+Current objective: complete. Linux default, macOS default, macOS Metal, and macOS Metal-only
+validation rows now have tracked evidence, including opt-in Metal readback and confirmed audible
+miniaudio smoke on both Metal-enabled macOS build variants.
+
+### FMP-0 Gap Audit And Acceptance Matrix Summary
+
+Status: complete as of 2026-05-06.
+
+`Plans/Archived/ProjectStellar-full-macos-linux-parity-CodexPlan/12-FMP-Acceptance-Matrix.md` tracks
+the required configure/build, CTest, client/server runtime, audio, tooling, and renderer-material
+rows across Linux OpenGL default, macOS default, macOS Metal, and macOS Metal-only builds. Linux
+default preset validation passed on a Linux host, optional Metal readback passed on macOS, and
+audible miniaudio smoke passed with operator confirmation on both Metal-enabled macOS build variants.
+
+### FMP-1 Build Matrix And CI Parity Summary
+
+Status: complete as of 2026-05-06.
+
+`CMakePresets.json` now provides configure/build/test presets for `linux-default`, `macos-default`,
+`macos-metal`, and `macos-metal-only`. The macOS default, macOS Metal, and macOS Metal-only presets
+configure and build locally; the Linux default preset now configures, builds, and passes full CTest
+on a Linux host. Target boundary checks now also reject `stellar_audio_miniaudio` and raw
+`miniaudio` links from protocol/server boundary targets.
+
+Local FMP-1 validation passed macOS default CTest 102/102 and macOS Metal/Metal-only CTest 103/103
+with `metal_context_smoke` skipped by default. A small POSIX socket hardening change retries
+ephemeral `127.0.0.1:0` listener setup on transient bind/listen failures so full-suite loopback
+validation remains stable on macOS. Linux preset validation on 2026-05-06 passed:
+`cmake --preset linux-default`, `cmake --build --preset linux-default --parallel 8`, and
+`ctest --preset linux-default` with 103/103 tests passing.
+
+### FMP-2 Backend Selection Defaults Summary
+
+Status: complete as of 2026-05-06.
+
+The graphics backend layer now exposes `default_graphics_backend()` and
+`graphics_backend_available()`. Default device/renderer construction uses the compiled default
+backend instead of assuming OpenGL, which makes Metal-only builds deterministic. Backend parsing now
+rejects unavailable compiled-out backends as well as removed backends, and diagnostics include the
+requested backend, compiled backend list, and suggested backend for the current build.
+
+Focused validation passed backend-selection and client CLI coverage for OpenGL-only, OpenGL+Metal,
+and Metal-only macOS builds. `stellar-client --validate-config --renderer metal` succeeds in Metal
+builds; `--renderer opengl` fails clearly in Metal-only builds; removed Vulkan names still fail
+early with unsupported-backend diagnostics.
+
+### FMP-3 Metal Projection Viewport And Depth Summary
+
+Status: implemented for display-free validation as of 2026-05-06.
+
+Metal rendering now applies an explicit projection correction from OpenGL-style clip depth to
+Metal's zero-to-one depth convention. The Metal backend sets an explicit viewport from the SDL Metal
+drawable pixel size, continues to recreate the depth texture when drawable dimensions change, and
+prints `STELLAR_DEBUG_RENDER=1` diagnostics for drawable size, layer drawable size, depth texture
+size, viewport, and projection convention. Level-renderer debug logs now include backend and
+projection convention.
+
+Focused render upload/inspection/backend-selection tests passed in macOS default, macOS Metal, and
+macOS Metal-only builds. Later display-attached macOS runs passed the Metal `--validate-display`
+client path and the opt-in `metal_context_smoke` CTest against both `build-macos-metal` and
+`build-macos-metal-only`.
+
+### FMP-4 Metal Material And Shader Parity Summary
+
+Status: implemented for shader-compile and display-free validation as of 2026-05-06.
+
+The Metal shader and draw path now consume the active OpenGL material contract: base color, vertex
+color, base color texture, lightmaps with secondary UVs, normal maps through tangent/bitangent basis,
+specular texture/factor/power, metallic/roughness texture and factors, occlusion texture/strength,
+emissive texture/factor, texture transforms, texcoord set selection, alpha mask/blend, double-sided
+culling, unlit behavior, camera-dependent specular, and global/key light constants. The backend now
+caches Metal samplers and emits first-material slot diagnostics under `STELLAR_DEBUG_RENDER=1`.
+
+Focused macOS Metal and Metal-only validation passed render upload, render inspection, BSP material,
+BSP lightmap, backend-selection, and a new display-free `metal_shader_compile` test. Opt-in
+readback/pixel comparison remains FMP-5 work.
+
+### FMP-5 Render Fixture Parity Summary
+
+Status: complete as of 2026-05-06.
+
+The display-free sidecar material fixture now asserts every active material slot and factor consumed
+by the Metal shader: normal, specular, metallic/roughness, occlusion, emissive, lightmap, texture
+transforms, texcoord set selection, alpha mask, double-sided, emissive factor, and scalar material
+factors. `Plans/Archived/ProjectStellar-full-macos-linux-parity-CodexPlan/13-FMP-Render-Fixture-Matrix.md`
+tracks fixture coverage; FMP-5.1 later added the opt-in Metal readback/histogram validation path.
+
+Focused macOS Metal and Metal-only validation passed render upload, render inspection, Metal shader
+compile, BSP materials, BSP lightmaps, display validation, forced single-player Metal runtime smoke,
+and the FMP-5.1 opt-in readback JSON/self-comparison path.
+
+### FMP-5.1 Metal Display Readback Summary
+
+Status: implemented for opt-in display-attached Metal readback as of 2026-05-06.
+
+The Metal backend now exposes an opt-in framebuffer readback path through a backend-neutral extension
+interface. Normal runtime frames keep the Metal layer framebuffer-only; validation frames temporarily
+allow drawable blits, copy BGRA drawable content into a shared buffer, convert it to CPU-side RGBA8,
+and return a tightly packed frame snapshot after command-buffer completion.
+
+`stellar-client --validate-display --map <bsp> --renderer metal --readback-output <json>` now loads
+the BSP for authority validation, loads a presentation copy with disk-side `.stellar_material`
+sidecars, renders one frame, and writes a JSON report containing drawable dimensions, projection
+convention, material-slot coverage counts, and per-channel 256-bin histograms. The generated CTest
+fixtures cover `lit_zup_room` and `material_wad_zup`; the material readback setup copies sidecars so
+normal/specular slots are represented in the report. `tools/graphics/compare_readback.py` compares
+two readback reports with a configurable normalized-bin tolerance.
+
+Focused validation passed in both `build-macos-metal` and `build-macos-metal-only`: the client parser
+smoke, generated BSP fixture writers, Metal readback JSON runs, and self-comparison helper. The
+standalone env-gated Metal context/readback harnesses still skip with CTest return code 77 unless
+`STELLAR_RUN_METAL_CONTEXT_TESTS=1` is set.
+
+### FMP-6 Client/Server Runtime Parity Summary
+
+Status: implemented for display-free runtime coverage as of 2026-05-06; macOS Metal display smoke
+passed for both Metal-enabled build variants.
+
+`tools/ci/run_macos_runtime_smoke.sh` now validates the macOS Metal runtime path without requiring a
+display by checking renderer configuration, map validation from repository and build working
+directories, server map configuration on `127.0.0.1:0`, and the focused runtime/network CTest slice.
+When an attached display is available, the same script can run a short single-player Metal smoke.
+Forced display-attached runs passed against `build-macos-metal` and `build-macos-metal-only`, each
+with a 2560x1440 Metal drawable, matching layer drawable, depth texture, and viewport sizes.
+
+Focused runtime validation passed the display-free client/server, listen-host, remote-client, map
+validation, transport, socket slices, direct Metal display validation, opt-in Metal context smoke,
+and forced single-player Metal display smoke for both Metal-enabled build variants. Runtime
+authority remains server-owned and renderer choice does not add server dependencies.
+
+### FMP-7 Audio Parity Summary
+
+Status: complete as of 2026-05-06.
+
+The miniaudio sink now exposes a decode-only metadata probe for local audio assets that does not
+initialize an audio device. Default audio tests cover generated footstep registry entries, decode all
+generated WAV assets, no-audio environment selection, missing asset diagnostics, unknown sound id
+diagnostics, and uninitialized sink diagnostics. These paths remain presentation-only and do not
+affect gameplay/server authority.
+
+The opt-in `stellar-audio-smoke` executable initializes `MiniaudioRequestSink`, requests generated
+footstep sounds, waits long enough for audible playback, and requires
+`STELLAR_AUDIO_SMOKE_CONFIRM=heard` for exit code `0`. The default CTest suite remains
+audio-device-free; unconfirmed or unavailable audio smoke paths return CTest skip code `77`.
+
+Focused validation passed the default, macOS Metal, and macOS Metal-only no-device audio CTest
+slices. Confirmed audible smoke passed for `build-macos-metal/stellar-audio-smoke --sound
+footstep_concrete_0 --sound footstep_metal_1 --duration-ms 2500` and
+`build-macos-metal-only/stellar-audio-smoke --sound footstep_wood_0 --sound footstep_water_1
+--duration-ms 2500`, both with `STELLAR_ENABLE_AUDIO=1` and
+`STELLAR_AUDIO_SMOKE_CONFIRM=heard`.
+
+A separate `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` build configured and built
+`stellar-audio-smoke`, `stellar-client`, and `stellar-server`; `otool -L` showed
+CoreFoundation/CoreAudio/AudioToolbox on `stellar-audio-smoke` and `stellar-client`, and no audio
+framework/miniaudio dependency on `stellar-server`.
+
+### FMP-8 Tooling, Editor, And Script Parity Summary
+
+Status: implemented for BSP/TrenchBroom tooling as of 2026-05-06.
+
+Optional external BSP compiler coverage now skips clearly with CTest skip return code `77` when
+required tools are missing or not executable on the current host. BSP/TrenchBroom wrappers avoid
+selecting Linux ELF VHLT tools on macOS unless host-native tools are provided through
+`STELLAR_VHLT_DIR`, per-tool overrides, or a single BSP30 compiler override. The editor package docs
+now include macOS TrenchBroom install paths, Homebrew setup notes, terminal-launch environment
+guidance, and the Linux-only status of checked-in VHLT binaries.
+
+## Completed Scope - macOS Compatibility And Metal Backend
+
+Status: complete on `macos-compat` as of 2026-05-05.
+
+Active handoff plan:
+
+- `Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`
+
+Current objective: make the project build cleanly on macOS, fix platform portability issues, keep
+default validation display-free/audio-device-free, and add an Apple-gated Metal renderer through the
+existing backend-neutral graphics abstraction. Metal must not be advertised as supported by parser or
+documentation alone; support requires a real `GraphicsDevice` implementation and opt-in display
+smoke validation.
+
+### macOS Compatibility Guardrails
+
+- Server authority, scripting, transport, collision, and gameplay remain backend-neutral.
+- Rendering and audio remain presentation-only and never become gameplay truth.
+- OpenGL remains the default non-Metal renderer path where it builds, but macOS OpenGL is deprecated
+  and the current OpenGL 4.5 request is not a reliable macOS support target.
+- Metal is Apple-gated and opt-in during implementation.
+- Default CTest remains display-free and audio-device-free; GPU/display/audio-device smoke tests are
+  opt-in and must skip cleanly when unsupported.
+- Vulkan must not be reintroduced.
+
+### MC-0 Baseline Summary
+
+Status: complete as of 2026-05-05.
+
+Baseline was recorded on branch `macos-compat`. Active source/build/test files contain no Metal
+backend implementation, SDL Metal window usage, CAMetalLayer plumbing, or Metal shader files. The
+active renderer path is OpenGL-only: backend parsing accepts OpenGL aliases, the graphics factory
+creates `OpenGLGraphicsDevice`, and the client window path requests `SDL_WINDOW_OPENGL`.
+
+Known starting blockers are the expected macOS work items: the existing OpenGL device requests
+OpenGL 4.5, Metal support is absent, `thirdparty/miniaudio/CMakeLists.txt` misspells
+`POSITION_INDEPENDENT_CODE`, and the POSIX socket transport uses Linux-oriented `MSG_NOSIGNAL`
+without an Apple `SO_NOSIGPIPE` policy. Local baseline CMake configure did not reach build/test
+because `pkg-config` could not find `glew`; the macOS runbook will require installing the Homebrew
+dependency or using an Apple-gated Metal build that does not globally require OpenGL/GLEW.
+
+### MC-1 macOS Build And Toolchain Hygiene Summary
+
+Status: complete as of 2026-05-05.
+
+The CMake graph now has explicit `STELLAR_ENABLE_OPENGL_BACKEND` and `STELLAR_ENABLE_METAL` build
+options. Metal remains parser/API-invisible until a real backend lands, but `STELLAR_ENABLE_METAL=ON`
+now fails clearly on non-Apple platforms and enables Objective-C++ plus Apple framework discovery on
+Apple platforms. OpenGL and GLEW discovery are gated behind `STELLAR_ENABLE_OPENGL_BACKEND`, while
+the default build still keeps OpenGL enabled.
+
+`thirdparty/miniaudio/CMakeLists.txt` now uses the correct `POSITION_INDEPENDENT_CODE` property. The
+existing stb image-loader dependency is vendored through a small `stellar_stb` interface target so
+macOS builds do not depend on an undeclared system `stb` package.
+
+Local MC-1 validation on macOS installed the missing Homebrew packages `glew` and `glm`, then passed
+configure/build for the default OpenGL build, an OpenGL-disabled build, and a Metal-prep
+Objective-C++ build. `target_boundary` and `graphics_backend_selection` passed in all validated build
+trees. The default focused CTest slice still fails `socket_transport` on macOS; that is the expected
+MC-2 portability blocker and is not treated as resolved by MC-1.
+
+### MC-2 POSIX Socket Portability Summary
+
+Status: complete as of 2026-05-05.
+
+`SocketTransport` no longer passes Linux-oriented `MSG_NOSIGNAL` unconditionally. Send calls now use
+a small platform helper that selects `MSG_NOSIGNAL` only when the platform defines it and otherwise
+passes zero flags. Apple sockets also install `SO_NOSIGPIPE` after outbound, listening, and accepted
+socket creation so broken-pipe behavior remains explicit without adding presentation or gameplay
+dependencies to transport.
+
+Socket transport tests now accumulate TCP packet batches instead of assuming three logical packets
+arrive in one receive call. This keeps FIFO coverage deterministic on macOS while preserving the
+existing packet envelope and bounded nonblocking I/O behavior.
+
+### MC-3 macOS Audio Runtime Sink Summary
+
+Status: implemented for focused validation as of 2026-05-05.
+
+The audio router remains display-free/audio-device-free by default through `NoOpAudioRequestSink`.
+`MiniaudioRequestSink` is now available as a presentation-only sink behind a separate
+`stellar_audio_miniaudio` target that links the vendored `miniaudio` target without adding miniaudio
+to protocol, authority, server, or router-only audio targets. `stellar-client` selects the sink at
+runtime with `STELLAR_ENABLE_AUDIO=1`; disabled audio or miniaudio initialization failure falls back
+to no-op playback and prints presentation diagnostics rather than affecting gameplay.
+
+Generated footstep sound ids map to the checked-in retro WAV assets under
+`assets/audio/footsteps/generated/`. Missing sound ids, missing local assets, uninitialized audio,
+and miniaudio playback failures return `AudioPresentationDiagnostic` entries. Default tests cover
+the sound registry and no-device fallback path. Confirmed audible playback is covered by the opt-in
+`stellar-audio-smoke` tool and remains outside default CTest.
+
+The vendored miniaudio target now supports `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` on Apple
+platforms, adding `MA_NO_RUNTIME_LINKING` and explicit CoreFoundation/CoreAudio/AudioToolbox
+framework links for notarization-oriented builds.
+
+### MC-4 OpenGL macOS Fallback Diagnostics Summary
+
+Status: complete as of 2026-05-05.
+
+MC-4 followed Path A from the macOS compatibility plan. The OpenGL backend still requests OpenGL 4.5
+Core and remains experimental/unsupported on macOS rather than attempting a transitional OpenGL 4.1
+fallback. Apple-only initialization diagnostics now include the requested OpenGL context, current SDL
+video driver, macOS OpenGL deprecation status, and guidance to use `--renderer metal` once the Metal
+backend lands. Linux/default OpenGL behavior and backend parsing remain OpenGL-only; no Metal enum or
+CLI alias is added by MC-4.
+
+The optional `opengl_context_smoke` test remains display/GPU opt-in through
+`STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` plus `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, so default CTest
+continues to stay display-free.
+
+### MC-5 Metal Backend Scaffold Summary
+
+Status: complete as of 2026-05-05.
+
+Metal is now an Apple-gated compiled backend behind `STELLAR_ENABLE_METAL=ON` and
+`STELLAR_ENABLE_METAL_BACKEND`. The parser accepts `metal` and `mtl` only in Metal-enabled builds;
+default builds still reject those names with `Metal backend not built`. `GraphicsDeviceFactory`
+creates `MetalGraphicsDevice` for the Metal enum, and the client requests
+`SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI` for Metal display windows.
+
+`MetalGraphicsDevice` is a real clear-only scaffold: it creates an SDL Metal view, obtains the
+CAMetalLayer, creates the default MTLDevice, assigns it to the layer, creates an MTLCommandQueue, and
+presents a black clear frame when a drawable is available. Mesh, texture, and material creation
+return tracked placeholder handles until MC-6 resource upload replaces them with real Metal
+resources.
+
+The opt-in `metal_context_smoke` test is registered only for Metal-enabled builds and skips by
+default unless `STELLAR_RUN_METAL_CONTEXT_TESTS=1` is set. Local macOS validation passed
+`build-macos-metal/stellar-client --validate-display --renderer metal`.
+
+### MC-6/MC-7 Metal Resource And Shader Summary
+
+Status: implemented as a first Metal rendering path as of 2026-05-05.
+
+The Metal backend now uploads static mesh vertex/index buffers, converts RGB/RGBA image payloads into
+Metal RGBA textures with linear/sRGB pixel formats, stores backend-neutral material uploads, creates
+opaque and alpha-blend render pipelines from embedded MSL, maintains a depth texture sized to the
+drawable, and issues indexed triangle draws with MVP transforms. This MC-6/MC-7 slice originally
+covered fallback/base color, vertex color, base color texture sampling, alpha discard/blend, depth
+testing, and sampler wrap/filter mapping; FMP-4 has since extended the shader path to the full active
+OpenGL material contract.
+
+Local validation passed default graphics tests, Metal backend selection, opt-in
+`STELLAR_RUN_METAL_CONTEXT_TESTS=1` Metal context smoke, and
+`build-macos-metal/stellar-client --validate-display --renderer metal`.
+
+### MC-8 Documentation And Final Handoff Summary
+
+Status: complete as of 2026-05-05.
+
+README, Design, NEXT, and this status document now describe the current macOS state: default
+display-free validation remains the baseline, macOS dependencies are installed through Homebrew,
+Metal is Apple-gated behind `STELLAR_ENABLE_METAL=ON`, and local Metal display smoke requires a
+macOS display/GPU. The docs do not claim full Metal normal/specular/lightmap parity; that remains an
+explicit follow-up over the first rendering path.
+
+Final local validation passed:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j8
+ctest --test-dir build --output-on-failure
+cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON -DSTELLAR_ENABLE_METAL_CONTEXT_TESTS=ON
+cmake --build build-macos-metal -j8
+ctest --test-dir build-macos-metal --output-on-failure
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal -R '^metal_context_smoke$' --output-on-failure
+build-macos-metal/stellar-client --validate-display --renderer metal
+tools/dev/check_target_boundaries.sh .
+git diff --check
+```
+
+Results: default CTest passed 102/102, Metal build CTest passed 102/102 with
+`metal_context_smoke` skipped by default, opt-in Metal context smoke passed, Metal display validation
+passed, target boundaries passed, and diff whitespace checks passed.
+
+## Completed Scope - Texture/Material-Dependent Audio Footsteps
+
+Status: complete on `audio-impl` as of 2026-05-04.
 
 Active handoff plan:
 

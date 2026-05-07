@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -119,23 +120,29 @@ void client_server_connection_fifo_and_boundaries() {
     assert(pair.client->send_to_server(packet("two")).has_value());
     assert(pair.client->send_to_server(packet("three")).has_value());
 
+    std::vector<stellar::network::TransportPacket> server_packets;
     for (int i = 0; i < 1024; ++i) {
         auto packets = pair.server_handle.server->receive_from_client();
-        if (packets.size() == 3) {
-            assert(text(packets[0]) == "one");
-            assert(text(packets[1]) == "two");
-            assert(text(packets[2]) == "three");
+        server_packets.insert(server_packets.end(), std::make_move_iterator(packets.begin()),
+                              std::make_move_iterator(packets.end()));
+        if (server_packets.size() >= 3) {
+            assert(text(server_packets[0]) == "one");
+            assert(text(server_packets[1]) == "two");
+            assert(text(server_packets[2]) == "three");
             assert(pair.server_handle.server->send_to_client(packet("alpha")).has_value());
             assert(pair.server_handle.server->send_to_client(packet("beta")).has_value());
             break;
         }
     }
 
+    std::vector<stellar::network::TransportPacket> client_packets;
     for (int i = 0; i < 1024; ++i) {
         auto packets = pair.client->receive_from_server();
-        if (packets.size() == 2) {
-            assert(text(packets[0]) == "alpha");
-            assert(text(packets[1]) == "beta");
+        client_packets.insert(client_packets.end(), std::make_move_iterator(packets.begin()),
+                              std::make_move_iterator(packets.end()));
+        if (client_packets.size() >= 2) {
+            assert(text(client_packets[0]) == "alpha");
+            assert(text(client_packets[1]) == "beta");
             return;
         }
     }
@@ -162,6 +169,19 @@ void disconnect_is_reported_on_send() {
         }
     }
     assert(false && "disconnect was not surfaced");
+}
+
+void outbound_disconnect_is_reported_on_send() {
+    auto pair = make_pair();
+    pair.server_handle.server.reset();
+    for (int i = 0; i < 1024; ++i) {
+        auto sent = pair.client->send_to_server(packet("after-server-close"));
+        if (!sent.has_value()) {
+            assert(sent.error().code == "disconnected" || sent.error().code == "send_failed");
+            return;
+        }
+    }
+    assert(false && "outbound disconnect was not surfaced");
 }
 
 void session_hello_and_welcome_cross_sockets() {
@@ -252,6 +272,7 @@ int main() {
     client_server_connection_fifo_and_boundaries();
     oversized_payload_rejected_by_transport_send();
     disconnect_is_reported_on_send();
+    outbound_disconnect_is_reported_on_send();
     session_hello_and_welcome_cross_sockets();
     snapshot_crosses_to_client_world_receiver();
     return 0;

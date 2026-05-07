@@ -7,8 +7,14 @@ Stellar imports authored BSP coordinates 1:1: one editor unit is one gameplay in
 
 ## Install or locate TrenchBroom
 
-Install a current TrenchBroom release from your distro or from the upstream project. The Stellar package
-is project-owned and lives at:
+Install a current TrenchBroom release from your package manager or from the upstream project. On macOS
+with Homebrew, the editor can be installed with:
+
+```bash
+brew install --cask trenchbroom
+```
+
+The Stellar package is project-owned and lives at:
 
 ```text
 tools/trenchbroom/Stellar/
@@ -23,6 +29,9 @@ Helper install examples:
 ```bash
 tools/trenchbroom/install_stellar_game_package.sh --dest "$HOME/.TrenchBroom/games" --copy
 tools/trenchbroom/install_stellar_game_package.sh --dest "$HOME/.TrenchBroom/games" --link
+tools/trenchbroom/install_stellar_game_package.sh \
+  --dest "$HOME/Library/Application Support/TrenchBroom/games" \
+  --copy
 ```
 
 Manual copied-package setup:
@@ -31,6 +40,11 @@ Manual copied-package setup:
 cp -a tools/trenchbroom/Stellar "$HOME/.TrenchBroom/games/Stellar"
 printf '%s\n' "$PWD" > "$HOME/.TrenchBroom/games/Stellar/.stellar_repo_root"
 ```
+
+Launch TrenchBroom from a terminal when compile profiles need shell exports such as
+`STELLAR_REPO_ROOT`, `STELLAR_CLIENT`, `STELLAR_SERVER`, `STELLAR_BSP30_COMPILER`, or
+`STELLAR_VHLT_DIR`. Finder-launched macOS apps do not reliably inherit interactive shell
+environment variables.
 
 Then create a new map using the **Stellar** game configuration.
 
@@ -123,11 +137,15 @@ searched from the BSP/map directory, `STELLAR_WAD_PATH`/`STELLAR_TEXTURE_PATH` r
 developer materials path. Parent-directory escapes are rejected. Absolute WAD paths are ignored unless
 `STELLAR_ALLOW_ABSOLUTE_WAD_PATHS` is explicitly set, so do not commit local absolute WAD paths.
 
-## VHLT Linux toolchain
+## VHLT and external BSP compilers
 
-On Linux, the supported multi-stage external BSP30 path is the VHLT wrapper in `tools/bsp/`. Place
-executable VHLT tools in one of these repository-local locations, or point `STELLAR_VHLT_DIR` at a
-directory containing them:
+The supported multi-stage external BSP30 path is the VHLT wrapper in `tools/bsp/`. The checked-in
+`tools/bsp/hlcsg`, `hlbsp`, `hlvis`, `hlrad`, and `ripent` binaries are Linux x86-64 tools. macOS
+users must provide host-native VHLT tools with `STELLAR_VHLT_DIR` or per-tool overrides, or use a
+single BSP30 compiler through `STELLAR_BSP30_COMPILER`/`QBSP`.
+
+Place executable host-native VHLT tools in one of these repository-local locations, or point
+`STELLAR_VHLT_DIR` at a directory containing them:
 
 ```text
 tools/bsp/hlcsg
@@ -140,7 +158,9 @@ tools/bsp/bin/<tool>  alternate layout
 ```
 
 The wrapper also accepts explicit per-tool overrides: `HLCSG`, `HLBSP`, `HLVIS`, `HLRAD`, and
-`RIPENT`. Keep copied or vendored tools executable and out of generated build-output directories.
+`RIPENT`. Keep copied or vendored tools executable and out of generated build-output directories. CTest
+marks optional external compiler coverage as skipped with return code `77` when required tools are
+missing or are not executable on the current host.
 
 Compile one map directly with VHLT:
 
@@ -286,6 +306,16 @@ Set a BSP30-capable compiler path if one is not on `PATH`:
 export STELLAR_BSP30_COMPILER=/path/to/qbsp
 ```
 
+On macOS, build and validation dependencies used by Stellar itself can be installed with:
+
+```bash
+brew install cmake sdl2 glew glm
+```
+
+External map compilers are optional for default validation. Use a host-native BSP30 compiler or wrapper
+when compiling from TrenchBroom; Linux ELF tools found in the repository are skipped by optional CTest
+coverage on macOS instead of being treated as required.
+
 The generic single-compiler path remains supported. It invokes the configured compiler as
 `<compiler> <map> <out>`, so compilers with different command lines should be wrapped in a small adapter
 and assigned to `STELLAR_BSP30_COMPILER`.
@@ -424,8 +454,10 @@ Use CTest group names such as `trenchbroom_package_*`, `trenchbroom_fgd_*`,
 - `No BSP30 compiler configured`: set `STELLAR_BSP30_COMPILER` or use `--profile validate-only` for an
   existing BSP.
 - Missing VHLT tools: install or copy executable `hlcsg`, `hlbsp`, `hlvis`, and `hlrad` under
-  `tools/bsp/`, `tools/bsp/vhlt/`, `tools/bsp/bin/`, or set `STELLAR_VHLT_DIR`. The fixture matrix exits
-  with skip code `77` when required tools are unavailable.
+  `tools/bsp/`, `tools/bsp/vhlt/`, `tools/bsp/bin/`, or set `STELLAR_VHLT_DIR`. On macOS, the
+  repository's Linux ELF VHLT binaries are ignored for optional coverage unless replaced with
+  host-native tools. The fixture matrix exits with skip code `77` when required tools are unavailable
+  or incompatible with the current host.
 - `BSP header version is not 30`: use the Stellar BSP30 profile and avoid Source/VBSP compilers.
 - WAD generation failures: verify `python3` is available and the build/work output directory is
   writable. VHLT needs a temporary WAD reference in the copied work map; do not add absolute WAD paths

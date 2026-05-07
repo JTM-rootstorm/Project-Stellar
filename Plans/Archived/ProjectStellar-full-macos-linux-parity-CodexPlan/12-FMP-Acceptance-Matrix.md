@@ -1,0 +1,295 @@
+# Full macOS/Linux Parity Acceptance Matrix
+
+Status values:
+
+- `PASS`: covered by current implementation and local/tracked validation evidence.
+- `FAIL`: covered and currently failing, incomplete, or known to violate parity.
+- `SKIP_EXPECTED`: intentionally skipped for this matrix entry, usually because the
+  platform/backend combination is unsupported or opt-in hardware is unavailable.
+
+Full macOS compatibility and Linux parity is complete because every required row is
+`PASS` or `SKIP_EXPECTED`.
+
+## Build And Runtime Matrix
+
+| Acceptance row | Linux OpenGL default | macOS default build | macOS Metal build | macOS Metal-only build | Notes |
+|---|---|---|---|---|---|
+| Configure/build | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` tracks the four build variants. Linux default passed configure/build on a Linux host on 2026-05-06; macOS default, macOS Metal, and macOS Metal-only configure/build passed locally. |
+| Default CTest | `PASS` | `PASS` | `PASS` | `PASS` | Linux default passed 103/103 tests on 2026-05-06. macOS default passed 102/102. macOS Metal and Metal-only passed 103/103 with `metal_context_smoke` skipped by default. |
+| `stellar-client --validate-config` | `PASS` | `PASS` | `PASS` | `PASS` | Config validation does not require display creation. Backend CLI selection is tested for OpenGL-only, dual-backend, and Metal-only builds. |
+| `stellar-client --validate-display` | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Default display validation is opt-in. macOS OpenGL is unsupported/experimental. Both Metal-enabled macOS builds passed display-attached validation. |
+| `stellar-client --validate-map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Import/map validation is backend-neutral and covered by CLI/runtime smoke. |
+| Single-player `stellar-client --map <fixture>` | `PASS` | `PASS` | `PASS` | `PASS` | Display-free runtime tests cover single-player simulation startup. Both Metal-enabled macOS builds also passed forced display-attached single-player smoke. |
+| Listen-host mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free listen-host and loopback runtime tests cover the macOS socket path. |
+| Remote client mode | `PASS` | `PASS` | `PASS` | `PASS` | Display-free client/server loopback runtime tests cover remote-client connection flow. |
+| Dedicated server | `PASS` | `PASS` | `PASS` | `PASS` | Server targets remain backend-neutral and do not link graphics or miniaudio in the current CMake graph. |
+| Generated footstep audio no-device path | `PASS` | `PASS` | `PASS` | `PASS` | Default audio tests use no-device/no-op behavior, decode generated WAV assets without opening a device, and cover presentation diagnostics. |
+| Generated footstep audible smoke | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Audible miniaudio playback is opt-in and passed with `stellar-audio-smoke` plus `STELLAR_AUDIO_SMOKE_CONFIRM=heard` on both Metal-enabled macOS builds on 2026-05-06. |
+| TrenchBroom/BSP tooling | `PASS` | `PASS` | `PASS` | `PASS` | Shell syntax/docs checks pass. Optional external BSP compiler gaps skip with CTest return code `77`, and macOS TrenchBroom/VHLT notes are documented. |
+| Renderer material fixtures | `PASS` | `SKIP_EXPECTED` | `PASS` | `PASS` | Metal now consumes the active OpenGL material contract in shader bindings; GPU readback parity remains tracked separately. |
+| Optional Metal GPU/readback parity | `SKIP_EXPECTED` | `SKIP_EXPECTED` | `PASS` | `PASS` | Opt-in Metal readback JSON generation and self-comparison passed for both Metal-enabled macOS builds. |
+| CI or preset build matrix | `PASS` | `PASS` | `PASS` | `PASS` | `CMakePresets.json` provides configure/build/test presets for each required matrix entry. |
+
+## Validation Status
+
+- FMP-1 Linux preset execution passed on a Linux host on 2026-05-06:
+  `cmake --preset linux-default`, `cmake --build --preset linux-default --parallel 8`,
+  and `ctest --preset linux-default` passed 103/103 tests.
+- FMP-5.1 covered opt-in Metal readback/smoke coverage. Display-free material
+  fixture assertions and the fixture matrix are also in place.
+- FMP-6 added tracked display-free runtime smoke coverage for single-player,
+  listen-host, remote-client, and dedicated-server workflows. Both Metal-enabled
+  macOS builds passed forced single-player display smoke in an attached-display
+  session.
+- FMP-7 covered no-device diagnostics, decode-only generated WAV loading, and
+  `STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` framework-link validation. Optional
+  audible macOS miniaudio smoke passed with operator confirmation on both Metal-enabled builds.
+- FMP-8 covered shell/Python tooling on macOS and made optional external BSP
+  compiler gaps skip clearly with exit code `77`.
+
+## FMP-0 Audit Commands
+
+The FMP-0 audit used these source checks:
+
+```bash
+git grep -n 'STELLAR_ENABLE_METAL\|kMetal\|SDL_WINDOW_METAL\|MetalGraphicsDevice' -- CMakeLists.txt include src tests docs Plans/NEXT.md
+git grep -n 'lightmap_texture\|normal_texture\|specular_texture\|metallic_roughness\|emissive_texture\|occlusion_texture' -- include src/graphics tests/graphics
+git grep -n 'MSG_NOSIGNAL\|SO_NOSIGPIPE\|POSITION_INDEPENDIENT_CODE' -- .
+```
+
+Current findings:
+
+- Active build/source/tests have Apple-gated Metal support and no live Vulkan
+  backend.
+- OpenGL/GLEW discovery and OpenGL sources are gated behind
+  `STELLAR_ENABLE_OPENGL_BACKEND`, so the graph is intended to support Metal-only
+  builds on Apple platforms.
+- Socket send behavior is guarded with `MSG_NOSIGNAL` only where available and
+  Apple sockets install `SO_NOSIGPIPE`.
+- The historical `POSITION_INDEPENDIENT_CODE` typo appears only in archived plan
+  text; active miniaudio CMake uses `POSITION_INDEPENDENT_CODE`.
+- The FMP-0 audit found that `MaterialUpload` preserved full material data while
+  Metal consumed only base color, vertex color, and base texture; FMP-4 updated
+  the Metal shader path to consume the active material contract.
+- BSP and TrenchBroom shell wrappers pass syntax checks, Python docs consistency
+  passes, and generated footstep WAV regeneration is byte-stable in the stopped
+  tooling audit.
+- The `bsp_authoring_smoke_compile_wrapper` path reports a missing external BSP
+  compiler as a textual skip but exits `0`; FMP-8 requires a clear skip status
+  of `77`.
+
+## FMP-1 Validation Notes
+
+FMP-1 added `CMakePresets.json` entries for `linux-default`, `macos-default`,
+`macos-metal`, and `macos-metal-only`, plus matching build and test presets. The
+macOS presets were validated locally on 2026-05-06:
+
+```bash
+cmake --list-presets=all
+cmake --preset macos-default
+cmake --build --preset macos-default -j8
+ctest --test-dir build-macos --output-on-failure
+cmake --preset macos-metal
+cmake --build --preset macos-metal -j8
+ctest --test-dir build-macos-metal --output-on-failure
+cmake --preset macos-metal-only
+cmake --build --preset macos-metal-only -j8
+ctest --test-dir build-macos-metal-only --output-on-failure
+tools/dev/check_target_boundaries.sh .
+git diff --check
+```
+
+`macos-default` passed 102/102 tests. `macos-metal` and `macos-metal-only`
+passed 103/103 tests with `metal_context_smoke` skipped by default. Linux host
+validation on 2026-05-06 passed:
+
+```bash
+cmake --preset linux-default
+cmake --build --preset linux-default --parallel 8
+ctest --preset linux-default
+```
+
+Result: configure passed, build passed, and CTest passed 103/103.
+
+## FMP-2 Validation Notes
+
+FMP-2 added deterministic backend defaults and availability checks:
+
+- `default_graphics_backend()` returns OpenGL when compiled, otherwise Metal in
+  Metal-only builds.
+- `graphics_backend_available()` reports whether a requested backend has a
+  compiled device implementation.
+- Unsupported backend diagnostics now include compiled backend names and a
+  suggested backend for the current build.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos -R '^(graphics_backend_selection|client_map_validation_smoke)$' --output-on-failure
+ctest --test-dir build-macos-metal -R '^(graphics_backend_selection|client_map_validation_smoke)$' --output-on-failure
+ctest --test-dir build-macos-metal-only -R '^(graphics_backend_selection|client_map_validation_smoke)$' --output-on-failure
+build-macos-metal/stellar-client --validate-config --renderer metal
+build-macos-metal/stellar-client --validate-config --renderer opengl
+build-macos-metal/stellar-client --validate-config --renderer vulkan
+build-macos-metal-only/stellar-client --validate-config --renderer metal
+build-macos-metal-only/stellar-client --validate-config --renderer opengl
+build-macos/stellar-client --validate-config --renderer metal
+build-macos/stellar-client --validate-config --renderer opengl
+```
+
+The valid renderer selections succeeded. Invalid selections failed early with
+compiled-backend diagnostics, including `opengl` in Metal-only builds and
+`metal` in OpenGL-only builds.
+
+## FMP-3 Validation Notes
+
+FMP-3 added a Metal projection correction from OpenGL-style clip depth to Metal
+zero-to-one clip depth, explicit Metal viewport setup from SDL drawable pixels,
+and `STELLAR_DEBUG_RENDER=1` diagnostics for backend projection convention,
+drawable size, depth texture size, and viewport.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos -R '^(render_level_inspection|render_level_upload|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build-macos-metal -R '^(render_level_inspection|render_level_upload|graphics_backend_selection|metal_context_smoke)$' --output-on-failure
+git diff --check
+```
+
+The display-free tests passed. `metal_context_smoke` skipped by default. Later
+display-attached validation runs passed for both Metal-enabled macOS builds:
+
+```bash
+build-macos-metal/stellar-client --validate-display --renderer metal
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal -R '^metal_context_smoke$' --output-on-failure
+build-macos-metal-only/stellar-client --validate-display --renderer metal
+STELLAR_RUN_METAL_CONTEXT_TESTS=1 ctest --test-dir build-macos-metal-only -R '^metal_context_smoke$' --output-on-failure
+```
+
+The direct display validation reported `stellar-client: display validation
+succeeded (backend=metal)` for both builds. The opt-in CTest passed 1/1 in each
+build tree.
+
+## FMP-4 Validation Notes
+
+FMP-4 expanded the embedded Metal shader and binding path to consume the active
+OpenGL material contract: base color and vertex color, base textures, lightmaps
+on secondary UVs, normal maps with tangent basis, metallic/roughness, occlusion,
+emissive, specular texture/factors, texture transforms, texcoord set selection,
+alpha mask/blend, double-sided culling, unlit materials, camera-dependent
+specular, and global/key light constants. Metal material debug logs list bound
+slots for the first few materials when `STELLAR_DEBUG_RENDER=1`.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos-metal -R '^(metal_shader_compile|render_level_upload|render_level_inspection|bsp_materials|bsp_lightmaps|graphics_backend_selection)$' --output-on-failure
+ctest --test-dir build-macos-metal-only -R '^(metal_shader_compile|render_level_upload|render_level_inspection|bsp_materials|bsp_lightmaps|graphics_backend_selection)$' --output-on-failure
+git diff --check
+```
+
+Both Metal builds passed the focused suite, including the display-free
+`metal_shader_compile` test. Pixel/readback comparison remains FMP-5 work.
+
+## FMP-5 Validation Notes
+
+FMP-5 expanded the display-free sidecar material fixture to assert every active
+material slot and factor that the Metal shader now consumes: normal, specular,
+metallic/roughness, occlusion, emissive, lightmap, texture transforms, texcoord
+set selection, alpha mask, double-sided, emissive factor, and scalar material
+factors. `13-FMP-Render-Fixture-Matrix.md` records the fixture coverage and keeps
+the optional GPU/readback gap explicit.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos-metal -R '^(render_level_upload|render_level_inspection|metal_shader_compile|bsp_materials|bsp_lightmaps)$' --output-on-failure
+git diff --check
+```
+
+The display-free suite passed. FMP-5.1 later added display/GPU-backed Metal readback JSON reporting
+and self-comparison validation for both Metal-enabled macOS build variants.
+
+## FMP-6 Validation Notes
+
+FMP-6 added `tools/ci/run_macos_runtime_smoke.sh` as a local/CI-oriented runtime
+smoke wrapper for macOS Metal builds. The script validates client renderer
+configuration, map lookup from repository and build working directories, server
+map configuration on `127.0.0.1:0`, the focused display-free runtime CTest
+slice, and optional single-player display smoke when an attached display is
+available.
+
+Local focused validation on 2026-05-06:
+
+```bash
+ctest --test-dir build-macos-metal -R '^(loopback_transport|transport_loopback|transport_socket|socket_transport|network_session|server_runtime|dedicated_server|listen_server_host|client_single_player_runtime|client_connect|client_world_receiver|client_map_validation_smoke|client_cli_validate_map)$' --output-on-failure
+tools/ci/run_macos_runtime_smoke.sh
+STELLAR_FORCE_DISPLAY_SMOKE=1 tools/ci/run_macos_runtime_smoke.sh
+STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only tools/ci/run_macos_runtime_smoke.sh
+STELLAR_RUNTIME_BUILD_DIR=build-macos-metal-only STELLAR_FORCE_DISPLAY_SMOKE=1 tools/ci/run_macos_runtime_smoke.sh
+```
+
+The display-free runtime paths passed. The normal smoke script passed its
+display-free/runtime checks but skipped single-player display smoke because the
+script's display detector did not report an attached display. The forced
+display smoke runs passed with 0 skips for both `build-macos-metal` and
+`build-macos-metal-only`, launched the Metal client for 5 seconds, and logged a
+2560x1440 drawable with matching layer drawable, depth texture, and viewport
+sizes.
+
+## FMP-7 Validation Notes
+
+FMP-7 added device-free miniaudio decode coverage for generated footstep WAV
+assets and tightened presentation diagnostics around missing assets, unknown
+sound ids, and uninitialized sinks. The final audible smoke path is implemented
+by `stellar-audio-smoke` and remains opt-in because it requires a macOS audio
+output device plus operator confirmation.
+
+Local focused validation on 2026-05-06:
+
+```bash
+cmake --build build --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
+ctest --test-dir build -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
+cmake --build build-macos-metal --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
+ctest --test-dir build-macos-metal -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
+cmake --build build-macos-metal-only --target stellar_miniaudio_sink_test stellar_generated_footstep_assets_test stellar_audio_event_router_test stellar_footstep_audio_pipeline_test
+ctest --test-dir build-macos-metal-only -R '^(audio_event_router|miniaudio_sink|generated_footstep_assets|footstep_audio_pipeline)$' --output-on-failure
+cmake -S . -B build-macos-audio-frameworks -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON
+cmake --build build-macos-audio-frameworks --target stellar-audio-smoke stellar-client stellar-server
+ctest --test-dir build-macos-audio-frameworks -R '^miniaudio_sink$' --output-on-failure
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard build-macos-metal/stellar-audio-smoke --sound footstep_concrete_0 --sound footstep_metal_1 --duration-ms 2500
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard build-macos-metal-only/stellar-audio-smoke --sound footstep_wood_0 --sound footstep_water_1 --duration-ms 2500
+otool -L build-macos-audio-frameworks/stellar-audio-smoke
+otool -L build-macos-audio-frameworks/stellar-client
+otool -L build-macos-audio-frameworks/stellar-server
+```
+
+The default, macOS Metal, and macOS Metal-only audio slices passed. The
+confirmed audible smoke commands returned exit code `0` with `miniaudio_active=1`, accepted play
+requests, and `operator_confirmation=heard`. The framework-link build configured and built;
+`stellar-audio-smoke` and `stellar-client` link CoreFoundation, CoreAudio, and AudioToolbox when
+`STELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON`, while `stellar-server` links only libc++ and libSystem in
+that build tree.
+
+## FMP-8 Validation Notes
+
+FMP-8 made BSP/TrenchBroom tooling skip optional external compilers with return
+code `77` when host-native tools are unavailable or incompatible, avoids
+selecting repository-local Linux ELF VHLT binaries on macOS, and documents macOS
+TrenchBroom package setup plus Homebrew dependency notes.
+
+Local focused validation on 2026-05-06:
+
+```bash
+bash -n tools/bsp/compile_trenchbroom_bsp30.sh
+bash -n tools/bsp/compile_vhlt_bsp30.sh
+bash -n tools/bsp/validate_trenchbroom_bsp30.sh
+bash -n tools/bsp/run_vhlt_fixture_matrix.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_compile.sh
+bash -n tools/trenchbroom/Stellar/bin/stellar_tb_validate.sh
+python3 tools/docs/check_docs_consistency.py
+ctest --test-dir build-macos-metal -R '^(trenchbroom|bsp_)' --output-on-failure
+```
+
+The focused tooling/import slice passed with optional external compiler coverage
+reported as skipped where host-native tools were unavailable.

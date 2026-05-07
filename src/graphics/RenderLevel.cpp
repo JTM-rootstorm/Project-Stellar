@@ -971,6 +971,27 @@ void RenderLevel::render(
                           .view = view_projection});
 }
 
+std::expected<void, stellar::platform::Error>
+RenderLevel::request_frame_readback() noexcept {
+  auto *readback_device = dynamic_cast<FrameReadbackDevice *>(device_.get());
+  if (readback_device == nullptr) {
+    return std::unexpected(stellar::platform::Error(
+        "Framebuffer readback is not supported by the active graphics backend"));
+  }
+  readback_device->request_frame_readback();
+  return {};
+}
+
+std::expected<std::optional<FrameReadback>, stellar::platform::Error>
+RenderLevel::take_frame_readback() noexcept {
+  auto *readback_device = dynamic_cast<FrameReadbackDevice *>(device_.get());
+  if (readback_device == nullptr) {
+    return std::unexpected(stellar::platform::Error(
+        "Framebuffer readback is not supported by the active graphics backend"));
+  }
+  return readback_device->take_frame_readback();
+}
+
 void RenderLevel::render(const RenderLevelFrame &frame) noexcept {
   if (!device_) {
     return;

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -19,8 +20,9 @@
 namespace {
 
 std::filesystem::path temp_root() {
-    const std::filesystem::path root = std::filesystem::temp_directory_path() /
-                                      "stellar_dedicated_server_test";
+    std::ostringstream name;
+    name << "stellar_dedicated_server_test_" << std::this_thread::get_id();
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / name.str();
     std::filesystem::remove_all(root);
     std::filesystem::create_directories(root);
     return root;
@@ -59,11 +61,14 @@ std::vector<stellar::network::TransportPacket> receive_for(
 void pump_until_packets(stellar::server::DedicatedServer& server,
                         stellar::network::ClientTransport& client,
                         float dt,
-                        std::vector<stellar::network::TransportPacket>& packets) {
-    for (int i = 0; i < 64 && packets.empty(); ++i) {
+                        std::vector<stellar::network::TransportPacket>& packets,
+                        std::size_t expected_packets = 2) {
+    for (int i = 0; i < 64 && packets.size() < expected_packets; ++i) {
         auto pump = server.pump_once(dt);
         assert(pump.has_value());
-        packets = receive_for(client, 1);
+        auto next = receive_for(client, 1);
+        packets.insert(packets.end(), std::make_move_iterator(next.begin()),
+                       std::make_move_iterator(next.end()));
     }
 }
 

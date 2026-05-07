@@ -10,6 +10,14 @@ stellar_add_test_executable(stellar_audio_event_router_test audio_event_router
 )
 target_link_libraries(stellar_audio_event_router_test PRIVATE stellar_audio)
 
+stellar_add_test_executable(stellar_miniaudio_sink_test miniaudio_sink
+    ${STELLAR_TEST_SOURCE_DIR}/audio/MiniaudioSink.cpp
+)
+target_compile_definitions(stellar_miniaudio_sink_test PRIVATE
+    STELLAR_PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+target_link_libraries(stellar_miniaudio_sink_test PRIVATE stellar_audio_miniaudio)
+
 stellar_add_test_executable(stellar_generated_footstep_assets_test generated_footstep_assets
     ${STELLAR_TEST_SOURCE_DIR}/audio/GeneratedFootstepAssets.cpp
 )

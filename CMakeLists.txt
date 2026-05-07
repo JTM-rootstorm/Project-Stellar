@@ -4,19 +4,43 @@ project(StellarEngine VERSION 0.3.2 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(STELLAR_ENABLE_OPENGL_BACKEND "Build the OpenGL graphics backend" ON)
+option(STELLAR_ENABLE_METAL "Build the experimental Metal graphics backend on Apple platforms" OFF)
+option(STELLAR_MINIAUDIO_NO_RUNTIME_LINKING
+       "Use explicit CoreAudio framework links for miniaudio on Apple platforms" OFF)
+
+if(STELLAR_ENABLE_METAL AND NOT APPLE)
+    message(FATAL_ERROR "STELLAR_ENABLE_METAL requires an Apple platform")
+endif()
+
+if(STELLAR_ENABLE_METAL)
+    enable_language(OBJCXX)
+    find_library(METAL_FRAMEWORK Metal REQUIRED)
+    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
+    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+endif()
+
 include(CTest)
 include(cmake/StellarDocs.cmake)
 
 # Find packages
 find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(OpenGL REQUIRED)
 
-pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
+
+if(STELLAR_ENABLE_OPENGL_BACKEND)
+    find_package(OpenGL REQUIRED)
+    pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
+endif()
 
 add_subdirectory(thirdparty/miniaudio)
 add_subdirectory(thirdparty/lua)
+
+add_library(stellar_stb INTERFACE)
+target_include_directories(stellar_stb INTERFACE
+    ${CMAKE_SOURCE_DIR}/thirdparty/stb
+)
 
 add_library(stellar_assets INTERFACE)
 target_include_directories(stellar_assets INTERFACE
@@ -166,6 +190,26 @@ target_link_libraries(stellar_audio PUBLIC
     stellar_protocol
 )
 
+add_library(stellar_audio_miniaudio
+    src/audio/MiniaudioSink.cpp
+)
+
+target_include_directories(stellar_audio_miniaudio PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(stellar_audio_miniaudio PRIVATE
+    STELLAR_PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_link_libraries(stellar_audio_miniaudio PUBLIC
+    stellar_audio
+)
+
+target_link_libraries(stellar_audio_miniaudio PRIVATE
+    miniaudio
+)
+
 add_library(stellar_import_bsp
     src/import/bsp/Loader.cpp
     src/import/bsp/Validation.cpp
@@ -190,6 +234,7 @@ target_include_directories(stellar_import_bsp PUBLIC
 
 target_link_libraries(stellar_import_bsp PUBLIC
     stellar_assets
+    stellar_stb
 )
 
 target_link_libraries(stellar_authority PUBLIC
@@ -296,29 +341,61 @@ target_link_libraries(stellar_client_runtime INTERFACE
     stellar_client_presentation
 )
 
-add_library(stellar_graphics
+set(STELLAR_GRAPHICS_SOURCES
     src/graphics/GraphicsBackend.cpp
     src/graphics/RendererFactory.cpp
     src/graphics/GraphicsDeviceFactory.cpp
     src/graphics/BillboardSprite.cpp
     src/graphics/RenderLevel.cpp
     src/graphics/LevelRenderer.cpp
-    src/graphics/opengl/OpenGLGraphicsDevice.cpp
+)
+
+if(STELLAR_ENABLE_OPENGL_BACKEND)
+    list(APPEND STELLAR_GRAPHICS_SOURCES
+        src/graphics/opengl/OpenGLGraphicsDevice.cpp
+    )
+endif()
+
+if(STELLAR_ENABLE_METAL)
+    list(APPEND STELLAR_GRAPHICS_SOURCES
+        src/graphics/metal/MetalGraphicsDevice.mm
+    )
+endif()
+
+add_library(stellar_graphics
+    ${STELLAR_GRAPHICS_SOURCES}
 )
 
 target_include_directories(stellar_graphics PUBLIC
     ${CMAKE_SOURCE_DIR}/include
-    ${OPENGL_INCLUDE_DIRS}
-    ${GLEW_INCLUDE_DIRS}
     ${GLM_INCLUDE_DIRS}
 )
 
 target_link_libraries(stellar_graphics PUBLIC
     stellar_platform
-    ${OPENGL_LIBRARIES}
-    PkgConfig::GLEW
     PkgConfig::GLM
 )
+
+if(STELLAR_ENABLE_OPENGL_BACKEND)
+    target_compile_definitions(stellar_graphics PUBLIC STELLAR_ENABLE_OPENGL_BACKEND=1)
+    target_include_directories(stellar_graphics PUBLIC
+        ${OPENGL_INCLUDE_DIRS}
+        ${GLEW_INCLUDE_DIRS}
+    )
+    target_link_libraries(stellar_graphics PUBLIC
+        ${OPENGL_LIBRARIES}
+        PkgConfig::GLEW
+    )
+endif()
+
+if(STELLAR_ENABLE_METAL)
+    target_compile_definitions(stellar_graphics PUBLIC STELLAR_ENABLE_METAL_BACKEND=1)
+    target_link_libraries(stellar_graphics PRIVATE
+        ${METAL_FRAMEWORK}
+        ${QUARTZCORE_FRAMEWORK}
+        ${FOUNDATION_FRAMEWORK}
+    )
+endif()
 
 target_link_libraries(stellar_graphics PUBLIC stellar_assets)
 
@@ -354,6 +431,7 @@ target_link_libraries(stellar_client_app PUBLIC
     stellar_client_presentation
     stellar_graphics
     stellar_audio
+    stellar_audio_miniaudio
     stellar_assets
 )
 
@@ -367,7 +445,6 @@ target_include_directories(stellar-client PRIVATE
 
 target_link_libraries(stellar-client PRIVATE
     stellar_client_app
-    miniaudio
 )
 
 add_executable(stellar-server
@@ -380,6 +457,18 @@ target_include_directories(stellar-server PRIVATE
 
 target_link_libraries(stellar-server PRIVATE
     stellar_dedicated_server
+)
+
+add_executable(stellar-audio-smoke
+    tools/audio/AudioSmokeMain.cpp
+)
+
+target_include_directories(stellar-audio-smoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(stellar-audio-smoke PRIVATE
+    stellar_audio_miniaudio
 )
 
 if(BUILD_TESTING)
@@ -410,7 +499,7 @@ stellar_assert_no_direct_links(stellar_protocol
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
     stellar_scripting stellar_client_runtime stellar_client_net stellar_single_player
     stellar_listen_server stellar_client_presentation stellar_client_app stellar_graphics
-    stellar_audio stellar_platform
+    stellar_audio stellar_audio_miniaudio miniaudio stellar_platform
 )
 stellar_assert_no_direct_links(stellar_transport
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
@@ -423,10 +512,12 @@ stellar_assert_no_direct_links(stellar_client_net
 stellar_assert_no_direct_links(stellar_dedicated_server
     stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
     stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
+    stellar_audio_miniaudio miniaudio
 )
 stellar_assert_no_direct_links(stellar_server_runtime
     stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
     stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
+    stellar_audio_miniaudio miniaudio
 )
 
 add_custom_target(stellar_target_boundary_check

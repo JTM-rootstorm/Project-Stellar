@@ -4,19 +4,27 @@
 #include "stellar/client/HudPresentation.hpp"
 #include "stellar/client/PlayerPresentation.hpp"
 #include "stellar/audio/AudioEventRouter.hpp"
+#include "stellar/audio/MiniaudioSink.hpp"
 #include "stellar/graphics/LevelRenderer.hpp"
+#include "stellar/import/bsp/Loader.hpp"
 #include "stellar/platform/DisplayDiagnostics.hpp"
 #include "stellar/platform/Input.hpp"
 
 #include <SDL2/SDL.h>
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdlib>
+#include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace stellar::client {
 
@@ -28,8 +36,17 @@ constexpr int kDisplayValidationWindowWidth = 320;
 constexpr int kDisplayValidationWindowHeight = 240;
 constexpr int kTargetFps = 60;
 constexpr int kFrameDelayMs = 1000 / kTargetFps;
+constexpr int kSkipExitCode = 77;
 
-Uint32 backend_window_flags(stellar::graphics::GraphicsBackend /*backend*/) noexcept {
+Uint32 backend_window_flags(stellar::graphics::GraphicsBackend backend) noexcept {
+  switch (backend) {
+  case stellar::graphics::GraphicsBackend::kOpenGL:
+    return SDL_WINDOW_OPENGL;
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  case stellar::graphics::GraphicsBackend::kMetal:
+    return SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+  }
   return SDL_WINDOW_OPENGL;
 }
 
@@ -99,6 +116,15 @@ void print_map_validation_diagnostics(
   for (const auto &diagnostic : report.diagnostics) {
     std::cout << "stellar-client: BSP diagnostic severity="
               << diagnostic_severity_name(diagnostic.severity)
+              << " message=\"" << diagnostic.message << "\"\n";
+  }
+}
+
+void print_audio_diagnostics(
+    const std::vector<stellar::audio::AudioPresentationDiagnostic> &diagnostics) {
+  for (const auto &diagnostic : diagnostics) {
+    std::cerr << "stellar-client: audio diagnostic code=" << diagnostic.code
+              << " sound_id=" << diagnostic.sound_id
               << " message=\"" << diagnostic.message << "\"\n";
   }
 }
@@ -231,27 +257,260 @@ void log_debug_camera_frame(const char* runtime_name,
             << camera.near_plane << " far=" << camera.far_plane << '\n';
 }
 
+struct ReadbackHistogram {
+  std::array<std::array<std::uint64_t, 256>, 4> bins{};
+  std::array<std::uint64_t, 4> sums{};
+  std::array<std::uint8_t, 4> minimum{255, 255, 255, 255};
+  std::array<std::uint8_t, 4> maximum{0, 0, 0, 0};
+};
+
+struct MaterialSlotSummary {
+  std::size_t material_count = 0;
+  std::size_t base_color_texture_count = 0;
+  std::size_t lightmap_texture_count = 0;
+  std::size_t normal_texture_count = 0;
+  std::size_t specular_texture_count = 0;
+  std::size_t metallic_roughness_texture_count = 0;
+  std::size_t occlusion_texture_count = 0;
+  std::size_t emissive_texture_count = 0;
+};
+
+[[nodiscard]] ReadbackHistogram make_readback_histogram(
+    const stellar::graphics::FrameReadback &readback) noexcept {
+  ReadbackHistogram histogram;
+  for (std::size_t index = 0; index + 3 < readback.rgba_pixels.size();
+       index += 4) {
+    for (std::size_t channel = 0; channel < 4; ++channel) {
+      const std::uint8_t value = readback.rgba_pixels[index + channel];
+      ++histogram.bins[channel][value];
+      histogram.sums[channel] += value;
+      histogram.minimum[channel] = std::min(histogram.minimum[channel], value);
+      histogram.maximum[channel] = std::max(histogram.maximum[channel], value);
+    }
+  }
+  return histogram;
+}
+
+[[nodiscard]] MaterialSlotSummary summarize_material_slots(
+    const std::optional<stellar::assets::LevelAsset> &level) noexcept {
+  MaterialSlotSummary summary;
+  if (!level.has_value()) {
+    return summary;
+  }
+  for (const auto &surface_material : level->geometry.materials) {
+    ++summary.material_count;
+    const stellar::assets::MaterialAsset *material =
+        surface_material.resolved_material.has_value()
+            ? &*surface_material.resolved_material
+            : nullptr;
+    if (material != nullptr && material->base_color_texture.has_value()) {
+      ++summary.base_color_texture_count;
+    } else if (surface_material.texture_index.has_value()) {
+      ++summary.base_color_texture_count;
+    }
+    if (surface_material.lightmap_index.has_value()) {
+      ++summary.lightmap_texture_count;
+    }
+    if (material == nullptr) {
+      continue;
+    }
+    summary.normal_texture_count += material->normal_texture.has_value() ? 1U : 0U;
+    summary.specular_texture_count +=
+        material->specular_texture.has_value() ? 1U : 0U;
+    summary.metallic_roughness_texture_count +=
+        material->metallic_roughness_texture.has_value() ? 1U : 0U;
+    summary.occlusion_texture_count +=
+        material->occlusion_texture.has_value() ? 1U : 0U;
+    summary.emissive_texture_count +=
+        material->emissive_texture.has_value() ? 1U : 0U;
+  }
+  return summary;
+}
+
+void write_json_string(std::ostream &out, std::string_view value) {
+  out << '"';
+  for (const char ch : value) {
+    switch (ch) {
+    case '\\':
+      out << "\\\\";
+      break;
+    case '"':
+      out << "\\\"";
+      break;
+    case '\n':
+      out << "\\n";
+      break;
+    case '\r':
+      out << "\\r";
+      break;
+    case '\t':
+      out << "\\t";
+      break;
+    default:
+      out << ch;
+      break;
+    }
+  }
+  out << '"';
+}
+
+void write_histogram_array(std::ostream &out,
+                           const std::array<std::uint64_t, 256> &bins) {
+  out << '[';
+  for (std::size_t index = 0; index < bins.size(); ++index) {
+    if (index != 0) {
+      out << ',';
+    }
+    out << bins[index];
+  }
+  out << ']';
+}
+
+std::expected<void, stellar::platform::Error> write_readback_report(
+    const ApplicationConfig &config,
+    const std::optional<stellar::assets::LevelAsset> &rendered_level,
+    const stellar::graphics::FrameReadback &readback) {
+  if (!config.readback_output_path.has_value()) {
+    return {};
+  }
+  std::ofstream out(*config.readback_output_path, std::ios::binary);
+  if (!out) {
+    return std::unexpected(stellar::platform::Error(
+        "Failed to open readback output path: " + *config.readback_output_path));
+  }
+
+  const ReadbackHistogram histogram = make_readback_histogram(readback);
+  const MaterialSlotSummary slots = summarize_material_slots(rendered_level);
+  const std::uint64_t pixel_count =
+      static_cast<std::uint64_t>(std::max(readback.width, 0)) *
+      static_cast<std::uint64_t>(std::max(readback.height, 0));
+  const std::array<const char *, 4> channel_names{"r", "g", "b", "a"};
+
+  out << "{\n";
+  out << "  \"schema\": \"stellar.metal_readback.v1\",\n";
+  out << "  \"backend\": ";
+  write_json_string(out,
+                    stellar::graphics::graphics_backend_name(config.graphics_backend));
+  out << ",\n";
+  out << "  \"map\": ";
+  write_json_string(out, config.map_path.value_or(std::string{}));
+  out << ",\n";
+  out << "  \"projection\": \"metal_ndc_z_zero_to_one\",\n";
+  out << "  \"frame\": {\"width\": " << readback.width
+      << ", \"height\": " << readback.height << ", \"format\": \"rgba8\"},\n";
+  out << "  \"material_slots\": {";
+  out << "\"materials\": " << slots.material_count;
+  out << ", \"base_color\": " << slots.base_color_texture_count;
+  out << ", \"lightmap\": " << slots.lightmap_texture_count;
+  out << ", \"normal\": " << slots.normal_texture_count;
+  out << ", \"specular\": " << slots.specular_texture_count;
+  out << ", \"metallic_roughness\": " << slots.metallic_roughness_texture_count;
+  out << ", \"occlusion\": " << slots.occlusion_texture_count;
+  out << ", \"emissive\": " << slots.emissive_texture_count << "},\n";
+  out << "  \"histogram\": {\n";
+  for (std::size_t channel = 0; channel < channel_names.size(); ++channel) {
+    out << "    \"" << channel_names[channel] << "\": {";
+    out << "\"min\": " << static_cast<int>(histogram.minimum[channel]);
+    out << ", \"max\": " << static_cast<int>(histogram.maximum[channel]);
+    out << ", \"mean\": "
+        << (pixel_count > 0
+                ? static_cast<double>(histogram.sums[channel]) /
+                      static_cast<double>(pixel_count)
+                : 0.0);
+    out << ", \"bins\": ";
+    write_histogram_array(out, histogram.bins[channel]);
+    out << '}';
+    out << (channel + 1 < channel_names.size() ? ",\n" : "\n");
+  }
+  out << "  }\n";
+  out << "}\n";
+  if (!out) {
+    return std::unexpected(stellar::platform::Error(
+        "Failed to write readback output path: " + *config.readback_output_path));
+  }
+  return {};
+}
+
 std::expected<void, stellar::platform::Error>
-run_display_validation(stellar::graphics::GraphicsBackend backend) {
+run_display_validation(const ApplicationConfig &config) {
   stellar::platform::Window window;
   if (auto result = window.create(
           kDisplayValidationWindowWidth, kDisplayValidationWindowHeight,
-          "Stellar Display Validation", SDL_WINDOW_SHOWN | backend_window_flags(backend));
+          "Stellar Display Validation",
+          SDL_WINDOW_SHOWN | backend_window_flags(config.graphics_backend));
       !result) {
-    return result;
+    return std::unexpected(stellar::platform::Error(result.error().message,
+                                                    kSkipExitCode));
   }
 
-  auto renderer = std::make_unique<stellar::graphics::LevelRenderer>(backend, std::nullopt);
+  std::unique_ptr<ApplicationValidation> validation =
+      std::make_unique<ApplicationValidation>();
+  std::optional<stellar::assets::LevelAsset> renderer_level;
+  std::optional<stellar::assets::LevelAsset> readback_report_level;
+  if (config.map_path.has_value()) {
+    auto prepared = prepare_application_runtime(config);
+    if (!prepared) {
+      return std::unexpected(prepared.error());
+    }
+    if (prepared->validation != nullptr) {
+      validation = std::move(prepared->validation);
+      if (validation->level.has_value()) {
+        renderer_level = *validation->level;
+      }
+    }
+    if (config.readback_output_path.has_value()) {
+      auto presentation_level =
+          stellar::import::bsp::load_level(*config.map_path);
+      if (!presentation_level) {
+        return std::unexpected(presentation_level.error());
+      }
+      renderer_level = std::move(*presentation_level);
+    }
+    readback_report_level = renderer_level;
+  }
+
+  auto renderer = std::make_unique<stellar::graphics::LevelRenderer>(
+      config.graphics_backend, std::move(renderer_level));
   if (auto result = renderer->initialize(window); !result) {
     return std::unexpected(stellar::platform::Error(
         stellar::platform::append_display_environment_diagnostics(
             "Display validation graphics initialization failed (backend=" +
-            std::string(stellar::graphics::graphics_backend_name(backend)) +
-            "): " + result.error().message)));
+            std::string(stellar::graphics::graphics_backend_name(
+                config.graphics_backend)) +
+            "): " + result.error().message),
+        result.error().message.find("no default MTLDevice") != std::string::npos
+            ? kSkipExitCode
+            : 1));
+  }
+
+  if (config.readback_output_path.has_value()) {
+    if (auto request = renderer->request_frame_readback(); !request) {
+      return std::unexpected(request.error());
+    }
+    renderer->render(0.0F, 0.0F, kDisplayValidationWindowWidth,
+                     kDisplayValidationWindowHeight);
+    auto readback = renderer->take_frame_readback();
+    if (!readback) {
+      return std::unexpected(readback.error());
+    }
+    if (!readback->has_value()) {
+      return std::unexpected(stellar::platform::Error(
+          "Display validation readback did not produce a frame"));
+    }
+    if (auto write =
+            write_readback_report(config, readback_report_level, **readback);
+        !write) {
+      return std::unexpected(write.error());
+    }
+    std::cout << "stellar-client: display readback validation succeeded (backend="
+              << stellar::graphics::graphics_backend_name(config.graphics_backend)
+              << ", output=" << *config.readback_output_path << ")\n";
+    return {};
   }
 
   std::cout << "stellar-client: display validation succeeded (backend="
-            << stellar::graphics::graphics_backend_name(backend) << ")\n";
+            << stellar::graphics::graphics_backend_name(config.graphics_backend)
+            << ")\n";
   return {};
 }
 } // namespace
@@ -261,7 +520,7 @@ Application::Application(ApplicationConfig config) noexcept
 
 std::expected<void, stellar::platform::Error> Application::run() {
   if (config_.validate_display) {
-    return run_display_validation(config_.graphics_backend);
+    return run_display_validation(config_);
   }
 
   auto runtime = prepare_application_runtime(config_);
@@ -307,7 +566,10 @@ std::expected<void, stellar::platform::Error> Application::run() {
   stellar::platform::Input input;
   HudPresentationState hud_state;
   stellar::audio::AudioEventRouter audio_router;
-  stellar::audio::NoOpAudioRequestSink audio_sink;
+  stellar::audio::RuntimeAudioRequestSink runtime_audio_sink =
+      stellar::audio::make_runtime_audio_request_sink();
+  print_audio_diagnostics(runtime_audio_sink.diagnostics);
+  stellar::audio::AudioRequestSink& audio_sink = *runtime_audio_sink.sink;
   Uint32 previous_frame_start = SDL_GetTicks();
   IClientRuntime* active_client_runtime = runtime->active_client_runtime;
   const bool has_live_runtime = active_client_runtime != nullptr;
@@ -340,6 +602,7 @@ std::expected<void, stellar::platform::Error> Application::run() {
       apply_gameplay_events(hud_state, client_frame.events);
       [[maybe_unused]] const auto audio_result =
           audio_router.route_events(client_frame.events, audio_sink);
+      print_audio_diagnostics(audio_result.diagnostics);
       const char* runtime_name = client_runtime_mode_name(active_client_runtime->mode());
       if (!client_frame.snapshot.has_value()) {
         if (debug_render_frames_remaining > 0) {

@@ -139,22 +139,48 @@ int main() {
   assert(invalid_validate_display_config.error().message.find("--validate-display") !=
          std::string::npos);
 
+  const char *validate_display_readback_args[] = {
+      "stellar-client", "--validate-display", "--map", "room.bsp",
+      "--readback-output", "readback.json"};
+  const auto validate_display_readback_config =
+      stellar::client::parse_application_config(6, validate_display_readback_args);
+  assert(validate_display_readback_config.has_value());
+  assert(validate_display_readback_config->validate_display);
+  assert(validate_display_readback_config->map_path == "room.bsp");
+  assert(validate_display_readback_config->readback_output_path == "readback.json");
+
+  const char *readback_without_display_args[] = {
+      "stellar-client", "--map", "room.bsp", "--readback-output", "readback.json"};
+  const auto readback_without_display_config =
+      stellar::client::parse_application_config(5, readback_without_display_args);
+  assert(!readback_without_display_config.has_value());
+  assert(readback_without_display_config.error().message.find(
+             "--readback-output requires --validate-display") != std::string::npos);
+
+  const char *readback_without_map_args[] = {
+      "stellar-client", "--validate-display", "--readback-output", "readback.json"};
+  const auto readback_without_map_config =
+      stellar::client::parse_application_config(4, readback_without_map_args);
+  assert(!readback_without_map_config.has_value());
+  assert(readback_without_map_config.error().message.find(
+             "--readback-output requires --map") != std::string::npos);
+
   const std::string removed_backend = std::string("vul") + "kan";
-  const std::string removed_backend_message =
-      "Unsupported graphics backend: " + removed_backend + " (expected opengl)";
+  const std::string removed_backend_message_prefix =
+      "Unsupported graphics backend: " + removed_backend;
   const char *invalid_renderer_args[] = {
       "stellar-client", "--renderer", removed_backend.c_str()};
   const auto invalid_renderer_config =
       stellar::client::parse_application_config(3, invalid_renderer_args);
   assert(!invalid_renderer_config.has_value());
-  assert(invalid_renderer_config.error().message == removed_backend_message);
+  assert(invalid_renderer_config.error().message.find(removed_backend_message_prefix) == 0);
 
   const char *invalid_graphics_backend_args[] = {
       "stellar-client", "--graphics-backend", removed_backend.c_str()};
   const auto invalid_graphics_backend_config =
       stellar::client::parse_application_config(3, invalid_graphics_backend_args);
   assert(!invalid_graphics_backend_config.has_value());
-  assert(invalid_graphics_backend_config.error().message == removed_backend_message);
+  assert(invalid_graphics_backend_config.error().message.find(removed_backend_message_prefix) == 0);
 
   const std::string removed_backend_alias = std::string("v") + "k";
   const char *invalid_graphics_backend_alias_args[] = {
@@ -163,8 +189,48 @@ int main() {
       stellar::client::parse_application_config(
           3, invalid_graphics_backend_alias_args);
   assert(!invalid_graphics_backend_alias_config.has_value());
-  assert(invalid_graphics_backend_alias_config.error().message ==
-         "Unsupported graphics backend: " + removed_backend_alias + " (expected opengl)");
+  assert(invalid_graphics_backend_alias_config.error().message.find(
+             "Unsupported graphics backend: " + removed_backend_alias) == 0);
+
+#if defined(STELLAR_ENABLE_METAL_BACKEND)
+  const char *metal_renderer_args[] = {"stellar-client", "--validate-config",
+                                       "--renderer", "metal"};
+  const auto metal_renderer_config =
+      stellar::client::parse_application_config(4, metal_renderer_args);
+  assert(metal_renderer_config.has_value());
+  assert(metal_renderer_config->graphics_backend ==
+         stellar::graphics::GraphicsBackend::kMetal);
+
+  const char *metal_alias_args[] = {"stellar-client", "--validate-config",
+                                    "--renderer", "mtl"};
+  const auto metal_alias_config =
+      stellar::client::parse_application_config(4, metal_alias_args);
+  assert(metal_alias_config.has_value());
+  assert(metal_alias_config->graphics_backend ==
+         stellar::graphics::GraphicsBackend::kMetal);
+#else
+  const char *metal_renderer_args[] = {"stellar-client", "--validate-config",
+                                       "--renderer", "metal"};
+  const auto metal_renderer_config =
+      stellar::client::parse_application_config(4, metal_renderer_args);
+  assert(!metal_renderer_config.has_value());
+  assert(metal_renderer_config.error().message.find("compiled backends: opengl") !=
+         std::string::npos);
+#endif
+
+  const char *opengl_renderer_args[] = {"stellar-client", "--validate-config",
+                                        "--renderer", "opengl"};
+  const auto opengl_renderer_config =
+      stellar::client::parse_application_config(4, opengl_renderer_args);
+#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
+  assert(opengl_renderer_config.has_value());
+  assert(opengl_renderer_config->graphics_backend ==
+         stellar::graphics::GraphicsBackend::kOpenGL);
+#else
+  assert(!opengl_renderer_config.has_value());
+  assert(opengl_renderer_config.error().message.find("compiled backends: metal") !=
+         std::string::npos);
+#endif
 
   const auto bad_script_path = root / "bad_script.bsp";
   const auto bad_script =

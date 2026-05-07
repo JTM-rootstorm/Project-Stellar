@@ -23,7 +23,26 @@ stellar_add_graphics_test(stellar_graphics_backend_selection_test graphics_backe
     ${STELLAR_TEST_SOURCE_DIR}/graphics/BackendSelection.cpp
 )
 
-if(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
+if(STELLAR_ENABLE_METAL)
+    add_executable(stellar_metal_shader_compile_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/MetalShaderCompile.mm
+    )
+
+    target_include_directories(stellar_metal_shader_compile_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_metal_shader_compile_test PRIVATE
+        stellar_graphics
+        ${METAL_FRAMEWORK}
+        ${FOUNDATION_FRAMEWORK}
+    )
+
+    add_test(NAME metal_shader_compile COMMAND $<TARGET_FILE:stellar_metal_shader_compile_test>)
+    set_tests_properties(metal_shader_compile PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(STELLAR_ENABLE_OPENGL_BACKEND AND STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
     add_executable(stellar_opengl_context_smoke_test
         ${STELLAR_TEST_SOURCE_DIR}/graphics/OpenGLContextSmoke.cpp
     )
@@ -40,4 +59,37 @@ if(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
 
     add_test(NAME opengl_context_smoke COMMAND $<TARGET_FILE:stellar_opengl_context_smoke_test>)
     set_tests_properties(opengl_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(STELLAR_ENABLE_METAL AND STELLAR_ENABLE_METAL_CONTEXT_TESTS)
+    add_executable(stellar_metal_context_smoke_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/MetalContextSmoke.cpp
+    )
+
+    target_include_directories(stellar_metal_context_smoke_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_metal_context_smoke_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME metal_context_smoke COMMAND $<TARGET_FILE:stellar_metal_context_smoke_test>)
+    set_tests_properties(metal_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(stellar_metal_render_readback_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/MetalRenderReadback.mm
+    )
+
+    target_include_directories(stellar_metal_render_readback_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_metal_render_readback_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME metal_render_readback
+        COMMAND $<TARGET_FILE:stellar_metal_render_readback_test>)
+    set_tests_properties(metal_render_readback PROPERTIES SKIP_RETURN_CODE 77)
 endif()

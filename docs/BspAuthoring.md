@@ -232,9 +232,10 @@ server-approved pickup events and retain bounded recent event messages for futur
 gameplay systems never read HUD state and reset it for each new map/session.
 The current audio feedback layer routes server-approved pickup and door/gate events, plus optional
 script-error diagnostics, to presentation one-shot sound ids (`pickup`, `door_open`, `door_close`,
-`script_error`) through an abstract sink. Production has a `NoOpAudioRequestSink`; fake sinks and
-missing-sound diagnostics are test/sink-contract behavior, not a production miniaudio or local asset
-implementation.
+`script_error`) through an abstract sink. Production has a default `NoOpAudioRequestSink` plus an
+optional `MiniaudioRequestSink` selected by the client when `STELLAR_ENABLE_AUDIO=1` is set. Missing
+assets, unknown sound ids, uninitialized audio, decode failures, and playback failures remain
+presentation diagnostics only.
 
 ## Examples
 
@@ -459,15 +460,16 @@ Common diagnostics:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j$(nproc)
+cmake --build build -j$(getconf _NPROCESSORS_ONLN)
 ctest --test-dir build -R '^(bsp_validation|bsp_importer|client_map_validation_smoke|client_cli_map_validation|bsp_authoring_smoke)$' --output-on-failure
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/minimal_zup_room.bsp
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/entity_matrix_zup.bsp
 tools/bsp/validate_trenchbroom_bsp30.sh build/tests/fixtures/trenchbroom/compiled/scripted_interaction_zup.bsp
 ```
 
-Run the VHLT fixture matrix when VHLT tools are installed locally or provided through
-`STELLAR_VHLT_DIR`:
+Run the VHLT fixture matrix when host-native VHLT tools are installed locally or provided through
+`STELLAR_VHLT_DIR`. The checked-in VHLT binaries are Linux x86-64 tools; optional CTest coverage skips
+with return code `77` on hosts that cannot execute the required tools.
 
 ```bash
 tools/bsp/run_vhlt_fixture_matrix.sh --source-root . --build-root build --profile full

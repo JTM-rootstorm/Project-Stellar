@@ -52,6 +52,23 @@ absolute_path_for_parent() {
     printf '%s/%s\n' "$dir" "$base"
 }
 
+host_tool_is_executable() {
+    local path="$1"
+    local host
+    local info
+
+    [[ -x "$path" ]] || return 1
+    host="$(uname -s 2>/dev/null || printf 'unknown')"
+    if command -v file >/dev/null 2>&1; then
+        info="$(file "$path" 2>/dev/null || true)"
+        case "$host:$info" in
+            Darwin:*ELF*) return 1 ;;
+            Linux:*Mach-O*) return 1 ;;
+        esac
+    fi
+    return 0
+}
+
 find_tool() {
     local tool_name="$1"
     local override_value="$2"
@@ -59,25 +76,28 @@ find_tool() {
     local candidate
 
     if [[ -n "$override_value" ]]; then
-        [[ -x "$override_value" ]] && absolute_path_for_parent "$override_value" && return 0
+        host_tool_is_executable "$override_value" && absolute_path_for_parent "$override_value" && return 0
         return 1
     fi
 
     if [[ -n "${STELLAR_VHLT_DIR:-}" ]]; then
         candidate="$STELLAR_VHLT_DIR/$tool_name"
-        [[ -x "$candidate" ]] && absolute_path_for_parent "$candidate" && return 0
+        host_tool_is_executable "$candidate" && absolute_path_for_parent "$candidate" && return 0
     fi
 
     for candidate in \
         "$root/tools/bsp/$tool_name" \
         "$root/tools/bsp/vhlt/$tool_name" \
         "$root/tools/bsp/bin/$tool_name"; do
-        [[ -x "$candidate" ]] && absolute_path_for_parent "$candidate" && return 0
+        host_tool_is_executable "$candidate" && absolute_path_for_parent "$candidate" && return 0
     done
 
     if command -v "$tool_name" >/dev/null 2>&1; then
-        command -v "$tool_name"
-        return 0
+        candidate="$(command -v "$tool_name")"
+        if host_tool_is_executable "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
     fi
 
     return 1
@@ -95,7 +115,7 @@ skip_missing_vhlt_tools() {
     fi
 
     if (( ${#missing[@]} > 0 )); then
-        printf 'SKIP: required VHLT tools are absent or not executable: %s\n' "${missing[*]}"
+        printf 'SKIP: required VHLT tools are absent or not executable on this host: %s\n' "${missing[*]}"
         exit 77
     fi
 }
@@ -114,6 +134,37 @@ record_result() {
     local detail="$3"
     results+=("$fixture:$status:$detail")
     printf '%-30s %s %s\n' "$fixture" "$status" "$detail" | tee -a "$summary_log"
+}
+
+fixture_in_list() {
+    local fixture="$1"
+    shift
+    local candidate
+    for candidate in "$@"; do
+        [[ "$candidate" == "$fixture" ]] && return 0
+    done
+    return 1
+}
+
+negative_regex_for_fixture() {
+    local fixture="$1"
+    local index
+    for index in "${!negative_regex_names[@]}"; do
+        if [[ "${negative_regex_names[$index]}" == "$fixture" ]]; then
+            printf '%s\n' "${negative_regex_values[$index]}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+negative_strict_textures_for_fixture() {
+    local fixture="$1"
+    if fixture_in_list "$fixture" "${negative_strict_texture_fixtures[@]}"; then
+        printf '1\n'
+    else
+        printf '0\n'
+    fi
 }
 
 copy_wrapper_work_dir() {
@@ -201,7 +252,7 @@ run_negative_fixture() {
         return 0
     fi
 
-    if [[ "${negative_compile_after_preflight_failure[$fixture]:-0}" != "1" ]]; then
+    if ! fixture_in_list "$fixture" "${negative_compile_after_preflight_failure_fixtures[@]}"; then
         record_result "$fixture" "FAIL" "expected source preflight diagnostic missing; log=$preflight_log"
         return 1
     fi
@@ -358,7 +409,9 @@ done
 
 for fixture in "${negative_fixtures[@]}"; do
     [[ -z "$selected_fixture" || "$selected_fixture" == "$fixture" ]] || continue
-    if ! run_negative_fixture "$fixture" "${negative_regex[$fixture]}" "${negative_strict_textures[$fixture]:-0}"; then
+    expected_regex="$(negative_regex_for_fixture "$fixture")" || fail "missing expected regex for negative fixture: $fixture"
+    strict_textures="$(negative_strict_textures_for_fixture "$fixture")"
+    if ! run_negative_fixture "$fixture" "$expected_regex" "$strict_textures"; then
         failures=$((failures + 1))
         [[ "$keep_going" == "1" ]] || exit 1
     fi

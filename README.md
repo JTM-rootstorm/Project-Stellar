@@ -6,7 +6,41 @@ My only involvement is to tell the Director what needs to be done and reign in h
 
 Please refer to `docs/Design.md` for broad project specifications and scope.
 
-For current branch implementation status, especially BSP/OpenGL rendering support, see `docs/ImplementationStatus.md`. Historical roadmap files under `Plans/` and `.kilo/plans/` are archival and may contain stale intermediate phase descriptions.
+For current branch implementation status, especially BSP/OpenGL/Metal rendering support, see
+`docs/ImplementationStatus.md`. Historical roadmap files under `Plans/` and `.kilo/plans/` are
+archival and may contain stale intermediate phase descriptions.
+
+macOS development dependencies:
+
+```bash
+brew install cmake sdl2 glew glm
+```
+
+Default build and tests:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(sysctl -n hw.ncpu)
+ctest --test-dir build --output-on-failure
+```
+
+Opt-in Metal build and display smoke on macOS:
+
+```bash
+cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
+cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
+build-macos-metal/stellar-client --validate-display --renderer metal
+```
+
+Opt-in audible audio smoke on macOS:
+
+```bash
+STELLAR_ENABLE_AUDIO=1 STELLAR_AUDIO_SMOKE_CONFIRM=heard \
+  build-macos-metal/stellar-audio-smoke \
+  --sound footstep_concrete_0 \
+  --sound footstep_metal_1 \
+  --duration-ms 2500
+```
 
 To generate public C++ API reference docs when Doxygen is installed:
 

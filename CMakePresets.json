@@ -1,0 +1,108 @@
+{
+  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-default",
+      "displayName": "Linux default OpenGL build",
+      "description": "Default Linux validation build with OpenGL enabled and Metal disabled.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-linux",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
+        "STELLAR_ENABLE_METAL": "OFF"
+      }
+    },
+    {
+      "name": "macos-default",
+      "displayName": "macOS default OpenGL build",
+      "description": "Default macOS validation build with OpenGL enabled and Metal disabled.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-macos",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
+        "STELLAR_ENABLE_METAL": "OFF"
+      }
+    },
+    {
+      "name": "macos-metal",
+      "displayName": "macOS Metal build",
+      "description": "macOS build with OpenGL and the Apple-gated Metal backend enabled.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-macos-metal",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
+        "STELLAR_ENABLE_METAL": "ON",
+        "STELLAR_ENABLE_METAL_CONTEXT_TESTS": "ON"
+      }
+    },
+    {
+      "name": "macos-metal-only",
+      "displayName": "macOS Metal-only build",
+      "description": "macOS build with OpenGL/GLEW disabled and the Metal backend enabled.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-macos-metal-only",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_OPENGL_BACKEND": "OFF",
+        "STELLAR_ENABLE_METAL": "ON",
+        "STELLAR_ENABLE_METAL_CONTEXT_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-default",
+      "configurePreset": "linux-default"
+    },
+    {
+      "name": "macos-default",
+      "configurePreset": "macos-default"
+    },
+    {
+      "name": "macos-metal",
+      "configurePreset": "macos-metal"
+    },
+    {
+      "name": "macos-metal-only",
+      "configurePreset": "macos-metal-only"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-default",
+      "configurePreset": "linux-default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-default",
+      "configurePreset": "macos-default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-metal",
+      "configurePreset": "macos-metal",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-metal-only",
+      "configurePreset": "macos-metal-only",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

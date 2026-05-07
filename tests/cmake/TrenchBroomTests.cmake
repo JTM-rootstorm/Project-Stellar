@@ -142,6 +142,44 @@ stellar_add_validate_map_test(
     FIXTURES_REQUIRED trenchbroom_package_material_wad_fixture_writer
 )
 
+if(STELLAR_ENABLE_METAL AND STELLAR_ENABLE_METAL_CONTEXT_TESTS)
+    add_test(NAME metal_readback_material_sidecar_fixture_copy
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${STELLAR_TEST_FIXTURE_DIR}/materials
+            ${STELLAR_TRENCHBROOM_FIXTURE_DIR}/materials
+    )
+    set_tests_properties(metal_readback_material_sidecar_fixture_copy PROPERTIES
+        FIXTURES_SETUP metal_readback_material_sidecars
+    )
+
+    add_test(NAME metal_readback_lit_fixture
+        COMMAND $<TARGET_FILE:stellar-client>
+            --validate-display
+            --map ${STELLAR_TB_LIT_BSP_FIXTURE}
+            --renderer metal
+            --readback-output
+            ${CMAKE_BINARY_DIR}/tests/fixtures/trenchbroom/compiled/metal_readback_lit.json
+    )
+    set_tests_properties(metal_readback_lit_fixture PROPERTIES
+        FIXTURES_REQUIRED bsp_lightmaps_lit_fixture_writer
+        SKIP_RETURN_CODE 77
+    )
+
+    add_test(NAME metal_readback_material_fixture
+        COMMAND $<TARGET_FILE:stellar-client>
+            --validate-display
+            --map ${STELLAR_TB_MATERIAL_WAD_BSP_FIXTURE}
+            --renderer metal
+            --readback-output
+            ${CMAKE_BINARY_DIR}/tests/fixtures/trenchbroom/compiled/metal_readback_material.json
+    )
+    set_tests_properties(metal_readback_material_fixture PROPERTIES
+        FIXTURES_REQUIRED
+            "trenchbroom_package_material_wad_fixture_writer;metal_readback_material_sidecars"
+        SKIP_RETURN_CODE 77
+    )
+endif()
+
 stellar_add_validate_map_test(
     TEST_NAME brush_mover_door_button_fixture_validate
     COMMAND_TARGET stellar-client
@@ -184,7 +222,15 @@ stellar_add_expected_failure_test(
 )
 
 add_test(NAME bsp_authoring_smoke_compile_wrapper
-    COMMAND bash -c "if command -v ericw-qbsp >/dev/null 2>&1 || command -v qbsp >/dev/null 2>&1 || command -v hqbsp >/dev/null 2>&1 || command -v tyr-qbsp >/dev/null 2>&1 || [[ -n \"$STELLAR_BSP30_COMPILER\" || -n \"$QBSP\" ]]; then STELLAR_CLIENT='$<TARGET_FILE:stellar-client>' STELLAR_SERVER='$<TARGET_FILE:stellar-server>' '${STELLAR_PROJECT_SOURCE_DIR}/tools/bsp/compile_trenchbroom_bsp30.sh' --map '${STELLAR_TEST_FIXTURE_DIR}/trenchbroom/src/minimal_zup_room.map' --out '${STELLAR_TRENCHBROOM_FIXTURE_DIR}/compile_wrapper_smoke.bsp' --profile fast; else printf 'Skipping BSP30 compile wrapper smoke: no compiler found.\\n'; fi"
+    COMMAND bash "${STELLAR_PROJECT_SOURCE_DIR}/tools/bsp/compile_trenchbroom_bsp30.sh"
+        --map "${STELLAR_TEST_FIXTURE_DIR}/trenchbroom/src/minimal_zup_room.map"
+        --out "${STELLAR_TRENCHBROOM_FIXTURE_DIR}/compile_wrapper_smoke.bsp"
+        --profile fast
+        --allow-skip
+)
+set_tests_properties(bsp_authoring_smoke_compile_wrapper PROPERTIES
+    ENVIRONMENT "STELLAR_CLIENT=$<TARGET_FILE:stellar-client>;STELLAR_SERVER=$<TARGET_FILE:stellar-server>"
+    SKIP_RETURN_CODE 77
 )
 
 add_test(NAME trenchbroom_package_path_smoke

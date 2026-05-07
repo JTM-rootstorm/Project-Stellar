@@ -10,7 +10,7 @@ namespace stellar::graphics {
 
 std::unique_ptr<Renderer>
 create_renderer(std::optional<stellar::assets::LevelAsset> level) {
-  return create_renderer(GraphicsBackend::kOpenGL, std::move(level));
+  return create_renderer(default_graphics_backend(), std::move(level));
 }
 
 std::unique_ptr<Renderer>
