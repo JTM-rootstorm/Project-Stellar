@@ -103,11 +103,12 @@ struct MaterialRecord {
 struct PipelineKey {
     bool alpha_blend = false;
     bool double_sided = false;
+    bool readback_target = false;
 
     [[nodiscard]] friend bool operator<(const PipelineKey& lhs,
                                         const PipelineKey& rhs) noexcept {
-        return std::tie(lhs.alpha_blend, lhs.double_sided) <
-               std::tie(rhs.alpha_blend, rhs.double_sided);
+        return std::tie(lhs.alpha_blend, lhs.double_sided, lhs.readback_target) <
+               std::tie(rhs.alpha_blend, rhs.double_sided, rhs.readback_target);
     }
 };
 
@@ -611,6 +612,46 @@ choose_depth_format(VkPhysicalDevice device) {
     return std::unexpected(error("Vulkan depth format selection failed"));
 }
 
+[[nodiscard]] bool supports_readback_format(VkFormat format) noexcept {
+    switch (format) {
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_SRGB:
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            return true;
+        default:
+            return false;
+    }
+}
+
+void copy_swapchain_rgba(VkFormat format,
+                         int width,
+                         int height,
+                         std::span<const std::uint8_t> source,
+                         std::vector<std::uint8_t>& dest) {
+    dest.resize(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const std::size_t index =
+                (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                 static_cast<std::size_t>(x)) *
+                4U;
+            if (format == VK_FORMAT_B8G8R8A8_UNORM ||
+                format == VK_FORMAT_B8G8R8A8_SRGB) {
+                dest[index + 0] = source[index + 2];
+                dest[index + 1] = source[index + 1];
+                dest[index + 2] = source[index + 0];
+                dest[index + 3] = source[index + 3];
+            } else {
+                dest[index + 0] = source[index + 0];
+                dest[index + 1] = source[index + 1];
+                dest[index + 2] = source[index + 2];
+                dest[index + 3] = source[index + 3];
+            }
+        }
+    }
+}
+
 struct QueueFamilyIndices {
     std::optional<std::uint32_t> graphics;
     std::optional<std::uint32_t> present;
@@ -743,11 +784,16 @@ struct VulkanGraphicsDevice::Impl {
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
     VkExtent2D swapchain_extent{};
+    bool swapchain_readback_supported = false;
     std::vector<VkImage> swapchain_images;
     std::vector<VkImageView> swapchain_image_views;
     TextureRecord depth_buffer;
+    TextureRecord readback_color;
+    VkFormat readback_color_format = VK_FORMAT_UNDEFINED;
     VkRenderPass render_pass = VK_NULL_HANDLE;
+    VkRenderPass readback_render_pass = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> framebuffers;
+    VkFramebuffer readback_framebuffer = VK_NULL_HANDLE;
     VkCommandPool command_pool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers;
     VkSemaphore image_available = VK_NULL_HANDLE;
@@ -773,6 +819,10 @@ struct VulkanGraphicsDevice::Impl {
     std::uint32_t image_index = 0;
     bool frame_started = false;
     bool initialized = false;
+    bool rendering_to_readback_target = false;
+    bool readback_requested = false;
+    std::optional<stellar::graphics::FrameReadback> last_readback;
+    std::optional<std::string> last_readback_error;
 
     [[nodiscard]] std::uint64_t allocate_handle() noexcept {
         return next_handle++;
@@ -1188,7 +1238,7 @@ struct VulkanGraphicsDevice::Impl {
             .pDepthStencilState = &depth_stencil,
             .pColorBlendState = &color_blending,
             .layout = pipeline_layout,
-            .renderPass = render_pass,
+            .renderPass = key.readback_target ? readback_render_pass : render_pass,
             .subpass = 0,
         };
         VkPipeline pipeline = VK_NULL_HANDLE;
@@ -1207,6 +1257,10 @@ struct VulkanGraphicsDevice::Impl {
         if (device == VK_NULL_HANDLE) {
             return;
         }
+        if (readback_framebuffer != VK_NULL_HANDLE) {
+            vkDestroyFramebuffer(device, readback_framebuffer, nullptr);
+            readback_framebuffer = VK_NULL_HANDLE;
+        }
         for (auto framebuffer : framebuffers) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
         }
@@ -1217,10 +1271,15 @@ struct VulkanGraphicsDevice::Impl {
                                  command_buffers.data());
         }
         command_buffers.clear();
+        if (readback_render_pass != VK_NULL_HANDLE) {
+            vkDestroyRenderPass(device, readback_render_pass, nullptr);
+            readback_render_pass = VK_NULL_HANDLE;
+        }
         if (render_pass != VK_NULL_HANDLE) {
             vkDestroyRenderPass(device, render_pass, nullptr);
             render_pass = VK_NULL_HANDLE;
         }
+        destroy_texture_record(device, readback_color);
         for (auto image_view : swapchain_image_views) {
             vkDestroyImageView(device, image_view, nullptr);
         }
@@ -1534,6 +1593,17 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
     if (support.capabilities.maxImageCount > 0U) {
         image_count = std::min(image_count, support.capabilities.maxImageCount);
     }
+    impl_->swapchain_readback_supported =
+        (support.capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0 &&
+        supports_readback_format(surface_format.format);
+    const bool swapchain_transfer_dst_supported =
+        (support.capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) != 0;
+    const VkImageUsageFlags swapchain_usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        (impl_->swapchain_readback_supported ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0U) |
+        (!impl_->swapchain_readback_supported && swapchain_transfer_dst_supported
+             ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
+             : 0U);
 
     const std::uint32_t queue_family_indices[] = {
         impl_->graphics_family, impl_->present_family};
@@ -1546,7 +1616,7 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         .imageColorSpace = surface_format.colorSpace,
         .imageExtent = extent,
         .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageUsage = swapchain_usage,
         .imageSharingMode =
             shared_queue ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
         .queueFamilyIndexCount = shared_queue ? 0U : 2U,
@@ -1669,6 +1739,76 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         impl_->device, &render_pass_info, nullptr, &impl_->render_pass);
     if (result != VK_SUCCESS) {
         return std::unexpected(vk_error("Vulkan render-pass creation", result));
+    }
+
+    if (!impl_->swapchain_readback_supported && swapchain_transfer_dst_supported &&
+        supports_readback_format(impl_->swapchain_format)) {
+        auto readback_color = create_image(
+            impl_->physical_device, impl_->device, impl_->swapchain_extent.width,
+            impl_->swapchain_extent.height, impl_->swapchain_format,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+        if (readback_color) {
+            auto readback_view = create_image_view(
+                impl_->device, readback_color->image, impl_->swapchain_format);
+            if (readback_view) {
+                readback_color->image_view = *readback_view;
+                impl_->readback_color = *readback_color;
+                impl_->readback_color_format = impl_->swapchain_format;
+
+                const VkAttachmentDescription readback_color_attachment{
+                    .format = impl_->readback_color_format,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                };
+                const std::array<VkAttachmentDescription, 2> readback_attachments{
+                    readback_color_attachment, depth_attachment};
+                const VkRenderPassCreateInfo readback_render_pass_info{
+                    .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                    .attachmentCount =
+                        static_cast<std::uint32_t>(readback_attachments.size()),
+                    .pAttachments = readback_attachments.data(),
+                    .subpassCount = 1,
+                    .pSubpasses = &subpass,
+                    .dependencyCount = 1,
+                    .pDependencies = &dependency,
+                };
+                result = vkCreateRenderPass(
+                    impl_->device, &readback_render_pass_info, nullptr,
+                    &impl_->readback_render_pass);
+                if (result == VK_SUCCESS) {
+                    const std::array<VkImageView, 2> readback_framebuffer_attachments{
+                        impl_->readback_color.image_view, impl_->depth_buffer.image_view};
+                    const VkFramebufferCreateInfo readback_framebuffer_info{
+                        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                        .renderPass = impl_->readback_render_pass,
+                        .attachmentCount = static_cast<std::uint32_t>(
+                            readback_framebuffer_attachments.size()),
+                        .pAttachments = readback_framebuffer_attachments.data(),
+                        .width = impl_->swapchain_extent.width,
+                        .height = impl_->swapchain_extent.height,
+                        .layers = 1,
+                    };
+                    result = vkCreateFramebuffer(
+                        impl_->device, &readback_framebuffer_info, nullptr,
+                        &impl_->readback_framebuffer);
+                    if (result != VK_SUCCESS) {
+                        vkDestroyRenderPass(
+                            impl_->device, impl_->readback_render_pass, nullptr);
+                        impl_->readback_render_pass = VK_NULL_HANDLE;
+                    }
+                }
+            }
+            if (impl_->readback_framebuffer == VK_NULL_HANDLE) {
+                destroy_texture_record(impl_->device, *readback_color);
+                impl_->readback_color = {};
+                impl_->readback_color_format = VK_FORMAT_UNDEFINED;
+            }
+        }
     }
 
     impl_->framebuffers.reserve(impl_->swapchain_image_views.size());
@@ -1890,6 +2030,9 @@ void VulkanGraphicsDevice::begin_frame(int, int) noexcept {
     }
 
     impl_->draw_uniform_index = 0;
+    impl_->rendering_to_readback_target =
+        impl_->readback_requested && !impl_->swapchain_readback_supported &&
+        impl_->readback_framebuffer != VK_NULL_HANDLE;
     const VkCommandBuffer command_buffer = impl_->command_buffers[impl_->image_index];
     vkResetCommandBuffer(command_buffer, 0);
     const VkCommandBufferBeginInfo begin_info{
@@ -1905,8 +2048,11 @@ void VulkanGraphicsDevice::begin_frame(int, int) noexcept {
     }};
     const VkRenderPassBeginInfo render_pass_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = impl_->render_pass,
-        .framebuffer = impl_->framebuffers[impl_->image_index],
+        .renderPass = impl_->rendering_to_readback_target ? impl_->readback_render_pass
+                                                          : impl_->render_pass,
+        .framebuffer = impl_->rendering_to_readback_target
+                           ? impl_->readback_framebuffer
+                           : impl_->framebuffers[impl_->image_index],
         .renderArea = {{0, 0}, impl_->swapchain_extent},
         .clearValueCount = static_cast<std::uint32_t>(clear_values.size()),
         .pClearValues = clear_values.data(),
@@ -1942,7 +2088,8 @@ void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
         const bool alpha_blend =
             upload.material.alpha_mode == stellar::assets::AlphaMode::kBlend;
         const PipelineKey key{.alpha_blend = alpha_blend,
-                              .double_sided = upload.material.double_sided};
+                              .double_sided = upload.material.double_sided,
+                              .readback_target = impl_->rendering_to_readback_target};
         auto pipeline = impl_->pipeline_for(key);
         if (!pipeline) {
             continue;
@@ -2046,8 +2193,141 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     }
     const VkCommandBuffer command_buffer = impl_->command_buffers[impl_->image_index];
     vkCmdEndRenderPass(command_buffer);
+
+    const bool readback_requested = impl_->readback_requested;
+    BufferRecord readback_buffer;
+    bool has_readback_buffer = false;
+    int readback_width = 0;
+    int readback_height = 0;
+    const bool readback_from_offscreen = impl_->rendering_to_readback_target;
+    if (readback_requested) {
+        readback_width = static_cast<int>(impl_->swapchain_extent.width);
+        readback_height = static_cast<int>(impl_->swapchain_extent.height);
+        if (readback_width <= 0 || readback_height <= 0) {
+            impl_->last_readback_error = "Vulkan readback failed: drawable size is empty";
+        } else if (!impl_->swapchain_readback_supported && !readback_from_offscreen) {
+            impl_->last_readback_error =
+                "Vulkan readback failed: no transfer-source readback target is available";
+        } else {
+            const VkDeviceSize readback_size =
+                static_cast<VkDeviceSize>(readback_width) *
+                static_cast<VkDeviceSize>(readback_height) * 4U;
+            auto buffer = create_buffer(
+                impl_->physical_device, impl_->device, readback_size,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            if (!buffer) {
+                impl_->last_readback_error = buffer.error().message;
+            } else {
+                readback_buffer = *buffer;
+                has_readback_buffer = true;
+
+                VkImage source_image = impl_->swapchain_images[impl_->image_index];
+                VkImageLayout transfer_old_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+                VkPipelineStageFlags transfer_source_stage =
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                VkAccessFlags transfer_source_access =
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                if (readback_from_offscreen) {
+                    source_image = impl_->readback_color.image;
+                    transfer_old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                }
+
+                VkImageMemoryBarrier to_transfer_source{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .srcAccessMask = transfer_source_access,
+                    .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .oldLayout = transfer_old_layout,
+                    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image = source_image,
+                    .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+                };
+                vkCmdPipelineBarrier(command_buffer, transfer_source_stage,
+                                     VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                                     nullptr, 1, &to_transfer_source);
+                const VkBufferImageCopy region{
+                    .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                    .imageExtent = {impl_->swapchain_extent.width,
+                                    impl_->swapchain_extent.height, 1},
+                };
+                if (readback_from_offscreen) {
+                    VkImageMemoryBarrier swapchain_to_transfer{
+                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                        .srcAccessMask = 0,
+                        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .image = impl_->swapchain_images[impl_->image_index],
+                        .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+                    };
+                    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                                         nullptr, 1, &swapchain_to_transfer);
+                    const VkImageCopy image_copy{
+                        .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                        .extent = {impl_->swapchain_extent.width,
+                                   impl_->swapchain_extent.height, 1},
+                    };
+                    vkCmdCopyImage(command_buffer, source_image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   impl_->swapchain_images[impl_->image_index],
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
+                }
+                vkCmdCopyImageToBuffer(command_buffer, source_image,
+                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                       readback_buffer.buffer, 1, &region);
+                VkImageMemoryBarrier source_after_transfer{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .dstAccessMask = 0,
+                    .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .newLayout = readback_from_offscreen
+                                     ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                                     : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image = source_image,
+                    .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+                };
+                vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
+                                     nullptr, 0, nullptr, 1, &source_after_transfer);
+                if (readback_from_offscreen) {
+                    VkImageMemoryBarrier swapchain_to_present{
+                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .dstAccessMask = 0,
+                        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .image = impl_->swapchain_images[impl_->image_index],
+                        .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+                    };
+                    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
+                                         nullptr, 0, nullptr, 1, &swapchain_to_present);
+                }
+            }
+        }
+    }
+
     if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
         impl_->frame_started = false;
+        impl_->rendering_to_readback_target = false;
+        if (has_readback_buffer) {
+            destroy_buffer(impl_->device, readback_buffer);
+        }
+        if (readback_requested) {
+            impl_->last_readback_error = "Vulkan readback failed: command buffer end failed";
+            impl_->readback_requested = false;
+        }
         return;
     }
 
@@ -2065,7 +2345,21 @@ void VulkanGraphicsDevice::end_frame() noexcept {
     if (vkQueueSubmit(
             impl_->graphics_queue, 1, &submit_info, impl_->in_flight) != VK_SUCCESS) {
         impl_->frame_started = false;
+        if (has_readback_buffer) {
+            destroy_buffer(impl_->device, readback_buffer);
+        }
+        if (readback_requested) {
+            impl_->last_readback_error = "Vulkan readback failed: queue submit failed";
+            impl_->readback_requested = false;
+        }
+        impl_->rendering_to_readback_target = false;
         return;
+    }
+    if (readback_requested &&
+        vkWaitForFences(
+            impl_->device, kMaxFramesInFlight, &impl_->in_flight, VK_TRUE, UINT64_MAX) !=
+            VK_SUCCESS) {
+        impl_->last_readback_error = "Vulkan readback failed: frame wait failed";
     }
 
     const VkPresentInfoKHR present_info{
@@ -2077,7 +2371,63 @@ void VulkanGraphicsDevice::end_frame() noexcept {
         .pImageIndices = &impl_->image_index,
     };
     vkQueuePresentKHR(impl_->present_queue, &present_info);
+
+    if (readback_requested && !impl_->last_readback_error.has_value() &&
+        has_readback_buffer) {
+        void* mapped = nullptr;
+        const VkResult map_result = vkMapMemory(
+            impl_->device, readback_buffer.memory, 0, readback_buffer.size, 0, &mapped);
+        if (map_result != VK_SUCCESS) {
+            impl_->last_readback_error =
+                vk_result_message("Vulkan readback buffer map", map_result);
+        } else {
+            stellar::graphics::FrameReadback readback;
+            readback.width = readback_width;
+            readback.height = readback_height;
+            const auto* source = static_cast<const std::uint8_t*>(mapped);
+            copy_swapchain_rgba(
+                readback_from_offscreen ? impl_->readback_color_format
+                                        : impl_->swapchain_format,
+                readback_width, readback_height,
+                std::span<const std::uint8_t>(
+                    source, static_cast<std::size_t>(readback_width) *
+                                static_cast<std::size_t>(readback_height) * 4U),
+                readback.rgba_pixels);
+            vkUnmapMemory(impl_->device, readback_buffer.memory);
+            impl_->last_readback = std::move(readback);
+        }
+    }
+    if (has_readback_buffer) {
+        destroy_buffer(impl_->device, readback_buffer);
+    }
+    impl_->readback_requested = false;
+    impl_->rendering_to_readback_target = false;
     impl_->frame_started = false;
+}
+
+void VulkanGraphicsDevice::request_frame_readback() noexcept {
+    if (!impl_->initialized) {
+        return;
+    }
+    impl_->readback_requested = true;
+    impl_->last_readback.reset();
+    impl_->last_readback_error.reset();
+}
+
+std::expected<std::optional<stellar::graphics::FrameReadback>, stellar::platform::Error>
+VulkanGraphicsDevice::take_frame_readback() noexcept {
+    if (!impl_->initialized) {
+        return std::unexpected(error("Vulkan readback failed: device is not initialized"));
+    }
+    if (impl_->last_readback_error.has_value()) {
+        return std::unexpected(error(std::move(*impl_->last_readback_error)));
+    }
+    std::optional<stellar::graphics::FrameReadback> result;
+    if (impl_->last_readback.has_value()) {
+        result = std::move(impl_->last_readback);
+        impl_->last_readback.reset();
+    }
+    return result;
 }
 
 void VulkanGraphicsDevice::destroy_mesh(MeshHandle mesh) noexcept {
@@ -2110,6 +2460,9 @@ void VulkanGraphicsDevice::destroy_texture(TextureHandle texture) noexcept {
 
 void VulkanGraphicsDevice::destroy_material(MaterialHandle material) noexcept {
     if (!impl_->initialized) {
+        return;
+    }
+    if (material == impl_->fallback_material) {
         return;
     }
     auto found = impl_->materials.find(material.value);

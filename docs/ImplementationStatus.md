@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-6 draw path/material parity complete on `GL-to-vulkan` as of 2026-05-07.
+Status: VK-7 frame readback complete on `GL-to-vulkan` as of 2026-05-07.
 
 Active plan:
 
@@ -241,7 +241,47 @@ Validation results:
   77 because SDL reported `x11 not available` in this session.
 - `tools/dev/check_target_boundaries.sh`: passed.
 
-Next phase: VK-7 frame readback.
+### VK-7 Frame Readback Summary
+
+Status: complete for opt-in Vulkan frame readback plumbing as of 2026-05-07.
+
+`VulkanGraphicsDevice` now implements the backend-neutral `FrameReadbackDevice` extension used by
+`RenderLevel` and `LevelRenderer`. Readback remains opt-in: normal frames render directly to the
+swapchain with no staging-buffer copy, while requested readback frames copy the completed color
+output into CPU-readable RGBA8 pixels. The direct path requests `VK_IMAGE_USAGE_TRANSFER_SRC_BIT`
+on compatible swapchains and synchronizes color-attachment writes before copying. If direct
+swapchain readback is unavailable, Vulkan creates a dedicated transfer-source offscreen color
+attachment, renders the requested frame there, copies it to the swapchain for presentation, and
+copies it to the staging buffer for readback.
+
+The client readback report schema is now backend-neutral (`stellar.frame_readback.v1`) and reports
+the active backend plus the backend projection convention, including `vulkan_ndc_z_zero_to_one` for
+Vulkan. A new opt-in `vulkan_render_readback` CTest validates the clear-frame readback path when a
+Linux display/GPU session is available and otherwise skips with return code 77 like the existing
+context smoke tests.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary|docs_consistency)$'
+  --output-on-failure`: passed, 6/6 plus the expected context/readback skips.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|vulkan_shader_compile|vulkan_context_smoke|vulkan_render_readback|client_cli_map_validation|target_boundary)$'
+  --output-on-failure`: passed, 5/5 plus the expected context/readback skips.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_(context_smoke|render_readback)$' --output-on-failure`: skipped with return code 77
+  because display access was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan --map
+  tests/fixtures/trenchbroom/out/lit_zup_room.bsp --readback-output /tmp/stellar-vulkan-lit.json`:
+  skipped with return code 77 because SDL reported `x11 not available` in this session.
+
+Next phase: VK-8 tests and validation matrix.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 

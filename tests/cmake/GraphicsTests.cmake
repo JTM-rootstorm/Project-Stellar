@@ -97,6 +97,22 @@ if(STELLAR_ENABLE_VULKAN_BACKEND AND STELLAR_ENABLE_VULKAN_CONTEXT_TESTS)
     add_test(NAME vulkan_context_smoke
         COMMAND $<TARGET_FILE:stellar_vulkan_context_smoke_test>)
     set_tests_properties(vulkan_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(stellar_vulkan_render_readback_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/VulkanRenderReadback.cpp
+    )
+
+    target_include_directories(stellar_vulkan_render_readback_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    target_link_libraries(stellar_vulkan_render_readback_test PRIVATE
+        stellar_graphics
+    )
+
+    add_test(NAME vulkan_render_readback
+        COMMAND $<TARGET_FILE:stellar_vulkan_render_readback_test>)
+    set_tests_properties(vulkan_render_readback PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
 if(STELLAR_ENABLE_METAL AND STELLAR_ENABLE_METAL_CONTEXT_TESTS)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stellar/graphics/FrameReadback.hpp"
 #include "stellar/graphics/GraphicsDevice.hpp"
 
 #include <memory>
@@ -9,7 +10,8 @@ namespace stellar::graphics::vulkan {
 /**
  * @brief Linux Vulkan backend for the shared graphics device abstraction.
  */
-class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice {
+class VulkanGraphicsDevice final : public stellar::graphics::GraphicsDevice,
+                                   public stellar::graphics::FrameReadbackDevice {
 public:
     /** @brief Construct an uninitialized Vulkan graphics device. */
     VulkanGraphicsDevice();
@@ -58,6 +60,14 @@ public:
 
     /** @brief Destroy a Vulkan material resource. */
     void destroy_material(MaterialHandle material) noexcept override;
+
+    /** @brief Request CPU-readable readback for the next completed Vulkan frame. */
+    void request_frame_readback() noexcept override;
+
+    /** @brief Take the most recently completed Vulkan frame readback. */
+    [[nodiscard]] std::expected<std::optional<stellar::graphics::FrameReadback>,
+                                stellar::platform::Error>
+    take_frame_readback() noexcept override;
 
 private:
     struct Impl;
