@@ -12,7 +12,7 @@ Status: VK-9 docs, handoff, and OpenGL retirement complete on `GL-to-vulkan` as 
 
 Active plan:
 
-- `Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`
+- `Plans/Archived/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`
 
 Current objective: complete VK-9 by retiring the former OpenGL renderer path, keeping Linux on the
 Linux-gated Vulkan backend, and preserving the existing macOS Metal backend. macOS Vulkan,
