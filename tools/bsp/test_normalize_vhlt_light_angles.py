@@ -80,6 +80,10 @@ def main() -> int:
 
         assert_contains(rewritten, '"pitch" "90"\n"angle" "90"\n"angles" "90 90 0"')
         assert_contains(rewritten, '"pitch" "-90"\n"angle" "45"\n"angles" "-90 45 0"')
+        if rewritten.count('"_cone" "30"') != 2:
+            raise AssertionError(f"expected two injected _cone defaults in:\n{rewritten}")
+        if rewritten.count('"_cone2" "45"') != 2:
+            raise AssertionError(f"expected two injected _cone2 defaults in:\n{rewritten}")
         assert_contains(rewritten, '"target" "spot_target"')
         assert_contains(rewritten, '"classname" "light_environment"\n"pitch" "-45"\n"angle" "0"\n"angles" "-45 0 0"')
         assert_contains(rewritten, '"_stellar_vhlt_angles_normalized" "1"')

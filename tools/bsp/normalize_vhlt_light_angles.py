@@ -14,6 +14,8 @@ from pathlib import Path
 KV_RE = re.compile(r'^(\s*)"([^"]+)"\s+"([^"]*)"(\s*(?://.*)?)$')
 TARGET_CLASSES = {"light_spot", "light_environment"}
 MARKER_KEY = "_stellar_vhlt_angles_normalized"
+DEFAULT_LIGHT_SPOT_CONE = "30"
+DEFAULT_LIGHT_SPOT_CONE2 = "45"
 
 
 @dataclass
@@ -166,6 +168,17 @@ def replace_or_insert(lines: list[str], entity: EntityBlock, key: str, value: st
         insert_at = entity.key_lines["classname"] + 1
     lines.insert(insert_at, key_line(key, value))
 
+def ensure_spotlight_cone_defaults(lines: list[str], entity_index: int) -> None:
+    entity = parse_entities(lines)[entity_index]
+    if entity.pairs.get("classname") != "light_spot":
+        return
+    if "_cone" not in entity.pairs:
+        insert_after = "_light" if "_light" in entity.key_lines else "classname"
+        replace_or_insert(lines, entity, "_cone", DEFAULT_LIGHT_SPOT_CONE, insert_after)
+    entity = parse_entities(lines)[entity_index]
+    if "_cone2" not in entity.pairs:
+        replace_or_insert(lines, entity, "_cone2", DEFAULT_LIGHT_SPOT_CONE2, "_cone")
+
 
 def rewrite_map(text: str, add_marker: bool) -> tuple[str, list[NormalizedEntity], list[WarningDiagnostic]]:
     lines = text.splitlines(keepends=True)
@@ -183,6 +196,8 @@ def rewrite_map(text: str, add_marker: bool) -> tuple[str, list[NormalizedEntity
                 "targeted light_spot preserves target; VHLT may ignore angle fields for targeted spotlights",
             ))
         if add_marker and entity.pairs.get(MARKER_KEY) == "1":
+            if classname == "light_spot":
+                ensure_spotlight_cone_defaults(lines, entity_index)
             normalized.append(NormalizedEntity(entity_index, classname, entity.start + 1, 0, 0, 0, 0, True))
             continue
 
@@ -216,6 +231,9 @@ def rewrite_map(text: str, add_marker: bool) -> tuple[str, list[NormalizedEntity
         if add_marker:
             entity = parse_entities(lines)[entity_index]
             replace_or_insert(lines, entity, MARKER_KEY, "1", "angles")
+
+        if classname == "light_spot":
+            ensure_spotlight_cone_defaults(lines, entity_index)
 
         normalized.append(NormalizedEntity(
             entity_index, classname, entity.start + 1, editor_pitch, compiler_pitch, compiler_yaw, roll
