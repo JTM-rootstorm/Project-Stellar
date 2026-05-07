@@ -391,6 +391,27 @@ Validation results:
   configure/build/full CTest, Metal display validation, Metal context/readback tests, material
   readback fixtures, and runtime smoke all passed.
 
+### Linux Vulkan Manual Display Validation Correction
+
+Status: operator-confirmed passed before push.
+
+After the automated/headless validation notes above were written, manual Linux Vulkan validation was
+run in a display-capable Linux session and passed before the branch was pushed. The
+post-implementation audit initially saw only the earlier headless-session skip notes; this entry
+records the corrected manual validation state.
+
+Validated target:
+
+- Linux Vulkan display/context path.
+- Linux Vulkan readback/display validation path.
+- Linux Vulkan default renderer behavior.
+
+Evidence source:
+
+- User/operator confirmation in post-implementation audit follow-up.
+- Exact terminal logs were not attached to this handoff. If local logs are available, replace this
+  paragraph with exact commands and results.
+
 Remaining follow-up: none for VK-9.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity

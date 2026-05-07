@@ -40,7 +40,7 @@ Tech stack:
 
 - C++23 with CMake 3.20+
 - C99 where required for single-file C dependencies such as miniaudio
-- OpenGL 4.5+ / Vulkan 1.2+ through a shared graphics abstraction
+- Vulkan on Linux and Metal on macOS through a shared graphics abstraction
 - GLM for mathematics
 - SDL2 for windowing/input abstraction
 - miniaudio for audio playback and spatial audio
@@ -52,9 +52,11 @@ Tech stack:
 - Client is a presentation terminal unless prediction is explicitly scoped.
 - ECS/gameplay state must remain serializable and server-owned.
 - Rendering and audio must not become sources of gameplay truth.
-- OpenGL and Vulkan behavior should remain aligned through backend-neutral abstractions.
+- Vulkan and Metal behavior should remain aligned through backend-neutral graphics contracts where
+  both backends implement the same presentation feature.
 - Lua gameplay scripting, where present, is server-authoritative and sandboxed.
-- Default validation should remain display-free; GPU/display/Vulkan context tests must be opt-in.
+- Default validation should remain display-free; GPU/display Vulkan and Metal context tests must be
+  opt-in.
 - Do not introduce third-party physics, full PBR scope, Source/VBSP support, or dynamic rigid-body
   simulation unless the user explicitly asks for it.
 
@@ -137,7 +139,7 @@ multi-agent review, or equivalent wording.
 |---|---|---|
 | `@director` | Technical Lead | Architecture, routing, Design.md compliance, conflict resolution, integration review |
 | `@carmack` | Engine Subsystem Specialist | ECS, core systems, networking, server authority, build/dependency plumbing |
-| `@miyamoto` | Graphics Subsystem Specialist | Graphics abstraction, OpenGL/Vulkan, BSP rendering, sprites, shaders, camera |
+| `@miyamoto` | Graphics Subsystem Specialist | Graphics abstraction, Vulkan/Metal, BSP rendering, sprites, shaders, camera |
 | `@suzuki` | Audio Subsystem Specialist | miniaudio, audio interfaces, playback, spatial audio, no-op fallback paths |
 | `@kojima` | Gameplay Systems Specialist | Entity archetypes, movement rules, collision responses, mechanics, tuning |
 | `@molyneux` | Prototype Specialist | Isolated experiments, proof-of-concepts, feasibility studies |
@@ -149,7 +151,7 @@ multi-agent review, or equivalent wording.
 | ECS, registry, world, component storage | `@carmack` | `@director` | Keep data-oriented and server-authoritative |
 | Networking, serialization, server loop | `@carmack` | `@director` | Validate all client input server-side |
 | Build system and shared infrastructure | `@carmack` | `@director` | Keep CMake changes focused |
-| OpenGL/Vulkan rendering | `@miyamoto` | `@director` | Preserve shared graphics abstraction |
+| Vulkan/Metal rendering | `@miyamoto` | `@director` | Preserve shared graphics abstraction |
 | BSP geometry import/rendering | `@miyamoto` | `@director` | Coordinate importer/graphics/collision impacts |
 | Static collision data and queries | `@carmack` | `@director` | Coordinate with graphics/import data when needed |
 | BSP entity metadata extraction | `@director` coordinates | `@director` | Cross-cutting level import work |
@@ -203,7 +205,7 @@ Prefer focused tests when touching a narrow subsystem. Examples:
 - ECS/network/gameplay: deterministic unit tests and focused CTest regexes
 - BSP/importer work: fixture-based tests and source/compiled fixture validators
 - Graphics: display-free render-scene/inspection tests by default
-- Vulkan/OpenGL context tests: opt-in only when a GPU/display environment is available
+- Vulkan/Metal context tests: opt-in only when a GPU/display environment is available
 - Prototypes: document build/run steps and observed results
 
 ## Role Summary: @director - Technical Lead
@@ -219,7 +221,7 @@ build/dependency plumbing, serialization, and data-oriented engine infrastructur
 
 ## Role Summary: @miyamoto - Graphics Subsystem Specialist
 
-Use for graphics abstraction, OpenGL/Vulkan rendering, BSP level rendering, sprites, shaders,
+Use for graphics abstraction, Vulkan/Metal rendering, BSP level rendering, sprites, shaders,
 textures, materials, cameras, render resources, and visual debugging. For normal/spec texture
 work, preserve backend-neutral texture slots, safe fallback textures, tangent-aware normal mapping,
 and display-free validation by default.

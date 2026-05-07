@@ -37,12 +37,20 @@ cmake --build --preset macos-metal-only -j$(sysctl -n hw.ncpu)
 ctest --preset macos-metal-only --output-on-failure
 ```
 
-Fallback manual build and tests:
+Fallback Linux manual build and tests:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j$(sysctl -n hw.ncpu)
-ctest --test-dir build --output-on-failure
+cmake -S . -B build-linux-manual -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_VULKAN_BACKEND=ON
+cmake --build build-linux-manual -j$(nproc)
+ctest --test-dir build-linux-manual --output-on-failure
+```
+
+Fallback macOS manual build and tests:
+
+```bash
+cmake -S . -B build-macos-manual -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON -DSTELLAR_ENABLE_VULKAN_BACKEND=OFF
+cmake --build build-macos-manual -j$(sysctl -n hw.ncpu)
+ctest --test-dir build-macos-manual --output-on-failure
 ```
 
 Opt-in Metal display smoke on macOS:
