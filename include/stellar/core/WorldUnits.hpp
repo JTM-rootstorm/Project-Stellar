@@ -20,7 +20,7 @@ inline constexpr float kPlayerRadiusInches = 16.0F;
 /** @brief Legacy human eye height above floor in inch-scale world units. */
 inline constexpr float kPlayerEyeHeightInches = 64.0F;
 
-/** @brief Default camera eye height above the floor when the player is grounded. */
+/** @brief Default first-person camera eye height above the floor when the player is grounded. */
 inline constexpr float kDefaultCameraEyeHeightInches = kPlayerHeightInches;
 
 /** @brief Default camera eye offset from the authoritative character center. */

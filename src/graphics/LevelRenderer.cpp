@@ -85,6 +85,7 @@ glm::mat4 make_projection_for_backend(GraphicsBackend backend,
 #if defined(STELLAR_ENABLE_VULKAN_BACKEND)
   case GraphicsBackend::kVulkan: {
     glm::mat4 correction(1.0F);
+    correction[1][1] = -1.0F;
     correction[2][2] = 0.5F;
     correction[3][2] = 0.5F;
     return correction * perspective;
