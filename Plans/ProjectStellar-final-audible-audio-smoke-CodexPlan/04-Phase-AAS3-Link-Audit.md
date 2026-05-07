@@ -28,3 +28,14 @@ tools/dev/check_target_boundaries.sh .
 - `stellar-audio-smoke` and `stellar-client` may link CoreFoundation/CoreAudio/AudioToolbox.
 - `stellar-server` must not link audio frameworks or miniaudio.
 - Target boundary checks pass.
+
+## Recorded Evidence
+
+Completed on 2026-05-06:
+
+- `cmake -S . -B build-macos-audio-frameworks -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_MINIAUDIO_NO_RUNTIME_LINKING=ON` configured successfully.
+- `cmake --build build-macos-audio-frameworks --target stellar-audio-smoke stellar-client stellar-server -j8` built all three targets successfully.
+- `otool -L build-macos-audio-frameworks/stellar-audio-smoke` listed CoreFoundation, CoreAudio, and AudioToolbox.
+- `otool -L build-macos-audio-frameworks/stellar-client` listed CoreFoundation, CoreAudio, and AudioToolbox.
+- `otool -L build-macos-audio-frameworks/stellar-server` listed only libc++ and libSystem.
+- `tools/dev/check_target_boundaries.sh .` passed.
