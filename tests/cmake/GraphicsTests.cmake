@@ -61,6 +61,26 @@ if(STELLAR_ENABLE_OPENGL_BACKEND AND STELLAR_ENABLE_OPENGL_CONTEXT_TESTS)
     set_tests_properties(opengl_context_smoke PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
+if(STELLAR_ENABLE_VULKAN_BACKEND)
+    add_executable(stellar_vulkan_shader_compile_test
+        ${STELLAR_TEST_SOURCE_DIR}/graphics/VulkanShaderCompile.cpp
+    )
+
+    target_compile_definitions(stellar_vulkan_shader_compile_test PRIVATE
+        STELLAR_VULKAN_VERTEX_SPV="${STELLAR_VULKAN_VERTEX_SPV}"
+        STELLAR_VULKAN_FRAGMENT_SPV="${STELLAR_VULKAN_FRAGMENT_SPV}"
+    )
+
+    target_include_directories(stellar_vulkan_shader_compile_test PRIVATE
+        ${STELLAR_PROJECT_SOURCE_DIR}/include
+    )
+
+    add_dependencies(stellar_vulkan_shader_compile_test stellar_vulkan_shaders)
+
+    add_test(NAME vulkan_shader_compile
+        COMMAND $<TARGET_FILE:stellar_vulkan_shader_compile_test>)
+endif()
+
 if(STELLAR_ENABLE_VULKAN_BACKEND AND STELLAR_ENABLE_VULKAN_CONTEXT_TESTS)
     add_executable(stellar_vulkan_context_smoke_test
         ${STELLAR_TEST_SOURCE_DIR}/graphics/VulkanContextSmoke.cpp

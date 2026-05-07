@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-3 Linux Vulkan device scaffold complete on `GL-to-vulkan` as of 2026-05-06.
+Status: VK-4 SPIR-V shader pipeline complete on `GL-to-vulkan` as of 2026-05-06.
 
 Active plan:
 
@@ -142,7 +142,34 @@ Validation results:
   77 because SDL reported `x11 not available` in this session.
 - `tools/dev/check_target_boundaries.sh`: passed.
 
-Next phase: VK-4 SPIR-V shader pipeline.
+### VK-4 SPIR-V Shader Pipeline Summary
+
+Status: complete for build-time shader generation as of 2026-05-06.
+
+The Linux Vulkan build now compiles `assets/shaders/vulkan/static_level.vert` and
+`assets/shaders/vulkan/static_level.frag` with `glslc` into
+`build-*/generated/shaders/vulkan/*.spv`. Vulkan configure fails clearly if `glslc` is unavailable
+for a Vulkan-enabled build, and macOS presets still keep Vulkan disabled. The initial GLSL shaders
+declare the active `StaticVertex` attribute locations: position, normal, primary UV, tangent,
+secondary UV, and vertex color. A display-free `vulkan_shader_compile` test verifies both generated
+SPIR-V files exist and contain the SPIR-V magic value.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed.
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed and generated SPIR-V outputs.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed and generated SPIR-V
+  outputs.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(vulkan_shader_compile|vulkan_context_smoke|graphics_backend_selection|target_boundary)$'
+  --output-on-failure`: passed, 3/3 plus the expected Vulkan context skip.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(vulkan_shader_compile|vulkan_context_smoke|graphics_backend_selection|target_boundary)$'
+  --output-on-failure`: passed, 3/3 plus the expected Vulkan context skip.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+Next phase: VK-5 resource upload and descriptors.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 

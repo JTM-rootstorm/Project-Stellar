@@ -44,6 +44,39 @@ endif()
 
 if(STELLAR_ENABLE_VULKAN_BACKEND)
     find_package(Vulkan REQUIRED)
+    find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/bin")
+    if(NOT GLSLC_EXECUTABLE)
+        message(FATAL_ERROR "glslc is required for STELLAR_ENABLE_VULKAN_BACKEND")
+    endif()
+    set(STELLAR_VULKAN_SHADER_OUTPUT_DIR
+        "${CMAKE_BINARY_DIR}/generated/shaders/vulkan")
+    set(STELLAR_VULKAN_VERTEX_SHADER
+        "${CMAKE_SOURCE_DIR}/assets/shaders/vulkan/static_level.vert")
+    set(STELLAR_VULKAN_FRAGMENT_SHADER
+        "${CMAKE_SOURCE_DIR}/assets/shaders/vulkan/static_level.frag")
+    set(STELLAR_VULKAN_VERTEX_SPV
+        "${STELLAR_VULKAN_SHADER_OUTPUT_DIR}/static_level.vert.spv")
+    set(STELLAR_VULKAN_FRAGMENT_SPV
+        "${STELLAR_VULKAN_SHADER_OUTPUT_DIR}/static_level.frag.spv")
+    add_custom_command(
+        OUTPUT "${STELLAR_VULKAN_VERTEX_SPV}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${STELLAR_VULKAN_SHADER_OUTPUT_DIR}"
+        COMMAND "${GLSLC_EXECUTABLE}" -fshader-stage=vert
+                "${STELLAR_VULKAN_VERTEX_SHADER}" -o "${STELLAR_VULKAN_VERTEX_SPV}"
+        DEPENDS "${STELLAR_VULKAN_VERTEX_SHADER}"
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT "${STELLAR_VULKAN_FRAGMENT_SPV}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${STELLAR_VULKAN_SHADER_OUTPUT_DIR}"
+        COMMAND "${GLSLC_EXECUTABLE}" -fshader-stage=frag
+                "${STELLAR_VULKAN_FRAGMENT_SHADER}" -o "${STELLAR_VULKAN_FRAGMENT_SPV}"
+        DEPENDS "${STELLAR_VULKAN_FRAGMENT_SHADER}"
+        VERBATIM
+    )
+    add_custom_target(stellar_vulkan_shaders ALL
+        DEPENDS "${STELLAR_VULKAN_VERTEX_SPV}" "${STELLAR_VULKAN_FRAGMENT_SPV}"
+    )
 endif()
 
 add_subdirectory(thirdparty/miniaudio)
@@ -416,6 +449,7 @@ if(STELLAR_ENABLE_METAL)
 endif()
 
 if(STELLAR_ENABLE_VULKAN_BACKEND)
+    add_dependencies(stellar_graphics stellar_vulkan_shaders)
     target_compile_definitions(stellar_graphics PUBLIC
         STELLAR_ENABLE_VULKAN_BACKEND=1
     )
