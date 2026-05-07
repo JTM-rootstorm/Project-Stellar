@@ -1,9 +1,51 @@
 # Project Stellar: Implementation Status
 
-Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
-backend implementation, completed audio footsteps implementation, completed Doxygen generation,
-completed Vulkan removal, completed lightweight BSP normal/specular material sidecars, completed
-client/server decoupling handoff, and completed historical branch notes.
+Status scope: active Linux-only GL-to-Vulkan migration on `GL-to-vulkan`, completed full
+macOS/Linux parity validation, completed macOS compatibility and Metal backend implementation,
+completed audio footsteps implementation, completed Doxygen generation, completed Vulkan removal,
+completed lightweight BSP normal/specular material sidecars, completed client/server decoupling
+handoff, and completed historical branch notes.
+
+## Active Scope - Linux Vulkan Renderer Migration
+
+Status: VK-0 baseline complete on `GL-to-vulkan` as of 2026-05-06.
+
+Active plan:
+
+- `Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`
+
+Current objective: replace the Linux OpenGL renderer path with a Linux-gated Vulkan backend while
+preserving the existing macOS Metal backend. This branch intentionally reverses the completed
+Vulkan-removal status for Linux only; macOS Vulkan, MoltenVK, and Apple-side Vulkan package
+discovery remain out of scope.
+
+### VK-0 Baseline Notes
+
+Branch: `GL-to-vulkan`
+Commit: `6b547ae00aa732ba5f1a78eae8ce40abb30d1732`
+Date: 2026-05-06
+
+Summary:
+
+- Current renderer defaults: OpenGL is still the default where enabled; Metal remains Apple-gated
+  behind `STELLAR_ENABLE_METAL=ON`.
+- Current CMake backend options: `STELLAR_ENABLE_OPENGL_BACKEND` defaults `ON`, and
+  `STELLAR_ENABLE_METAL` defaults `OFF`.
+- Current active docs that need renderer updates: `Plans/NEXT.md`, `docs/Design.md`, `README.md`,
+  and this status file still contain completed Vulkan-removal/OpenGL-default language from older
+  branch work.
+- Validation results: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`, `cmake --build build
+  -j$(nproc)`, `ctest --test-dir build --output-on-failure`, and
+  `tools/dev/check_target_boundaries.sh` passed on 2026-05-06.
+
+Risks:
+
+- The Linux host must provide Vulkan loader/headers and shader tooling before VK-1/VK-4 can
+  validate Vulkan-enabled presets.
+- Active historical docs still mention Vulkan removal and OpenGL defaults until later phases rewrite
+  them to match implementation evidence.
+
+Next phase: VK-1 Linux Vulkan build/dependency/presets.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 

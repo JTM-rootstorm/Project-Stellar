@@ -1,19 +1,24 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: completed full macOS/Linux parity validation, completed macOS compatibility and Metal
-backend implementation, completed audio footsteps implementation, completed Vulkan removal,
-completed client/server split handoff, and completed historical scope guardrails.
+Status scope: active Linux-only GL-to-Vulkan migration on `GL-to-vulkan`, completed full
+macOS/Linux parity validation, completed macOS compatibility and Metal backend implementation,
+completed audio footsteps implementation, completed Vulkan removal, completed client/server split
+handoff, and completed historical scope guardrails.
 
 ## Current Entry Point
 
-`docs/ImplementationStatus.md` is the source of truth for branch status. Full macOS/Linux parity
-validation is complete on `macos-compat` as of 2026-05-06, with final audible smoke evidence tracked
-by `Plans/ProjectStellar-final-audible-audio-smoke-CodexPlan/00-MASTER-FinalAudibleAudioSmoke-CodexPlan.md`.
-The earlier macOS compatibility and Metal backend slice is complete through MC-8 on `macos-compat`
-as of 2026-05-05 and is tracked by
-`Plans/ProjectStellar-macos-compat-CodexPlan/00-MASTER-MacOSCompatMetal-CodexPlan.md`. Vulkan
-removal is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete through
-Phase CS-9 as of 2026-05-03.
+`docs/ImplementationStatus.md` is the source of truth for branch status. The active implementation
+slice is the Linux-only GL-to-Vulkan migration tracked by
+`Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`.
+VK-0 baseline validation is complete on `GL-to-vulkan` as of 2026-05-06, and the next phase is VK-1
+Linux Vulkan build/dependency/presets.
+
+Historical status remains relevant but is no longer the active branch objective: full macOS/Linux
+parity validation is complete on `macos-compat` as of 2026-05-06, the earlier macOS compatibility
+and Metal backend slice is complete through MC-8 on `macos-compat` as of 2026-05-05, Vulkan removal
+is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete through Phase
+CS-9 as of 2026-05-03. This branch intentionally reintroduces Vulkan for Linux only while preserving
+macOS Metal and excluding macOS Vulkan/MoltenVK.
 
 ## Completed macOS Compatibility And Metal Backend Scope
 
