@@ -11,6 +11,21 @@ from pathlib import Path
 
 TOOL_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 TOOL_REF_RE = re.compile(r"^\$\{([A-Z][A-Z0-9_]*)\}$")
+VARIABLE_REF_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)")
+
+WORKDIR_ALLOWED_VARIABLES = {
+    "MAP_DIR_PATH",
+    "MAP_BASE_NAME",
+    "MAP_FULL_NAME",
+    "GAME_DIR_PATH",
+    "MODS",
+    "APP_DIR_PATH",
+}
+
+TOOL_ALLOWED_VARIABLES = WORKDIR_ALLOWED_VARIABLES | {
+    "WORK_DIR_PATH",
+    "CPU_COUNT",
+}
 
 
 def strip_json_comments(text: str) -> str:
@@ -66,6 +81,34 @@ def require_list(value: object, label: str) -> list[object]:
     return value
 
 
+def validate_variables(label: str, value: str, allowed_variables: set[str]) -> list[str]:
+    errors: list[str] = []
+    if "${MAP_FULL_PATH}" in value:
+        errors.append(
+            f"{label} uses unsupported TrenchBroom variable ${{MAP_FULL_PATH}}; "
+            f"use ${{MAP_DIR_PATH}}/${{MAP_FULL_NAME}}"
+        )
+    for variable in VARIABLE_REF_RE.findall(value):
+        if variable not in allowed_variables:
+            errors.append(f"{label} uses unsupported variable ${{{variable}}}")
+    return errors
+
+
+def iter_string_fields(value: object, label: str) -> list[tuple[str, str]]:
+    fields: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_label = f"{label}.{key}"
+            fields.extend(iter_string_fields(child, child_label))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            child_label = f"{label}[{index}]"
+            fields.extend(iter_string_fields(child, child_label))
+    elif isinstance(value, str):
+        fields.append((label, value))
+    return fields
+
+
 def lint(game_config_path: Path, profiles_path: Path) -> list[str]:
     errors: list[str] = []
     try:
@@ -111,8 +154,20 @@ def lint(game_config_path: Path, profiles_path: Path) -> list[str]:
             errors.append(f"profiles[{profile_index}] must be an object")
             continue
         profile_name = profile_value.get("name", f"#{profile_index}")
-        if profile_value.get("workdir") != "${WORK_DIR_PATH}":
-            errors.append(f"profile {profile_name!r} must set workdir to ${{WORK_DIR_PATH}}")
+        workdir = profile_value.get("workdir")
+        if not isinstance(workdir, str) or not workdir:
+            errors.append(f"profile {profile_name!r} must declare a non-empty string workdir")
+        else:
+            if "${WORK_DIR_PATH}" in workdir:
+                errors.append(
+                    f"profile {profile_name!r} workdir cannot use ${{WORK_DIR_PATH}}; "
+                    f"use ${{MAP_DIR_PATH}} or another Workdir-scope variable"
+                )
+            errors.extend(
+                validate_variables(
+                    f"profile {profile_name!r} workdir", workdir, WORKDIR_ALLOWED_VARIABLES
+                )
+            )
         tasks = profile_value.get("tasks")
         if not isinstance(tasks, list) or not tasks:
             errors.append(f"profile {profile_name!r} must declare a non-empty tasks array")
@@ -123,6 +178,11 @@ def lint(game_config_path: Path, profiles_path: Path) -> list[str]:
                 continue
             if task_value.get("type") != "tool":
                 continue
+            task_variables = TOOL_ALLOWED_VARIABLES | declared_tools
+            for label, value in iter_string_fields(
+                task_value, f"profile {profile_name!r} tasks[{task_index}]"
+            ):
+                errors.extend(validate_variables(label, value, task_variables))
             tool_ref = task_value.get("tool")
             if not isinstance(tool_ref, str) or not tool_ref:
                 errors.append(f"profile {profile_name!r} tasks[{task_index}] missing tool reference")
