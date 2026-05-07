@@ -6,11 +6,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(STELLAR_ENABLE_OPENGL_BACKEND "Build the OpenGL graphics backend" ON)
 option(STELLAR_ENABLE_METAL "Build the experimental Metal graphics backend on Apple platforms" OFF)
+option(STELLAR_ENABLE_VULKAN_BACKEND "Build the Vulkan graphics backend on Linux" OFF)
+option(STELLAR_ENABLE_VULKAN_VALIDATION
+       "Enable Vulkan validation layer diagnostics in dev builds" ON)
 option(STELLAR_MINIAUDIO_NO_RUNTIME_LINKING
        "Use explicit CoreAudio framework links for miniaudio on Apple platforms" OFF)
 
 if(STELLAR_ENABLE_METAL AND NOT APPLE)
     message(FATAL_ERROR "STELLAR_ENABLE_METAL requires an Apple platform")
+endif()
+
+if(STELLAR_ENABLE_VULKAN_BACKEND AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    message(FATAL_ERROR
+        "STELLAR_ENABLE_VULKAN_BACKEND is Linux-only in Project Stellar; use Metal on macOS")
 endif()
 
 if(STELLAR_ENABLE_METAL)
@@ -32,6 +40,10 @@ pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 if(STELLAR_ENABLE_OPENGL_BACKEND)
     find_package(OpenGL REQUIRED)
     pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
+endif()
+
+if(STELLAR_ENABLE_VULKAN_BACKEND)
+    find_package(Vulkan REQUIRED)
 endif()
 
 add_subdirectory(thirdparty/miniaudio)
@@ -397,6 +409,18 @@ if(STELLAR_ENABLE_METAL)
     )
 endif()
 
+if(STELLAR_ENABLE_VULKAN_BACKEND)
+    target_compile_definitions(stellar_graphics PUBLIC
+        STELLAR_ENABLE_VULKAN_BACKEND=1
+    )
+    if(STELLAR_ENABLE_VULKAN_VALIDATION)
+        target_compile_definitions(stellar_graphics PUBLIC
+            STELLAR_ENABLE_VULKAN_VALIDATION=1
+        )
+    endif()
+    target_link_libraries(stellar_graphics PUBLIC Vulkan::Vulkan)
+endif()
+
 target_link_libraries(stellar_graphics PUBLIC stellar_assets)
 
 add_library(stellar_client_config
@@ -499,7 +523,7 @@ stellar_assert_no_direct_links(stellar_protocol
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
     stellar_scripting stellar_client_runtime stellar_client_net stellar_single_player
     stellar_listen_server stellar_client_presentation stellar_client_app stellar_graphics
-    stellar_audio stellar_audio_miniaudio miniaudio stellar_platform
+    stellar_audio stellar_audio_miniaudio miniaudio stellar_platform Vulkan::Vulkan
 )
 stellar_assert_no_direct_links(stellar_transport
     stellar_authority stellar_server_core stellar_server_runtime stellar_dedicated_server
@@ -512,12 +536,12 @@ stellar_assert_no_direct_links(stellar_client_net
 stellar_assert_no_direct_links(stellar_dedicated_server
     stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
     stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
-    stellar_audio_miniaudio miniaudio
+    stellar_audio_miniaudio miniaudio Vulkan::Vulkan
 )
 stellar_assert_no_direct_links(stellar_server_runtime
     stellar_client_runtime stellar_client_net stellar_single_player stellar_listen_server
     stellar_client_presentation stellar_client_app stellar_graphics stellar_audio
-    stellar_audio_miniaudio miniaudio
+    stellar_audio_miniaudio miniaudio Vulkan::Vulkan
 )
 
 add_custom_target(stellar_target_boundary_check

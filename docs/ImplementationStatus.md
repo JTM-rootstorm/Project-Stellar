@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-0 baseline complete on `GL-to-vulkan` as of 2026-05-06.
+Status: VK-1 build/dependency/preset gates complete on `GL-to-vulkan` as of 2026-05-06.
 
 Active plan:
 
@@ -45,7 +45,34 @@ Risks:
 - Active historical docs still mention Vulkan removal and OpenGL defaults until later phases rewrite
   them to match implementation evidence.
 
-Next phase: VK-1 Linux Vulkan build/dependency/presets.
+### VK-1 Linux Vulkan Build, Dependency Gates, And Presets Summary
+
+Status: complete as of 2026-05-06.
+
+The build graph now exposes `STELLAR_ENABLE_VULKAN_BACKEND` and
+`STELLAR_ENABLE_VULKAN_VALIDATION`. Vulkan remains off by default and is strictly Linux-gated:
+non-Linux Vulkan configure attempts fail with a clear message that macOS should use Metal. Vulkan
+package discovery and the `Vulkan::Vulkan` link are active only when the Vulkan backend option is
+enabled, while macOS presets explicitly keep Vulkan disabled.
+
+`CMakePresets.json` now includes `linux-vulkan` and `linux-vulkan-only` configure/build/test
+presets. The Linux Vulkan preset keeps OpenGL enabled for migration, while the Vulkan-only preset
+proves the build can configure and compile without OpenGL/GLEW. Target boundary checks now also
+forbid direct `Vulkan::Vulkan` links from protocol and server-side boundary targets.
+
+Validation results:
+
+- `cmake --preset linux-vulkan`: passed; Vulkan loader and shader tools were discovered.
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 103/103 tests.
+- `cmake --preset linux-vulkan-only`: passed without OpenGL/GLEW discovery.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(graphics_backend_selection|render_level_upload|render_level_inspection|client_cli_map_validation|target_boundary|docs_consistency)$'
+  --output-on-failure`: passed, 7/7 tests.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+Next phase: VK-2 backend selection and platform routing.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 

@@ -14,7 +14,34 @@
       "binaryDir": "${sourceDir}/build-linux",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
         "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
+        "STELLAR_ENABLE_METAL": "OFF"
+      }
+    },
+    {
+      "name": "linux-vulkan",
+      "displayName": "Linux Vulkan build",
+      "description": "Linux build with Vulkan enabled and OpenGL temporarily enabled during migration.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-linux-vulkan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
+        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
+        "STELLAR_ENABLE_METAL": "OFF"
+      }
+    },
+    {
+      "name": "linux-vulkan-only",
+      "displayName": "Linux Vulkan-only build",
+      "description": "Linux build with Vulkan enabled and OpenGL/GLEW disabled.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-linux-vulkan-only",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
+        "STELLAR_ENABLE_OPENGL_BACKEND": "OFF",
         "STELLAR_ENABLE_METAL": "OFF"
       }
     },
@@ -26,6 +53,7 @@
       "binaryDir": "${sourceDir}/build-macos",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
         "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
         "STELLAR_ENABLE_METAL": "OFF"
       }
@@ -38,6 +66,7 @@
       "binaryDir": "${sourceDir}/build-macos-metal",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
         "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
         "STELLAR_ENABLE_METAL": "ON",
         "STELLAR_ENABLE_METAL_CONTEXT_TESTS": "ON"
@@ -51,6 +80,7 @@
       "binaryDir": "${sourceDir}/build-macos-metal-only",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
         "STELLAR_ENABLE_OPENGL_BACKEND": "OFF",
         "STELLAR_ENABLE_METAL": "ON",
         "STELLAR_ENABLE_METAL_CONTEXT_TESTS": "ON"
@@ -61,6 +91,14 @@
     {
       "name": "linux-default",
       "configurePreset": "linux-default"
+    },
+    {
+      "name": "linux-vulkan",
+      "configurePreset": "linux-vulkan"
+    },
+    {
+      "name": "linux-vulkan-only",
+      "configurePreset": "linux-vulkan-only"
     },
     {
       "name": "macos-default",
@@ -79,6 +117,20 @@
     {
       "name": "linux-default",
       "configurePreset": "linux-default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-vulkan",
+      "configurePreset": "linux-vulkan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-vulkan-only",
+      "configurePreset": "linux-vulkan-only",
       "output": {
         "outputOnFailure": true
       }
