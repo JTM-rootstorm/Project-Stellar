@@ -4,8 +4,8 @@
 **Target Platform:** Linux/macOS with cross-platform architecture
 **Language:** C++23, C99 where required for single-file C dependencies such as miniaudio  
 **Build System:** CMake 3.20+  
-**Version:** 0.3.4 (macOS Metal parity implementation and validation gates)
-**Last Updated:** 2026-05-06
+**Version:** 0.3.5 (Linux Vulkan and macOS Metal renderer matrix)
+**Last Updated:** 2026-05-07
 
 ---
 
@@ -49,9 +49,10 @@ direction is not to become a full physically based renderer. BSP maps are the ca
 source, and active runtime, server, client validation, and rendering paths use BSP-backed,
 source-neutral `LevelAsset` data.
 The rendering target is lightweight BSP surface/material and billboard rendering suitable for game
-content. OpenGL remains the default renderer where it builds. Metal is available as an Apple-gated
-backend for macOS through the same backend-neutral abstraction; display-attached smoke/readback
-validation remains opt-in and environment-gated.
+content. Linux uses Vulkan as the supported/default renderer. macOS uses the native Metal backend.
+OpenGL has been retired from active support after the Linux Vulkan migration. Vulkan is
+intentionally Linux-only; macOS Vulkan/MoltenVK is not part of the project renderer matrix.
+Display-attached smoke/readback validation remains opt-in and environment-gated.
 
 ### Key Design Principles
 
@@ -63,10 +64,10 @@ validation remains opt-in and environment-gated.
   explicit interfaces.
 - **Data-oriented ECS:** gameplay state should remain serializable, cache-friendly, and
   server-owned.
-- **Renderer abstraction:** OpenGL remains the default renderer, while Metal is an Apple-gated
-  macOS backend. Both use backend-neutral graphics contracts.
-- **Display-free default validation:** default tests must not require a GPU, display, or
-  OpenGL runtime context.
+- **Renderer abstraction:** Linux Vulkan and macOS Metal use the same backend-neutral graphics
+  contracts.
+- **Display-free default validation:** default tests must not require a GPU, display, or runtime
+  graphics context.
 - **Server-authoritative scripting:** gameplay scripts run on the authoritative runtime side and
   emit validated events/commands through explicit C++ APIs; they do not directly mutate renderer,
   audio, platform, OS, or raw C++ state.
@@ -76,7 +77,7 @@ validation remains opt-in and environment-gated.
 
 - **Language:** C++23 plus C99 where required for C dependencies.
 - **Build:** CMake 3.20+.
-- **Rendering:** OpenGL 4.5+ by default where supported; Metal on Apple platforms.
+- **Rendering:** Vulkan on Linux; Metal on Apple platforms.
 - **World style:** 3D static world geometry with 2D billboard entities and props.
 - **Asset format:** BSP maps are the canonical playable level format.
 - **Math:** GLM.
@@ -247,7 +248,7 @@ Runtime compositions:
 ### Client Responsibilities
 
 - Initialize platform windowing, graphics, audio, input, and asset presentation paths.
-- Select the implemented OpenGL renderer through the graphics abstraction.
+- Select the platform renderer through the graphics abstraction.
 - Receive world snapshots or render commands from the server.
 - Present received authoritative state without treating presentation smoothing as authority;
   interpolation remains deferred until explicitly scoped.
@@ -477,15 +478,15 @@ Outside the current Stellar BSP30 profile unless a concrete requirement appears:
 ## 7. Graphics Subsystem
 
 **Primary ownership:** `@miyamoto`, coordinated by `@director` for cross-subsystem changes.  
-**Responsibility:** graphics abstraction, OpenGL and Metal backends, level geometry upload, shader
+**Responsibility:** graphics abstraction, Vulkan and Metal backends, level geometry upload, shader
 paths, materials, cameras, BSP level rendering, billboard sprite rendering, and graphics tests.
 
 ### 7.1 Graphics Abstraction
 
-Graphics backends are hidden behind a shared interface. OpenGL is the default implemented backend,
-and Metal is available in Apple-gated builds. Both receive backend-neutral level geometry, material,
-texture, and sprite data. Future native backends should reuse the same contracts when their
-implementations are explicitly scoped.
+Graphics backends are hidden behind a shared interface. Vulkan is the supported Linux backend, and
+Metal is the supported macOS backend in Apple-gated builds. Both receive backend-neutral level
+geometry, material, texture, and sprite data. Future native backends should reuse the same contracts
+when their implementations are explicitly scoped.
 
 Representative direction:
 
@@ -515,21 +516,20 @@ draw commands should log, skip, or return an error from fallible setup/upload pa
 
 Current branch status:
 
-- OpenGL is the default renderer through the shared abstraction.
-- Metal is an Apple-gated experimental backend behind `STELLAR_ENABLE_METAL=ON`.
-- OpenGL is render-capable for the current lightweight level path; macOS OpenGL is deprecated and
-  treated as unsupported/experimental.
-- Metal currently supports device/layer/command-queue creation, clear/present display validation,
-  static mesh buffers, RGB/RGBA textures, base-color texture sampling, vertex color, alpha blend,
-  and depth-tested indexed draws.
-- Metal preserves normal/specular/lightmap material records but does not yet reproduce the full
-  OpenGL lighting/material shader.
+- Linux uses Vulkan as the supported/default renderer through the shared abstraction.
+- macOS uses the Apple-gated native Metal backend.
+- OpenGL has been retired from active support after the Linux Vulkan migration.
+- Vulkan is intentionally Linux-only; macOS Vulkan/MoltenVK is not part of the project renderer
+  matrix.
+- Vulkan and Metal both support static mesh buffers, RGB/RGBA textures, material records,
+  lightmaps, normal/specular maps, metallic/roughness, occlusion, emissive maps, alpha behavior,
+  culling, unlit behavior, and camera-dependent specular.
 - Default tests remain display-free.
-- GPU/display-dependent OpenGL and Metal context tests remain opt-in.
+- GPU/display-dependent Vulkan and Metal context tests remain opt-in.
 
 ### 7.3 Lightweight BSP Material Parity
 
-The current target is lightweight BSP surface/material rendering in OpenGL, including:
+The current target is lightweight BSP surface/material rendering in Vulkan and Metal, including:
 
 - Base color factor and texture.
 - Vertex color modulation.
@@ -925,7 +925,7 @@ dependencies.
 | GLM | Math | Vectors, matrices, quaternions |
 | SDL2 | Windowing/input | Platform abstraction and graphics context/surface support |
 | miniaudio | Audio | Client-side playback and spatial audio |
-| OpenGL loader | OpenGL backend | Use the loader already selected by the project |
+| Vulkan SDK / loader / shader tools | Linux graphics backend | Required for Linux Vulkan builds |
 | Metal frameworks | macOS graphics backend | Enabled only by `STELLAR_ENABLE_METAL=ON` on Apple platforms |
 | Lua 5.4.x | Server-authoritative scripting | Vendored and linked only by `stellar_scripting` |
 | stb_image | Image decode | Used by importer image paths |
@@ -963,7 +963,7 @@ Boundary enforcement:
   dedicated-server-to-client-runtime/presentation, and server-runtime-to-client modules.
 - `tools/dev/check_target_boundaries.sh` audits the build graph/source tree for the same ownership
   rules and is part of final CS-8/CS-9 validation.
-- Display-free unit/regression tests remain the default. OpenGL and Metal context tests remain
+- Display-free unit/regression tests remain the default. Vulkan and Metal context tests remain
   opt-in.
 
 ### 11.4 Validation Commands
@@ -976,13 +976,12 @@ cmake --build build -j$(sysctl -n hw.ncpu 2>/dev/null || nproc)
 ctest --test-dir build --output-on-failure
 ```
 
-macOS Metal build and local display smoke:
+Linux Vulkan-only build and tests:
 
 ```bash
-cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
-cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
-ctest --test-dir build-macos-metal --output-on-failure
-build-macos-metal/stellar-client --validate-display --renderer metal
+cmake --preset linux-vulkan-only
+cmake --build --preset linux-vulkan-only --parallel $(nproc)
+ctest --preset linux-vulkan-only --output-on-failure
 ```
 
 BSP-focused validation:
@@ -1003,7 +1002,7 @@ ctest --test-dir build \
   --output-on-failure
 ```
 
-Opt-in OpenGL/Metal context validation should remain similarly gated.
+Opt-in Vulkan/Metal context validation should remain similarly gated.
 
 ---
 
@@ -1049,8 +1048,8 @@ Project-Stellar/
 │   ├── core/
 │   ├── ecs/
 │   ├── graphics/
-│   │   ├── opengl/
-│   │   └── opengl/
+│   │   ├── metal/
+│   │   └── vulkan/
 │   ├── import/
 │   │   └── bsp/
 │   ├── network/
@@ -1100,7 +1099,7 @@ Examples of cross-subsystem work:
 | Agent | Primary Domain |
 | --- | --- |
 | `@carmack` | ECS, core systems, networking, server authority, build/dependency plumbing, static collision/query infrastructure |
-| `@miyamoto` | Graphics abstraction, OpenGL, BSP level rendering, sprites, shaders, camera |
+| `@miyamoto` | Graphics abstraction, Vulkan/Metal rendering, BSP level rendering, sprites, shaders, camera |
 | `@suzuki` | Audio interfaces, miniaudio, playback, spatial audio, no-op fallback paths |
 | `@kojima` | Entity archetypes, movement rules, collision responses, gameplay mechanics, tuning |
 | `@molyneux` | Isolated experiments, prototypes, feasibility studies |
@@ -1235,7 +1234,7 @@ Keep diagrams under `docs/architecture/` if added.
 Default tests must be deterministic and display-free. They should not require:
 
 - GPU access.
-- OpenGL context creation.
+- Runtime graphics context creation.
 - SDL display/window presentation.
 - External artist assets.
 - Shader compiler availability at test runtime.
@@ -1277,7 +1276,7 @@ Default graphics tests should use recording/mock devices to inspect backend-neut
 - Large level submission.
 - Billboard sprite sorting and draw data.
 
-OpenGL context tests remain opt-in and should be used for smoke coverage, not default CI.
+Vulkan/Metal context tests remain opt-in and should be used for smoke coverage, not default CI.
 
 ### 16.5 Collision and Movement Tests
 
@@ -1358,7 +1357,7 @@ The socket transport roadmap and client/server split are complete. Recommended n
 
 Recent completed work includes:
 
-- OpenGL-backed BSP rendering and display-free render submission coverage.
+- Backend-neutral BSP rendering and display-free render submission coverage.
 - `KHR_texture_transform`.
 - `KHR_materials_unlit`.
 - Larger runtime skin palette cap of 256 joints per draw.
@@ -1444,6 +1443,7 @@ Deferred unless scoped:
 | 2026-05-04 | 0.3.2 | Codex | Remove Vulkan from active renderer support, keep OpenGL as the current backend, and preserve backend-neutral seams for future DirectX/Metal work |
 | 2026-05-05 | 0.3.3 | Codex | Add macOS build hygiene, POSIX socket portability, optional miniaudio playback, and an Apple-gated initial Metal backend |
 | 2026-05-06 | 0.3.4 | Codex | Expand Metal material parity, runtime smoke coverage, no-device audio validation, and macOS BSP tooling parity while tracking environment-gated validation |
+| 2026-05-07 | 0.3.5 | Codex | Complete the Linux Vulkan/macOS Metal renderer matrix and retire OpenGL from active support |
 
 ---
 
@@ -1453,7 +1453,7 @@ Deferred unless scoped:
 - **Server authority:** The server is the source of truth for gameplay state.
 - **Presentation client:** Client process responsible for rendering, audio, input capture, and
   presentation of server-owned state.
-- **Backend-neutral asset:** CPU-side data that does not depend on OpenGL or another
+- **Backend-neutral asset:** CPU-side data that does not depend on Vulkan, Metal, or another
   presentation backend.
 - **Static level collision:** Non-dynamic world collision geometry, usually imported from authored
   level data.
@@ -1470,5 +1470,5 @@ Deferred unless scoped:
 
 - *Game Programming Patterns* — Robert Nystrom.
 - EnTT documentation and ECS design references.
-- OpenGL 4.5 specification materials.
+- Vulkan and Metal API documentation.
 - miniaudio documentation.

@@ -234,15 +234,9 @@ int main() {
                                         "--renderer", "opengl"};
   const auto opengl_renderer_config =
       stellar::client::parse_application_config(4, opengl_renderer_args);
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-  assert(opengl_renderer_config.has_value());
-  assert(opengl_renderer_config->graphics_backend ==
-         stellar::graphics::GraphicsBackend::kOpenGL);
-#else
   assert(!opengl_renderer_config.has_value());
   assert(opengl_renderer_config.error().message.find("compiled backends: ") !=
          std::string::npos);
-#endif
 
   const auto bad_script_path = root / "bad_script.bsp";
   const auto bad_script =

@@ -608,7 +608,7 @@ void verify_level_render_state_uses_override_camera_for_culling() {
   view.far_plane = 512.0F;
 
   const auto state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 16.0F / 9.0F);
+      view, stellar::graphics::default_graphics_backend(), 16.0F / 9.0F);
 
   assert(state.camera_world_position.has_value());
   assert(*state.camera_world_position == view.eye);
@@ -623,7 +623,7 @@ void verify_level_render_state_can_disable_culling_for_fallback() {
   view.visibility_culling = false;
 
   const auto state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 0.0F);
+      view, stellar::graphics::default_graphics_backend(), 0.0F);
 
   assert(!state.camera_world_position.has_value());
   assert(state.view_projection[0] != 0.0F);
@@ -637,15 +637,19 @@ void verify_metal_projection_uses_zero_to_one_depth_range() {
   view.near_plane = 0.25F;
   view.far_plane = 64.0F;
 
-  const auto opengl_state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND)
+  const auto vulkan_state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kVulkan, 1.0F);
   const auto metal_state = stellar::graphics::compute_level_render_state(
       view, stellar::graphics::GraphicsBackend::kMetal, 1.0F);
 
-  assert(opengl_state.view_projection[0] == metal_state.view_projection[0]);
-  assert(opengl_state.view_projection[5] == metal_state.view_projection[5]);
-  assert(opengl_state.view_projection[10] != metal_state.view_projection[10]);
-  assert(opengl_state.view_projection[14] != metal_state.view_projection[14]);
+  assert(vulkan_state.view_projection == metal_state.view_projection);
+#else
+  const auto state = stellar::graphics::compute_level_render_state(
+      view, stellar::graphics::GraphicsBackend::kMetal, 1.0F);
+  assert(state.view_projection[0] != 0.0F);
+  assert(state.view_projection[5] != 0.0F);
+#endif
 #endif
 }
 
@@ -655,7 +659,7 @@ void verify_billboard_view_is_derived_from_render_state() {
   view.target = {0.0F, 0.0F, 0.0F};
 
   const auto state = stellar::graphics::compute_level_render_state(
-      view, stellar::graphics::GraphicsBackend::kOpenGL, 1.0F);
+      view, stellar::graphics::default_graphics_backend(), 1.0F);
   const auto billboard_view = stellar::graphics::compute_billboard_view(state);
 
   assert(billboard_view.view == state.view);

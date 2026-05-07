@@ -122,7 +122,7 @@ class LevelRenderer final : public Renderer {
 public:
   /**
    * @brief Construct a renderer from an optional CPU-side level asset using
-   * OpenGL.
+   * the default compiled graphics backend.
    */
   explicit LevelRenderer(
       std::optional<stellar::assets::LevelAsset> level = std::nullopt) noexcept;
@@ -186,7 +186,7 @@ public:
   take_frame_readback() noexcept;
 
 private:
-  GraphicsBackend backend_ = GraphicsBackend::kOpenGL;
+  GraphicsBackend backend_ = default_graphics_backend();
   std::optional<stellar::assets::LevelAsset> source_level_;
   std::optional<LevelRenderView> render_view_;
   LevelPresentationState presentation_state_;

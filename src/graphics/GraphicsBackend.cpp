@@ -10,12 +10,6 @@ namespace {
 #if defined(STELLAR_ENABLE_VULKAN_BACKEND)
     names += "vulkan";
 #endif
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-    if (!names.empty()) {
-        names += ", ";
-    }
-    names += "opengl";
-#endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
     if (!names.empty()) {
         names += ", ";
@@ -55,11 +49,7 @@ parse_graphics_backend(std::string_view name) {
 #endif
     }
     if (name == "opengl" || name == "gl" || name == "OpenGL") {
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-        return GraphicsBackend::kOpenGL;
-#else
         return std::unexpected(unsupported_backend_error(name));
-#endif
     }
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
     if (name == "metal" || name == "mtl") {
@@ -77,12 +67,10 @@ parse_graphics_backend(std::string_view name) {
 GraphicsBackend default_graphics_backend() noexcept {
 #if defined(STELLAR_ENABLE_VULKAN_BACKEND)
     return GraphicsBackend::kVulkan;
-#elif defined(STELLAR_ENABLE_OPENGL_BACKEND)
-    return GraphicsBackend::kOpenGL;
 #elif defined(STELLAR_ENABLE_METAL_BACKEND)
     return GraphicsBackend::kMetal;
 #else
-    return GraphicsBackend::kOpenGL;
+    return static_cast<GraphicsBackend>(0);
 #endif
 }
 
@@ -91,12 +79,6 @@ bool graphics_backend_available(GraphicsBackend backend) noexcept {
 #if defined(STELLAR_ENABLE_VULKAN_BACKEND)
         case GraphicsBackend::kVulkan:
             return true;
-#endif
-        case GraphicsBackend::kOpenGL:
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-            return true;
-#else
-            return false;
 #endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
         case GraphicsBackend::kMetal:
@@ -113,8 +95,6 @@ std::string_view graphics_backend_name(GraphicsBackend backend) noexcept {
         case GraphicsBackend::kVulkan:
             return "vulkan";
 #endif
-        case GraphicsBackend::kOpenGL:
-            return "opengl";
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
         case GraphicsBackend::kMetal:
             return "metal";

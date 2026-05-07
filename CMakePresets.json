@@ -8,68 +8,63 @@
   "configurePresets": [
     {
       "name": "linux-default",
-      "displayName": "Linux default OpenGL build",
-      "description": "Default Linux validation build with OpenGL enabled and Metal disabled.",
+      "displayName": "Linux default Vulkan build",
+      "description": "Default Linux validation build with Vulkan enabled and Metal disabled.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-linux",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
-        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
+        "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
         "STELLAR_ENABLE_METAL": "OFF"
       }
     },
     {
       "name": "linux-vulkan",
       "displayName": "Linux Vulkan build",
-      "description": "Linux build with Vulkan enabled and OpenGL temporarily enabled during migration.",
+      "description": "Linux build with Vulkan enabled and display-attached Vulkan tests available.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-linux-vulkan",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
         "STELLAR_ENABLE_VULKAN_CONTEXT_TESTS": "ON",
-        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
         "STELLAR_ENABLE_METAL": "OFF"
       }
     },
     {
       "name": "linux-vulkan-only",
       "displayName": "Linux Vulkan-only build",
-      "description": "Linux build with Vulkan enabled and OpenGL/GLEW disabled.",
+      "description": "Linux build with Vulkan as the only compiled graphics backend.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-linux-vulkan-only",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "ON",
         "STELLAR_ENABLE_VULKAN_CONTEXT_TESTS": "ON",
-        "STELLAR_ENABLE_OPENGL_BACKEND": "OFF",
         "STELLAR_ENABLE_METAL": "OFF"
       }
     },
     {
       "name": "macos-default",
-      "displayName": "macOS default OpenGL build",
-      "description": "Default macOS validation build with OpenGL enabled and Metal disabled.",
+      "displayName": "macOS default Metal build",
+      "description": "Default macOS validation build with Metal enabled.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-macos",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
-        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
-        "STELLAR_ENABLE_METAL": "OFF"
+        "STELLAR_ENABLE_METAL": "ON"
       }
     },
     {
       "name": "macos-metal",
       "displayName": "macOS Metal build",
-      "description": "macOS build with OpenGL and the Apple-gated Metal backend enabled.",
+      "description": "macOS build with the Apple-gated Metal backend enabled.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-macos-metal",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
-        "STELLAR_ENABLE_OPENGL_BACKEND": "ON",
         "STELLAR_ENABLE_METAL": "ON",
         "STELLAR_ENABLE_METAL_CONTEXT_TESTS": "ON"
       }
@@ -77,13 +72,12 @@
     {
       "name": "macos-metal-only",
       "displayName": "macOS Metal-only build",
-      "description": "macOS build with OpenGL/GLEW disabled and the Metal backend enabled.",
+      "description": "macOS build with Metal as the only compiled graphics backend.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-macos-metal-only",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "STELLAR_ENABLE_VULKAN_BACKEND": "OFF",
-        "STELLAR_ENABLE_OPENGL_BACKEND": "OFF",
         "STELLAR_ENABLE_METAL": "ON",
         "STELLAR_ENABLE_METAL_CONTEXT_TESTS": "ON"
       }

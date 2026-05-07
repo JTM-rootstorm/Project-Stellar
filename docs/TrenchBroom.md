@@ -315,7 +315,7 @@ export STELLAR_BSP30_COMPILER=/path/to/qbsp
 On macOS, build and validation dependencies used by Stellar itself can be installed with:
 
 ```bash
-brew install cmake sdl2 glew glm
+brew install cmake sdl2 glm
 ```
 
 External map compilers are optional for default validation. Use a host-native BSP30 compiler or wrapper

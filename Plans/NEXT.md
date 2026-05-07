@@ -1,6 +1,6 @@
 # Stellar Engine - Next Scope Handoff
 
-Status scope: active Linux-only GL-to-Vulkan migration on `GL-to-vulkan`, completed full
+Status scope: completed Linux-only GL-to-Vulkan migration on `GL-to-vulkan`, completed full
 macOS/Linux parity validation, completed macOS compatibility and Metal backend implementation,
 completed audio footsteps implementation, completed Vulkan removal, completed client/server split
 handoff, and completed historical scope guardrails.
@@ -10,9 +10,9 @@ handoff, and completed historical scope guardrails.
 `docs/ImplementationStatus.md` is the source of truth for branch status. The active implementation
 slice is the Linux-only GL-to-Vulkan migration tracked by
 `Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`.
-VK-8 tests and validation matrix is complete on `GL-to-vulkan` as of 2026-05-07. The follow-up
-macOS Metal-only display/regression row has also passed on a display-attached macOS host, so the
-next phase is VK-9 docs, handoff, and OpenGL retirement.
+VK-9 docs, handoff, and OpenGL retirement is complete on `GL-to-vulkan` as of 2026-05-07. Linux
+uses Vulkan as the supported/default renderer, macOS uses native Metal, and OpenGL has been retired
+from active support.
 
 Historical status remains relevant but is no longer the active branch objective: full macOS/Linux
 parity validation is complete on `macos-compat` as of 2026-05-06, the earlier macOS compatibility
@@ -20,6 +20,38 @@ and Metal backend slice is complete through MC-8 on `macos-compat` as of 2026-05
 is complete through KV-5 as of 2026-05-04, and client/server decoupling is complete through Phase
 CS-9 as of 2026-05-03. This branch intentionally reintroduces Vulkan for Linux only while preserving
 macOS Metal and excluding macOS Vulkan/MoltenVK.
+
+## GL-to-Vulkan Linux-Only Completion Notes
+
+Branch: `GL-to-vulkan`
+Date: 2026-05-07
+
+Summary:
+
+- Added a Linux-only Vulkan backend through the shared graphics abstraction.
+- Preserved the native macOS Metal backend.
+- Retired OpenGL from active support, including backend code, loader discovery, parser aliases,
+  SDL OpenGL window routing, and the optional OpenGL context test.
+- Kept server/gameplay/audio/import/backend ownership boundaries intact.
+- Added Vulkan shader build, resource upload, draw, material, and readback support.
+- Updated active docs to Linux=Vulkan, macOS=Metal.
+
+Validation:
+
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan-only --output-on-failure`: passed, 106/106 with Vulkan display
+  tests skipped by default.
+- `cmake --preset linux-default`: passed and discovered Vulkan.
+- `tools/dev/check_target_boundaries.sh`: passed.
+- OpenGL dependency audit: passed with no active hits.
+- macOS Vulkan/MoltenVK audit: active code/build files are clean; remaining hits are explicit
+  unsupported-matrix notes.
+- macOS Metal validation: `macos-metal-only` configure/build/full CTest, display validation,
+  context/readback tests, material readback fixtures, and runtime smoke passed in the VK-8.1
+  display-attached run.
+
+Remaining follow-up: none for VK-9.
 
 ## Completed macOS Compatibility And Metal Backend Scope
 
@@ -37,33 +69,30 @@ Completed phase checklist:
 
 Current renderer contract:
 
-- OpenGL remains the default renderer where it builds.
-- macOS OpenGL is deprecated and treated as unsupported/experimental; diagnostics point developers
-  toward Metal.
-- Metal is compiled only on Apple platforms with `STELLAR_ENABLE_METAL=ON`.
-- Metal parser aliases `metal` and `mtl` exist only in Metal-enabled builds; default builds reject
-  them with a clear unsupported-backend diagnostic.
+- Linux uses Vulkan as the supported/default renderer.
+- macOS uses the native Metal backend.
+- OpenGL has been retired from active support after the Linux Vulkan migration.
+- Vulkan is intentionally Linux-only; macOS Vulkan/MoltenVK is not part of the project renderer
+  matrix.
+- Metal parser aliases `metal` and `mtl` exist only in Metal-enabled builds; non-Metal builds
+  reject them with a clear unsupported-backend diagnostic.
 - The Metal backend creates a real SDL Metal view, CAMetalLayer, MTLDevice, command queue, depth
   target, mesh buffers, RGB/RGBA textures, material records, and a shader path that consumes the
-  active OpenGL material contract, including lightmaps, normal/specular maps, metallic/roughness,
+  active material contract, including lightmaps, normal/specular maps, metallic/roughness,
   occlusion, emissive, texture transforms, alpha behavior, culling, unlit behavior, and
   camera-dependent specular.
 - Full parity validation is closed: display-attached Metal smoke/readback coverage passed, optional
-  audible miniaudio smoke passed on Metal and Metal-only macOS builds, and the Linux `linux-default`
-  preset passed configure, build, and CTest 103/103 on a Linux host on 2026-05-06.
+  audible miniaudio smoke passed on Metal and Metal-only macOS builds, and the Linux Vulkan-only
+  preset passed configure, build, and CTest 106/106 on 2026-05-07.
 
 macOS runbook:
 
 ```bash
-brew install cmake sdl2 glew glm
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j$(sysctl -n hw.ncpu)
-ctest --test-dir build --output-on-failure
-
-cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
-cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
-ctest --test-dir build-macos-metal --output-on-failure
-build-macos-metal/stellar-client --validate-display --renderer metal
+brew install cmake sdl2 glm
+cmake --preset macos-metal-only
+cmake --build --preset macos-metal-only -j$(sysctl -n hw.ncpu)
+ctest --preset macos-metal-only --output-on-failure
+build-macos-metal-only/stellar-client --validate-display --renderer metal
 ```
 
 Latest VK-9 unblocker evidence on `GL-to-vulkan`:
@@ -281,9 +310,8 @@ client/server split.
 - Import never executes scripts.
 - Runtime collision, movement, triggers, object colliders, scripting, and networking contracts remain backend-neutral.
 - Default tests remain display-free.
-- OpenGL is the default renderer through the shared graphics abstraction. Metal is an Apple-gated
-  experimental backend behind `STELLAR_ENABLE_METAL=ON`; full Metal normal/specular/lightmap parity
-  remains follow-up work.
+- Linux uses Vulkan through the shared graphics abstraction. macOS uses the Apple-gated Metal
+  backend through the same abstraction.
 - Rendering, audio, HUD, and UI are presentation only and never sources of gameplay truth.
 - No client prediction, interpolation, map transfer, reconciliation, UDP/unreliable transport,
   authentication, encryption, matchmaking, or public Internet deployment is active unless a future plan

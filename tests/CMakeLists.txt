@@ -4,8 +4,6 @@
 # the repository root CMakeLists.txt can stay focused on production libraries and
 # applications.
 
-option(STELLAR_ENABLE_OPENGL_CONTEXT_TESTS
-       "Build optional OpenGL context/readback smoke tests" OFF)
 option(STELLAR_ENABLE_METAL_CONTEXT_TESTS
        "Build optional Metal context/presentation smoke tests" OFF)
 option(STELLAR_ENABLE_VULKAN_CONTEXT_TESTS

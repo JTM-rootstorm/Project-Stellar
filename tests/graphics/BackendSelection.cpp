@@ -32,22 +32,11 @@ int main() {
 #endif
 
     const auto opengl = stellar::graphics::parse_graphics_backend("opengl");
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-    assert(opengl.has_value());
-    assert(*opengl == stellar::graphics::GraphicsBackend::kOpenGL);
-    assert(stellar::graphics::graphics_backend_name(*opengl) == "opengl");
-    assert(stellar::graphics::graphics_backend_available(*opengl));
-
-    const auto gl_alias = stellar::graphics::parse_graphics_backend("gl");
-    assert(gl_alias.has_value());
-    assert(*gl_alias == stellar::graphics::GraphicsBackend::kOpenGL);
-#else
     assert(!opengl.has_value());
     assert(opengl.error().message.find("compiled backends: ") != std::string::npos);
 
     const auto gl_alias = stellar::graphics::parse_graphics_backend("gl");
     assert(!gl_alias.has_value());
-#endif
 
     const auto metal = stellar::graphics::parse_graphics_backend("metal");
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
@@ -69,8 +58,7 @@ int main() {
     assert(invalid.error().message.find("Unsupported graphics backend") != std::string::npos);
 
     auto default_device = stellar::graphics::create_graphics_device();
-#if defined(STELLAR_ENABLE_VULKAN_BACKEND) || defined(STELLAR_ENABLE_OPENGL_BACKEND) || \
-    defined(STELLAR_ENABLE_METAL_BACKEND)
+#if defined(STELLAR_ENABLE_VULKAN_BACKEND) || defined(STELLAR_ENABLE_METAL_BACKEND)
     assert(default_device != nullptr);
 #else
     assert(default_device == nullptr);
@@ -86,14 +74,6 @@ int main() {
     auto selected_vulkan_device = stellar::graphics::create_graphics_device(
         stellar::graphics::GraphicsBackend::kVulkan);
     assert(selected_vulkan_device != nullptr);
-#endif
-
-    auto selected_opengl_device = stellar::graphics::create_graphics_device(
-        stellar::graphics::GraphicsBackend::kOpenGL);
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-    assert(selected_opengl_device != nullptr);
-#else
-    assert(selected_opengl_device == nullptr);
 #endif
 
 #if defined(STELLAR_ENABLE_METAL_BACKEND)

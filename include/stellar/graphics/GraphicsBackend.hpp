@@ -17,8 +17,6 @@ enum class GraphicsBackend {
     /** @brief Linux Vulkan backend. */
     kVulkan,
 #endif
-    /** @brief OpenGL backend. */
-    kOpenGL,
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
     /** @brief Apple Metal backend. */
     kMetal,
@@ -27,7 +25,7 @@ enum class GraphicsBackend {
 
 /**
  * @brief Parse a user-supplied graphics backend name.
- * @param name Backend name such as "opengl" or "gl".
+ * @param name Backend name such as "vulkan", "vk", "metal", or "mtl".
  * @return Parsed backend or an Error describing the unsupported value.
  */
 [[nodiscard]] std::expected<GraphicsBackend, stellar::platform::Error>

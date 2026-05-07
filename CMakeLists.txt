@@ -4,9 +4,14 @@ project(StellarEngine VERSION 0.3.2 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(STELLAR_ENABLE_OPENGL_BACKEND "Build the OpenGL graphics backend" ON)
 option(STELLAR_ENABLE_METAL "Build the experimental Metal graphics backend on Apple platforms" OFF)
-option(STELLAR_ENABLE_VULKAN_BACKEND "Build the Vulkan graphics backend on Linux" OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(STELLAR_ENABLE_VULKAN_BACKEND_DEFAULT ON)
+else()
+    set(STELLAR_ENABLE_VULKAN_BACKEND_DEFAULT OFF)
+endif()
+option(STELLAR_ENABLE_VULKAN_BACKEND "Build the Vulkan graphics backend on Linux"
+       ${STELLAR_ENABLE_VULKAN_BACKEND_DEFAULT})
 option(STELLAR_ENABLE_VULKAN_VALIDATION
        "Enable Vulkan validation layer diagnostics in dev builds" ON)
 option(STELLAR_MINIAUDIO_NO_RUNTIME_LINKING
@@ -36,11 +41,6 @@ find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
 
 pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
-
-if(STELLAR_ENABLE_OPENGL_BACKEND)
-    find_package(OpenGL REQUIRED)
-    pkg_check_modules(GLEW REQUIRED IMPORTED_TARGET glew)
-endif()
 
 if(STELLAR_ENABLE_VULKAN_BACKEND)
     find_package(Vulkan REQUIRED)
@@ -395,12 +395,6 @@ set(STELLAR_GRAPHICS_SOURCES
     src/graphics/LevelRenderer.cpp
 )
 
-if(STELLAR_ENABLE_OPENGL_BACKEND)
-    list(APPEND STELLAR_GRAPHICS_SOURCES
-        src/graphics/opengl/OpenGLGraphicsDevice.cpp
-    )
-endif()
-
 if(STELLAR_ENABLE_METAL)
     list(APPEND STELLAR_GRAPHICS_SOURCES
         src/graphics/metal/MetalGraphicsDevice.mm
@@ -426,18 +420,6 @@ target_link_libraries(stellar_graphics PUBLIC
     stellar_platform
     PkgConfig::GLM
 )
-
-if(STELLAR_ENABLE_OPENGL_BACKEND)
-    target_compile_definitions(stellar_graphics PUBLIC STELLAR_ENABLE_OPENGL_BACKEND=1)
-    target_include_directories(stellar_graphics PUBLIC
-        ${OPENGL_INCLUDE_DIRS}
-        ${GLEW_INCLUDE_DIRS}
-    )
-    target_link_libraries(stellar_graphics PUBLIC
-        ${OPENGL_LIBRARIES}
-        PkgConfig::GLEW
-    )
-endif()
 
 if(STELLAR_ENABLE_METAL)
     target_compile_definitions(stellar_graphics PUBLIC STELLAR_ENABLE_METAL_BACKEND=1)

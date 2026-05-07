@@ -8,17 +8,15 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-8 tests and validation matrix complete on `GL-to-vulkan` as of 2026-05-07;
-macOS Metal-only display/regression validation has also passed and no longer blocks VK-9.
+Status: VK-9 docs, handoff, and OpenGL retirement complete on `GL-to-vulkan` as of 2026-05-07.
 
 Active plan:
 
 - `Plans/ProjectStellar-GL-to-Vulkan-LinuxOnly-CodexPlan/00-MASTER-GLToVulkanLinuxOnly-CodexPlan.md`
 
-Current objective: replace the Linux OpenGL renderer path with a Linux-gated Vulkan backend while
-preserving the existing macOS Metal backend. This branch intentionally reverses the completed
-Vulkan-removal status for Linux only; macOS Vulkan, MoltenVK, and Apple-side Vulkan package
-discovery remain out of scope.
+Current objective: complete VK-9 by retiring the former OpenGL renderer path, keeping Linux on the
+Linux-gated Vulkan backend, and preserving the existing macOS Metal backend. macOS Vulkan,
+MoltenVK, and Apple-side Vulkan package discovery remain out of scope.
 
 ### VK-0 Baseline Notes
 
@@ -30,7 +28,7 @@ Summary:
 
 - Current renderer defaults: OpenGL is still the default where enabled; Metal remains Apple-gated
   behind `STELLAR_ENABLE_METAL=ON`.
-- Current CMake backend options: `STELLAR_ENABLE_OPENGL_BACKEND` defaults `ON`, and
+- Current CMake backend options: the former OpenGL backend option defaults on, and
   `STELLAR_ENABLE_METAL` defaults `OFF`.
 - Current active docs that need renderer updates: `Plans/NEXT.md`, `docs/Design.md`, `README.md`,
   and this status file still contain completed Vulkan-removal/OpenGL-default language from older
@@ -57,8 +55,8 @@ package discovery and the `Vulkan::Vulkan` link are active only when the Vulkan 
 enabled, while macOS presets explicitly keep Vulkan disabled.
 
 `CMakePresets.json` now includes `linux-vulkan` and `linux-vulkan-only` configure/build/test
-presets. The Linux Vulkan preset keeps OpenGL enabled for migration, while the Vulkan-only preset
-proves the build can configure and compile without OpenGL/GLEW. Target boundary checks now also
+presets. The Linux Vulkan preset keeps the migration renderer enabled, while the Vulkan-only preset
+proves the build can configure and compile without the retired OpenGL loader stack. Target boundary checks now also
 forbid direct `Vulkan::Vulkan` links from protocol and server-side boundary targets.
 
 Validation results:
@@ -66,7 +64,7 @@ Validation results:
 - `cmake --preset linux-vulkan`: passed; Vulkan loader and shader tools were discovered.
 - `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
 - `ctest --preset linux-vulkan --output-on-failure`: passed, 103/103 tests.
-- `cmake --preset linux-vulkan-only`: passed without OpenGL/GLEW discovery.
+- `cmake --preset linux-vulkan-only`: passed without retired OpenGL loader discovery.
 - `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
 - `ctest --test-dir build-linux-vulkan-only -R
   '^(graphics_backend_selection|render_level_upload|render_level_inspection|client_cli_map_validation|target_boundary|docs_consistency)$'
@@ -295,7 +293,7 @@ registered as `vulkan_context_smoke` and `vulkan_render_readback`; both require
 available.
 
 The Linux `linux-vulkan` and `linux-vulkan-only` presets both configure, build, and pass full CTest
-locally. `linux-vulkan-only` proves the current branch can build and test without OpenGL/GLEW while
+locally. `linux-vulkan-only` proves the current branch can build and test without the retired OpenGL loader stack while
 OpenGL retirement remains a VK-9 documentation/build-policy step. macOS Metal-only regression
 was refreshed on a display-attached macOS host after this Linux run; Vulkan CMake and test gates
 continue to reject non-Linux Vulkan context tests and do not add macOS Vulkan/MoltenVK paths.
@@ -362,7 +360,38 @@ Validation results:
 Note: a sandboxed full CTest attempt failed five localhost socket/listen tests before escalation;
 the same tests passed in the full CTest and runtime-smoke runs outside the sandbox.
 
-Next phase: VK-9 docs, handoff, and OpenGL retirement is unblocked.
+Next phase: GL-to-Vulkan Linux-only handoff is ready for final review.
+
+### VK-9 Docs, Handoff, And OpenGL Retirement Summary
+
+Status: complete as of 2026-05-07.
+
+Linux uses Vulkan as the supported/default renderer. macOS uses the native Metal backend. OpenGL
+has been retired from active support after the Linux Vulkan migration. Vulkan is intentionally
+Linux-only; macOS Vulkan/MoltenVK is not part of the project renderer matrix.
+
+The active OpenGL backend, loader discovery, parser aliases, SDL OpenGL window routing, and optional
+OpenGL context smoke test were removed from the build and runtime path. `linux-default`,
+`linux-vulkan`, and `linux-vulkan-only` now configure Vulkan without OpenGL fallback variables, and
+the macOS presets route to Metal without requiring Vulkan.
+
+Validation results:
+
+- `cmake --preset linux-vulkan-only`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan-only --output-on-failure`: passed, 106/106 with
+  `vulkan_context_smoke` and `vulkan_render_readback` skipped by default.
+- `tools/dev/check_target_boundaries.sh`: passed.
+- `cmake --preset linux-default`: passed and discovered Vulkan as the default Linux renderer path.
+- OpenGL dependency audit: passed with no active OpenGL loader, SDL OpenGL window flag, CMake
+  OpenGL backend option, package discovery, or OpenGL device references in active code/build/docs.
+- macOS Vulkan/MoltenVK audit: active code/build files are clean; remaining hits are the explicit
+  unsupported-matrix notes required by this phase.
+- macOS Metal validation: reused the VK-8.1 display-attached `macos-metal-only` evidence above:
+  configure/build/full CTest, Metal display validation, Metal context/readback tests, material
+  readback fixtures, and runtime smoke all passed.
+
+Remaining follow-up: none for VK-9.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 
@@ -574,30 +603,31 @@ Status: complete as of 2026-05-05.
 Baseline was recorded on branch `macos-compat`. Active source/build/test files contain no Metal
 backend implementation, SDL Metal window usage, CAMetalLayer plumbing, or Metal shader files. The
 active renderer path is OpenGL-only: backend parsing accepts OpenGL aliases, the graphics factory
-creates `OpenGLGraphicsDevice`, and the client window path requests `SDL_WINDOW_OPENGL`.
+creates the OpenGL device, and the client window path requests an SDL OpenGL window.
 
 Known starting blockers are the expected macOS work items: the existing OpenGL device requests
 OpenGL 4.5, Metal support is absent, `thirdparty/miniaudio/CMakeLists.txt` misspells
 `POSITION_INDEPENDENT_CODE`, and the POSIX socket transport uses Linux-oriented `MSG_NOSIGNAL`
 without an Apple `SO_NOSIGPIPE` policy. Local baseline CMake configure did not reach build/test
-because `pkg-config` could not find `glew`; the macOS runbook will require installing the Homebrew
-dependency or using an Apple-gated Metal build that does not globally require OpenGL/GLEW.
+because `pkg-config` could not find the OpenGL loader; the macOS runbook will require installing
+that Homebrew dependency or using an Apple-gated Metal build that does not globally require the
+retired OpenGL loader stack.
 
 ### MC-1 macOS Build And Toolchain Hygiene Summary
 
 Status: complete as of 2026-05-05.
 
-The CMake graph now has explicit `STELLAR_ENABLE_OPENGL_BACKEND` and `STELLAR_ENABLE_METAL` build
+The CMake graph now has explicit OpenGL and Metal build
 options. Metal remains parser/API-invisible until a real backend lands, but `STELLAR_ENABLE_METAL=ON`
 now fails clearly on non-Apple platforms and enables Objective-C++ plus Apple framework discovery on
-Apple platforms. OpenGL and GLEW discovery are gated behind `STELLAR_ENABLE_OPENGL_BACKEND`, while
-the default build still keeps OpenGL enabled.
+Apple platforms. OpenGL loader discovery is gated behind the OpenGL backend option, while the
+default build still keeps OpenGL enabled.
 
 `thirdparty/miniaudio/CMakeLists.txt` now uses the correct `POSITION_INDEPENDENT_CODE` property. The
 existing stb image-loader dependency is vendored through a small `stellar_stb` interface target so
 macOS builds do not depend on an undeclared system `stb` package.
 
-Local MC-1 validation on macOS installed the missing Homebrew packages `glew` and `glm`, then passed
+Local MC-1 validation on macOS installed the missing Homebrew graphics-loader package and `glm`, then passed
 configure/build for the default OpenGL build, an OpenGL-disabled build, and a Metal-prep
 Objective-C++ build. `target_boundary` and `graphics_backend_selection` passed in all validated build
 trees. The default focused CTest slice still fails `socket_transport` on macOS; that is the expected
@@ -649,8 +679,8 @@ video driver, macOS OpenGL deprecation status, and guidance to use `--renderer m
 backend lands. Linux/default OpenGL behavior and backend parsing remain OpenGL-only; no Metal enum or
 CLI alias is added by MC-4.
 
-The optional `opengl_context_smoke` test remains display/GPU opt-in through
-`STELLAR_ENABLE_OPENGL_CONTEXT_TESTS` plus `STELLAR_RUN_OPENGL_CONTEXT_TESTS=1`, so default CTest
+The optional `opengl_context_smoke` test remains display/GPU opt-in through its retired CMake and
+environment gates, so default CTest
 continues to stay display-free.
 
 ### MC-5 Metal Backend Scaffold Summary

@@ -2,9 +2,6 @@
 
 #include <memory>
 
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-#include "stellar/graphics/opengl/OpenGLGraphicsDevice.hpp"
-#endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
 #include "stellar/graphics/metal/MetalGraphicsDevice.hpp"
 #endif
@@ -23,12 +20,6 @@ std::unique_ptr<GraphicsDevice> create_graphics_device(GraphicsBackend backend) 
 #if defined(STELLAR_ENABLE_VULKAN_BACKEND)
         case GraphicsBackend::kVulkan:
             return std::make_unique<vulkan::VulkanGraphicsDevice>();
-#endif
-        case GraphicsBackend::kOpenGL:
-#if defined(STELLAR_ENABLE_OPENGL_BACKEND)
-            return std::make_unique<opengl::OpenGLGraphicsDevice>();
-#else
-            return nullptr;
 #endif
 #if defined(STELLAR_ENABLE_METAL_BACKEND)
         case GraphicsBackend::kMetal:

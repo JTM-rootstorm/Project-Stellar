@@ -6,17 +6,38 @@ My only involvement is to tell the Director what needs to be done and reign in h
 
 Please refer to `docs/Design.md` for broad project specifications and scope.
 
-For current branch implementation status, especially BSP/OpenGL/Metal rendering support, see
+For current branch implementation status, especially BSP/Vulkan/Metal rendering support, see
 `docs/ImplementationStatus.md`. Historical roadmap files under `Plans/` and `.kilo/plans/` are
 archival and may contain stale intermediate phase descriptions.
+
+Linux development dependencies:
+
+Install CMake, SDL2, GLM, and Vulkan loader/header/tooling packages for your distro. The Vulkan
+shader build requires `glslc`; SDK installs usually provide it under `$VULKAN_SDK/bin`.
 
 macOS development dependencies:
 
 ```bash
-brew install cmake sdl2 glew glm
+brew install cmake sdl2 glm
 ```
 
 Default build and tests:
+
+```bash
+cmake --preset linux-vulkan-only
+cmake --build --preset linux-vulkan-only -j$(nproc)
+ctest --preset linux-vulkan-only --output-on-failure
+```
+
+Default macOS build and tests:
+
+```bash
+cmake --preset macos-metal-only
+cmake --build --preset macos-metal-only -j$(sysctl -n hw.ncpu)
+ctest --preset macos-metal-only --output-on-failure
+```
+
+Fallback manual build and tests:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -24,12 +45,10 @@ cmake --build build -j$(sysctl -n hw.ncpu)
 ctest --test-dir build --output-on-failure
 ```
 
-Opt-in Metal build and display smoke on macOS:
+Opt-in Metal display smoke on macOS:
 
 ```bash
-cmake -S . -B build-macos-metal -DCMAKE_BUILD_TYPE=Debug -DSTELLAR_ENABLE_METAL=ON
-cmake --build build-macos-metal -j$(sysctl -n hw.ncpu)
-build-macos-metal/stellar-client --validate-display --renderer metal
+build-macos-metal-only/stellar-client --validate-display --renderer metal
 ```
 
 Opt-in audible audio smoke on macOS:
