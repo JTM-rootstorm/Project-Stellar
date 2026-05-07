@@ -452,6 +452,8 @@ if(STELLAR_ENABLE_VULKAN_BACKEND)
     add_dependencies(stellar_graphics stellar_vulkan_shaders)
     target_compile_definitions(stellar_graphics PUBLIC
         STELLAR_ENABLE_VULKAN_BACKEND=1
+        STELLAR_VULKAN_VERTEX_SPV="${STELLAR_VULKAN_VERTEX_SPV}"
+        STELLAR_VULKAN_FRAGMENT_SPV="${STELLAR_VULKAN_FRAGMENT_SPV}"
     )
     if(STELLAR_ENABLE_VULKAN_VALIDATION)
         target_compile_definitions(stellar_graphics PUBLIC

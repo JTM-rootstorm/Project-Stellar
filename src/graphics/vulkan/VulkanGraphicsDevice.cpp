@@ -9,9 +9,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstring>
 #include <cstdint>
 #include <expected>
+#include <fstream>
 #include <limits>
 #include <map>
 #include <optional>
@@ -28,6 +30,9 @@ namespace {
 
 constexpr std::uint32_t kMaxFramesInFlight = 1;
 constexpr std::uint32_t kMaterialTextureBindingCount = 7;
+constexpr std::uint32_t kDrawUniformBinding = kMaterialTextureBindingCount;
+constexpr std::uint32_t kMaterialDescriptorBindingCount = kMaterialTextureBindingCount + 1;
+constexpr std::uint32_t kDrawUniformCapacity = 4096;
 
 [[nodiscard]] stellar::platform::Error error(std::string message) {
     return stellar::platform::Error(std::move(message));
@@ -94,6 +99,62 @@ struct MaterialRecord {
     MaterialUpload upload;
     VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
 };
+
+struct PipelineKey {
+    bool alpha_blend = false;
+    bool double_sided = false;
+
+    [[nodiscard]] friend bool operator<(const PipelineKey& lhs,
+                                        const PipelineKey& rhs) noexcept {
+        return std::tie(lhs.alpha_blend, lhs.double_sided) <
+               std::tie(rhs.alpha_blend, rhs.double_sided);
+    }
+};
+
+struct PipelineRecord {
+    VkPipeline pipeline = VK_NULL_HANDLE;
+};
+
+struct DrawUniforms {
+    std::array<float, 16> mvp{};
+    std::array<float, 16> world{};
+    std::array<float, 4> normal_column0{1.0F, 0.0F, 0.0F, 0.0F};
+    std::array<float, 4> normal_column1{0.0F, 1.0F, 0.0F, 0.0F};
+    std::array<float, 4> normal_column2{0.0F, 0.0F, 1.0F, 0.0F};
+    std::array<float, 4> base_color{1.0F, 1.0F, 1.0F, 1.0F};
+    std::array<float, 4> emissive_factor{};
+    std::array<float, 4> global_light_color{};
+    std::array<float, 4> camera_world_position{};
+    std::array<float, 4> key_light_direction{0.35F, 0.8F, 0.45F, 0.0F};
+    std::array<std::array<float, 4>, 6> texture_transform0{};
+    std::array<std::array<float, 4>, 6> texture_transform1{
+        std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+        std::array<float, 4>{1.0F, 1.0F, 0.0F, 0.0F},
+    };
+    std::array<float, 4> material_factors0{0.0F, 1.0F, 1.0F, 0.0F};
+    std::array<float, 4> material_factors1{0.0F, 32.0F, 1.0F, 1.0F};
+    std::array<float, 4> material_factors2{0.0F, 0.0F, 0.5F, 0.0F};
+    std::array<std::uint32_t, 4> material_flags0{};
+    std::array<std::uint32_t, 4> material_flags1{};
+    std::array<std::uint32_t, 4> material_flags2{};
+    std::array<std::uint32_t, 4> material_flags3{};
+    std::array<std::uint32_t, 4> material_flags4{};
+};
+
+static_assert(sizeof(DrawUniforms) % 16 == 0,
+              "Vulkan draw uniforms must stay std140-aligned");
+
+[[nodiscard]] VkDeviceSize align_up(VkDeviceSize value, VkDeviceSize alignment) noexcept {
+    if (alignment == 0) {
+        return value;
+    }
+    const VkDeviceSize remainder = value % alignment;
+    return remainder == 0 ? value : value + alignment - remainder;
+}
 
 [[nodiscard]] VkFilter to_vk_filter(stellar::assets::TextureFilter filter) noexcept {
     switch (filter) {
@@ -425,7 +486,10 @@ copy_buffer_to_image(VkDevice device,
 }
 
 [[nodiscard]] std::expected<VkImageView, stellar::platform::Error>
-create_image_view(VkDevice device, VkImage image, VkFormat format) {
+create_image_view(VkDevice device,
+                  VkImage image,
+                  VkFormat format,
+                  VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT) {
     const VkImageViewCreateInfo view_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image,
@@ -433,7 +497,7 @@ create_image_view(VkDevice device, VkImage image, VkFormat format) {
         .format = format,
         .components = {VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
                        VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY},
-        .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+        .subresourceRange = {aspect, 0, 1, 0, 1},
     };
     VkImageView image_view = VK_NULL_HANDLE;
     const VkResult result = vkCreateImageView(device, &view_info, nullptr, &image_view);
@@ -458,6 +522,93 @@ create_image_view(VkDevice device, VkImage image, VkFormat format) {
         rgba.push_back(255);
     }
     return rgba;
+}
+
+std::array<float, 4>
+transform0_for(const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {0.0F, 0.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.offset[0], binding->transform.offset[1],
+            binding->transform.rotation, 1.0F};
+}
+
+std::array<float, 4>
+transform1_for(const std::optional<MaterialTextureBinding>& binding) noexcept {
+    if (!binding.has_value() || !binding->transform.enabled) {
+        return {1.0F, 1.0F, 0.0F, 0.0F};
+    }
+
+    return {binding->transform.scale[0], binding->transform.scale[1], 0.0F, 0.0F};
+}
+
+[[nodiscard]] std::uint32_t alpha_mode_value(stellar::assets::AlphaMode mode) noexcept {
+    switch (mode) {
+        case stellar::assets::AlphaMode::kMask:
+            return 1;
+        case stellar::assets::AlphaMode::kBlend:
+            return 2;
+        case stellar::assets::AlphaMode::kOpaque:
+        default:
+            return 0;
+    }
+}
+
+[[nodiscard]] bool binding_uses_supported_texcoord(
+    const std::optional<MaterialTextureBinding>& binding) noexcept {
+    return binding.has_value() && binding->texcoord_set <= 1;
+}
+
+[[nodiscard]] std::expected<std::vector<std::uint32_t>, stellar::platform::Error>
+read_spirv_words(const char* path) {
+    std::ifstream file(path, std::ios::ate | std::ios::binary);
+    if (!file) {
+        std::string message = "Vulkan shader load failed: ";
+        message += path;
+        return std::unexpected(error(std::move(message)));
+    }
+    const auto size = file.tellg();
+    if (size <= 0 || size % static_cast<std::streamoff>(sizeof(std::uint32_t)) != 0) {
+        std::string message = "Vulkan shader load failed: invalid SPIR-V size for ";
+        message += path;
+        return std::unexpected(error(std::move(message)));
+    }
+    std::vector<std::uint32_t> words(static_cast<std::size_t>(size) /
+                                     sizeof(std::uint32_t));
+    file.seekg(0);
+    file.read(reinterpret_cast<char*>(words.data()), size);
+    return words;
+}
+
+[[nodiscard]] std::expected<VkShaderModule, stellar::platform::Error>
+create_shader_module(VkDevice device, std::span<const std::uint32_t> words) {
+    const VkShaderModuleCreateInfo create_info{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = words.size_bytes(),
+        .pCode = words.data(),
+    };
+    VkShaderModule module = VK_NULL_HANDLE;
+    const VkResult result = vkCreateShaderModule(device, &create_info, nullptr, &module);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vk_error("Vulkan shader-module creation", result));
+    }
+    return module;
+}
+
+[[nodiscard]] std::expected<VkFormat, stellar::platform::Error>
+choose_depth_format(VkPhysicalDevice device) {
+    constexpr std::array<VkFormat, 3> candidates{
+        VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM};
+    for (VkFormat format : candidates) {
+        VkFormatProperties properties{};
+        vkGetPhysicalDeviceFormatProperties(device, format, &properties);
+        if ((properties.optimalTilingFeatures &
+             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0) {
+            return format;
+        }
+    }
+    return std::unexpected(error("Vulkan depth format selection failed"));
 }
 
 struct QueueFamilyIndices {
@@ -594,6 +745,7 @@ struct VulkanGraphicsDevice::Impl {
     VkExtent2D swapchain_extent{};
     std::vector<VkImage> swapchain_images;
     std::vector<VkImageView> swapchain_image_views;
+    TextureRecord depth_buffer;
     VkRenderPass render_pass = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> framebuffers;
     VkCommandPool command_pool = VK_NULL_HANDLE;
@@ -603,6 +755,12 @@ struct VulkanGraphicsDevice::Impl {
     VkFence in_flight = VK_NULL_HANDLE;
     VkDescriptorSetLayout material_descriptor_set_layout = VK_NULL_HANDLE;
     VkDescriptorPool material_descriptor_pool = VK_NULL_HANDLE;
+    VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
+    BufferRecord draw_uniform_buffer;
+    void* draw_uniform_mapped = nullptr;
+    VkDeviceSize draw_uniform_stride = sizeof(DrawUniforms);
+    std::uint32_t draw_uniform_index = 0;
+    std::map<PipelineKey, PipelineRecord> pipelines;
     std::map<std::uint64_t, MeshRecord> meshes;
     std::map<std::uint64_t, TextureRecord> textures;
     std::map<std::uint64_t, MaterialRecord> materials;
@@ -610,6 +768,7 @@ struct VulkanGraphicsDevice::Impl {
     TextureHandle fallback_white;
     TextureHandle fallback_black;
     TextureHandle fallback_normal;
+    MaterialHandle fallback_material;
     std::uint64_t next_handle = 1;
     std::uint32_t image_index = 0;
     bool frame_started = false;
@@ -787,6 +946,263 @@ struct VulkanGraphicsDevice::Impl {
         }
     }
 
+    [[nodiscard]] std::expected<MaterialHandle, stellar::platform::Error>
+    create_material_record(const MaterialUpload& material) {
+        const VkDescriptorSetAllocateInfo allocate_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = material_descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &material_descriptor_set_layout,
+        };
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+        VkResult result = vkAllocateDescriptorSets(device, &allocate_info, &descriptor_set);
+        if (result != VK_SUCCESS) {
+            return std::unexpected(vk_error("Vulkan material descriptor-set allocation",
+                                            result));
+        }
+
+        const std::array<const std::optional<MaterialTextureBinding>*,
+                         kMaterialTextureBindingCount>
+            bindings{&material.base_color_texture, &material.normal_texture,
+                     &material.metallic_roughness_texture, &material.occlusion_texture,
+                     &material.emissive_texture, &material.lightmap_texture,
+                     &material.specular_texture};
+        stellar::assets::SamplerAsset default_sampler;
+        default_sampler.mag_filter = stellar::assets::TextureFilter::kLinear;
+        default_sampler.min_filter = stellar::assets::TextureFilter::kLinear;
+        default_sampler.wrap_s = stellar::assets::TextureWrapMode::kRepeat;
+        default_sampler.wrap_t = stellar::assets::TextureWrapMode::kRepeat;
+
+        std::array<VkDescriptorImageInfo, kMaterialTextureBindingCount> image_infos{};
+        for (std::uint32_t binding = 0; binding < kMaterialTextureBindingCount; ++binding) {
+            TextureHandle texture_handle = fallback_for_binding(binding);
+            const stellar::assets::SamplerAsset* sampler = &default_sampler;
+            if (bindings[binding]->has_value()) {
+                texture_handle = (*bindings[binding])->texture;
+                sampler = &(*bindings[binding])->sampler;
+            }
+
+            auto texture = texture_record(texture_handle);
+            if (!texture) {
+                vkFreeDescriptorSets(device, material_descriptor_pool, 1, &descriptor_set);
+                return std::unexpected(texture.error());
+            }
+            auto vk_sampler = sampler_for(*sampler);
+            if (!vk_sampler) {
+                vkFreeDescriptorSets(device, material_descriptor_pool, 1, &descriptor_set);
+                return std::unexpected(vk_sampler.error());
+            }
+            image_infos[binding] = VkDescriptorImageInfo{
+                .sampler = *vk_sampler,
+                .imageView = (*texture)->image_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+        }
+
+        std::array<VkWriteDescriptorSet, kMaterialDescriptorBindingCount> writes{};
+        for (std::uint32_t binding = 0; binding < kMaterialTextureBindingCount; ++binding) {
+            writes[binding] = VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = descriptor_set,
+                .dstBinding = binding,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &image_infos[binding],
+            };
+        }
+        const VkDescriptorBufferInfo uniform_info{
+            .buffer = draw_uniform_buffer.buffer,
+            .offset = 0,
+            .range = sizeof(DrawUniforms),
+        };
+        writes[kDrawUniformBinding] = VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = kDrawUniformBinding,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .pBufferInfo = &uniform_info,
+        };
+        vkUpdateDescriptorSets(device, static_cast<std::uint32_t>(writes.size()),
+                               writes.data(), 0, nullptr);
+
+        const MaterialHandle handle{allocate_handle()};
+        materials.emplace(handle.value,
+                          MaterialRecord{.upload = material,
+                                         .descriptor_set = descriptor_set});
+        return handle;
+    }
+
+    [[nodiscard]] std::expected<void, stellar::platform::Error> create_fallback_material() {
+        stellar::assets::MaterialAsset material;
+        material.name = "vulkan-fallback-material";
+        material.base_color_factor = {0.85F, 0.9F, 1.0F, 1.0F};
+        material.unlit = true;
+        auto handle = create_material_record(MaterialUpload{.material = material});
+        if (!handle) {
+            return std::unexpected(handle.error());
+        }
+        fallback_material = *handle;
+        return {};
+    }
+
+    [[nodiscard]] std::optional<std::uint32_t>
+    write_draw_uniforms(const DrawUniforms& uniforms) noexcept {
+        if (draw_uniform_mapped == nullptr || draw_uniform_index >= kDrawUniformCapacity) {
+            return std::nullopt;
+        }
+        const VkDeviceSize offset =
+            static_cast<VkDeviceSize>(draw_uniform_index) * draw_uniform_stride;
+        std::memcpy(static_cast<std::byte*>(draw_uniform_mapped) + offset, &uniforms,
+                    sizeof(uniforms));
+        ++draw_uniform_index;
+        return static_cast<std::uint32_t>(offset);
+    }
+
+    [[nodiscard]] std::expected<VkPipeline, stellar::platform::Error>
+    pipeline_for(PipelineKey key) {
+        if (auto found = pipelines.find(key); found != pipelines.end()) {
+            return found->second.pipeline;
+        }
+
+        auto vertex_words = read_spirv_words(STELLAR_VULKAN_VERTEX_SPV);
+        if (!vertex_words) {
+            return std::unexpected(vertex_words.error());
+        }
+        auto fragment_words = read_spirv_words(STELLAR_VULKAN_FRAGMENT_SPV);
+        if (!fragment_words) {
+            return std::unexpected(fragment_words.error());
+        }
+        auto vertex_module = create_shader_module(device, *vertex_words);
+        if (!vertex_module) {
+            return std::unexpected(vertex_module.error());
+        }
+        auto fragment_module = create_shader_module(device, *fragment_words);
+        if (!fragment_module) {
+            vkDestroyShaderModule(device, *vertex_module, nullptr);
+            return std::unexpected(fragment_module.error());
+        }
+
+        const VkPipelineShaderStageCreateInfo shader_stages[] = {
+            {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+             .stage = VK_SHADER_STAGE_VERTEX_BIT,
+             .module = *vertex_module,
+             .pName = "main"},
+            {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+             .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+             .module = *fragment_module,
+             .pName = "main"},
+        };
+        const VkVertexInputBindingDescription binding_description{
+            .binding = 0,
+            .stride = sizeof(stellar::assets::StaticVertex),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+        };
+        const std::array<VkVertexInputAttributeDescription, 6> attributes{{
+            {0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+             offsetof(stellar::assets::StaticVertex, position)},
+            {1, 0, VK_FORMAT_R32G32B32_SFLOAT,
+             offsetof(stellar::assets::StaticVertex, normal)},
+            {2, 0, VK_FORMAT_R32G32_SFLOAT,
+             offsetof(stellar::assets::StaticVertex, uv0)},
+            {3, 0, VK_FORMAT_R32G32B32A32_SFLOAT,
+             offsetof(stellar::assets::StaticVertex, tangent)},
+            {4, 0, VK_FORMAT_R32G32_SFLOAT,
+             offsetof(stellar::assets::StaticVertex, uv1)},
+            {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT,
+             offsetof(stellar::assets::StaticVertex, color)},
+        }};
+        const VkPipelineVertexInputStateCreateInfo vertex_input_info{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .vertexBindingDescriptionCount = 1,
+            .pVertexBindingDescriptions = &binding_description,
+            .vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attributes.size()),
+            .pVertexAttributeDescriptions = attributes.data(),
+        };
+        const VkPipelineInputAssemblyStateCreateInfo input_assembly{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        };
+        const VkViewport viewport{
+            .x = 0.0F,
+            .y = 0.0F,
+            .width = static_cast<float>(swapchain_extent.width),
+            .height = static_cast<float>(swapchain_extent.height),
+            .minDepth = 0.0F,
+            .maxDepth = 1.0F,
+        };
+        const VkRect2D scissor{{0, 0}, swapchain_extent};
+        const VkPipelineViewportStateCreateInfo viewport_state{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .viewportCount = 1,
+            .pViewports = &viewport,
+            .scissorCount = 1,
+            .pScissors = &scissor,
+        };
+        const VkPipelineRasterizationStateCreateInfo rasterizer{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .polygonMode = VK_POLYGON_MODE_FILL,
+            .cullMode = key.double_sided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT,
+            .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            .lineWidth = 1.0F,
+        };
+        const VkPipelineMultisampleStateCreateInfo multisampling{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        };
+        const VkPipelineDepthStencilStateCreateInfo depth_stencil{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            .depthTestEnable = VK_TRUE,
+            .depthWriteEnable = VK_TRUE,
+            .depthCompareOp = VK_COMPARE_OP_LESS,
+            .depthBoundsTestEnable = VK_FALSE,
+            .stencilTestEnable = VK_FALSE,
+        };
+        VkPipelineColorBlendAttachmentState color_blend_attachment{
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        };
+        if (key.alpha_blend) {
+            color_blend_attachment.blendEnable = VK_TRUE;
+            color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+            color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+            color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+        }
+        const VkPipelineColorBlendStateCreateInfo color_blending{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .attachmentCount = 1,
+            .pAttachments = &color_blend_attachment,
+        };
+        const VkGraphicsPipelineCreateInfo pipeline_info{
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .stageCount = 2,
+            .pStages = shader_stages,
+            .pVertexInputState = &vertex_input_info,
+            .pInputAssemblyState = &input_assembly,
+            .pViewportState = &viewport_state,
+            .pRasterizationState = &rasterizer,
+            .pMultisampleState = &multisampling,
+            .pDepthStencilState = &depth_stencil,
+            .pColorBlendState = &color_blending,
+            .layout = pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+        };
+        VkPipeline pipeline = VK_NULL_HANDLE;
+        const VkResult result = vkCreateGraphicsPipelines(
+            device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline);
+        vkDestroyShaderModule(device, *fragment_module, nullptr);
+        vkDestroyShaderModule(device, *vertex_module, nullptr);
+        if (result != VK_SUCCESS) {
+            return std::unexpected(vk_error("Vulkan graphics-pipeline creation", result));
+        }
+        pipelines.emplace(key, PipelineRecord{.pipeline = pipeline});
+        return pipeline;
+    }
+
     void cleanup_swapchain() noexcept {
         if (device == VK_NULL_HANDLE) {
             return;
@@ -809,6 +1225,7 @@ struct VulkanGraphicsDevice::Impl {
             vkDestroyImageView(device, image_view, nullptr);
         }
         swapchain_image_views.clear();
+        destroy_texture_record(device, depth_buffer);
         destroy_vector(swapchain_images);
         if (swapchain != VK_NULL_HANDLE) {
             vkDestroySwapchainKHR(device, swapchain, nullptr);
@@ -824,6 +1241,20 @@ struct VulkanGraphicsDevice::Impl {
                 vkDestroyDescriptorPool(device, material_descriptor_pool, nullptr);
                 material_descriptor_pool = VK_NULL_HANDLE;
             }
+            for (auto& [key, pipeline] : pipelines) {
+                if (pipeline.pipeline != VK_NULL_HANDLE) {
+                    vkDestroyPipeline(device, pipeline.pipeline, nullptr);
+                }
+            }
+            pipelines.clear();
+            if (pipeline_layout != VK_NULL_HANDLE) {
+                vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+            }
+            if (draw_uniform_mapped != nullptr) {
+                vkUnmapMemory(device, draw_uniform_buffer.memory);
+                draw_uniform_mapped = nullptr;
+            }
+            destroy_buffer(device, draw_uniform_buffer);
             for (auto& [handle, texture] : textures) {
                 destroy_texture_record(device, texture);
             }
@@ -1009,7 +1440,7 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         return std::unexpected(vk_error("Vulkan frame fence creation", result));
     }
 
-    std::array<VkDescriptorSetLayoutBinding, kMaterialTextureBindingCount> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, kMaterialDescriptorBindingCount> bindings{};
     for (std::uint32_t binding = 0; binding < kMaterialTextureBindingCount; ++binding) {
         bindings[binding] = VkDescriptorSetLayoutBinding{
             .binding = binding,
@@ -1018,6 +1449,12 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         };
     }
+    bindings[kDrawUniformBinding] = VkDescriptorSetLayoutBinding{
+        .binding = kDrawUniformBinding,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
     const VkDescriptorSetLayoutCreateInfo layout_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = static_cast<std::uint32_t>(bindings.size()),
@@ -1031,16 +1468,18 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
     }
 
     constexpr std::uint32_t kMaterialDescriptorSetCapacity = 512;
-    const VkDescriptorPoolSize pool_size{
-        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = kMaterialDescriptorSetCapacity * kMaterialTextureBindingCount,
-    };
+    const std::array<VkDescriptorPoolSize, 2> pool_sizes{{
+        {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = kMaterialDescriptorSetCapacity * kMaterialTextureBindingCount},
+        {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+         .descriptorCount = kMaterialDescriptorSetCapacity},
+    }};
     const VkDescriptorPoolCreateInfo pool_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = kMaterialDescriptorSetCapacity,
-        .poolSizeCount = 1,
-        .pPoolSizes = &pool_size,
+        .poolSizeCount = static_cast<std::uint32_t>(pool_sizes.size()),
+        .pPoolSizes = pool_sizes.data(),
     };
     result = vkCreateDescriptorPool(
         impl_->device, &pool_info, nullptr, &impl_->material_descriptor_pool);
@@ -1048,8 +1487,42 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         return std::unexpected(vk_error("Vulkan material descriptor-pool creation", result));
     }
 
+    const VkPipelineLayoutCreateInfo pipeline_layout_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &impl_->material_descriptor_set_layout,
+    };
+    result = vkCreatePipelineLayout(
+        impl_->device, &pipeline_layout_info, nullptr, &impl_->pipeline_layout);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vk_error("Vulkan pipeline-layout creation", result));
+    }
+
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(impl_->physical_device, &properties);
+    impl_->draw_uniform_stride = align_up(
+        sizeof(DrawUniforms), properties.limits.minUniformBufferOffsetAlignment);
+    auto draw_uniform_buffer = create_buffer(
+        impl_->physical_device, impl_->device,
+        impl_->draw_uniform_stride * kDrawUniformCapacity,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (!draw_uniform_buffer) {
+        return std::unexpected(draw_uniform_buffer.error());
+    }
+    impl_->draw_uniform_buffer = *draw_uniform_buffer;
+    result = vkMapMemory(impl_->device, impl_->draw_uniform_buffer.memory, 0,
+                         impl_->draw_uniform_buffer.size, 0,
+                         &impl_->draw_uniform_mapped);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(vk_error("Vulkan draw-uniform buffer map", result));
+    }
+
     if (auto fallbacks = impl_->create_fallback_textures(); !fallbacks) {
         return std::unexpected(fallbacks.error());
+    }
+    if (auto fallback_material = impl_->create_fallback_material(); !fallback_material) {
+        return std::unexpected(fallback_material.error());
     }
 
     const SwapchainSupport support =
@@ -1117,6 +1590,26 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         impl_->swapchain_image_views.push_back(view);
     }
 
+    auto depth_format = choose_depth_format(impl_->physical_device);
+    if (!depth_format) {
+        return std::unexpected(depth_format.error());
+    }
+    auto depth_buffer = create_image(
+        impl_->physical_device, impl_->device, impl_->swapchain_extent.width,
+        impl_->swapchain_extent.height, *depth_format,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    if (!depth_buffer) {
+        return std::unexpected(depth_buffer.error());
+    }
+    auto depth_view = create_image_view(
+        impl_->device, depth_buffer->image, *depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+    if (!depth_view) {
+        destroy_texture_record(impl_->device, *depth_buffer);
+        return std::unexpected(depth_view.error());
+    }
+    depth_buffer->image_view = *depth_view;
+    impl_->depth_buffer = *depth_buffer;
+
     const VkAttachmentDescription color_attachment{
         .format = impl_->swapchain_format,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -1127,26 +1620,46 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
     };
+    const VkAttachmentDescription depth_attachment{
+        .format = *depth_format,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
     const VkAttachmentReference color_attachment_ref{
         .attachment = 0,
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    const VkAttachmentReference depth_attachment_ref{
+        .attachment = 1,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     };
     const VkSubpassDescription subpass{
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount = 1,
         .pColorAttachments = &color_attachment_ref,
+        .pDepthStencilAttachment = &depth_attachment_ref,
     };
     const VkSubpassDependency dependency{
         .srcSubpass = VK_SUBPASS_EXTERNAL,
         .dstSubpass = 0,
-        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
     };
+    const std::array<VkAttachmentDescription, 2> attachments{
+        color_attachment, depth_attachment};
     const VkRenderPassCreateInfo render_pass_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments = &color_attachment,
+        .attachmentCount = static_cast<std::uint32_t>(attachments.size()),
+        .pAttachments = attachments.data(),
         .subpassCount = 1,
         .pSubpasses = &subpass,
         .dependencyCount = 1,
@@ -1160,11 +1673,13 @@ VulkanGraphicsDevice::initialize(stellar::platform::Window& window) {
 
     impl_->framebuffers.reserve(impl_->swapchain_image_views.size());
     for (auto image_view : impl_->swapchain_image_views) {
+        const std::array<VkImageView, 2> attachments{
+            image_view, impl_->depth_buffer.image_view};
         const VkFramebufferCreateInfo framebuffer_info{
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = impl_->render_pass,
-            .attachmentCount = 1,
-            .pAttachments = &image_view,
+            .attachmentCount = static_cast<std::uint32_t>(attachments.size()),
+            .pAttachments = attachments.data(),
             .width = impl_->swapchain_extent.width,
             .height = impl_->swapchain_extent.height,
             .layers = 1,
@@ -1351,77 +1866,7 @@ VulkanGraphicsDevice::create_material(const MaterialUpload& material) {
         return std::unexpected(error("Vulkan material upload failed: device is not initialized"));
     }
 
-    const VkDescriptorSetAllocateInfo allocate_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = impl_->material_descriptor_pool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &impl_->material_descriptor_set_layout,
-    };
-    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-    VkResult result = vkAllocateDescriptorSets(impl_->device, &allocate_info, &descriptor_set);
-    if (result != VK_SUCCESS) {
-        return std::unexpected(vk_error("Vulkan material descriptor-set allocation", result));
-    }
-
-    const std::array<const std::optional<MaterialTextureBinding>*,
-                     kMaterialTextureBindingCount>
-        bindings{&material.base_color_texture, &material.normal_texture,
-                 &material.metallic_roughness_texture, &material.occlusion_texture,
-                 &material.emissive_texture, &material.lightmap_texture,
-                 &material.specular_texture};
-    stellar::assets::SamplerAsset default_sampler;
-    default_sampler.mag_filter = stellar::assets::TextureFilter::kLinear;
-    default_sampler.min_filter = stellar::assets::TextureFilter::kLinear;
-    default_sampler.wrap_s = stellar::assets::TextureWrapMode::kRepeat;
-    default_sampler.wrap_t = stellar::assets::TextureWrapMode::kRepeat;
-
-    std::array<VkDescriptorImageInfo, kMaterialTextureBindingCount> image_infos{};
-    for (std::uint32_t binding = 0; binding < kMaterialTextureBindingCount; ++binding) {
-        TextureHandle texture_handle = impl_->fallback_for_binding(binding);
-        const stellar::assets::SamplerAsset* sampler = &default_sampler;
-        if (bindings[binding]->has_value()) {
-            texture_handle = (*bindings[binding])->texture;
-            sampler = &(*bindings[binding])->sampler;
-        }
-
-        auto texture_record = impl_->texture_record(texture_handle);
-        if (!texture_record) {
-            vkFreeDescriptorSets(impl_->device, impl_->material_descriptor_pool, 1,
-                                 &descriptor_set);
-            return std::unexpected(texture_record.error());
-        }
-        auto vk_sampler = impl_->sampler_for(*sampler);
-        if (!vk_sampler) {
-            vkFreeDescriptorSets(impl_->device, impl_->material_descriptor_pool, 1,
-                                 &descriptor_set);
-            return std::unexpected(vk_sampler.error());
-        }
-        image_infos[binding] = VkDescriptorImageInfo{
-            .sampler = *vk_sampler,
-            .imageView = (*texture_record)->image_view,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-    }
-
-    std::array<VkWriteDescriptorSet, kMaterialTextureBindingCount> writes{};
-    for (std::uint32_t binding = 0; binding < kMaterialTextureBindingCount; ++binding) {
-        writes[binding] = VkWriteDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = binding,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &image_infos[binding],
-        };
-    }
-    vkUpdateDescriptorSets(impl_->device, static_cast<std::uint32_t>(writes.size()),
-                           writes.data(), 0, nullptr);
-
-    const MaterialHandle handle{impl_->allocate_handle()};
-    impl_->materials.emplace(handle.value,
-                             MaterialRecord{.upload = material,
-                                            .descriptor_set = descriptor_set});
-    return handle;
+    return impl_->create_material_record(material);
 }
 
 void VulkanGraphicsDevice::begin_frame(int, int) noexcept {
@@ -1444,6 +1889,7 @@ void VulkanGraphicsDevice::begin_frame(int, int) noexcept {
         return;
     }
 
+    impl_->draw_uniform_index = 0;
     const VkCommandBuffer command_buffer = impl_->command_buffers[impl_->image_index];
     vkResetCommandBuffer(command_buffer, 0);
     const VkCommandBufferBeginInfo begin_info{
@@ -1453,22 +1899,146 @@ void VulkanGraphicsDevice::begin_frame(int, int) noexcept {
         return;
     }
 
-    const VkClearValue clear_color{{{0.0F, 0.0F, 0.0F, 1.0F}}};
+    const std::array<VkClearValue, 2> clear_values{{
+        {.color = {{0.0F, 0.0F, 0.0F, 1.0F}}},
+        {.depthStencil = {1.0F, 0}},
+    }};
     const VkRenderPassBeginInfo render_pass_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = impl_->render_pass,
         .framebuffer = impl_->framebuffers[impl_->image_index],
         .renderArea = {{0, 0}, impl_->swapchain_extent},
-        .clearValueCount = 1,
-        .pClearValues = &clear_color,
+        .clearValueCount = static_cast<std::uint32_t>(clear_values.size()),
+        .pClearValues = clear_values.data(),
     };
     vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
     impl_->frame_started = true;
 }
 
-void VulkanGraphicsDevice::draw_mesh(MeshHandle,
-                                     std::span<const MeshPrimitiveDrawCommand>,
-                                     const MeshDrawTransforms&) noexcept {}
+void VulkanGraphicsDevice::draw_mesh(MeshHandle mesh,
+                                     std::span<const MeshPrimitiveDrawCommand> commands,
+                                     const MeshDrawTransforms& transforms) noexcept {
+    if (!impl_->initialized || !impl_->frame_started) {
+        return;
+    }
+    auto mesh_record = impl_->meshes.find(mesh.value);
+    if (mesh_record == impl_->meshes.end()) {
+        return;
+    }
+
+    const VkCommandBuffer command_buffer = impl_->command_buffers[impl_->image_index];
+    for (const auto& command : commands) {
+        if (command.primitive_index >= mesh_record->second.primitives.size()) {
+            continue;
+        }
+        auto material = impl_->materials.find(command.material.value);
+        if (material == impl_->materials.end()) {
+            material = impl_->materials.find(impl_->fallback_material.value);
+        }
+        if (material == impl_->materials.end()) {
+            continue;
+        }
+        const auto& upload = material->second.upload;
+        const bool alpha_blend =
+            upload.material.alpha_mode == stellar::assets::AlphaMode::kBlend;
+        const PipelineKey key{.alpha_blend = alpha_blend,
+                              .double_sided = upload.material.double_sided};
+        auto pipeline = impl_->pipeline_for(key);
+        if (!pipeline) {
+            continue;
+        }
+
+        const auto& primitive = mesh_record->second.primitives[command.primitive_index];
+        const bool has_base_color = binding_uses_supported_texcoord(upload.base_color_texture);
+        const bool has_lightmap = binding_uses_supported_texcoord(upload.lightmap_texture);
+        const bool has_normal =
+            primitive.has_tangents && binding_uses_supported_texcoord(upload.normal_texture);
+        const bool has_metallic_roughness =
+            binding_uses_supported_texcoord(upload.metallic_roughness_texture);
+        const bool has_occlusion = binding_uses_supported_texcoord(upload.occlusion_texture);
+        const bool has_emissive = binding_uses_supported_texcoord(upload.emissive_texture);
+        const bool has_specular = binding_uses_supported_texcoord(upload.specular_texture);
+
+        DrawUniforms uniforms{};
+        uniforms.mvp = transforms.mvp;
+        uniforms.world = transforms.world;
+        uniforms.normal_column0 = {transforms.normal[0], transforms.normal[1],
+                                   transforms.normal[2], 0.0F};
+        uniforms.normal_column1 = {transforms.normal[3], transforms.normal[4],
+                                   transforms.normal[5], 0.0F};
+        uniforms.normal_column2 = {transforms.normal[6], transforms.normal[7],
+                                   transforms.normal[8], 0.0F};
+        uniforms.base_color = upload.material.base_color_factor;
+        uniforms.emissive_factor = {upload.material.emissive_factor[0],
+                                    upload.material.emissive_factor[1],
+                                    upload.material.emissive_factor[2], 0.0F};
+        uniforms.global_light_color = {upload.global_light_color[0],
+                                       upload.global_light_color[1],
+                                       upload.global_light_color[2], 0.0F};
+        uniforms.camera_world_position = {
+            transforms.camera_world_position[0], transforms.camera_world_position[1],
+            transforms.camera_world_position[2], 0.0F};
+        uniforms.texture_transform0 = {
+            transform0_for(upload.base_color_texture),
+            transform0_for(upload.normal_texture),
+            transform0_for(upload.metallic_roughness_texture),
+            transform0_for(upload.occlusion_texture),
+            transform0_for(upload.emissive_texture),
+            transform0_for(upload.specular_texture),
+        };
+        uniforms.texture_transform1 = {
+            transform1_for(upload.base_color_texture),
+            transform1_for(upload.normal_texture),
+            transform1_for(upload.metallic_roughness_texture),
+            transform1_for(upload.occlusion_texture),
+            transform1_for(upload.emissive_texture),
+            transform1_for(upload.specular_texture),
+        };
+        uniforms.material_factors0 = {
+            upload.material.metallic_factor, upload.material.roughness_factor,
+            upload.material.normal_scale, upload.material.normal_light_strength};
+        uniforms.material_factors1 = {
+            upload.material.specular_factor, upload.material.specular_power,
+            upload.material.occlusion_strength, upload.lightmap_multiplier};
+        uniforms.material_factors2 = {upload.lightmap_min, upload.global_light_intensity,
+                                      upload.material.alpha_cutoff, 0.0F};
+        uniforms.material_flags0 = {has_base_color ? 1U : 0U, has_lightmap ? 1U : 0U,
+                                    has_normal ? 1U : 0U,
+                                    has_metallic_roughness ? 1U : 0U};
+        uniforms.material_flags1 = {has_occlusion ? 1U : 0U, has_emissive ? 1U : 0U,
+                                    has_specular ? 1U : 0U,
+                                    primitive.has_colors ? 1U : 0U};
+        uniforms.material_flags2 = {
+            transforms.has_camera_world_position ? 1U : 0U,
+            has_base_color ? upload.base_color_texture->texcoord_set : 0U,
+            has_lightmap ? upload.lightmap_texture->texcoord_set : 1U,
+            has_normal ? upload.normal_texture->texcoord_set : 0U};
+        uniforms.material_flags3 = {
+            has_metallic_roughness ? upload.metallic_roughness_texture->texcoord_set : 0U,
+            has_occlusion ? upload.occlusion_texture->texcoord_set : 0U,
+            has_emissive ? upload.emissive_texture->texcoord_set : 0U,
+            has_specular ? upload.specular_texture->texcoord_set : 0U};
+        uniforms.material_flags4 = {
+            alpha_mode_value(upload.material.alpha_mode),
+            upload.material.unlit ? 1U : 0U, 0U, 0U};
+        const auto dynamic_offset = impl_->write_draw_uniforms(uniforms);
+        if (!dynamic_offset.has_value()) {
+            continue;
+        }
+
+        const VkDeviceSize offset = 0;
+        VkBuffer vertex_buffer = primitive.vertex_buffer.buffer;
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                impl_->pipeline_layout, 0, 1,
+                                &material->second.descriptor_set, 1,
+                                &*dynamic_offset);
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer, &offset);
+        vkCmdBindIndexBuffer(command_buffer, primitive.index_buffer.buffer, 0,
+                             VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(command_buffer, primitive.index_count, 1, 0, 0, 0);
+    }
+}
 
 void VulkanGraphicsDevice::end_frame() noexcept {
     if (!impl_->initialized || !impl_->frame_started) {

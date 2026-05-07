@@ -8,7 +8,7 @@ handoff, and completed historical branch notes.
 
 ## Active Scope - Linux Vulkan Renderer Migration
 
-Status: VK-5 resource upload/descriptors complete on `GL-to-vulkan` as of 2026-05-07.
+Status: VK-6 draw path/material parity complete on `GL-to-vulkan` as of 2026-05-07.
 
 Active plan:
 
@@ -204,7 +204,44 @@ Validation results:
   77 because SDL reported `x11 not available` in this session.
 - `tools/dev/check_target_boundaries.sh`: passed.
 
-Next phase: VK-6 draw path and material parity.
+### VK-6 Draw Path And Material Parity Summary
+
+Status: complete for Vulkan static level draw submission as of 2026-05-07.
+
+`VulkanGraphicsDevice` now binds static-level graphics pipelines, material descriptor sets, dynamic
+draw uniform buffers, uploaded vertex/index buffers, and submits indexed draws for each primitive.
+The Vulkan shader path consumes the same active material presentation contract as OpenGL and Metal:
+base color and vertex color, lightmaps, normal maps with tangent-space perturbation, metallic and
+roughness factors/textures, occlusion, emissive, specular, texture transforms, per-slot texcoord
+selection, alpha mask/blend selection, double-sided culling control, unlit materials, global level
+light contribution, camera-dependent specular, and fallback material color for missing material
+handles.
+
+The swapchain render pass now owns a depth attachment and the graphics pipeline enables depth test
+and writes with `VK_COMPARE_OP_LESS`, matching the existing static level ordering assumptions in the
+OpenGL and Metal backends. Vulkan still requires an attached Linux display/GPU session for visual
+parity confirmation; the local opt-in display commands skip cleanly in the current headless session.
+
+Validation results:
+
+- `cmake --build --preset linux-vulkan --parallel $(nproc)`: passed.
+- `cmake --build --preset linux-vulkan-only --parallel $(nproc)`: passed.
+- `ctest --preset linux-vulkan --output-on-failure`: passed, 105/105 with
+  `vulkan_context_smoke` skipped by default.
+- `ctest --test-dir build-linux-vulkan -R
+  '^(render_level_upload|render_level_inspection|bsp_materials|bsp_lightmaps|graphics_backend_selection|vulkan_shader_compile|target_boundary)$'
+  --output-on-failure`: passed, 7/7 tests.
+- `ctest --test-dir build-linux-vulkan-only -R
+  '^(render_level_upload|render_level_inspection|graphics_backend_selection|vulkan_shader_compile|target_boundary)$'
+  --output-on-failure`: passed, 5/5 tests.
+- `STELLAR_RUN_VULKAN_CONTEXT_TESTS=1 ctest --test-dir build-linux-vulkan -R
+  '^vulkan_context_smoke$' --output-on-failure`: skipped with return code 77 because display access
+  was unavailable.
+- `build-linux-vulkan/stellar-client --validate-display --renderer vulkan`: skipped with return code
+  77 because SDL reported `x11 not available` in this session.
+- `tools/dev/check_target_boundaries.sh`: passed.
+
+Next phase: VK-7 frame readback.
 
 ## Completed Scope - Full macOS Compatibility And Linux Parity
 
