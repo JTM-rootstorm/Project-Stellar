@@ -16,6 +16,8 @@ Environment overrides:
   STELLAR_BSP30_TOOLCHAIN Toolchain selection: auto, single, or vhlt (default: auto).
   STELLAR_BSP30_COMPILER  BSP30-capable map compiler executable.
   QBSP                    Alternative compiler executable if STELLAR_BSP30_COMPILER is unset.
+  STELLAR_VHLT_DIR        Directory containing VHLT tools for auto/vhlt selection.
+  HLCSG, HLBSP            Explicit VHLT fast-compile tool paths for auto/vhlt selection.
   STELLAR_CLIENT          Path to stellar-client for post-compile validation.
   STELLAR_SERVER          Path to stellar-server for post-compile validation.
   STELLAR_BUILD_DIR       Build directory containing Stellar validation binaries.
@@ -154,17 +156,40 @@ explicit_single_compiler() {
     return 1
 }
 
-has_vhlt_tools_under_bsp() {
+vhlt_auto_override_for_tool() {
+    local tool="$1"
+
+    case "$tool" in
+        hlcsg) printf '%s\n' "${HLCSG:-}" ;;
+        hlbsp) printf '%s\n' "${HLBSP:-}" ;;
+        *) return 1 ;;
+    esac
+}
+
+find_vhlt_tool_for_auto() {
     local root="$1"
     local tool
     local candidate
-    local found
+    local override_value
     local platform_dir
 
+    shift
     platform_dir="$(platform_vhlt_dir "$root")"
 
-    for tool in hlcsg hlbsp hlvis hlrad; do
-        found="0"
+    for tool in "$@"; do
+        override_value="$(vhlt_auto_override_for_tool "$tool")"
+        if [[ -n "$override_value" ]]; then
+            host_tool_is_executable "$override_value" || return 1
+            continue
+        fi
+
+        if [[ -n "${STELLAR_VHLT_DIR:-}" ]]; then
+            candidate="$STELLAR_VHLT_DIR/$tool"
+            if host_tool_is_executable "$candidate"; then
+                continue
+            fi
+        fi
+
         for candidate in \
             "${platform_dir:+$platform_dir/$tool}" \
             "$root/tools/bsp/$tool" \
@@ -172,11 +197,18 @@ has_vhlt_tools_under_bsp() {
             "$root/tools/bsp/bin/$tool"; do
             [[ -n "$candidate" ]] || continue
             if host_tool_is_executable "$candidate"; then
-                found="1"
-                break
+                continue 2
             fi
         done
-        [[ "$found" == "1" ]] || return 1
+
+        if command -v "$tool" >/dev/null 2>&1; then
+            candidate="$(command -v "$tool")"
+            if host_tool_is_executable "$candidate"; then
+                continue
+            fi
+        fi
+
+        return 1
     done
 
     return 0
@@ -190,7 +222,7 @@ select_auto_toolchain() {
         return 0
     fi
 
-    if has_vhlt_tools_under_bsp "$root"; then
+    if find_vhlt_tool_for_auto "$root" hlcsg hlbsp; then
         printf 'vhlt\n'
         return 0
     fi

@@ -381,6 +381,71 @@ if args != expected:
     raise SystemExit(f"linked quoted argument preservation failed: {args!r} != {expected!r}")
 PY
 
+auto_vhlt_repo="$work_dir/Auto VHLT Repo With Spaces"
+auto_vhlt_dir="$work_dir/External VHLT With Spaces"
+mkdir -p \
+    "$auto_vhlt_repo/tools/bsp" \
+    "$auto_vhlt_dir" \
+    "$work_dir/Auto VHLT Map Dir" \
+    "$work_dir/Auto VHLT Out Dir"
+touch "$auto_vhlt_repo/CMakeLists.txt" "$work_dir/Auto VHLT Map Dir/test map.map"
+cp "$repo_root/tools/bsp/compile_trenchbroom_bsp30.sh" \
+    "$auto_vhlt_repo/tools/bsp/compile_trenchbroom_bsp30.sh"
+cat > "$auto_vhlt_repo/tools/bsp/validate_trenchbroom_bsp30.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+cat > "$auto_vhlt_repo/tools/bsp/validate_trenchbroom_map_source.py" <<'PY'
+#!/usr/bin/env python3
+import sys
+sys.exit(0)
+PY
+cat > "$auto_vhlt_repo/tools/bsp/compile_vhlt_bsp30.sh" <<'SH'
+#!/usr/bin/env bash
+python3 - "$STELLAR_TB_ARG_CAPTURE" "$@" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_text("\n".join(sys.argv[2:]), encoding="utf-8")
+PY
+SH
+for tool in hlcsg hlbsp; do
+    cat > "$auto_vhlt_dir/$tool" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+done
+chmod +x \
+    "$auto_vhlt_repo/tools/bsp/compile_trenchbroom_bsp30.sh" \
+    "$auto_vhlt_repo/tools/bsp/compile_vhlt_bsp30.sh" \
+    "$auto_vhlt_repo/tools/bsp/validate_trenchbroom_bsp30.sh" \
+    "$auto_vhlt_repo/tools/bsp/validate_trenchbroom_map_source.py" \
+    "$auto_vhlt_dir/hlcsg" \
+    "$auto_vhlt_dir/hlbsp"
+auto_vhlt_capture="$work_dir/auto-vhlt-args.txt"
+env -u STELLAR_BSP30_COMPILER -u QBSP -u STELLAR_BSP30_TOOLCHAIN \
+    STELLAR_VHLT_DIR="$auto_vhlt_dir" \
+    STELLAR_TB_ARG_CAPTURE="$auto_vhlt_capture" \
+    bash "$auto_vhlt_repo/tools/bsp/compile_trenchbroom_bsp30.sh" \
+    --map "$work_dir/Auto VHLT Map Dir/test map.map" \
+    --out "$work_dir/Auto VHLT Out Dir/test map.bsp" \
+    --profile fast
+python3 - "$auto_vhlt_capture" "$work_dir" <<'PY'
+from pathlib import Path
+import sys
+args = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+work = Path(sys.argv[2])
+expected = [
+    "--map",
+    str(work / "Auto VHLT Map Dir" / "test map.map"),
+    "--out",
+    str(work / "Auto VHLT Out Dir" / "test map.bsp"),
+    "--profile",
+    "fast",
+]
+if args != expected:
+    raise SystemExit(f"auto VHLT selection did not delegate expected args: {args!r} != {expected!r}")
+PY
+
 fake_validate_repo="$work_dir/Fake Validate Repo With Spaces"
 mkdir -p \
     "$fake_validate_repo/tools/bsp" \
