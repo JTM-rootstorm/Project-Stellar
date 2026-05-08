@@ -123,7 +123,9 @@ Next steps:
   4. Set compilation tool paths:
        STELLAR_BSP30_COMPILE  = $target_package/bin/stellar_tb_compile.sh
        STELLAR_BSP30_VALIDATE = $target_package/bin/stellar_tb_validate.sh
-  5. For copied packages, keep STELLAR_REPO_ROOT exported if you move the checkout:
+  5. Copy mode wrote $target_package/.stellar_repo_root.
+     Link mode resolves the physical checkout path automatically.
+  6. If a copied package loses track of the checkout, export:
        export STELLAR_REPO_ROOT="$repo_root"
-  6. Build Stellar before validation profiles, or set STELLAR_CLIENT/STELLAR_SERVER.
+  7. Build Stellar before validation profiles, or set STELLAR_CLIENT/STELLAR_SERVER.
 EOF

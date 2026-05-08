@@ -7,8 +7,10 @@ This package provides Stellar's editor-facing BSP30 workflow for TrenchBroom.
 Supported install modes:
 
 1. **Repo-local:** add `tools/trenchbroom/Stellar/` from the checkout as the game package.
-2. **Copied package:** copy or link this package into TrenchBroom's user games directory and point it
-   at the checkout with `STELLAR_REPO_ROOT` or package-local `.stellar_repo_root`.
+2. **Copied package:** copy this package into TrenchBroom's user games directory and point it at the
+   checkout with `STELLAR_REPO_ROOT` or package-local `.stellar_repo_root`.
+3. **Linked package:** link this package into TrenchBroom's user games directory; the shims resolve
+   the physical checkout path through the link.
 
 Helper install from the repository root:
 
@@ -27,14 +29,22 @@ cp -a tools/trenchbroom/Stellar "$HOME/.TrenchBroom/games/Stellar"
 printf '%s\n' "$PWD" > "$HOME/.TrenchBroom/games/Stellar/.stellar_repo_root"
 ```
 
-Then open TrenchBroom's game preferences, add or refresh the package directory, and select the
-**Stellar** game profile. Keep map sources in `maps/src/` and compiled BSPs in `maps/compiled/` unless
-your project overrides the profile paths.
+After installing or linking the package, open TrenchBroom Preferences > Games > Stellar and verify:
+
+- The Stellar game package points at the installed `Stellar/` directory.
+- `STELLAR_BSP30_COMPILE` points at `<installed package>/bin/stellar_tb_compile.sh`.
+- `STELLAR_BSP30_VALIDATE` points at `<installed package>/bin/stellar_tb_validate.sh`.
+- For copied packages, `.stellar_repo_root` exists or `STELLAR_REPO_ROOT` is exported.
+- For linked packages, the shims resolve the physical checkout path; `STELLAR_REPO_ROOT` is optional.
+
+Then select the **Stellar** game profile. Keep map sources in `maps/src/` and compiled BSPs in
+`maps/compiled/` unless your project overrides the profile paths.
 
 On macOS, Homebrew users can install the editor with `brew install --cask trenchbroom`. Launch
 TrenchBroom from a terminal when compile profiles need shell exports such as `STELLAR_REPO_ROOT`,
 `STELLAR_CLIENT`, `STELLAR_SERVER`, `STELLAR_BSP30_COMPILER`, or `STELLAR_VHLT_DIR`; Finder-launched
-apps do not reliably inherit interactive shell environment variables.
+apps do not reliably inherit interactive shell environment variables. Helper-installed copied packages
+do not need `STELLAR_REPO_ROOT` unless the checkout moves after installation.
 
 ## Compile tools
 
@@ -57,9 +67,10 @@ Those shims locate the checkout and delegate to:
 - `tools/bsp/compile_trenchbroom_bsp30.sh`
 - `tools/bsp/validate_trenchbroom_bsp30.sh`
 
-Repository root resolution order is `STELLAR_REPO_ROOT`, package `.stellar_repo_root`, walking upward
-for repo-local installs, then the current working directory if it is a Stellar checkout. Paths passed by
-the compile profiles are quoted for checkouts and maps with spaces.
+Repository root resolution order is `STELLAR_REPO_ROOT`, package `.stellar_repo_root` for copied
+packages, physical package paths for linked or repo-local installs, then the current working directory
+if it is a Stellar checkout. Paths passed by the compile profiles are quoted for checkouts and maps with
+spaces.
 
 Set `STELLAR_BSP30_COMPILER` to your BSP30-capable `.map` to `.bsp` compiler, or place a supported
 compiler such as `qbsp`, `ericw-qbsp`, or `hqbsp` on `PATH`.
@@ -97,8 +108,9 @@ Copied packages inherit the same external tool environment as repo-local package
 
 ## Troubleshooting
 
-- Missing repository root: export `STELLAR_REPO_ROOT=/path/to/Stellar_Engine` or rerun the install
-  helper in `--copy` mode so `.stellar_repo_root` is written.
+- Missing repository root: for copied packages, export `STELLAR_REPO_ROOT=/path/to/Stellar_Engine` or
+  rerun the install helper in `--copy` mode so `.stellar_repo_root` is written. Linked packages should
+  resolve the physical checkout path automatically.
 - Unset compile tool variables: in TrenchBroom Preferences > Games > Stellar, set
   `STELLAR_BSP30_COMPILE` and `STELLAR_BSP30_VALIDATE` to the package-local shims listed above.
 - Undefined variable at compile time: verify `CompilationProfiles.cfg` does not use

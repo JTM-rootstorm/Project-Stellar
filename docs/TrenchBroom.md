@@ -21,8 +21,8 @@ tools/trenchbroom/Stellar/
 ```
 
 Add that directory as a TrenchBroom game package for repo-local use, or install/copy it into
-TrenchBroom's local games directory. For copied packages, point the package back at the checkout with
-`STELLAR_REPO_ROOT` or with the package-local `.stellar_repo_root` file written by the helper.
+TrenchBroom's local games directory. The helper's `--copy` mode writes a package-local
+`.stellar_repo_root`; `--link` mode resolves the physical checkout path through the symlink.
 
 Helper install examples:
 
@@ -41,10 +41,19 @@ cp -a tools/trenchbroom/Stellar "$HOME/.TrenchBroom/games/Stellar"
 printf '%s\n' "$PWD" > "$HOME/.TrenchBroom/games/Stellar/.stellar_repo_root"
 ```
 
+After installing or linking the package, open TrenchBroom Preferences > Games > Stellar and verify:
+
+- The Stellar game package points at the installed `Stellar/` directory.
+- `STELLAR_BSP30_COMPILE` points at `<installed package>/bin/stellar_tb_compile.sh`.
+- `STELLAR_BSP30_VALIDATE` points at `<installed package>/bin/stellar_tb_validate.sh`.
+- For copied packages, `.stellar_repo_root` exists or `STELLAR_REPO_ROOT` is exported.
+- For linked packages, the shims resolve the physical checkout path; `STELLAR_REPO_ROOT` is optional.
+
 Launch TrenchBroom from a terminal when compile profiles need shell exports such as
 `STELLAR_REPO_ROOT`, `STELLAR_CLIENT`, `STELLAR_SERVER`, `STELLAR_BSP30_COMPILER`, or
 `STELLAR_VHLT_DIR`. Finder-launched macOS apps do not reliably inherit interactive shell
-environment variables.
+environment variables. Helper-installed copied packages do not need `STELLAR_REPO_ROOT` unless the
+checkout moves after installation.
 
 Then create a new map using the **Stellar** game configuration.
 
@@ -81,8 +90,9 @@ The game package includes `GameConfig.cfg`, `CompilationProfiles.cfg`, `stellar_
 delegate to project wrappers in `tools/bsp/` so terminal and editor builds share the same BSP30 and
 validation policy.
 
-The shims resolve the repository root in this order: `STELLAR_REPO_ROOT`, package `.stellar_repo_root`,
-walking upward for repo-local installs, then the current working directory if it is a Stellar checkout.
+The shims resolve the repository root in this order: `STELLAR_REPO_ROOT`, package `.stellar_repo_root`
+for copied packages, physical package paths for linked or repo-local installs, then the current working
+directory if it is a Stellar checkout.
 Compile profile parameters quote `${MAP_DIR_PATH}/${MAP_FULL_NAME}` and output paths so spaces in
 checkout or map paths are handled by the shell wrapper path.
 
@@ -148,8 +158,8 @@ tools/bsp/linux-x86_64/<tool>   x86_64 Linux
 ```
 
 The wrappers select the matching checked-in platform directory automatically when the current host can
-execute it. Other hosts, including Intel macOS and non-x86_64 Linux, should provide host-native VHLT
-tools with `STELLAR_VHLT_DIR` or per-tool overrides, or use a single BSP30 compiler through
+execute it. Other hosts are outside the supported checked-in-tool path and should provide host-native
+VHLT tools with `STELLAR_VHLT_DIR` or per-tool overrides, or use a single BSP30 compiler through
 `STELLAR_BSP30_COMPILER`/`QBSP`.
 
 For custom or legacy layouts, place executable host-native VHLT tools in one of these repository-local
