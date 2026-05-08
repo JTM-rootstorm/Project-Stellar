@@ -5,3 +5,4 @@ build-*
 maps
 .DS_Store
 __pycache__
+.stellar_repo_root
