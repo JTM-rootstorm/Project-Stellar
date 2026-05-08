@@ -18,6 +18,8 @@ Environment overrides:
   QBSP                    Alternative compiler executable if STELLAR_BSP30_COMPILER is unset.
   STELLAR_CLIENT          Path to stellar-client for post-compile validation.
   STELLAR_SERVER          Path to stellar-server for post-compile validation.
+  STELLAR_BUILD_DIR       Build directory containing Stellar validation binaries.
+  STELLAR_CMAKE_PRESET    CMake preset name used to select the matching build directory.
 
 Compiler arguments:
   The single toolchain invokes the selected compiler as: <compiler> <map> <out>

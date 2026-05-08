@@ -19,8 +19,8 @@ Repository root resolution order:
   4. current working directory when it is a Stellar checkout
 
 Environment passed through to the repo wrapper includes STELLAR_CLIENT, STELLAR_SERVER,
-STELLAR_BSP30_TOOLCHAIN, STELLAR_BSP30_COMPILER, QBSP, STELLAR_VHLT_DIR, HLCSG,
-HLBSP, HLVIS, HLRAD, and RIPENT.
+STELLAR_BUILD_DIR, STELLAR_CMAKE_PRESET, STELLAR_BSP30_TOOLCHAIN,
+STELLAR_BSP30_COMPILER, QBSP, STELLAR_VHLT_DIR, HLCSG, HLBSP, HLVIS, HLRAD, and RIPENT.
 USAGE
 }
 

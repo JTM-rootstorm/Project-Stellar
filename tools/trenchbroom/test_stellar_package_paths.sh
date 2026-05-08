@@ -78,6 +78,41 @@ compiler_available() {
     return 1
 }
 
+stellar_binary_available() {
+    local binary="$1"
+    local env_name
+    local env_value
+    local host
+    local default_build
+
+    case "$binary" in
+        stellar-client) env_name="STELLAR_CLIENT" ;;
+        stellar-server) env_name="STELLAR_SERVER" ;;
+        *) return 1 ;;
+    esac
+
+    env_value="${!env_name:-}"
+    [[ -n "$env_value" && -x "$env_value" ]] && return 0
+    if [[ -n "${STELLAR_TEST_BUILD_ROOT:-}" ]]; then
+        [[ -x "$STELLAR_TEST_BUILD_ROOT/$binary" ]] && return 0
+    fi
+
+    host="$(uname -s 2>/dev/null || printf 'unknown')"
+    case "$host" in
+        Darwin) default_build="build-macos" ;;
+        Linux) default_build="build-linux" ;;
+        *) default_build="build" ;;
+    esac
+
+    [[ -x "$repo_root/$default_build/$binary" ]] && return 0
+    [[ -x "$repo_root/build/$binary" ]] && return 0
+    command -v "$binary" >/dev/null 2>&1
+}
+
+stellar_validation_available() {
+    stellar_binary_available stellar-client && stellar_binary_available stellar-server
+}
+
 for script in \
     "$compile_shim" \
     "$validate_shim" \
@@ -232,22 +267,18 @@ fi
 STELLAR_REPO_ROOT="$repo_root" "$copied_package/bin/stellar_tb_compile.sh" --help >/dev/null
 STELLAR_REPO_ROOT="$repo_root" "$copied_package/bin/stellar_tb_validate.sh" --help >/dev/null
 
-if compiler_available; then
+if compiler_available && stellar_validation_available; then
     smoke_out="$work_dir/copied package compile/minimal_zup_room.bsp"
     mkdir -p "$(dirname "$smoke_out")"
     STELLAR_REPO_ROOT="$repo_root" \
-    STELLAR_CLIENT="${STELLAR_CLIENT:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-client}" \
-    STELLAR_SERVER="${STELLAR_SERVER:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-server}" \
         "$copied_package/bin/stellar_tb_compile.sh" \
         --map "$repo_root/tests/fixtures/trenchbroom/src/minimal_zup_room.map" \
         --out "$smoke_out" \
         --profile fast
     STELLAR_REPO_ROOT="$repo_root" \
-    STELLAR_CLIENT="${STELLAR_CLIENT:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-client}" \
-    STELLAR_SERVER="${STELLAR_SERVER:-${STELLAR_TEST_BUILD_ROOT:-$repo_root/build}/stellar-server}" \
         "$copied_package/bin/stellar_tb_validate.sh" --map "$smoke_out"
 else
-    printf 'Skipping copied-package compile sub-step: no external BSP30 compiler found.\n'
+    printf 'Skipping copied-package compile sub-step: missing compiler or Stellar binaries.\n'
 fi
 
 fake_repo="$work_dir/Fake Repo With Spaces"
@@ -290,6 +321,70 @@ expected = [
 if args != expected:
     raise SystemExit(f"quoted argument preservation failed: {args!r} != {expected!r}")
 PY
+
+fake_validate_repo="$work_dir/Fake Validate Repo With Spaces"
+mkdir -p \
+    "$fake_validate_repo/tools/bsp" \
+    "$fake_validate_repo/build" \
+    "$fake_validate_repo/build-linux" \
+    "$fake_validate_repo/build-linux-vulkan-only" \
+    "$fake_validate_repo/build-macos"
+touch "$fake_validate_repo/CMakeLists.txt"
+cp "$repo_root/tools/bsp/validate_trenchbroom_bsp30.sh" \
+    "$fake_validate_repo/tools/bsp/validate_trenchbroom_bsp30.sh"
+chmod +x "$fake_validate_repo/tools/bsp/validate_trenchbroom_bsp30.sh"
+fake_bsp="$work_dir/fake-valid.bsp"
+python3 - "$fake_bsp" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_bytes((30).to_bytes(4, "little") + b"fake bsp")
+PY
+make_fake_stellar_binary() {
+    local path="$1"
+    local label="$2"
+    cat > "$path" <<SH
+#!/usr/bin/env bash
+printf '%s:%s\n' "\$(basename "\$0")" "$label" >> "\$STELLAR_TB_BINARY_CAPTURE"
+exit 0
+SH
+    chmod +x "$path"
+}
+case "$(uname -s 2>/dev/null || printf 'unknown')" in
+    Darwin) host_default_build="build-macos" ;;
+    Linux) host_default_build="build-linux" ;;
+    *) host_default_build="build" ;;
+esac
+for binary in stellar-client stellar-server; do
+    make_fake_stellar_binary "$fake_validate_repo/build/$binary" "legacy-build"
+    make_fake_stellar_binary "$fake_validate_repo/$host_default_build/$binary" "host-default"
+    make_fake_stellar_binary "$fake_validate_repo/build-linux-vulkan-only/$binary" \
+        "linux-vulkan-only"
+done
+
+default_capture="$work_dir/default-binary-resolution.txt"
+env -u STELLAR_CLIENT -u STELLAR_SERVER -u STELLAR_BUILD_DIR -u STELLAR_CMAKE_PRESET \
+    STELLAR_TB_BINARY_CAPTURE="$default_capture" \
+    "$fake_validate_repo/tools/bsp/validate_trenchbroom_bsp30.sh" --map "$fake_bsp" \
+    >/dev/null
+if ! grep -qx 'stellar-client:host-default' "$default_capture"; then
+    fail "validation wrapper did not prefer host-default build directory for stellar-client"
+fi
+if ! grep -qx 'stellar-server:host-default' "$default_capture"; then
+    fail "validation wrapper did not prefer host-default build directory for stellar-server"
+fi
+
+preset_capture="$work_dir/preset-binary-resolution.txt"
+env -u STELLAR_CLIENT -u STELLAR_SERVER -u STELLAR_BUILD_DIR \
+    STELLAR_CMAKE_PRESET=linux-vulkan-only \
+    STELLAR_TB_BINARY_CAPTURE="$preset_capture" \
+    "$fake_validate_repo/tools/bsp/validate_trenchbroom_bsp30.sh" --map "$fake_bsp" \
+    >/dev/null
+if ! grep -qx 'stellar-client:linux-vulkan-only' "$preset_capture"; then
+    fail "validation wrapper did not honor STELLAR_CMAKE_PRESET for stellar-client"
+fi
+if ! grep -qx 'stellar-server:linux-vulkan-only' "$preset_capture"; then
+    fail "validation wrapper did not honor STELLAR_CMAKE_PRESET for stellar-server"
+fi
 
 missing_root_package="$work_dir/MissingRoot/Stellar"
 mkdir -p "$(dirname "$missing_root_package")"

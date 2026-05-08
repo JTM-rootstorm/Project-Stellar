@@ -83,8 +83,8 @@ validation policy.
 
 The shims resolve the repository root in this order: `STELLAR_REPO_ROOT`, package `.stellar_repo_root`,
 walking upward for repo-local installs, then the current working directory if it is a Stellar checkout.
-Compile profile parameters quote `${MAP_FULL_PATH}` and output paths so spaces in checkout or map paths
-are handled by the shell wrapper path.
+Compile profile parameters quote `${MAP_DIR_PATH}/${MAP_FULL_NAME}` and output paths so spaces in
+checkout or map paths are handled by the shell wrapper path.
 
 ## Coordinates, scale, and first room
 
@@ -357,7 +357,8 @@ paths, missing worldspawn/player start, and malformed `_stellar_*` values with l
 If TrenchBroom reports that the compile tool cannot locate the repository, export
 `STELLAR_REPO_ROOT=/path/to/Stellar_Engine` before launching TrenchBroom or reinstall the package with
 `tools/trenchbroom/install_stellar_game_package.sh --copy` so `.stellar_repo_root` is written. If
-validation reports missing binaries, build the project or set `STELLAR_CLIENT` and `STELLAR_SERVER`.
+validation reports missing binaries, build the project, set `STELLAR_CMAKE_PRESET` to the preset you
+built, set `STELLAR_BUILD_DIR`, or set `STELLAR_CLIENT` and `STELLAR_SERVER`.
 
 ## Validate and launch
 
@@ -379,7 +380,20 @@ stellar-client --validate-map maps/compiled/test_room.bsp
 stellar-server --validate-config --map maps/compiled/test_room.bsp
 ```
 
-If built binaries are not in `build/`, set:
+By default the validation wrapper looks for `build-linux/` on Linux and `build-macos/` on macOS,
+then falls back to `build/` and `PATH`. For a non-default CMake preset, launch TrenchBroom with:
+
+```bash
+export STELLAR_CMAKE_PRESET=linux-vulkan-only
+```
+
+or point directly at a build directory:
+
+```bash
+export STELLAR_BUILD_DIR=build-linux-vulkan-only
+```
+
+If built binaries are somewhere else, set:
 
 ```bash
 export STELLAR_CLIENT=/path/to/stellar-client

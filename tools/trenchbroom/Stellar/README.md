@@ -71,12 +71,15 @@ silicon macOS or x86_64 Linux. Other hosts should provide host-native VHLT tools
 `STELLAR_BSP30_COMPILER`/`QBSP`. Optional CTest coverage skips with return code `77` when external
 compilers are missing or incompatible with the current host.
 
-Set `STELLAR_CLIENT` and `STELLAR_SERVER` if your built binaries are not available as
-`build/stellar-client` and `build/stellar-server`.
+Validation looks for built binaries under the host-default CMake preset directory first:
+`build-linux/` on Linux and `build-macos/` on macOS. It then falls back to `build/` and `PATH`.
+Set `STELLAR_CMAKE_PRESET` for another checked-in preset, `STELLAR_BUILD_DIR` for a custom build
+directory, or `STELLAR_CLIENT` and `STELLAR_SERVER` for exact binary paths.
 
 Copied packages inherit the same external tool environment as repo-local packages: `STELLAR_CLIENT`,
-`STELLAR_SERVER`, `STELLAR_BSP30_TOOLCHAIN`, `STELLAR_BSP30_COMPILER`, `QBSP`, `STELLAR_VHLT_DIR`,
-`HLCSG`, `HLBSP`, `HLVIS`, `HLRAD`, and `RIPENT`.
+`STELLAR_SERVER`, `STELLAR_BUILD_DIR`, `STELLAR_CMAKE_PRESET`, `STELLAR_BSP30_TOOLCHAIN`,
+`STELLAR_BSP30_COMPILER`, `QBSP`, `STELLAR_VHLT_DIR`, `HLCSG`, `HLBSP`, `HLVIS`, `HLRAD`, and
+`RIPENT`.
 
 ## Expected package files
 
@@ -106,8 +109,8 @@ Copied packages inherit the same external tool environment as repo-local package
 - Missing VHLT tools: use the checked-in `tools/bsp/macos-arm64/` or `tools/bsp/linux-x86_64/`
   directory on matching hosts, set `STELLAR_VHLT_DIR`, individual `HLCSG`/`HLBSP`/`HLVIS`/`HLRAD`
   variables, or use the generic `STELLAR_BSP30_COMPILER`/`QBSP` path.
-- Missing Stellar binaries during validation: build the project or set `STELLAR_CLIENT` and
-  `STELLAR_SERVER` to executable paths.
+- Missing Stellar binaries during validation: build the project, set `STELLAR_CMAKE_PRESET` or
+  `STELLAR_BUILD_DIR`, or set `STELLAR_CLIENT` and `STELLAR_SERVER` to executable paths.
 
 ## Coordinates and scale
 
