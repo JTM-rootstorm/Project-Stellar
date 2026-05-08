@@ -63,22 +63,32 @@ host_tool_is_executable() {
     machine="$(uname -m 2>/dev/null || printf 'unknown')"
     if command -v file >/dev/null 2>&1; then
         info="$(file "$path" 2>/dev/null || true)"
-        case "$host:$info" in
-            Darwin:*ELF*) return 1 ;;
-            Linux:*Mach-O*) return 1 ;;
-        esac
-        case "$host:$machine:$info" in
-            Darwin:arm64:*x86_64*) return 1 ;;
-            Darwin:aarch64:*x86_64*) return 1 ;;
-            Darwin:x86_64:*arm64*) return 1 ;;
-            Linux:x86_64:*aarch64*) return 1 ;;
-            Linux:x86_64:*ARM\ aarch64*) return 1 ;;
-            Linux:amd64:*aarch64*) return 1 ;;
-            Linux:amd64:*ARM\ aarch64*) return 1 ;;
-            Linux:aarch64:*x86-64*) return 1 ;;
-            Linux:arm64:*x86-64*) return 1 ;;
-        esac
+        host_tool_file_info_is_compatible "$host" "$machine" "$info" || return 1
     fi
+    return 0
+}
+
+host_tool_file_info_is_compatible() {
+    local host="$1"
+    local machine="$2"
+    local info="$3"
+
+    case "$host:$machine" in
+        Darwin:arm64|Darwin:aarch64)
+            [[ "$info" != *ELF* ]] || return 1
+            case "$info" in
+                *Mach-O*)
+                    [[ "$info" == *arm64* || "$info" == *aarch64* ]] || return 1
+                    ;;
+            esac
+            ;;
+        Linux:x86_64|Linux:amd64)
+            [[ "$info" != *Mach-O* ]] || return 1
+            [[ "$info" != *aarch64* ]] || return 1
+            [[ "$info" != *ARM\ aarch64* ]] || return 1
+            ;;
+    esac
+
     return 0
 }
 

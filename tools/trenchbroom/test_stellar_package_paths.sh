@@ -18,6 +18,30 @@ compile_shim="$package/bin/stellar_tb_compile.sh"
 validate_shim="$package/bin/stellar_tb_validate.sh"
 install_helper="$repo_root/tools/trenchbroom/install_stellar_game_package.sh"
 
+host_tool_file_info_is_compatible() {
+    local host="$1"
+    local machine="$2"
+    local info="$3"
+
+    case "$host:$machine" in
+        Darwin:arm64|Darwin:aarch64)
+            [[ "$info" != *ELF* ]] || return 1
+            case "$info" in
+                *Mach-O*)
+                    [[ "$info" == *arm64* || "$info" == *aarch64* ]] || return 1
+                    ;;
+            esac
+            ;;
+        Linux:x86_64|Linux:amd64)
+            [[ "$info" != *Mach-O* ]] || return 1
+            [[ "$info" != *aarch64* ]] || return 1
+            [[ "$info" != *ARM\ aarch64* ]] || return 1
+            ;;
+    esac
+
+    return 0
+}
+
 compiler_available() {
     [[ -n "${STELLAR_BSP30_COMPILER:-}" || -n "${QBSP:-}" ]] && return 0
     for compiler in ericw-qbsp qbsp hqbsp tyr-qbsp; do
@@ -28,28 +52,17 @@ compiler_available() {
         local bsp="$2"
         local host
         local machine
+        local path
         local info
 
         [[ -x "$csg" && -x "$bsp" ]] || return 1
         host="$(uname -s 2>/dev/null || printf 'unknown')"
         machine="$(uname -m 2>/dev/null || printf 'unknown')"
         if command -v file >/dev/null 2>&1; then
-            info="$(file "$csg" "$bsp" 2>/dev/null || true)"
-            case "$host:$info" in
-                Darwin:*ELF*) return 1 ;;
-                Linux:*Mach-O*) return 1 ;;
-            esac
-            case "$host:$machine:$info" in
-                Darwin:arm64:*x86_64*) return 1 ;;
-                Darwin:aarch64:*x86_64*) return 1 ;;
-                Darwin:x86_64:*arm64*) return 1 ;;
-                Linux:x86_64:*aarch64*) return 1 ;;
-                Linux:x86_64:*ARM\ aarch64*) return 1 ;;
-                Linux:amd64:*aarch64*) return 1 ;;
-                Linux:amd64:*ARM\ aarch64*) return 1 ;;
-                Linux:aarch64:*x86-64*) return 1 ;;
-                Linux:arm64:*x86-64*) return 1 ;;
-            esac
+            for path in "$csg" "$bsp"; do
+                info="$(file "$path" 2>/dev/null || true)"
+                host_tool_file_info_is_compatible "$host" "$machine" "$info" || return 1
+            done
         fi
         return 0
     }
@@ -158,6 +171,34 @@ for token in [
     if token not in profiles:
         raise SystemExit(f"CompilationProfiles.cfg missing expected quoted token: {token}")
 PY
+
+assert_host_info_compatible() {
+    local host="$1"
+    local machine="$2"
+    local info="$3"
+    host_tool_file_info_is_compatible "$host" "$machine" "$info" || \
+        fail "expected $host:$machine to accept file output: $info"
+}
+
+assert_host_info_rejected() {
+    local host="$1"
+    local machine="$2"
+    local info="$3"
+    if host_tool_file_info_is_compatible "$host" "$machine" "$info"; then
+        fail "expected $host:$machine to reject file output: $info"
+    fi
+}
+
+assert_host_info_compatible Darwin arm64 'Mach-O 64-bit executable arm64'
+assert_host_info_compatible Darwin arm64 \
+    'Mach-O universal binary with 2 architectures: [x86_64] [arm64]'
+assert_host_info_compatible Darwin aarch64 \
+    'Mach-O universal binary with 2 architectures: [arm64] [x86_64]'
+assert_host_info_rejected Darwin arm64 'ELF 64-bit LSB executable'
+assert_host_info_rejected Darwin arm64 'Mach-O 64-bit executable x86_64'
+assert_host_info_compatible Linux x86_64 'ELF 64-bit LSB executable, x86-64'
+assert_host_info_rejected Linux x86_64 'Mach-O 64-bit executable arm64'
+assert_host_info_rejected Linux amd64 'ELF 64-bit LSB executable, ARM aarch64'
 
 [[ -f "$package/Icon.png" ]] || fail "Icon.png missing"
 [[ -f "$package/materials/stellar_dev.wad" ]] || fail "package WAD missing"
