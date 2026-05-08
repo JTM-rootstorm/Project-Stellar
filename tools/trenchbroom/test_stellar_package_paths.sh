@@ -322,6 +322,65 @@ if args != expected:
     raise SystemExit(f"quoted argument preservation failed: {args!r} != {expected!r}")
 PY
 
+linked_fake_repo="$work_dir/Linked Fake Repo With Spaces"
+linked_dest="$work_dir/Linked Games With Spaces"
+mkdir -p \
+    "$linked_fake_repo/tools/bsp" \
+    "$linked_fake_repo/tools/trenchbroom" \
+    "$linked_dest" \
+    "$work_dir/Linked Map Dir With Spaces" \
+    "$work_dir/Linked Out Dir With Spaces"
+touch "$linked_fake_repo/CMakeLists.txt" "$work_dir/Linked Map Dir With Spaces/test map.map"
+cp -a "$package" "$linked_fake_repo/tools/trenchbroom/Stellar"
+rm -f "$linked_fake_repo/tools/trenchbroom/Stellar/.stellar_repo_root"
+cat > "$linked_fake_repo/tools/bsp/validate_trenchbroom_bsp30.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+cat > "$linked_fake_repo/tools/bsp/compile_trenchbroom_bsp30.sh" <<'SH'
+#!/usr/bin/env bash
+python3 - "$STELLAR_TB_ARG_CAPTURE" "$@" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_text("\n".join(sys.argv[2:]), encoding="utf-8")
+PY
+SH
+chmod +x \
+    "$linked_fake_repo/tools/bsp/compile_trenchbroom_bsp30.sh" \
+    "$linked_fake_repo/tools/bsp/validate_trenchbroom_bsp30.sh"
+"$install_helper" --repo-root "$linked_fake_repo" --dest "$linked_dest" --link \
+    >"$work_dir/linked_install_output.txt"
+linked_package="$linked_dest/Stellar"
+[[ -L "$linked_package" ]] || fail "linked install did not create a Stellar symlink"
+[[ ! -e "$linked_package/.stellar_repo_root" ]] || fail "linked package unexpectedly has .stellar_repo_root"
+env -u STELLAR_REPO_ROOT "$linked_package/bin/stellar_tb_compile.sh" --help >/dev/null
+env -u STELLAR_REPO_ROOT "$linked_package/bin/stellar_tb_validate.sh" --help >/dev/null
+linked_arg_capture="$work_dir/linked-args.txt"
+env -u STELLAR_REPO_ROOT STELLAR_TB_ARG_CAPTURE="$linked_arg_capture" \
+    "$linked_package/bin/stellar_tb_compile.sh" \
+    --map "$work_dir/Linked Map Dir With Spaces/test map.map" \
+    --out "$work_dir/Linked Out Dir With Spaces/test map.bsp" \
+    --profile fast
+env -u STELLAR_REPO_ROOT \
+    "$linked_package/bin/stellar_tb_validate.sh" \
+    --map "$work_dir/Linked Out Dir With Spaces/test map.bsp"
+python3 - "$linked_arg_capture" "$work_dir" <<'PY'
+from pathlib import Path
+import sys
+args = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+work = Path(sys.argv[2])
+expected = [
+    "--map",
+    str(work / "Linked Map Dir With Spaces" / "test map.map"),
+    "--out",
+    str(work / "Linked Out Dir With Spaces" / "test map.bsp"),
+    "--profile",
+    "fast",
+]
+if args != expected:
+    raise SystemExit(f"linked quoted argument preservation failed: {args!r} != {expected!r}")
+PY
+
 fake_validate_repo="$work_dir/Fake Validate Repo With Spaces"
 mkdir -p \
     "$fake_validate_repo/tools/bsp" \

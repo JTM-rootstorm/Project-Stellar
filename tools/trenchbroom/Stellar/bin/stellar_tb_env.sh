@@ -9,8 +9,8 @@ stellar_tb_env_fail() {
 stellar_tb_env_package_root() {
     local source_path="${BASH_SOURCE[0]}"
     local source_dir
-    source_dir="$(cd "$(dirname "$source_path")" && pwd)" || return 1
-    cd "$source_dir/.." && pwd
+    source_dir="$(cd -P "$(dirname "$source_path")" && pwd -P)" || return 1
+    cd -P "$source_dir/.." && pwd -P
 }
 
 stellar_tb_env_repo_is_valid() {
@@ -26,7 +26,7 @@ stellar_tb_env_normalize_dir() {
     local path="$1"
     [[ -n "$path" ]] || return 1
     [[ -d "$path" ]] || return 1
-    cd "$path" && pwd
+    cd -P "$path" && pwd -P
 }
 
 stellar_tb_env_read_configured_root() {
